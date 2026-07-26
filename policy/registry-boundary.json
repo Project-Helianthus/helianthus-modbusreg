@@ -5,6 +5,9 @@
   "allowed_product_go_files": [
     "doc.go"
   ],
+  "allowed_product_go_sha256": {
+    "doc.go": "9e8a409c21ddc211f0854177c29ae29303c81c20a434ea28f1eca895e7bafaba"
+  },
   "standard_root": "profiles/standard",
   "vendor_root": "profiles/vendor",
   "vendor_evidence_file": "evidence.json",

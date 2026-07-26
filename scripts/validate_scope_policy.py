@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -17,6 +18,9 @@ EXPECTED_POLICY = {
     "repository_mode": "single_multi_vendor",
     "implementation_lock": "bootstrap_only",
     "allowed_product_go_files": ["doc.go"],
+    "allowed_product_go_sha256": {
+        "doc.go": "9e8a409c21ddc211f0854177c29ae29303c81c20a434ea28f1eca895e7bafaba"
+    },
     "standard_root": "profiles/standard",
     "vendor_root": "profiles/vendor",
     "vendor_evidence_file": "evidence.json",
@@ -124,6 +128,16 @@ def validate_bootstrap_lock(root: Path, policy: dict[str, object]) -> None:
             f"bootstrap Go-file lock mismatch: unexpected={sorted(unexpected)} "
             f"missing={sorted(missing)}"
         )
+    expected_hashes = {
+        str(path): str(digest)
+        for path, digest in policy["allowed_product_go_sha256"].items()
+    }
+    if set(expected_hashes) != allowed:
+        raise PolicyError("bootstrap Go-file hash inventory differs from allowed files")
+    for relative, expected in expected_hashes.items():
+        actual = hashlib.sha256((root / relative).read_bytes()).hexdigest()
+        if actual != expected:
+            raise PolicyError(f"bootstrap Go-file content changed: {relative}")
 
 
 def validate_standard_sources(root: Path, policy: dict[str, object]) -> None:
