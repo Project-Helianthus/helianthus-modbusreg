@@ -67,12 +67,16 @@ The gate validates the exact machine-readable
 [`policy/registry-boundary.json`](policy/registry-boundary.json), rejects
 unauthorized project/transport dependencies, prevents named vendor leakage into
 standard-family source, requires an evidence manifest for vendor code, and runs
-mutation tests for those boundaries.
+mutation tests for those boundaries. The bootstrap policy also permits only
+`doc.go`; any profile, codec, detector, fixture test, or other Go implementation
+file fails CI. The authorized M2 implementation must replace this lock
+explicitly through its test-first issue and merged M1-00 companion contract.
 
 The repository follows one issue and one pull request at a time, squash merge,
 strict test-first implementation, and applicable documentation/evidence gates.
 GitHub protects `main` with required `checks` and `lint` jobs, linear history,
-conversation resolution, and disabled merge/rebase commit methods.
+conversation resolution, one independent approval after the last push
+(including for administrators), and disabled merge/rebase commit methods.
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 
 ## License

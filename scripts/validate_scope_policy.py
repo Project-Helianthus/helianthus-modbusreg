@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +15,8 @@ from typing import Iterable
 EXPECTED_POLICY = {
     "schema": "helianthus-modbusreg-boundary/v1",
     "repository_mode": "single_multi_vendor",
+    "implementation_lock": "bootstrap_only",
+    "allowed_product_go_files": ["doc.go"],
     "standard_root": "profiles/standard",
     "vendor_root": "profiles/vendor",
     "vendor_evidence_file": "evidence.json",
@@ -30,11 +33,33 @@ EXPECTED_POLICY = {
 
 EVIDENCE_KEYS = {
     "profile",
+    "profile_version",
     "sources",
+    "transformation",
     "claim_state",
     "applicability",
+    "sanitization",
     "license",
+    "code_mapping",
 }
+SOURCE_KEYS = {"id", "locator", "permission", "license", "sha256", "redistribution"}
+APPLICABILITY_KEYS = {
+    "vendor",
+    "models",
+    "gateways",
+    "firmware",
+    "protocol_modes",
+    "address_basis",
+    "exclusions",
+}
+SANITIZATION_KEYS = {
+    "credentials_removed",
+    "private_addresses_removed",
+    "customer_identifiers_removed",
+    "unrelated_payload_removed",
+    "method",
+}
+CODE_MAPPING_KEYS = {"package", "profile_version", "fixtures"}
 
 
 class PolicyError(RuntimeError):
@@ -83,6 +108,24 @@ def validate_imports(imports: Iterable[str], policy: dict[str, object]) -> None:
                 raise PolicyError(f"forbidden transport/framing dependency: {import_path}")
 
 
+def validate_bootstrap_lock(root: Path, policy: dict[str, object]) -> None:
+    if policy["implementation_lock"] != "bootstrap_only":
+        raise PolicyError("implementation lock must remain bootstrap_only")
+    allowed = {str(item) for item in policy["allowed_product_go_files"]}
+    actual = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*.go")
+        if ".git" not in path.parts
+    }
+    unexpected = actual - allowed
+    missing = allowed - actual
+    if unexpected or missing:
+        raise PolicyError(
+            f"bootstrap Go-file lock mismatch: unexpected={sorted(unexpected)} "
+            f"missing={sorted(missing)}"
+        )
+
+
 def validate_standard_sources(root: Path, policy: dict[str, object]) -> None:
     standard_root = root / str(policy["standard_root"])
     vendor_identifiers = tuple(str(item) for item in policy["vendor_identifiers"])
@@ -120,14 +163,144 @@ def validate_vendor_evidence(root: Path, policy: dict[str, object]) -> None:
             raise PolicyError(
                 f"{evidence_path.relative_to(root)} must contain exact evidence keys"
             )
-        if evidence["claim_state"] not in {"PROVEN", "HYPOTHESIS", "UNKNOWN"}:
+        if evidence["profile"] != profile_dir.name:
             raise PolicyError(
-                f"{evidence_path.relative_to(root)} has invalid claim_state"
+                f"{evidence_path.relative_to(root)} profile must match its directory"
             )
-        if not isinstance(evidence["sources"], list) or not evidence["sources"]:
+        if not isinstance(evidence["profile_version"], str) or not evidence[
+            "profile_version"
+        ].strip():
             raise PolicyError(
-                f"{evidence_path.relative_to(root)} requires at least one public source"
+                f"{evidence_path.relative_to(root)} requires profile_version"
             )
+        sources = evidence["sources"]
+        if not isinstance(sources, list) or not sources:
+            raise PolicyError(f"{evidence_path.relative_to(root)} requires public sources")
+        source_ids: set[str] = set()
+        for source in sources:
+            if not isinstance(source, dict) or set(source) != SOURCE_KEYS:
+                raise PolicyError(
+                    f"{evidence_path.relative_to(root)} source keys are incomplete"
+                )
+            if not all(
+                isinstance(source[key], str) and source[key].strip()
+                for key in ("id", "locator", "permission", "license")
+            ):
+                raise PolicyError(
+                    f"{evidence_path.relative_to(root)} source metadata is incomplete"
+                )
+            if source["id"] in source_ids:
+                raise PolicyError(
+                    f"{evidence_path.relative_to(root)} has duplicate source ids"
+                )
+            source_ids.add(source["id"])
+            if not (
+                source["locator"].startswith("https://")
+                or source["locator"].startswith("urn:helianthus:evidence:")
+            ):
+                raise PolicyError(
+                    f"{evidence_path.relative_to(root)} source locator is not stable/public"
+                )
+            if source["permission"] not in {
+                "independent_fact_publication_permitted",
+                "source_redistribution_permitted",
+                "operator_owned_capture",
+            }:
+                raise PolicyError(
+                    f"{evidence_path.relative_to(root)} source permission is not admissible"
+                )
+            if re.fullmatch(r"[0-9a-f]{64}", source["sha256"]) is None:
+                raise PolicyError(
+                    f"{evidence_path.relative_to(root)} source sha256 is invalid"
+                )
+            if source["redistribution"] not in {
+                "allowed",
+                "metadata_only",
+                "prohibited_source_copy",
+            }:
+                raise PolicyError(
+                    f"{evidence_path.relative_to(root)} source redistribution is invalid"
+                )
+        if not isinstance(evidence["transformation"], str) or not evidence[
+            "transformation"
+        ].strip():
+            raise PolicyError(
+                f"{evidence_path.relative_to(root)} requires a transformation record"
+            )
+        if evidence["claim_state"] != "PROVEN":
+            raise PolicyError(
+                f"{evidence_path.relative_to(root)} vendor code requires PROVEN claims"
+            )
+        applicability = evidence["applicability"]
+        if not isinstance(applicability, dict) or set(applicability) != APPLICABILITY_KEYS:
+            raise PolicyError(
+                f"{evidence_path.relative_to(root)} applicability keys are incomplete"
+            )
+        if applicability["vendor"] != profile_dir.name:
+            raise PolicyError(
+                f"{evidence_path.relative_to(root)} applicability vendor mismatch"
+            )
+        for key in ("models", "gateways", "firmware", "protocol_modes", "address_basis"):
+            if not isinstance(applicability[key], list) or not applicability[key]:
+                raise PolicyError(
+                    f"{evidence_path.relative_to(root)} applicability {key} is empty"
+                )
+        if not isinstance(applicability["exclusions"], list):
+            raise PolicyError(
+                f"{evidence_path.relative_to(root)} applicability exclusions must be a list"
+            )
+        sanitization = evidence["sanitization"]
+        if not isinstance(sanitization, dict) or set(sanitization) != SANITIZATION_KEYS:
+            raise PolicyError(
+                f"{evidence_path.relative_to(root)} sanitization keys are incomplete"
+            )
+        for key in SANITIZATION_KEYS - {"method"}:
+            if sanitization[key] is not True:
+                raise PolicyError(
+                    f"{evidence_path.relative_to(root)} sanitization {key} must be true"
+                )
+        if not isinstance(sanitization["method"], str) or not sanitization[
+            "method"
+        ].strip():
+            raise PolicyError(
+                f"{evidence_path.relative_to(root)} sanitization method is required"
+            )
+        if evidence["license"] != "CC0-1.0":
+            raise PolicyError(
+                f"{evidence_path.relative_to(root)} public facts must use CC0-1.0"
+            )
+        code_mapping = evidence["code_mapping"]
+        if not isinstance(code_mapping, dict) or set(code_mapping) != CODE_MAPPING_KEYS:
+            raise PolicyError(
+                f"{evidence_path.relative_to(root)} code_mapping keys are incomplete"
+            )
+        expected_package = (
+            "github.com/Project-Helianthus/helianthus-modbusreg/"
+            + profile_dir.relative_to(root).as_posix()
+        )
+        if code_mapping["package"] != expected_package:
+            raise PolicyError(
+                f"{evidence_path.relative_to(root)} code_mapping package mismatch"
+            )
+        if code_mapping["profile_version"] != evidence["profile_version"]:
+            raise PolicyError(
+                f"{evidence_path.relative_to(root)} code_mapping version mismatch"
+            )
+        fixtures = code_mapping["fixtures"]
+        if not isinstance(fixtures, list) or not fixtures:
+            raise PolicyError(
+                f"{evidence_path.relative_to(root)} requires mapped fixtures"
+            )
+        for fixture in fixtures:
+            fixture_path = Path(str(fixture))
+            if (
+                fixture_path.is_absolute()
+                or ".." in fixture_path.parts
+                or not (root / fixture_path).is_file()
+            ):
+                raise PolicyError(
+                    f"{evidence_path.relative_to(root)} fixture is absent or unsafe: {fixture}"
+                )
 
 
 def go_imports(root: Path) -> list[str]:
@@ -152,6 +325,7 @@ def go_imports(root: Path) -> list[str]:
 
 def validate(root: Path) -> None:
     policy = load_policy(root)
+    validate_bootstrap_lock(root, policy)
     validate_imports(go_imports(root), policy)
     validate_standard_sources(root, policy)
     validate_vendor_evidence(root, policy)

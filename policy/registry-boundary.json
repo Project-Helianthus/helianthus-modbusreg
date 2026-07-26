@@ -1,6 +1,10 @@
 {
   "schema": "helianthus-modbusreg-boundary/v1",
   "repository_mode": "single_multi_vendor",
+  "implementation_lock": "bootstrap_only",
+  "allowed_product_go_files": [
+    "doc.go"
+  ],
   "standard_root": "profiles/standard",
   "vendor_root": "profiles/vendor",
   "vendor_evidence_file": "evidence.json",
