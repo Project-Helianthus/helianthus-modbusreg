@@ -1,0 +1,34 @@
+{
+  "schema": "helianthus-modbusreg-boundary/v1",
+  "repository_mode": "single_multi_vendor",
+  "implementation_lock": "bootstrap_only",
+  "allowed_product_go_files": [
+    "doc.go"
+  ],
+  "allowed_product_go_sha256": {
+    "doc.go": "9e8a409c21ddc211f0854177c29ae29303c81c20a434ea28f1eca895e7bafaba"
+  },
+  "standard_root": "profiles/standard",
+  "vendor_root": "profiles/vendor",
+  "vendor_evidence_file": "evidence.json",
+  "allowed_project_import_prefixes": [
+    "github.com/Project-Helianthus/helianthus-modbus",
+    "github.com/Project-Helianthus/helianthus-modbusreg"
+  ],
+  "forbidden_import_prefixes": [
+    "net",
+    "syscall",
+    "golang.org/x/sys/"
+  ],
+  "forbidden_import_tokens": [
+    "serial",
+    "modbus"
+  ],
+  "vendor_identifiers": [
+    "fronius",
+    "growatt",
+    "huawei"
+  ],
+  "standard_family_vendor_neutral": true,
+  "vendor_overlay_requires_public_evidence": true
+}
