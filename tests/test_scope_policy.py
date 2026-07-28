@@ -8,7 +8,8 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "validate_scope_policy.py"
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "scripts" / "validate_scope_policy.py"
 SPEC = importlib.util.spec_from_file_location("validate_scope_policy", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 validator = importlib.util.module_from_spec(SPEC)
@@ -71,6 +72,21 @@ class ScopePolicyTests(unittest.TestCase):
         }
         return overlay, evidence
 
+    def authorized_go_layout(self, root: Path) -> None:
+        for relative in validator.EXPECTED_POLICY["allowed_product_go_files"]:
+            destination = root / str(relative)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((ROOT / str(relative)).read_bytes())
+        for relative in validator.EXPECTED_POLICY["allowed_test_go_files"]:
+            destination = root / str(relative)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((ROOT / str(relative)).read_bytes())
+        for key in ("documentation_consumer_lock", "runtime_consumer_lock"):
+            relative = Path(str(validator.EXPECTED_POLICY[key]))
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((ROOT / relative).read_bytes())
+
     def test_exact_policy_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -97,25 +113,32 @@ class ScopePolicyTests(unittest.TestCase):
         with self.assertRaises(validator.PolicyError):
             validator.validate_imports(["net/http"], validator.EXPECTED_POLICY)
 
-    def test_token_free_profile_file_is_rejected_by_bootstrap_lock(self) -> None:
+    def test_token_free_profile_file_is_rejected_by_m2_01_lock(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            (root / "doc.go").write_text("package modbusreg\n", encoding="utf-8")
+            self.authorized_go_layout(root)
             profile = root / "profiles" / "standard" / "example" / "profile.go"
             profile.parent.mkdir(parents=True)
             profile.write_text("package example\n", encoding="utf-8")
             with self.assertRaises(validator.PolicyError):
-                validator.validate_bootstrap_lock(root, validator.EXPECTED_POLICY)
+                validator.validate_implementation_lock(
+                    root,
+                    validator.EXPECTED_POLICY,
+                )
 
     def test_profile_code_in_allowed_doc_file_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
+            self.authorized_go_layout(root)
             (root / "doc.go").write_text(
                 "package modbusreg\nfunc profile(words []uint16) int { return len(words) }\n",
                 encoding="utf-8",
             )
             with self.assertRaises(validator.PolicyError):
-                validator.validate_bootstrap_lock(root, validator.EXPECTED_POLICY)
+                validator.validate_implementation_lock(
+                    root,
+                    validator.EXPECTED_POLICY,
+                )
 
     def test_vendor_leak_in_standard_family_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

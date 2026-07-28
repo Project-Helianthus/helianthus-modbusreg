@@ -1,0 +1,8 @@
+{
+  "commit_sha": "4f81cbeb6321e64fa51676ed6e375ce36b60d16d",
+  "module": "github.com/Project-Helianthus/helianthus-modbus",
+  "module_sum": "h1:c9LpMMmUtYUloYbIKeCrKqoV/vl3KCwtTSDV9WfubjQ=",
+  "module_version": "v0.0.0-20260728175116-4f81cbeb6321",
+  "schema": "helianthus.modbusreg.runtime-consumer-lock",
+  "schema_version": 1
+}

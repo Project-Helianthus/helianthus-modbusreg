@@ -1,13 +1,26 @@
 {
-  "schema": "helianthus-modbusreg-boundary/v1",
+  "schema": "helianthus-modbusreg-boundary/v2",
   "repository_mode": "single_multi_vendor",
-  "implementation_lock": "bootstrap_only",
+  "implementation_lock": "m2_01_contracts_only",
   "allowed_product_go_files": [
-    "doc.go"
+    "codec.go",
+    "doc.go",
+    "observation.go",
+    "profile.go",
+    "version.go"
   ],
   "allowed_product_go_sha256": {
-    "doc.go": "9e8a409c21ddc211f0854177c29ae29303c81c20a434ea28f1eca895e7bafaba"
+    "codec.go": "6d5575e6ed94e5b7ddce75b24d2318ce3faba6366e423719df2afbab8890f792",
+    "doc.go": "f97c23153d2c6e25a20d7936cd3ac96d492b7e3cac8a9dcec3c7a193dac9004d",
+    "observation.go": "1dc3ec81124e0e76fba1948c242565427acb5eb46524065d07f63351520283ce",
+    "profile.go": "b63860f31ab604e4916e02fc08957da43758aea4def9fdaba95e20da43be63b4",
+    "version.go": "0675556a029959812769fd9318b89f32bd57531604941b2ddba89a049697b404"
   },
+  "allowed_test_go_files": [
+    "contracts_test.go"
+  ],
+  "documentation_consumer_lock": "policy/modbus-companion-consumer-lock-v1.json",
+  "runtime_consumer_lock": "policy/modbus-runtime-consumer-lock-v1.json",
   "standard_root": "profiles/standard",
   "vendor_root": "profiles/vendor",
   "vendor_evidence_file": "evidence.json",

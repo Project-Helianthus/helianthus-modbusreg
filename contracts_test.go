@@ -105,6 +105,7 @@ func profileFixture(t *testing.T) reg.ProfileDescriptor {
 		KnownExclusions:        []string{"model-b"},
 		RuntimeContractVersion: version(t, "1.0.0"),
 		DetectorVersion:        version(t, "1.0.0"),
+		CodecContractVersion:   version(t, "1.0.0"),
 		NormalizationVersion:   version(t, "1.0.0"),
 		CoherenceVersion:       version(t, "1.0.0"),
 		QualificationVersion:   version(t, "1.0.0"),
@@ -182,8 +183,9 @@ func successfulObservationSpec(
 	return reg.ObservationSpec{
 		SchemaVersion:          version(t, "1.0.0"),
 		RuntimeContractVersion: profile.RuntimeContractVersion(),
+		ProfileID:              profile.ID(),
 		ProfileVersion:         profile.Version(),
-		CodecContractVersion:   version(t, "1.0.0"),
+		CodecContractVersion:   profile.CodecContractVersion(),
 		DetectorVersion:        profile.DetectorVersion(),
 		NormalizationVersion:   profile.NormalizationVersion(),
 		CoherenceVersion:       profile.CoherenceVersion(),
@@ -191,6 +193,7 @@ func successfulObservationSpec(
 		SampleID:               "sample-0001",
 		PollGenerationID:       41,
 		DependencySetID:        profile.Dependencies().ID(),
+		DependencySetVersion:   profile.Dependencies().Version(),
 		SourceValidity:         reg.SourceValid,
 		SourceTime:             reg.SourceTimeUnavailable(),
 		LocalReceiptTime:       time.Unix(1_700_000_000, 0).UTC(),
@@ -200,14 +203,22 @@ func successfulObservationSpec(
 			{
 				DependencyID:      dependencies[0].ID(),
 				DependencyVersion: dependencies[0].Version(),
-				Status:            reg.DependencyReadSuccessful,
-				View:              firstView,
+				CodecID:           dependencies[0].CodecID(),
+				CodecVersion:      dependencies[0].CodecVersion(),
+				NormalizationVersion: dependencies[0].
+					Normalization().Spec().Version,
+				Status: reg.DependencyReadSuccessful,
+				View:   firstView,
 			},
 			{
 				DependencyID:      dependencies[1].ID(),
 				DependencyVersion: dependencies[1].Version(),
-				Status:            reg.DependencyReadSuccessful,
-				View:              secondView,
+				CodecID:           dependencies[1].CodecID(),
+				CodecVersion:      dependencies[1].CodecVersion(),
+				NormalizationVersion: dependencies[1].
+					Normalization().Spec().Version,
+				Status: reg.DependencyReadSuccessful,
+				View:   secondView,
 			},
 		},
 	}
@@ -238,6 +249,16 @@ func TestProfileCodecAndDependencySetAreImmutableAndVersioned(t *testing.T) {
 	}
 	if profile.Dependencies().ID() == "" || profile.Dependencies().Version().String() != "1.0.0" {
 		t.Fatalf("dependency-set identity/version missing")
+	}
+	reversed, err := reg.NewDependencySet(
+		profile.Dependencies().Version(),
+		[]reg.Dependency{dependencies[1], dependencies[0]},
+	)
+	if err != nil {
+		t.Fatalf("NewDependencySet(reversed): %v", err)
+	}
+	if reversed.ID() == profile.Dependencies().ID() {
+		t.Fatal("dependency-set identity ignored declaration order")
 	}
 	copyOfDependencies := profile.Dependencies().Dependencies()
 	copyOfDependencies[0] = reg.Dependency{}
@@ -289,6 +310,14 @@ func TestAddressNormalizationRejectsGuessingAndInconsistency(t *testing.T) {
 	}
 }
 
+func TestDependencyRejectsDocumentaryTableMismatch(t *testing.T) {
+	spec := dependencySpec(t, "wrong-space", 100)
+	spec.Normalization.AddressSpaceLabel = string(reg.HoldingRegisters)
+	if _, err := reg.NewDependency(spec); err == nil {
+		t.Fatal("dependency accepted a documentary address-space mismatch")
+	}
+}
+
 func TestCodecRejectsIncompleteOrCoercedDimensions(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -314,6 +343,79 @@ func TestCodecRejectsIncompleteOrCoercedDimensions(t *testing.T) {
 	}
 }
 
+func TestStringCodecRequiresEveryPackingDimension(t *testing.T) {
+	padding := byte(0)
+	spec := numericCodecSpec(t)
+	spec.ID = "documentary-string"
+	spec.RawWordCount = 4
+	spec.WordPermutation = []uint16{0, 1, 2, 3}
+	spec.Representation = reg.RepresentationString
+	spec.Scale = reg.ScaleSpec{
+		Source:           reg.ScaleNotApplicable,
+		ApplicationOrder: reg.ScaleOrderNotApplicable,
+	}
+	spec.String = reg.StringSpec{
+		Applicability:                  reg.StringApplicable,
+		WordPacking:                    reg.StringHighByteFirst,
+		ByteOrder:                      reg.ByteOrderModbus,
+		PaddingByte:                    &padding,
+		Termination:                    reg.StringNULTerminated,
+		RetainedRawLength:              8,
+		DocumentaryCharacterRepertoire: "ASCII",
+	}
+	spec.Sentinels = nil
+	if _, err := reg.NewCodec(spec); err != nil {
+		t.Fatalf("complete string codec rejected: %v", err)
+	}
+	spec.String.PaddingByte = nil
+	if _, err := reg.NewCodec(spec); err == nil {
+		t.Fatal("string codec silently guessed its padding byte")
+	}
+}
+
+func TestProfileRejectsCodecWidthAndScaleDependencyMismatch(t *testing.T) {
+	base := profileFixture(t)
+	profileSpec := base.Spec()
+	codecSpec := profileSpec.Codecs[0].Spec()
+	codecSpec.RawWordCount = 1
+	codecSpec.WordPermutation = []uint16{0}
+	codecSpec.Sentinels[0].Words = []uint16{0xffff}
+	narrow, err := reg.NewCodec(codecSpec)
+	if err != nil {
+		t.Fatalf("NewCodec(narrow): %v", err)
+	}
+	profileSpec.Codecs = []reg.Codec{narrow}
+	if _, err := reg.NewProfileDescriptor(profileSpec); err == nil {
+		t.Fatal("profile accepted codec/dependency raw-width mismatch")
+	}
+
+	profileSpec = base.Spec()
+	codecSpec = profileSpec.Codecs[0].Spec()
+	codecSpec.Scale = reg.ScaleSpec{
+		Source:           reg.ScaleDependency,
+		ApplicationOrder: reg.ScaleAfterRepresentation,
+		DependencyID:     "absent-scale",
+	}
+	scaled, err := reg.NewCodec(codecSpec)
+	if err != nil {
+		t.Fatalf("NewCodec(dependency scale): %v", err)
+	}
+	profileSpec.Codecs = []reg.Codec{scaled}
+	if _, err := reg.NewProfileDescriptor(profileSpec); err == nil {
+		t.Fatal("profile accepted an absent scale dependency")
+	}
+
+	codecSpec.Scale.DependencyID = "energy-a"
+	selfScaled, err := reg.NewCodec(codecSpec)
+	if err != nil {
+		t.Fatalf("NewCodec(self scale): %v", err)
+	}
+	profileSpec.Codecs = []reg.Codec{selfScaled}
+	if _, err := reg.NewProfileDescriptor(profileSpec); err == nil {
+		t.Fatal("profile accepted a cyclic scale dependency")
+	}
+}
+
 func TestCatalogOrderAndDuplicateRejectionAreDeterministic(t *testing.T) {
 	first := profileFixture(t)
 	secondSpec := first.Spec()
@@ -331,6 +433,10 @@ func TestCatalogOrderAndDuplicateRejectionAreDeterministic(t *testing.T) {
 	if got[0].ID() != "aaa.standard.energy" || got[1].ID() != "example.standard.energy" {
 		t.Fatalf("catalog order is not deterministic: %q, %q", got[0].ID(), got[1].ID())
 	}
+	if selected, ok := catalog.Lookup("example.standard.energy"); !ok ||
+		selected.Version() != first.Version() {
+		t.Fatal("catalog lookup did not return the exact immutable profile")
+	}
 	if _, err := reg.NewCatalog(first, first); err == nil {
 		t.Fatal("duplicate profile tuple was accepted")
 	}
@@ -346,6 +452,17 @@ func TestCatalogOrderAndDuplicateRejectionAreDeterministic(t *testing.T) {
 }
 
 func TestVendorAndStandardProfileBoundariesFailClosed(t *testing.T) {
+	explicitEmpty := profileFixture(t).Spec()
+	explicitEmpty.ModelApplicability = []string{}
+	explicitEmpty.KnownExclusions = []string{}
+	if _, err := reg.NewProfileDescriptor(explicitEmpty); err != nil {
+		t.Fatalf("explicit empty applicability/exclusions rejected: %v", err)
+	}
+	explicitEmpty.KnownExclusions = nil
+	if _, err := reg.NewProfileDescriptor(explicitEmpty); err == nil {
+		t.Fatal("omitted known-exclusion dimension was accepted")
+	}
+
 	standard := profileFixture(t).Spec()
 	standard.VendorApplicability = []string{"vendor-a"}
 	if _, err := reg.NewProfileDescriptor(standard); err == nil {
@@ -402,9 +519,60 @@ func TestObservationReplaysUnequalOverlappingViewsExactly(t *testing.T) {
 		second.Normalization().ResolvedPDUOffset() != 101 {
 		t.Fatal("documentary normalization was not retained")
 	}
+	if first.DependencyID() != "energy-a" ||
+		first.DependencyVersion() != version(t, "1.0.0") ||
+		first.CodecID() != "u32-energy" ||
+		first.CodecVersion() != version(t, "1.0.0") {
+		t.Fatal("dependency contract identities were not retained")
+	}
+	envelope := observation.Spec()
+	if envelope.ProfileID != profile.ID() ||
+		envelope.DependencySetVersion != profile.Dependencies().Version() ||
+		envelope.SourceValidity != reg.SourceValid ||
+		envelope.SourceTime.State != reg.SourceTimeUnavailableState ||
+		envelope.LocalReceiptTime.IsZero() {
+		t.Fatal("observation envelope did not retain source and contract facts")
+	}
 	replayed[0].RawWords()[0] = 0
 	if observation.Replay()[0].RawWords()[0] != 0x0102 {
 		t.Fatal("replay exposed mutable raw words")
+	}
+}
+
+func TestLogicalViewSnapshotRejectsMalformedSliceProvenance(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*reg.LogicalViewRecord)
+	}{
+		{"missing wire identity", func(record *reg.LogicalViewRecord) {
+			record.WireResponseID = 0
+		}},
+		{"table mismatch", func(record *reg.LogicalViewRecord) {
+			record.Table = reg.HoldingRegisters
+		}},
+		{"slice outside response", func(record *reg.LogicalViewRecord) {
+			record.SliceOffset = 2
+		}},
+		{"logical offset mismatch", func(record *reg.LogicalViewRecord) {
+			record.LogicalOffset++
+		}},
+		{"word count mismatch", func(record *reg.LogicalViewRecord) {
+			record.Words = record.Words[:1]
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			record := logicalViewRecord(
+				1001,
+				100,
+				0,
+				[]uint16{0x0102, 0x0304},
+			)
+			test.mutate(&record)
+			if _, err := reg.NewLogicalViewSnapshot(record); err == nil {
+				t.Fatal("malformed logical-view provenance was accepted")
+			}
+		})
 	}
 }
 
@@ -439,6 +607,12 @@ func TestObservationRejectsIncompleteOrIncoherentInputs(t *testing.T) {
 		}},
 		{"wrong dependency set", func(spec *reg.ObservationSpec) {
 			spec.DependencySetID = "dependency-set:wrong"
+		}},
+		{"wrong dependency set version", func(spec *reg.ObservationSpec) {
+			spec.DependencySetVersion = version(t, "9.0.0")
+		}},
+		{"wrong codec version", func(spec *reg.ObservationSpec) {
+			spec.Dependencies[0].CodecVersion = version(t, "9.0.0")
 		}},
 		{"reused generation identity", func(spec *reg.ObservationSpec) {
 			spec.PollGenerationID++
@@ -477,6 +651,57 @@ func TestObservationRejectsIncompleteOrIncoherentInputs(t *testing.T) {
 	}
 }
 
+func TestBoundedMultiResponseEnforcesDeclaredSkewAndMarker(t *testing.T) {
+	base := profileFixture(t)
+	profileSpec := base.Spec()
+	profileSpec.Coherence = reg.CoherencePolicySpec{
+		Version:                      base.CoherenceVersion(),
+		Mode:                         reg.CoherenceBoundedMultiResponse,
+		MaximumSourceSkew:            2 * time.Second,
+		MaximumReceiptSkew:           3 * time.Second,
+		RequireGenerationEquality:    true,
+		RetrySetBehavior:             reg.RetryWholeSet,
+		DocumentaryConsistencyMarker: "sequence-7",
+	}
+	profile, err := reg.NewProfileDescriptor(profileSpec)
+	if err != nil {
+		t.Fatalf("NewProfileDescriptor: %v", err)
+	}
+	spec := successfulObservationSpec(t, profile)
+	source := time.Unix(1_700_000_100, 0).UTC()
+	receipt := source.Add(time.Second)
+	for index := range spec.Dependencies {
+		record := spec.Dependencies[index].View.Record()
+		record.WireResponseID += uint64(index)
+		record.PhysicalRequestID += uint64(index)
+		spec.Dependencies[index].View, err = reg.NewLogicalViewSnapshot(record)
+		if err != nil {
+			t.Fatalf("NewLogicalViewSnapshot(%d): %v", index, err)
+		}
+		spec.Dependencies[index].SourceTime = reg.SourceTimeObserved(
+			source.Add(time.Duration(index) * time.Second),
+		)
+		spec.Dependencies[index].LocalReceiptTime = receipt.Add(
+			time.Duration(index) * time.Second,
+		)
+		spec.Dependencies[index].DocumentaryConsistencyMarker = "sequence-7"
+	}
+	spec.SourceTime = reg.SourceTimeObserved(source.Add(time.Second))
+	spec.LocalReceiptTime = receipt.Add(time.Second)
+	if _, err := reg.NewObservation(profile, spec); err != nil {
+		t.Fatalf("bounded coherent observation rejected: %v", err)
+	}
+	spec.Dependencies[1].LocalReceiptTime = receipt.Add(4 * time.Second)
+	if _, err := reg.NewObservation(profile, spec); err == nil {
+		t.Fatal("receipt skew beyond the declared bound was accepted")
+	}
+	spec.Dependencies[1].LocalReceiptTime = receipt.Add(time.Second)
+	spec.Dependencies[1].DocumentaryConsistencyMarker = "sequence-8"
+	if _, err := reg.NewObservation(profile, spec); err == nil {
+		t.Fatal("documentary consistency marker mismatch was accepted")
+	}
+}
+
 func TestSourceTimeStateIsExplicit(t *testing.T) {
 	profile := profileFixture(t)
 	spec := successfulObservationSpec(t, profile)
@@ -494,6 +719,24 @@ func TestSourceTimeStateIsExplicit(t *testing.T) {
 	}
 	if _, err := reg.NewObservation(profile, spec); err == nil {
 		t.Fatal("unavailable source-time state with a guessed time was accepted")
+	}
+}
+
+func TestSampleLedgerRejectsEverySampleIDReuse(t *testing.T) {
+	profile := profileFixture(t)
+	observation, err := reg.NewObservation(
+		profile,
+		successfulObservationSpec(t, profile),
+	)
+	if err != nil {
+		t.Fatalf("NewObservation: %v", err)
+	}
+	ledger := reg.NewSampleLedger()
+	if err := ledger.Admit(observation); err != nil {
+		t.Fatalf("first Admit: %v", err)
+	}
+	if err := ledger.Admit(observation); err == nil {
+		t.Fatal("sample ID reuse was accepted")
 	}
 }
 

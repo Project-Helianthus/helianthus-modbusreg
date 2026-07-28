@@ -17,6 +17,12 @@ echo "==> scope gate"
 echo "==> scope policy mutation tests"
 python3 -m unittest discover -s tests -p 'test_*.py'
 
+echo "==> runtime consumer lock"
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/validate_consumer_locks.py
+
+echo "==> documentation companion consumer lock"
+./scripts/validate_companion_lock.sh
+
 echo "==> gofmt"
 go_files="$(git ls-files '*.go')"
 if [[ -n "$go_files" ]]; then

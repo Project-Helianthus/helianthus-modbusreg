@@ -5,10 +5,10 @@ for Helianthus.
 
 ## Status
 
-The repository is bootstrapped but contains no profile, detector, codec, or
-vendor implementation yet. APIs and profiles arrive through separately
-authorized, test-first issues after their public companion contracts and
-evidence packets are merged.
+M2-01 provides the vendor-neutral profile and source-observation contract. The
+repository still contains no detector, qualification record, standard-family
+profile, vendor overlay, or vendor fixture. Those surfaces remain locked to
+later authorized issues.
 
 ## One Registry, Multiple Vendors
 
@@ -30,9 +30,15 @@ applicability and qualification dimensions, not separate repositories.
 This repository owns:
 
 - versioned profile declarations and catalog lookup;
-- codecs and raw-word interpretation;
+- complete, versioned codec declarations without silent coercion;
+- exact ordered dependency-set and documentary address normalization records;
+- immutable source-observation snapshots and exact raw-word replay;
+- fail-closed coherence validation.
+
+The following ownership is planned but is not implemented by M2-01:
+
 - bounded detection plans and fail-closed qualification;
-- sanitized fixtures, replay, mutation, and cross-profile conformance;
+- sanitized fixtures, mutation, and cross-profile conformance;
 - standard-family definitions and minimal vendor overlays.
 
 This repository does not own:
@@ -44,11 +50,16 @@ This repository does not own:
 
 Protocol/runtime operations are supplied by
 [`helianthus-modbus`](https://github.com/Project-Helianthus/helianthus-modbus)
-through a public read interface. A detector may use only operations supported
-by that runtime. It may not frame its own PDU.
+through its public read interface. M2-01 pins commit
+`4f81cbeb6321e64fa51676ed6e375ce36b60d16d` as an immutable Go pseudo-version
+and copies successful `LogicalReadView` facts through
+`CaptureLogicalView`. The registry never retains a transport owner and cannot
+frame its own PDU.
 
 The normative cross-repository boundary is
 [`modbus-multivendor-boundaries.md`](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/docs/platform/modbus-multivendor-boundaries.md).
+The M2-01 API contract and examples are documented in
+[`docs/m2-01-api.md`](docs/m2-01-api.md).
 
 ## Development
 
@@ -66,11 +77,17 @@ Run the complete local gate:
 The gate validates the exact machine-readable
 [`policy/registry-boundary.json`](policy/registry-boundary.json), rejects
 unauthorized project/transport dependencies, prevents named vendor leakage into
-standard-family source, requires an evidence manifest for vendor code, and runs
-mutation tests for those boundaries. The bootstrap policy also permits only
-`doc.go`; any profile, codec, detector, fixture test, or other Go implementation
-file fails CI. The authorized M2 implementation must replace this lock
-explicitly through its test-first issue and merged M1-00 companion contract.
+standard-family source, requires an evidence manifest for future vendor code,
+and runs mutation tests for those boundaries. The M2-01 policy admits only the
+root contract files and tests inventoried by this issue. Detector,
+qualification, standard/vendor profile, and fixture source remains rejected.
+
+The same gate verifies
+[`modbus-runtime-consumer-lock-v1.json`](policy/modbus-runtime-consumer-lock-v1.json)
+against the downloaded module's VCS origin and validates
+[`modbus-companion-consumer-lock-v1.json`](policy/modbus-companion-consumer-lock-v1.json)
+against the exact documentation commit
+`711a556fee344c6fe7f1ecf3253fcdb3f5f22d06` and manifest digest.
 
 The repository follows one issue and one pull request at a time, squash merge,
 strict test-first implementation, and applicable documentation/evidence gates.

@@ -14,13 +14,32 @@ from typing import Iterable
 
 
 EXPECTED_POLICY = {
-    "schema": "helianthus-modbusreg-boundary/v1",
+    "schema": "helianthus-modbusreg-boundary/v2",
     "repository_mode": "single_multi_vendor",
-    "implementation_lock": "bootstrap_only",
-    "allowed_product_go_files": ["doc.go"],
+    "implementation_lock": "m2_01_contracts_only",
+    "allowed_product_go_files": [
+        "codec.go",
+        "doc.go",
+        "observation.go",
+        "profile.go",
+        "version.go",
+    ],
     "allowed_product_go_sha256": {
-        "doc.go": "9e8a409c21ddc211f0854177c29ae29303c81c20a434ea28f1eca895e7bafaba"
+        "codec.go": "6d5575e6ed94e5b7ddce75b24d2318ce3faba6366e423719df2afbab8890f792",
+        "doc.go": "f97c23153d2c6e25a20d7936cd3ac96d492b7e3cac8a9dcec3c7a193dac9004d",
+        "observation.go": (
+            "1dc3ec81124e0e76fba1948c242565427acb5eb46524065d07f63351520283ce"
+        ),
+        "profile.go": (
+            "b63860f31ab604e4916e02fc08957da43758aea4def9fdaba95e20da43be63b4"
+        ),
+        "version.go": (
+            "0675556a029959812769fd9318b89f32bd57531604941b2ddba89a049697b404"
+        ),
     },
+    "allowed_test_go_files": ["contracts_test.go"],
+    "documentation_consumer_lock": "policy/modbus-companion-consumer-lock-v1.json",
+    "runtime_consumer_lock": "policy/modbus-runtime-consumer-lock-v1.json",
     "standard_root": "profiles/standard",
     "vendor_root": "profiles/vendor",
     "vendor_evidence_file": "evidence.json",
@@ -112,32 +131,46 @@ def validate_imports(imports: Iterable[str], policy: dict[str, object]) -> None:
                 raise PolicyError(f"forbidden transport/framing dependency: {import_path}")
 
 
-def validate_bootstrap_lock(root: Path, policy: dict[str, object]) -> None:
-    if policy["implementation_lock"] != "bootstrap_only":
-        raise PolicyError("implementation lock must remain bootstrap_only")
+def validate_implementation_lock(root: Path, policy: dict[str, object]) -> None:
+    if policy["implementation_lock"] != "m2_01_contracts_only":
+        raise PolicyError("implementation lock must remain m2_01_contracts_only")
     allowed = {str(item) for item in policy["allowed_product_go_files"]}
     actual = {
         path.relative_to(root).as_posix()
         for path in root.rglob("*.go")
-        if ".git" not in path.parts
+        if ".git" not in path.parts and not path.name.endswith("_test.go")
     }
     unexpected = actual - allowed
     missing = allowed - actual
     if unexpected or missing:
         raise PolicyError(
-            f"bootstrap Go-file lock mismatch: unexpected={sorted(unexpected)} "
+            f"M2-01 product Go-file lock mismatch: unexpected={sorted(unexpected)} "
             f"missing={sorted(missing)}"
+        )
+    allowed_tests = {str(item) for item in policy["allowed_test_go_files"]}
+    actual_tests = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*_test.go")
+        if ".git" not in path.parts
+    }
+    if actual_tests != allowed_tests:
+        raise PolicyError(
+            f"M2-01 test Go-file lock mismatch: actual={sorted(actual_tests)}"
         )
     expected_hashes = {
         str(path): str(digest)
         for path, digest in policy["allowed_product_go_sha256"].items()
     }
     if set(expected_hashes) != allowed:
-        raise PolicyError("bootstrap Go-file hash inventory differs from allowed files")
+        raise PolicyError("M2-01 Go-file hash inventory differs from allowed files")
     for relative, expected in expected_hashes.items():
         actual = hashlib.sha256((root / relative).read_bytes()).hexdigest()
         if actual != expected:
-            raise PolicyError(f"bootstrap Go-file content changed: {relative}")
+            raise PolicyError(f"M2-01 product Go-file content changed: {relative}")
+    for key in ("documentation_consumer_lock", "runtime_consumer_lock"):
+        relative = Path(str(policy[key]))
+        if relative.is_absolute() or ".." in relative.parts or not (root / relative).is_file():
+            raise PolicyError(f"consumer lock is absent or unsafe: {relative}")
 
 
 def validate_standard_sources(root: Path, policy: dict[str, object]) -> None:
@@ -339,7 +372,7 @@ def go_imports(root: Path) -> list[str]:
 
 def validate(root: Path) -> None:
     policy = load_policy(root)
-    validate_bootstrap_lock(root, policy)
+    validate_implementation_lock(root, policy)
     validate_imports(go_imports(root), policy)
     validate_standard_sources(root, policy)
     validate_vendor_evidence(root, policy)
