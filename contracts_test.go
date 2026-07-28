@@ -112,8 +112,10 @@ func profileFixture(t *testing.T) reg.ProfileDescriptor {
 		Codecs:                 []reg.Codec{codec},
 		Dependencies:           set,
 		Coherence: reg.CoherencePolicySpec{
-			Version: reg.MustParseVersion("1.0.0"),
-			Mode:    reg.CoherenceSingleWireResponse,
+			Version:          reg.MustParseVersion("1.0.0"),
+			Mode:             reg.CoherenceSingleWireResponse,
+			AcquisitionOrder: reg.AcquisitionOrderNotApplicable,
+			RetrySetBehavior: reg.RetrySetNotApplicable,
 		},
 		Evidence: []reg.EvidenceReference{
 			{
@@ -129,6 +131,33 @@ func profileFixture(t *testing.T) reg.ProfileDescriptor {
 		t.Fatalf("NewProfileDescriptor: %v", err)
 	}
 	return profile
+}
+
+func newFactory(
+	t *testing.T,
+	profile reg.ProfileDescriptor,
+	state reg.SampleLedgerState,
+) (*reg.ObservationFactory, *reg.SampleLedger) {
+	t.Helper()
+	ledger, err := reg.NewSampleLedger(state)
+	if err != nil {
+		t.Fatalf("NewSampleLedger: %v", err)
+	}
+	factory, err := reg.NewObservationFactory(profile, ledger)
+	if err != nil {
+		t.Fatalf("NewObservationFactory: %v", err)
+	}
+	return factory, ledger
+}
+
+func buildObservation(
+	t *testing.T,
+	profile reg.ProfileDescriptor,
+	spec reg.ObservationSpec,
+) (reg.Observation, error) {
+	t.Helper()
+	factory, _ := newFactory(t, profile, reg.EmptySampleLedgerState())
+	return factory.NewObservation(spec)
 }
 
 func logicalViewRecord(
@@ -484,7 +513,7 @@ func TestObservationReplaysUnequalOverlappingViewsExactly(t *testing.T) {
 	profile := profileFixture(t)
 	spec := successfulObservationSpec(t, profile)
 	originalWords := spec.Dependencies[0].View.Record().Words
-	observation, err := reg.NewObservation(profile, spec)
+	observation, err := buildObservation(t, profile, spec)
 	if err != nil {
 		t.Fatalf("NewObservation: %v", err)
 	}
@@ -644,7 +673,7 @@ func TestObservationRejectsIncompleteOrIncoherentInputs(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			spec := successfulObservationSpec(t, profile)
 			test.mutate(&spec)
-			if _, err := reg.NewObservation(profile, spec); err == nil {
+			if _, err := buildObservation(t, profile, spec); err == nil {
 				t.Fatal("incomplete or incoherent observation was accepted")
 			}
 		})
@@ -660,6 +689,7 @@ func TestBoundedMultiResponseEnforcesDeclaredSkewAndMarker(t *testing.T) {
 		MaximumSourceSkew:            2 * time.Second,
 		MaximumReceiptSkew:           3 * time.Second,
 		RequireGenerationEquality:    true,
+		AcquisitionOrder:             reg.AcquisitionOrderDependencyDeclaration,
 		RetrySetBehavior:             reg.RetryWholeSet,
 		DocumentaryConsistencyMarker: "sequence-7",
 	}
@@ -685,19 +715,20 @@ func TestBoundedMultiResponseEnforcesDeclaredSkewAndMarker(t *testing.T) {
 			time.Duration(index) * time.Second,
 		)
 		spec.Dependencies[index].DocumentaryConsistencyMarker = "sequence-7"
+		spec.Dependencies[index].AcquisitionOrdinal = uint32(index + 1)
 	}
 	spec.SourceTime = reg.SourceTimeObserved(source.Add(time.Second))
 	spec.LocalReceiptTime = receipt.Add(time.Second)
-	if _, err := reg.NewObservation(profile, spec); err != nil {
+	if _, err := buildObservation(t, profile, spec); err != nil {
 		t.Fatalf("bounded coherent observation rejected: %v", err)
 	}
 	spec.Dependencies[1].LocalReceiptTime = receipt.Add(4 * time.Second)
-	if _, err := reg.NewObservation(profile, spec); err == nil {
+	if _, err := buildObservation(t, profile, spec); err == nil {
 		t.Fatal("receipt skew beyond the declared bound was accepted")
 	}
 	spec.Dependencies[1].LocalReceiptTime = receipt.Add(time.Second)
 	spec.Dependencies[1].DocumentaryConsistencyMarker = "sequence-8"
-	if _, err := reg.NewObservation(profile, spec); err == nil {
+	if _, err := buildObservation(t, profile, spec); err == nil {
 		t.Fatal("documentary consistency marker mismatch was accepted")
 	}
 }
@@ -706,36 +737,30 @@ func TestSourceTimeStateIsExplicit(t *testing.T) {
 	profile := profileFixture(t)
 	spec := successfulObservationSpec(t, profile)
 	spec.SourceTime = reg.SourceTimeObserved(time.Unix(1_699_999_999, 0).UTC())
-	if _, err := reg.NewObservation(profile, spec); err != nil {
+	if _, err := buildObservation(t, profile, spec); err != nil {
 		t.Fatalf("explicit observed source time rejected: %v", err)
 	}
 	spec.SourceTime = reg.SourceTimeSpec{State: reg.SourceTimeObservedState}
-	if _, err := reg.NewObservation(profile, spec); err == nil {
+	if _, err := buildObservation(t, profile, spec); err == nil {
 		t.Fatal("observed source-time state without a time was accepted")
 	}
 	spec.SourceTime = reg.SourceTimeSpec{
 		State: reg.SourceTimeUnavailableState,
 		Time:  time.Unix(1_699_999_999, 0).UTC(),
 	}
-	if _, err := reg.NewObservation(profile, spec); err == nil {
+	if _, err := buildObservation(t, profile, spec); err == nil {
 		t.Fatal("unavailable source-time state with a guessed time was accepted")
 	}
 }
 
 func TestSampleLedgerRejectsEverySampleIDReuse(t *testing.T) {
 	profile := profileFixture(t)
-	observation, err := reg.NewObservation(
-		profile,
-		successfulObservationSpec(t, profile),
-	)
-	if err != nil {
-		t.Fatalf("NewObservation: %v", err)
+	factory, _ := newFactory(t, profile, reg.EmptySampleLedgerState())
+	spec := successfulObservationSpec(t, profile)
+	if _, err := factory.NewObservation(spec); err != nil {
+		t.Fatalf("first NewObservation: %v", err)
 	}
-	ledger := reg.NewSampleLedger()
-	if err := ledger.Admit(observation); err != nil {
-		t.Fatalf("first Admit: %v", err)
-	}
-	if err := ledger.Admit(observation); err == nil {
+	if _, err := factory.NewObservation(spec); err == nil {
 		t.Fatal("sample ID reuse was accepted")
 	}
 }

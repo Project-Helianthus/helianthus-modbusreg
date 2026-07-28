@@ -2,6 +2,7 @@ package modbusreg
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -110,6 +111,13 @@ func NewLogicalViewSnapshot(
 	if record.Transport == TransportTCP && record.ConnectionID == 0 {
 		return LogicalViewSnapshot{}, fmt.Errorf("TCP logical view lacks connection identity")
 	}
+	if record.Transport == TransportRTU &&
+		(record.ConnectionID != 0 ||
+			record.PhysicalOffset != record.LogicalOffset ||
+			record.PhysicalWordCount != record.LogicalWordCount ||
+			record.SliceOffset != 0) {
+		return LogicalViewSnapshot{}, fmt.Errorf("RTU logical view contradicts runtime shape")
+	}
 	expectedTable := LogicalTable("")
 	switch record.RequestedFunction {
 	case FunctionReadHoldingRegisters:
@@ -216,6 +224,7 @@ type DependencyResult struct {
 	SourceTime                   SourceTimeSpec
 	LocalReceiptTime             time.Time
 	DocumentaryConsistencyMarker string
+	AcquisitionOrdinal           uint32
 }
 
 // ObservationSpec is the complete successful source-observation envelope.
@@ -247,14 +256,12 @@ type Observation struct {
 	replayed []ReplayedDependency
 }
 
-// NewObservation validates exact versions, dependency order, provenance, and
-// coherence. Any partial or non-success input yields no Observation.
-func NewObservation(
+func buildObservation(
 	profile ProfileDescriptor,
 	spec ObservationSpec,
 ) (Observation, error) {
 	spec.Dependencies = append([]DependencyResult(nil), spec.Dependencies...)
-	if profile.ID() == "" || spec.SchemaVersion != SchemaVersionV1 ||
+	if profile.ID() == "" || spec.SchemaVersion != schemaVersionV1 ||
 		spec.RuntimeContractVersion != profile.RuntimeContractVersion() ||
 		spec.ProfileID != profile.ID() ||
 		spec.ProfileVersion != profile.Version() ||
@@ -283,6 +290,7 @@ func NewObservation(
 		return Observation{}, fmt.Errorf("observation dependency set is incomplete")
 	}
 	replayed := make([]ReplayedDependency, len(declarations))
+	logicalViewIDs := make(map[uint64]struct{}, len(declarations))
 	for index, declaration := range declarations {
 		result := spec.Dependencies[index]
 		if result.DependencyID != declaration.ID() ||
@@ -296,6 +304,10 @@ func NewObservation(
 			return Observation{}, fmt.Errorf("dependency %d is absent or unsuccessful", index)
 		}
 		record := result.View.Record()
+		if _, exists := logicalViewIDs[record.LogicalViewID]; exists {
+			return Observation{}, fmt.Errorf("logical view identity is duplicated")
+		}
+		logicalViewIDs[record.LogicalViewID] = struct{}{}
 		expectedFunction := FunctionReadHoldingRegisters
 		if declaration.Table() == InputRegisters {
 			expectedFunction = FunctionReadInputRegisters
@@ -336,14 +348,24 @@ func validateObservationCoherence(
 	switch policy.Mode {
 	case CoherenceSingleWireResponse:
 		first := dependencies[0].view.record
+		if first.Transport == TransportRTU && len(dependencies) != 1 {
+			return fmt.Errorf("RTU response cannot produce multiple logical views")
+		}
+		physicalWords := make([]uint16, first.PhysicalWordCount)
+		physicalWordSet := make([]bool, first.PhysicalWordCount)
+		if spec.Dependencies[0].AcquisitionOrdinal != 0 {
+			return fmt.Errorf("single-wire response has acquisition ordinal")
+		}
 		for _, dependency := range dependencies[1:] {
 			record := dependency.view.record
 			if record.WireResponseID != first.WireResponseID ||
 				record.PhysicalRequestID != first.PhysicalRequestID ||
 				record.Endpoint != first.Endpoint ||
+				record.ConnectionID != first.ConnectionID ||
 				record.Transport != first.Transport ||
 				record.TransportGeneration != first.TransportGeneration ||
 				record.UnitID != first.UnitID ||
+				record.AuthorizationScope != first.AuthorizationScope ||
 				record.RequestedFunction != first.RequestedFunction ||
 				record.Table != first.Table ||
 				record.PhysicalOffset != first.PhysicalOffset ||
@@ -351,15 +373,51 @@ func validateObservationCoherence(
 				return fmt.Errorf("single-wire-response coherence failed")
 			}
 		}
+		for index, dependency := range dependencies {
+			if spec.Dependencies[index].AcquisitionOrdinal != 0 {
+				return fmt.Errorf("single-wire response has acquisition ordinal")
+			}
+			record := dependency.view.record
+			for wordIndex, word := range record.Words {
+				position := int(record.SliceOffset) + wordIndex
+				if physicalWordSet[position] && physicalWords[position] != word {
+					return fmt.Errorf("shared wire response has contradictory words")
+				}
+				physicalWords[position] = word
+				physicalWordSet[position] = true
+			}
+		}
 	case CoherenceBoundedMultiResponse:
 		var minimumSource, maximumSource time.Time
 		var minimumReceipt, maximumReceipt time.Time
+		first := dependencies[0].view.record
+		type acquisitionFact struct {
+			ordinal uint32
+			index   int
+			source  time.Time
+			receipt time.Time
+		}
+		facts := make([]acquisitionFact, len(dependencies))
+		ordinals := make(map[uint32]struct{}, len(dependencies))
 		for index := range dependencies {
 			result := spec.Dependencies[index]
+			record := dependencies[index].view.record
 			if result.SourceTime.State != SourceTimeObservedState ||
 				result.SourceTime.Time.IsZero() ||
-				result.LocalReceiptTime.IsZero() {
+				result.LocalReceiptTime.IsZero() ||
+				result.AcquisitionOrdinal == 0 {
 				return fmt.Errorf("bounded response lacks per-dependency time facts")
+			}
+			if _, exists := ordinals[result.AcquisitionOrdinal]; exists {
+				return fmt.Errorf("bounded response acquisition ordinal is duplicated")
+			}
+			ordinals[result.AcquisitionOrdinal] = struct{}{}
+			if record.Endpoint != first.Endpoint ||
+				record.UnitID != first.UnitID ||
+				record.Transport != first.Transport ||
+				(policy.RequireGenerationEquality &&
+					record.TransportGeneration != first.TransportGeneration) {
+				return fmt.Errorf("bounded response source identity disagrees")
 			}
 			if policy.DocumentaryConsistencyMarker != "" &&
 				result.DocumentaryConsistencyMarker !=
@@ -368,6 +426,12 @@ func validateObservationCoherence(
 			}
 			source := result.SourceTime.Time
 			receipt := result.LocalReceiptTime
+			facts[index] = acquisitionFact{
+				ordinal: result.AcquisitionOrdinal,
+				index:   index,
+				source:  source,
+				receipt: receipt,
+			}
 			if minimumSource.IsZero() || source.Before(minimumSource) {
 				minimumSource = source
 			}
@@ -380,6 +444,36 @@ func validateObservationCoherence(
 			if maximumReceipt.IsZero() || receipt.After(maximumReceipt) {
 				maximumReceipt = receipt
 			}
+		}
+		sort.Slice(facts, func(first, second int) bool {
+			return facts[first].ordinal < facts[second].ordinal
+		})
+		for index, fact := range facts {
+			if fact.ordinal != uint32(index+1) {
+				return fmt.Errorf("bounded response acquisition order has gaps")
+			}
+		}
+		switch policy.AcquisitionOrder {
+		case AcquisitionOrderDependencyDeclaration:
+			for index, fact := range facts {
+				if fact.index != index {
+					return fmt.Errorf("dependency acquisition order is reversed")
+				}
+			}
+		case AcquisitionOrderSourceTimeAscending:
+			for index := 1; index < len(facts); index++ {
+				if facts[index].source.Before(facts[index-1].source) {
+					return fmt.Errorf("source-time acquisition order is reversed")
+				}
+			}
+		case AcquisitionOrderReceiptTimeAscending:
+			for index := 1; index < len(facts); index++ {
+				if facts[index].receipt.Before(facts[index-1].receipt) {
+					return fmt.Errorf("receipt-time acquisition order is reversed")
+				}
+			}
+		default:
+			return fmt.Errorf("bounded response acquisition order is unknown")
 		}
 		if maximumSource.Sub(minimumSource) > policy.MaximumSourceSkew ||
 			maximumReceipt.Sub(minimumReceipt) > policy.MaximumReceiptSkew {
@@ -475,6 +569,11 @@ func (dependency ReplayedDependency) Normalization() AddressNormalization {
 	return dependency.normalization
 }
 
+// LogicalViewRecord returns the complete immutable replay provenance snapshot.
+func (dependency ReplayedDependency) LogicalViewRecord() LogicalViewRecord {
+	return dependency.view.Record()
+}
+
 // Replay returns independent exact dependency observations in declaration order.
 func (observation Observation) Replay() []ReplayedDependency {
 	result := make([]ReplayedDependency, len(observation.replayed))
@@ -493,39 +592,159 @@ func (observation Observation) SampleID() string {
 }
 
 type sampleBinding struct {
+	sampleID         string
+	profileID        string
 	pollGenerationID uint64
 	dependencySetID  string
 	profileVersion   Version
 }
 
-// SampleLedger rejects reuse of a sample ID across retries, generations, or
-// dependency sets. It does not publish or assign canonical meaning.
+// SampleIdentityRecord is one explicitly persisted admitted identity.
+type SampleIdentityRecord struct {
+	SampleID         string
+	ProfileID        string
+	ProfileVersion   Version
+	PollGenerationID uint64
+	DependencySetID  string
+}
+
+// SampleLedgerState is the explicit restart boundary for sample identity.
+type SampleLedgerState struct {
+	SchemaVersion Version
+	Samples       []SampleIdentityRecord
+}
+
+// EmptySampleLedgerState makes a fresh identity domain an explicit choice.
+func EmptySampleLedgerState() SampleLedgerState {
+	return SampleLedgerState{
+		SchemaVersion: schemaVersionV1,
+		Samples:       []SampleIdentityRecord{},
+	}
+}
+
+// SampleLedger rejects reuse across retries, generations, dependency sets, and
+// process restarts when its exported state is restored.
 type SampleLedger struct {
 	mu      sync.Mutex
 	samples map[string]sampleBinding
 }
 
-// NewSampleLedger constructs an empty in-memory identity guard.
-func NewSampleLedger() *SampleLedger {
-	return &SampleLedger{samples: make(map[string]sampleBinding)}
+// NewSampleLedger imports an explicit empty or persisted state.
+func NewSampleLedger(state SampleLedgerState) (*SampleLedger, error) {
+	if state.SchemaVersion != schemaVersionV1 || state.Samples == nil {
+		return nil, fmt.Errorf("sample ledger state is incomplete or incompatible")
+	}
+	ledger := &SampleLedger{
+		samples: make(map[string]sampleBinding, len(state.Samples)),
+	}
+	for _, record := range state.Samples {
+		binding, err := sampleBindingFromRecord(record)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := ledger.samples[binding.sampleID]; exists {
+			return nil, fmt.Errorf("sample ledger state contains a duplicate")
+		}
+		ledger.samples[binding.sampleID] = binding
+	}
+	return ledger, nil
 }
 
-// Admit records a sample identity once and rejects every reuse.
-func (ledger *SampleLedger) Admit(observation Observation) error {
-	if ledger == nil || observation.SampleID() == "" {
+func sampleBindingFromRecord(record SampleIdentityRecord) (sampleBinding, error) {
+	if !validIdentity(record.SampleID) || !validIdentity(record.ProfileID) ||
+		!record.ProfileVersion.valid() || record.PollGenerationID == 0 ||
+		record.DependencySetID == "" {
+		return sampleBinding{}, fmt.Errorf("sample identity record is incomplete")
+	}
+	return sampleBinding{
+		sampleID:         record.SampleID,
+		profileID:        record.ProfileID,
+		profileVersion:   record.ProfileVersion,
+		pollGenerationID: record.PollGenerationID,
+		dependencySetID:  record.DependencySetID,
+	}, nil
+}
+
+func (ledger *SampleLedger) admit(binding sampleBinding) error {
+	if ledger == nil || binding.sampleID == "" {
 		return fmt.Errorf("sample ledger input is invalid")
 	}
 	ledger.mu.Lock()
 	defer ledger.mu.Unlock()
-	if _, exists := ledger.samples[observation.spec.SampleID]; exists {
+	if _, exists := ledger.samples[binding.sampleID]; exists {
 		return fmt.Errorf("sample ID was reused")
 	}
-	ledger.samples[observation.spec.SampleID] = sampleBinding{
+	ledger.samples[binding.sampleID] = binding
+	return nil
+}
+
+// ExportState returns deterministic explicit restart state.
+func (ledger *SampleLedger) ExportState() SampleLedgerState {
+	if ledger == nil {
+		return SampleLedgerState{}
+	}
+	state := EmptySampleLedgerState()
+	ledger.mu.Lock()
+	defer ledger.mu.Unlock()
+	state.Samples = make([]SampleIdentityRecord, 0, len(ledger.samples))
+	for _, binding := range ledger.samples {
+		state.Samples = append(state.Samples, SampleIdentityRecord{
+			SampleID:         binding.sampleID,
+			ProfileID:        binding.profileID,
+			ProfileVersion:   binding.profileVersion,
+			PollGenerationID: binding.pollGenerationID,
+			DependencySetID:  binding.dependencySetID,
+		})
+	}
+	sort.Slice(state.Samples, func(first, second int) bool {
+		return state.Samples[first].SampleID < state.Samples[second].SampleID
+	})
+	return state
+}
+
+// ObservationFactory makes ledger admission structurally mandatory.
+type ObservationFactory struct {
+	profile ProfileDescriptor
+	ledger  *SampleLedger
+}
+
+// NewObservationFactory binds one exact profile to explicit ledger state.
+func NewObservationFactory(
+	profile ProfileDescriptor,
+	ledger *SampleLedger,
+) (*ObservationFactory, error) {
+	if ledger == nil {
+		return nil, fmt.Errorf("observation factory requires a sample ledger")
+	}
+	copy, err := NewProfileDescriptor(profile.Spec())
+	if err != nil {
+		return nil, fmt.Errorf("observation factory profile: %w", err)
+	}
+	return &ObservationFactory{profile: copy, ledger: ledger}, nil
+}
+
+// NewObservation validates and atomically admits one successful observation.
+func (factory *ObservationFactory) NewObservation(
+	spec ObservationSpec,
+) (Observation, error) {
+	if factory == nil || factory.ledger == nil {
+		return Observation{}, fmt.Errorf("observation factory is invalid")
+	}
+	observation, err := buildObservation(factory.profile, spec)
+	if err != nil {
+		return Observation{}, err
+	}
+	binding := sampleBinding{
+		sampleID:         observation.spec.SampleID,
+		profileID:        observation.spec.ProfileID,
+		profileVersion:   observation.spec.ProfileVersion,
 		pollGenerationID: observation.spec.PollGenerationID,
 		dependencySetID:  observation.spec.DependencySetID,
-		profileVersion:   observation.spec.ProfileVersion,
 	}
-	return nil
+	if err := factory.ledger.admit(binding); err != nil {
+		return Observation{}, err
+	}
+	return observation, nil
 }
 
 // OwnershipBoundary documents that this package records source facts only.

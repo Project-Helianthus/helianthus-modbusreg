@@ -17,27 +17,64 @@ EXPECTED_POLICY = {
     "schema": "helianthus-modbusreg-boundary/v2",
     "repository_mode": "single_multi_vendor",
     "implementation_lock": "m2_01_contracts_only",
+    "allowed_repository_files": [
+        ".github/CODEOWNERS",
+        ".github/workflows/ci.yml",
+        ".gitignore",
+        "AGENTS.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "README.md",
+        "adversarial_round1_test.go",
+        "codec.go",
+        "contracts_test.go",
+        "doc.go",
+        "docs/m2-01-api.md",
+        "go.mod",
+        "go.sum",
+        "observation.go",
+        "policy/modbus-companion-consumer-lock-v1.json",
+        "policy/modbus-runtime-consumer-lock-v1.json",
+        "policy/registry-boundary.json",
+        "profile.go",
+        "scripts/ci_local.sh",
+        "scripts/scope_gate.sh",
+        "scripts/validate_companion_lock.sh",
+        "scripts/validate_consumer_locks.py",
+        "scripts/validate_scope_policy.py",
+        "serialization.go",
+        "tests/test_consumer_locks.py",
+        "tests/test_scope_policy.py",
+        "version.go",
+    ],
     "allowed_product_go_files": [
         "codec.go",
         "doc.go",
         "observation.go",
         "profile.go",
+        "serialization.go",
         "version.go",
     ],
     "allowed_product_go_sha256": {
-        "codec.go": "6d5575e6ed94e5b7ddce75b24d2318ce3faba6366e423719df2afbab8890f792",
-        "doc.go": "f97c23153d2c6e25a20d7936cd3ac96d492b7e3cac8a9dcec3c7a193dac9004d",
+        "codec.go": "42ad189f96889e64a15c370dc6aae22d0d42b967fb48ecc7c47a6b0b4657572a",
+        "doc.go": "2bb397c67dba2394c500c0e11be9e46d17006fcba85d36ce430d1ec5ca5891e3",
         "observation.go": (
-            "1dc3ec81124e0e76fba1948c242565427acb5eb46524065d07f63351520283ce"
+            "410934b3efe09cea112b77f1b73297238e8b087b0b6e55fb03375b5dbaa9d838"
         ),
         "profile.go": (
-            "b63860f31ab604e4916e02fc08957da43758aea4def9fdaba95e20da43be63b4"
+            "541c1b170b9e8ff58c98b6ba9cae92e663fc80d0b0630e34cebf42f1b53208f3"
+        ),
+        "serialization.go": (
+            "b7e04ac61fb4f0aee5187dd723bada23ef22b5028e5245720886eeb75b557e6c"
         ),
         "version.go": (
-            "0675556a029959812769fd9318b89f32bd57531604941b2ddba89a049697b404"
+            "cb70b1065e77831d5cd9d1171ee555037fe6369b3149e120f9e5236dec7d0865"
         ),
     },
-    "allowed_test_go_files": ["contracts_test.go"],
+    "allowed_test_go_files": [
+        "adversarial_round1_test.go",
+        "contracts_test.go",
+    ],
     "documentation_consumer_lock": "policy/modbus-companion-consumer-lock-v1.json",
     "runtime_consumer_lock": "policy/modbus-runtime-consumer-lock-v1.json",
     "standard_root": "profiles/standard",
@@ -131,6 +168,27 @@ def validate_imports(imports: Iterable[str], policy: dict[str, object]) -> None:
                 raise PolicyError(f"forbidden transport/framing dependency: {import_path}")
 
 
+def validate_repository_inventory(root: Path, policy: dict[str, object]) -> None:
+    allowed = {str(item) for item in policy["allowed_repository_files"]}
+    actual: set[str] = set()
+    for path in root.rglob("*"):
+        if ".git" in path.parts:
+            continue
+        if path.is_symlink():
+            raise PolicyError(
+                f"repository inventory contains a symlink: {path.relative_to(root)}"
+            )
+        if path.is_file():
+            actual.add(path.relative_to(root).as_posix())
+    unexpected = actual - allowed
+    missing = allowed - actual
+    if unexpected or missing:
+        raise PolicyError(
+            f"repository file inventory mismatch: unexpected={sorted(unexpected)} "
+            f"missing={sorted(missing)}"
+        )
+
+
 def validate_implementation_lock(root: Path, policy: dict[str, object]) -> None:
     if policy["implementation_lock"] != "m2_01_contracts_only":
         raise PolicyError("implementation lock must remain m2_01_contracts_only")
@@ -197,7 +255,12 @@ def validate_vendor_evidence(root: Path, policy: dict[str, object]) -> None:
         return
     evidence_name = str(policy["vendor_evidence_file"])
     for profile_dir in sorted(path for path in vendor_root.iterdir() if path.is_dir()):
-        if not any(profile_dir.rglob("*.go")):
+        artifacts = [
+            path
+            for path in profile_dir.rglob("*")
+            if path.is_file() and path.name != evidence_name
+        ]
+        if not artifacts:
             continue
         evidence_path = profile_dir / evidence_name
         try:
@@ -372,6 +435,7 @@ def go_imports(root: Path) -> list[str]:
 
 def validate(root: Path) -> None:
     policy = load_policy(root)
+    validate_repository_inventory(root, policy)
     validate_implementation_lock(root, policy)
     validate_imports(go_imports(root), policy)
     validate_standard_sources(root, policy)

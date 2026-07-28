@@ -73,11 +73,19 @@ func (version *Version) UnmarshalJSON(data []byte) error {
 }
 
 var (
-	// SchemaVersionV1 is the only M2-01 serialized schema version.
-	SchemaVersionV1 = MustParseVersion("1.0.0")
-	// CodecContractVersionV1 is the complete codec declaration contract.
-	CodecContractVersionV1 = MustParseVersion("1.0.0")
+	schemaVersionV1        = MustParseVersion("1.0.0")
+	codecContractVersionV1 = MustParseVersion("1.0.0")
 )
+
+// CurrentSchemaVersion returns the immutable M2-01 serialized schema authority.
+func CurrentSchemaVersion() Version {
+	return schemaVersionV1
+}
+
+// CurrentCodecContractVersion returns the immutable codec contract authority.
+func CurrentCodecContractVersion() Version {
+	return codecContractVersionV1
+}
 
 func cloneStrings(values []string) []string {
 	if values == nil {

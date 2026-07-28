@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -141,7 +142,8 @@ func NewDependency(spec DependencySpec) (Dependency, error) {
 	}
 	if !validIdentity(spec.ID) || !spec.Version.valid() ||
 		(spec.Table != HoldingRegisters && spec.Table != InputRegisters) ||
-		spec.WordCount == 0 || !validIdentity(spec.CodecID) ||
+		spec.WordCount == 0 || spec.WordCount > modbus.MaxReadRegisters ||
+		!validIdentity(spec.CodecID) ||
 		!spec.CodecVersion.valid() || !validIdentity(spec.CoherenceGroup) ||
 		!stringsComplete(spec.EvidenceReferences) ||
 		!stringsComplete(spec.ApplicabilityRefs) {
@@ -331,6 +333,16 @@ const (
 	RetryWholeSet         RetrySetBehavior = "whole_set"
 )
 
+// AcquisitionOrder declares how bounded response facts are ordered.
+type AcquisitionOrder string
+
+const (
+	AcquisitionOrderNotApplicable         AcquisitionOrder = "not_applicable"
+	AcquisitionOrderDependencyDeclaration AcquisitionOrder = "dependency_declaration"
+	AcquisitionOrderSourceTimeAscending   AcquisitionOrder = "source_time_ascending"
+	AcquisitionOrderReceiptTimeAscending  AcquisitionOrder = "receipt_time_ascending"
+)
+
 // CoherencePolicySpec is the complete policy for one dependency set.
 type CoherencePolicySpec struct {
 	Version                      Version
@@ -338,6 +350,7 @@ type CoherencePolicySpec struct {
 	MaximumSourceSkew            time.Duration
 	MaximumReceiptSkew           time.Duration
 	RequireGenerationEquality    bool
+	AcquisitionOrder             AcquisitionOrder
 	RetrySetBehavior             RetrySetBehavior
 	DocumentaryConsistencyMarker string
 }
@@ -350,14 +363,17 @@ func validateCoherence(spec CoherencePolicySpec) error {
 	case CoherenceSingleWireResponse:
 		if spec.MaximumSourceSkew != 0 || spec.MaximumReceiptSkew != 0 ||
 			spec.RequireGenerationEquality ||
-			(spec.RetrySetBehavior != "" &&
-				spec.RetrySetBehavior != RetrySetNotApplicable) ||
+			spec.AcquisitionOrder != AcquisitionOrderNotApplicable ||
+			spec.RetrySetBehavior != RetrySetNotApplicable ||
 			spec.DocumentaryConsistencyMarker != "" {
 			return fmt.Errorf("single-response policy carries multi-response fields")
 		}
 	case CoherenceBoundedMultiResponse:
 		if spec.MaximumSourceSkew <= 0 || spec.MaximumReceiptSkew <= 0 ||
 			!spec.RequireGenerationEquality ||
+			(spec.AcquisitionOrder != AcquisitionOrderDependencyDeclaration &&
+				spec.AcquisitionOrder != AcquisitionOrderSourceTimeAscending &&
+				spec.AcquisitionOrder != AcquisitionOrderReceiptTimeAscending) ||
 			spec.RetrySetBehavior != RetryWholeSet {
 			return fmt.Errorf("bounded multi-response policy is incomplete")
 		}
@@ -404,10 +420,10 @@ type ProfileDescriptor struct {
 // NewProfileDescriptor validates one complete immutable profile declaration.
 func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error) {
 	spec = cloneProfileSpec(spec)
-	if spec.SchemaVersion != SchemaVersionV1 || !validIdentity(spec.ID) ||
+	if spec.SchemaVersion != schemaVersionV1 || !validIdentity(spec.ID) ||
 		!spec.Version.valid() || !spec.RuntimeContractVersion.valid() ||
 		!spec.DetectorVersion.valid() ||
-		spec.CodecContractVersion != CodecContractVersionV1 ||
+		spec.CodecContractVersion != codecContractVersionV1 ||
 		!spec.NormalizationVersion.valid() ||
 		!spec.CoherenceVersion.valid() || !spec.QualificationVersion.valid() ||
 		!stringsComplete(spec.StandardApplicability) ||
@@ -478,6 +494,11 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 			}
 		}
 	}
+	if spec.Coherence.Mode == CoherenceSingleWireResponse {
+		if err := validateSingleWireDependencies(dependencies); err != nil {
+			return ProfileDescriptor{}, err
+		}
+	}
 	for _, codec := range spec.Codecs {
 		scale := codec.Spec().Scale
 		if scale.Source == ScaleDependency {
@@ -524,6 +545,43 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 		return ProfileDescriptor{}, fmt.Errorf("profile state is unknown")
 	}
 	return ProfileDescriptor{spec: spec}, nil
+}
+
+func validateSingleWireDependencies(dependencies []Dependency) error {
+	if len(dependencies) == 0 {
+		return fmt.Errorf("single-wire dependency set is empty")
+	}
+	table := dependencies[0].Table()
+	minOffset := uint32(dependencies[0].Normalization().ResolvedPDUOffset())
+	maxEnd := minOffset + uint32(dependencies[0].WordCount())
+	maxStart := minOffset
+	minEnd := maxEnd
+	for _, dependency := range dependencies[1:] {
+		if dependency.Table() != table {
+			return fmt.Errorf("single-wire dependencies span FC03 and FC04")
+		}
+		start := uint32(dependency.Normalization().ResolvedPDUOffset())
+		end := start + uint32(dependency.WordCount())
+		if start < minOffset {
+			minOffset = start
+		}
+		if end > maxEnd {
+			maxEnd = end
+		}
+		if start > maxStart {
+			maxStart = start
+		}
+		if end < minEnd {
+			minEnd = end
+		}
+	}
+	if maxEnd-minOffset > modbus.MaxReadRegisters {
+		return fmt.Errorf("single-wire physical union exceeds runtime maximum")
+	}
+	if len(dependencies) > 1 && maxStart >= minEnd {
+		return fmt.Errorf("single-wire dependencies cannot coalesce")
+	}
+	return nil
 }
 
 func hasDependencyCycle(edges map[string]string) bool {
@@ -658,6 +716,41 @@ func NewCatalog(profiles ...ProfileDescriptor) (Catalog, error) {
 		}
 		return result[first].Version().String() < result[second].Version().String()
 	})
+	byID := make(map[string]ProfileDescriptor, len(result))
+	for _, profile := range result {
+		byID[profile.ID()] = profile
+	}
+	for _, profile := range result {
+		spec := profile.spec
+		if spec.Kind == ProfileVendorOverlay {
+			base, exists := byID[spec.RefinesProfileID]
+			if !exists || base.Version() != spec.RefinesProfileVersion ||
+				base.spec.Kind != ProfileStandardFamily ||
+				base.spec.State != ProfileActive ||
+				base.spec.Maturity != MaturityQualified {
+				return Catalog{}, fmt.Errorf("vendor overlay base is not active and qualified")
+			}
+		}
+		if spec.State != ProfileSuperseded {
+			continue
+		}
+		target, exists := byID[spec.SupersededByID]
+		if !exists || target.ID() == profile.ID() ||
+			target.Version() != spec.SupersededByVersion ||
+			target.spec.State != ProfileActive ||
+			target.spec.Kind != spec.Kind {
+			return Catalog{}, fmt.Errorf("supersession target is absent or incoherent")
+		}
+		if spec.Kind == ProfileVendorOverlay &&
+			(target.spec.RefinesProfileID != spec.RefinesProfileID ||
+				target.spec.RefinesProfileVersion != spec.RefinesProfileVersion ||
+				!slices.Equal(
+					target.spec.VendorApplicability,
+					spec.VendorApplicability,
+				)) {
+			return Catalog{}, fmt.Errorf("vendor supersession changes overlay identity")
+		}
+	}
 	return Catalog{profiles: result}, nil
 }
 

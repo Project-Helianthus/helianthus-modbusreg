@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 export GOWORK=off
+export PYTHONDONTWRITEBYTECODE=1
 
 echo "==> terminology gate"
 if git grep -nIwiE 'm[a]ster|s[l]ave'; then

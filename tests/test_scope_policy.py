@@ -87,6 +87,12 @@ class ScopePolicyTests(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes((ROOT / relative).read_bytes())
 
+    def authorized_repository_layout(self, root: Path) -> None:
+        for relative in validator.EXPECTED_POLICY["allowed_repository_files"]:
+            destination = root / str(relative)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.touch()
+
     def test_exact_policy_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -160,6 +166,31 @@ class ScopePolicyTests(unittest.TestCase):
             (overlay / "profile.go").write_text("package example\n", encoding="utf-8")
             with self.assertRaises(validator.PolicyError):
                 validator.validate_vendor_evidence(root, validator.EXPECTED_POLICY)
+
+    def test_vendor_python_probe_without_evidence_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            overlay = root / "profiles" / "vendor" / "fronius"
+            overlay.mkdir(parents=True)
+            (overlay / "probe.py").write_text(
+                "def probe():\n    return None\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(validator.PolicyError):
+                validator.validate_vendor_evidence(root, validator.EXPECTED_POLICY)
+
+    def test_non_go_socket_artifact_is_rejected_by_repository_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.authorized_repository_layout(root)
+            artifact = root / "profiles" / "vendor" / "fronius" / "socket_probe.py"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text("import socket\n", encoding="utf-8")
+            with self.assertRaises(validator.PolicyError):
+                validator.validate_repository_inventory(
+                    root,
+                    validator.EXPECTED_POLICY,
+                )
 
     def test_vendor_overlay_with_exact_evidence_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

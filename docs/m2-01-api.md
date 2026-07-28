@@ -10,12 +10,14 @@ qualification, vendor matching, canonical projection, or gateway composition.
 2. Construct complete immutable codecs with `NewCodec`.
 3. Normalize each documentary register address with
    `NewAddressNormalization`.
-4. construct dependencies and an ordered `DependencySet`.
-5. construct a `ProfileDescriptor` and deterministic `Catalog`.
-6. copy successful runtime views with `CaptureLogicalView`, or validate a
+4. Construct dependencies and an ordered `DependencySet`.
+5. Construct a `ProfileDescriptor` and deterministic `Catalog`.
+6. Copy successful runtime views with `CaptureLogicalView`, or validate a
    serialized `LogicalViewRecord` with `NewLogicalViewSnapshot`.
-7. construct an all-or-nothing `Observation` and use `Replay` for exact raw
-   words plus documentary and transport provenance.
+7. Import explicit `SampleLedgerState`, bind an `ObservationFactory`, and
+   atomically construct/admit an all-or-nothing `Observation`.
+8. Use `Replay` and `LogicalViewRecord` for complete immutable raw words and
+   transport provenance.
 
 ## Codec Contract
 
@@ -54,10 +56,14 @@ snapshot retains:
 `NewLogicalViewSnapshot` validates operation identity and checked range/slice
 arithmetic. A malformed or exceptional wire response cannot provide a
 successful runtime logical view and therefore cannot become a valid snapshot.
+TCP snapshots require connection identity. RTU snapshots require
+`ConnectionID=0`, equal physical/logical ranges, and `SliceOffset=0`, matching
+the pinned runtime contract.
 
 ## Observation And Replay
 
-`NewObservation` requires every contract version, a unique non-empty
+`ObservationFactory.NewObservation` requires every contract version, a
+unique non-empty
 `sample_id`, one `poll_generation_id`, the exact `dependency_set_id`, explicit
 source validity, either a real source time or the explicit unavailable state,
 local receipt time, endpoint, and unit.
@@ -67,15 +73,37 @@ successful, complete, version-matched, and provenance-consistent. Missing,
 torn, malformed, exceptional, mixed-generation, mixed-endpoint, or incomplete
 inputs fail closed and produce no observation.
 
-`single_wire_response` requires one physical and wire response for all
-dependencies. `bounded_multi_response` requires declared source/receipt skew,
-generation equality, whole-set retry behavior, and any documentary consistency
-marker. Its envelope times are the latest source and receipt times in the
-validated set. Replay returns independent copies of each dependency's exact
-words, normalization, and logical-to-physical slice provenance.
+`single_wire_response` requires one physical/wire response, connection,
+authorization scope, transport generation, function, table, endpoint, and unit.
+Logical-view IDs are unique. Shared physical positions are reconstructed and
+overlapping words must agree exactly. Per-dependent deadline identities are
+retained losslessly and are not collapsed into one inferred value.
 
-`SampleLedger` rejects every reuse of a sample identity. It is only an identity
-guard; it does not assign downstream meaning.
+`bounded_multi_response` requires explicit acquisition ordering, declared
+source/receipt skew, transport-generation equality, same transport family,
+endpoint and unit, whole-set retry behavior, and any documentary consistency
+marker. Its envelope times are the latest source and receipt times in the
+validated set.
+
+`SampleLedger` state is mandatory factory input. Admission is atomic under
+concurrency. `ExportState`, `MarshalSampleLedgerState`, and
+`UnmarshalSampleLedgerState` define the restart boundary so a restart cannot
+silently create a fresh identity domain. M2-01 does not own durable storage:
+the consumer must persist exported state before publishing or otherwise using
+the returned observation externally.
+
+## Serialization
+
+`ProfileDescriptorSpec`, `ProfileDescriptor`, `ObservationSpec`, and admitted
+`Observation` use validated deterministic JSON contracts. Profile and
+observation round trips retain exact versions, dependency order, raw words, and
+the complete `LogicalViewRecord`. Unknown fields and incompatible schemas fail
+closed. Optional relationship versions remain absent; zero values are never
+rewritten as current schema versions.
+
+`Catalog` validates relationship graphs. Vendor overlays require their exact
+active, qualified standard-family base in the same catalog. Superseded profiles
+require a distinct active, version-matched, kind-compatible replacement.
 
 ## Ownership Boundary
 

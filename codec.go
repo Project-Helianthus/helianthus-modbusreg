@@ -1,6 +1,10 @@
 package modbusreg
 
-import "fmt"
+import (
+	"fmt"
+
+	modbus "github.com/Project-Helianthus/helianthus-modbus"
+)
 
 // ByteOrder declares the byte order inside each 16-bit word.
 type ByteOrder string
@@ -93,7 +97,7 @@ type StringSpec struct {
 	ByteOrder                      ByteOrder
 	PaddingByte                    *byte
 	Termination                    StringTermination
-	RetainedRawLength              uint16
+	RetainedRawLength              uint32
 	DocumentaryCharacterRepertoire string
 }
 
@@ -131,6 +135,7 @@ func NewCodec(spec CodecSpec) (Codec, error) {
 	spec = cloneCodecSpec(spec)
 	if !validIdentity(spec.ID) || !spec.Version.valid() ||
 		spec.RawWordCount == 0 ||
+		spec.RawWordCount > modbus.MaxReadRegisters ||
 		len(spec.WordPermutation) != int(spec.RawWordCount) ||
 		spec.OutputProfileType == "" {
 		return Codec{}, fmt.Errorf("incomplete codec identity or dimensions")
@@ -249,7 +254,7 @@ func validateStringSpec(spec StringSpec, words uint16) error {
 		(spec.Termination != StringFixedLength &&
 			spec.Termination != StringNULTerminated) ||
 		spec.PaddingByte == nil ||
-		spec.RetainedRawLength != words*2 ||
+		spec.RetainedRawLength != uint32(words)*2 ||
 		spec.DocumentaryCharacterRepertoire == "" {
 		return fmt.Errorf("string dimensions are incomplete")
 	}
