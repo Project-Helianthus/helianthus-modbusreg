@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
 	"time"
 )
 
@@ -27,31 +26,32 @@ type coherenceDTO struct {
 }
 
 type profileDTO struct {
-	SchemaVersion          string              `json:"schema_version"`
-	ID                     string              `json:"profile_id"`
-	Version                string              `json:"profile_version"`
-	Kind                   ProfileKind         `json:"profile_kind"`
-	StandardApplicability  []string            `json:"standard_applicability"`
-	ModelApplicability     []string            `json:"model_applicability"`
-	VendorApplicability    []string            `json:"vendor_applicability"`
-	KnownExclusions        []string            `json:"known_exclusions"`
-	RuntimeContractVersion string              `json:"runtime_contract_version"`
-	DetectorVersion        string              `json:"detector_version"`
-	CodecContractVersion   string              `json:"codec_contract_version"`
-	NormalizationVersion   string              `json:"normalization_version"`
-	CoherenceVersion       string              `json:"coherence_version"`
-	QualificationVersion   string              `json:"qualification_version"`
-	Codecs                 []CodecSpec         `json:"codecs"`
-	DependencySet          dependencySetDTO    `json:"dependency_set"`
-	Coherence              coherenceDTO        `json:"coherence"`
-	Evidence               []EvidenceReference `json:"evidence"`
-	Maturity               ProfileMaturity     `json:"maturity"`
-	DefaultEnabled         bool                `json:"default_enabled"`
-	State                  ProfileState        `json:"state"`
-	RefinesProfileID       string              `json:"refines_profile_id,omitempty"`
-	RefinesProfileVersion  *string             `json:"refines_profile_version,omitempty"`
-	SupersededByID         string              `json:"superseded_by_id,omitempty"`
-	SupersededByVersion    *string             `json:"superseded_by_version,omitempty"`
+	SchemaVersion          string                   `json:"schema_version"`
+	ID                     string                   `json:"profile_id"`
+	Version                string                   `json:"profile_version"`
+	Kind                   ProfileKind              `json:"profile_kind"`
+	StandardApplicability  []string                 `json:"standard_applicability"`
+	ModelApplicability     []string                 `json:"model_applicability"`
+	VendorApplicability    []string                 `json:"vendor_applicability"`
+	KnownExclusions        []string                 `json:"known_exclusions"`
+	RuntimeContractVersion string                   `json:"runtime_contract_version"`
+	DetectorVersion        string                   `json:"detector_version"`
+	CodecContractVersion   string                   `json:"codec_contract_version"`
+	NormalizationVersion   string                   `json:"normalization_version"`
+	CoherenceVersion       string                   `json:"coherence_version"`
+	QualificationVersion   string                   `json:"qualification_version"`
+	Codecs                 []CodecSpec              `json:"codecs"`
+	DependencySet          dependencySetDTO         `json:"dependency_set"`
+	Coherence              coherenceDTO             `json:"coherence"`
+	Evidence               []EvidenceReference      `json:"evidence"`
+	Maturity               ProfileMaturity          `json:"maturity"`
+	DefaultEnabled         bool                     `json:"default_enabled"`
+	State                  ProfileState             `json:"state"`
+	RefinesProfileID       string                   `json:"refines_profile_id,omitempty"`
+	RefinesProfileVersion  *string                  `json:"refines_profile_version,omitempty"`
+	SupersededByID         string                   `json:"superseded_by_id,omitempty"`
+	SupersededByVersion    *string                  `json:"superseded_by_version,omitempty"`
+	OverlayDeltas          []VendorOverlayDeltaSpec `json:"overlay_deltas"`
 }
 
 func versionPointer(version Version) *string {
@@ -116,7 +116,21 @@ func profileToDTO(profile ProfileDescriptor) (profileDTO, error) {
 		RefinesProfileVersion: versionPointer(spec.RefinesProfileVersion),
 		SupersededByID:        spec.SupersededByID,
 		SupersededByVersion:   versionPointer(spec.SupersededByVersion),
+		OverlayDeltas:         cloneOverlayDeltas(spec.OverlayDeltas),
 	}, nil
+}
+
+func cloneOverlayDeltas(
+	deltas []VendorOverlayDeltaSpec,
+) []VendorOverlayDeltaSpec {
+	if deltas == nil {
+		return nil
+	}
+	result := make([]VendorOverlayDeltaSpec, len(deltas))
+	for index, delta := range deltas {
+		result[index] = cloneOverlayDelta(delta)
+	}
+	return result
 }
 
 func parseRequiredVersion(field, value string) (Version, error) {
@@ -185,19 +199,28 @@ func profileFromDTO(record profileDTO) (ProfileDescriptor, error) {
 	if err != nil {
 		return ProfileDescriptor{}, err
 	}
-	dependencySetVersion, err := parseRequiredVersion(
-		"dependency_set.version",
-		record.DependencySet.Version,
-	)
-	if err != nil {
-		return ProfileDescriptor{}, err
-	}
-	coherencePolicyVersion, err := parseRequiredVersion(
-		"coherence.version",
-		record.Coherence.Version,
-	)
-	if err != nil {
-		return ProfileDescriptor{}, err
+	var dependencySetVersion Version
+	var coherencePolicyVersion Version
+	if record.Kind == ProfileVendorOverlay &&
+		record.DependencySet.Version == "" &&
+		record.Coherence.Version == "" {
+		dependencySetVersion = Version{}
+		coherencePolicyVersion = Version{}
+	} else {
+		dependencySetVersion, err = parseRequiredVersion(
+			"dependency_set.version",
+			record.DependencySet.Version,
+		)
+		if err != nil {
+			return ProfileDescriptor{}, err
+		}
+		coherencePolicyVersion, err = parseRequiredVersion(
+			"coherence.version",
+			record.Coherence.Version,
+		)
+		if err != nil {
+			return ProfileDescriptor{}, err
+		}
 	}
 	refinesVersion, err := parseOptionalVersion(
 		"refines_profile_version",
@@ -227,12 +250,22 @@ func profileFromDTO(record profileDTO) (ProfileDescriptor, error) {
 			return ProfileDescriptor{}, fmt.Errorf("dependency %d: %w", index, err)
 		}
 	}
-	dependencySet, err := NewDependencySet(dependencySetVersion, dependencies)
-	if err != nil {
-		return ProfileDescriptor{}, err
-	}
-	if dependencySet.ID() != record.DependencySet.ID {
-		return ProfileDescriptor{}, fmt.Errorf("dependency-set identity changed")
+	var dependencySet DependencySet
+	if record.Kind == ProfileVendorOverlay {
+		if record.DependencySet.ID != "" || len(dependencies) != 0 {
+			return ProfileDescriptor{}, fmt.Errorf("vendor overlay copied a dependency set")
+		}
+	} else {
+		dependencySet, err = NewDependencySet(
+			dependencySetVersion,
+			dependencies,
+		)
+		if err != nil {
+			return ProfileDescriptor{}, err
+		}
+		if dependencySet.ID() != record.DependencySet.ID {
+			return ProfileDescriptor{}, fmt.Errorf("dependency-set identity changed")
+		}
 	}
 	return NewProfileDescriptor(ProfileDescriptorSpec{
 		SchemaVersion:          schema,
@@ -269,10 +302,14 @@ func profileFromDTO(record profileDTO) (ProfileDescriptor, error) {
 		RefinesProfileVersion: refinesVersion,
 		SupersededByID:        record.SupersededByID,
 		SupersededByVersion:   supersededVersion,
+		OverlayDeltas:         cloneOverlayDeltas(record.OverlayDeltas),
 	})
 }
 
 func decodeStrict(data []byte, target any) error {
+	if err := preflightJSON(data); err != nil {
+		return err
+	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
@@ -287,13 +324,24 @@ func decodeStrict(data []byte, target any) error {
 	return nil
 }
 
+func marshalBounded(value any) ([]byte, error) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	if len(encoded) > MaxSerializedContractBytes {
+		return nil, fmt.Errorf("serialized contract exceeds the byte boundary")
+	}
+	return encoded, nil
+}
+
 // MarshalProfileDescriptor emits deterministic validated profile bytes.
 func MarshalProfileDescriptor(profile ProfileDescriptor) ([]byte, error) {
 	record, err := profileToDTO(profile)
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(record)
+	return marshalBounded(record)
 }
 
 // UnmarshalProfileDescriptor rejects unknown fields and incompatible schemas.
@@ -356,6 +404,7 @@ type dependencyResultDTO struct {
 	LocalReceiptTime             string               `json:"local_receipt_time,omitempty"`
 	DocumentaryConsistencyMarker string               `json:"documentary_consistency_marker"`
 	AcquisitionOrdinal           uint32               `json:"acquisition_ordinal"`
+	RetryAttemptID               RetryAttemptID       `json:"retry_attempt_id"`
 }
 
 type observationDTO struct {
@@ -369,6 +418,7 @@ type observationDTO struct {
 	CoherenceVersion       string                `json:"coherence_version"`
 	QualificationVersion   string                `json:"qualification_version"`
 	SampleID               string                `json:"sample_id"`
+	RetryAttemptID         RetryAttemptID        `json:"retry_attempt_id"`
 	PollGenerationID       uint64                `json:"poll_generation_id"`
 	DependencySetID        string                `json:"dependency_set_id"`
 	DependencySetVersion   string                `json:"dependency_set_version"`
@@ -386,7 +436,11 @@ func sourceTimeToDTO(source SourceTimeSpec) (sourceTimeDTO, error) {
 	}
 	record := sourceTimeDTO{State: source.State}
 	if source.State == SourceTimeObservedState {
-		record.Time = source.Time.UTC().Format(time.RFC3339Nano)
+		value, err := canonicalTime(source.Time)
+		if err != nil {
+			return sourceTimeDTO{}, err
+		}
+		record.Time = value.Format(time.RFC3339Nano)
 	}
 	return record, nil
 }
@@ -413,20 +467,31 @@ func sourceTimeFromDTO(record sourceTimeDTO) (SourceTimeSpec, error) {
 }
 
 func formatRequiredTime(value time.Time) (string, error) {
-	if value.IsZero() {
-		return "", fmt.Errorf("required receipt time is absent")
+	canonical, err := canonicalTime(value)
+	if err != nil {
+		return "", err
 	}
-	return value.UTC().Format(time.RFC3339Nano), nil
+	return canonical.Format(time.RFC3339Nano), nil
 }
 
 func parseOptionalTime(value string) (time.Time, error) {
 	if value == "" {
 		return time.Time{}, nil
 	}
-	return time.Parse(time.RFC3339Nano, value)
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return canonicalTime(parsed)
 }
 
 func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
+	if err := preflightObservationSpec(spec); err != nil {
+		return observationDTO{}, err
+	}
+	if err := canonicalizeObservationTimes(&spec); err != nil {
+		return observationDTO{}, err
+	}
 	sourceTime, err := sourceTimeToDTO(spec.SourceTime)
 	if err != nil {
 		return observationDTO{}, err
@@ -464,6 +529,7 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 			LocalReceiptTime:             localReceipt,
 			DocumentaryConsistencyMarker: result.DocumentaryConsistencyMarker,
 			AcquisitionOrdinal:           result.AcquisitionOrdinal,
+			RetryAttemptID:               result.RetryAttemptID,
 		}
 	}
 	return observationDTO{
@@ -477,6 +543,7 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 		CoherenceVersion:       spec.CoherenceVersion.String(),
 		QualificationVersion:   spec.QualificationVersion.String(),
 		SampleID:               spec.SampleID,
+		RetryAttemptID:         spec.RetryAttemptID,
 		PollGenerationID:       spec.PollGenerationID,
 		DependencySetID:        spec.DependencySetID,
 		DependencySetVersion:   spec.DependencySetVersion.String(),
@@ -596,6 +663,7 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 			LocalReceiptTime:             dependencyReceipt,
 			DocumentaryConsistencyMarker: dependency.DocumentaryConsistencyMarker,
 			AcquisitionOrdinal:           dependency.AcquisitionOrdinal,
+			RetryAttemptID:               dependency.RetryAttemptID,
 		}
 	}
 	return ObservationSpec{
@@ -609,6 +677,7 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 		CoherenceVersion:       coherenceVersion,
 		QualificationVersion:   qualificationVersion,
 		SampleID:               record.SampleID,
+		RetryAttemptID:         record.RetryAttemptID,
 		PollGenerationID:       record.PollGenerationID,
 		DependencySetID:        record.DependencySetID,
 		DependencySetVersion:   dependencySetVersion,
@@ -627,7 +696,7 @@ func (spec ObservationSpec) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(record)
+	return marshalBounded(record)
 }
 
 // UnmarshalJSON reconstructs validated logical-view snapshots.
@@ -649,7 +718,7 @@ func MarshalObservation(observation Observation) ([]byte, error) {
 	if observation.SampleID() == "" {
 		return nil, fmt.Errorf("observation is invalid")
 	}
-	return json.Marshal(observation.Spec())
+	return marshalBounded(observation.Spec())
 }
 
 // MarshalJSON serializes an immutable admitted observation.
@@ -660,50 +729,40 @@ func (observation Observation) MarshalJSON() ([]byte, error) {
 // UnmarshalObservation validates bytes and atomically admits the sample.
 func (factory *ObservationFactory) UnmarshalObservation(
 	data []byte,
-) (Observation, error) {
+) (SampleAdmission, error) {
 	if factory == nil {
-		return Observation{}, fmt.Errorf("observation factory is invalid")
+		return SampleAdmission{}, fmt.Errorf("observation factory is invalid")
 	}
 	var spec ObservationSpec
 	if err := decodeStrict(data, &spec); err != nil {
-		return Observation{}, err
+		return SampleAdmission{}, err
 	}
-	return factory.NewObservation(spec)
-}
-
-type sampleIdentityDTO struct {
-	SampleID         string `json:"sample_id"`
-	ProfileID        string `json:"profile_id"`
-	ProfileVersion   string `json:"profile_version"`
-	PollGenerationID uint64 `json:"poll_generation_id"`
-	DependencySetID  string `json:"dependency_set_id"`
+	observation, err := buildObservation(factory.profile, spec)
+	if err != nil {
+		return SampleAdmission{}, err
+	}
+	return factory.admitSerializedObservation(observation)
 }
 
 type sampleLedgerDTO struct {
-	SchemaVersion string              `json:"schema_version"`
-	Samples       []sampleIdentityDTO `json:"samples"`
+	SchemaVersion   string `json:"schema_version"`
+	IssuerDomain    string `json:"issuer_domain"`
+	DependencySetID string `json:"dependency_set_id"`
+	Revision        uint64 `json:"revision"`
+	HighWater       uint64 `json:"high_water"`
 }
 
 // MarshalSampleLedgerState emits deterministic explicit restart state.
 func MarshalSampleLedgerState(state SampleLedgerState) ([]byte, error) {
-	ledger, err := NewSampleLedger(state)
-	if err != nil {
+	if err := validateSampleLedgerState(state, 0); err != nil {
 		return nil, err
 	}
-	canonical := ledger.ExportState()
-	records := make([]sampleIdentityDTO, len(canonical.Samples))
-	for index, sample := range canonical.Samples {
-		records[index] = sampleIdentityDTO{
-			SampleID:         sample.SampleID,
-			ProfileID:        sample.ProfileID,
-			ProfileVersion:   sample.ProfileVersion.String(),
-			PollGenerationID: sample.PollGenerationID,
-			DependencySetID:  sample.DependencySetID,
-		}
-	}
-	return json.Marshal(sampleLedgerDTO{
-		SchemaVersion: canonical.SchemaVersion.String(),
-		Samples:       records,
+	return marshalBounded(sampleLedgerDTO{
+		SchemaVersion:   state.SchemaVersion.String(),
+		IssuerDomain:    state.IssuerDomain,
+		DependencySetID: state.DependencySetID,
+		Revision:        state.Revision,
+		HighWater:       state.HighWater,
 	})
 }
 
@@ -717,32 +776,14 @@ func UnmarshalSampleLedgerState(data []byte) (SampleLedgerState, error) {
 		return SampleLedgerState{}, fmt.Errorf("sample ledger schema is incompatible")
 	}
 	state := SampleLedgerState{
-		SchemaVersion: schemaVersionV1,
-		Samples:       make([]SampleIdentityRecord, len(record.Samples)),
+		SchemaVersion:   schemaVersionV1,
+		IssuerDomain:    record.IssuerDomain,
+		DependencySetID: record.DependencySetID,
+		Revision:        record.Revision,
+		HighWater:       record.HighWater,
 	}
-	for index, sample := range record.Samples {
-		version, err := parseRequiredVersion(
-			"profile_version",
-			sample.ProfileVersion,
-		)
-		if err != nil {
-			return SampleLedgerState{}, err
-		}
-		state.Samples[index] = SampleIdentityRecord{
-			SampleID:         sample.SampleID,
-			ProfileID:        sample.ProfileID,
-			ProfileVersion:   version,
-			PollGenerationID: sample.PollGenerationID,
-			DependencySetID:  sample.DependencySetID,
-		}
-	}
-	ledger, err := NewSampleLedger(state)
-	if err != nil {
+	if err := validateSampleLedgerState(state, 0); err != nil {
 		return SampleLedgerState{}, err
 	}
-	canonical := ledger.ExportState()
-	sort.Slice(canonical.Samples, func(first, second int) bool {
-		return canonical.Samples[first].SampleID < canonical.Samples[second].SampleID
-	})
-	return canonical, nil
+	return state, nil
 }

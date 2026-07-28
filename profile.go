@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -62,6 +63,9 @@ type AddressNormalization struct {
 func NewAddressNormalization(
 	spec AddressNormalizationSpec,
 ) (AddressNormalization, error) {
+	if err := preflightAddressNormalizationSpec(spec); err != nil {
+		return AddressNormalization{}, err
+	}
 	if !spec.Version.valid() || spec.SourceLocator == "" ||
 		spec.DocumentaryNotation == "" || spec.AddressSpaceLabel == "" {
 		return AddressNormalization{}, fmt.Errorf("normalization metadata is incomplete")
@@ -102,6 +106,29 @@ func NewAddressNormalization(
 	return AddressNormalization{spec: spec}, nil
 }
 
+func preflightAddressNormalizationSpec(spec AddressNormalizationSpec) error {
+	stringFields := []struct {
+		name  string
+		value string
+	}{
+		{name: "normalization source locator", value: spec.SourceLocator},
+		{
+			name:  "normalization documentary notation",
+			value: spec.DocumentaryNotation,
+		},
+		{
+			name:  "normalization address-space label",
+			value: spec.AddressSpaceLabel,
+		},
+	}
+	for _, field := range stringFields {
+		if err := validateBoundedString(field.name, field.value, true); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Spec returns the complete normalization record.
 func (normalization AddressNormalization) Spec() AddressNormalizationSpec {
 	return normalization.spec
@@ -134,6 +161,9 @@ type Dependency struct {
 
 // NewDependency validates a dependency without performing any transport work.
 func NewDependency(spec DependencySpec) (Dependency, error) {
+	if err := preflightDependencySpec(spec); err != nil {
+		return Dependency{}, err
+	}
 	spec.EvidenceReferences = cloneStrings(spec.EvidenceReferences)
 	spec.ApplicabilityRefs = cloneStrings(spec.ApplicabilityRefs)
 	normalization, err := NewAddressNormalization(spec.Normalization)
@@ -161,6 +191,42 @@ func NewDependency(spec DependencySpec) (Dependency, error) {
 		return Dependency{}, fmt.Errorf("dependency range overflows PDU space")
 	}
 	return Dependency{spec: spec, normalization: normalization}, nil
+}
+
+func preflightDependencySpec(spec DependencySpec) error {
+	if spec.WordCount == 0 || spec.WordCount > modbus.MaxReadRegisters {
+		return fmt.Errorf("dependency width exceeds the runtime boundary")
+	}
+	if err := preflightAddressNormalizationSpec(spec.Normalization); err != nil {
+		return err
+	}
+	stringFields := []struct {
+		name  string
+		value string
+	}{
+		{name: "dependency ID", value: spec.ID},
+		{name: "dependency codec ID", value: spec.CodecID},
+		{name: "dependency coherence group", value: spec.CoherenceGroup},
+	}
+	for _, field := range stringFields {
+		if err := validateBoundedString(field.name, field.value, true); err != nil {
+			return err
+		}
+	}
+	if err := validateBoundedStrings(
+		"dependency evidence references",
+		spec.EvidenceReferences,
+		MaxProfileEvidenceReferences,
+		true,
+	); err != nil {
+		return err
+	}
+	return validateBoundedStrings(
+		"dependency applicability references",
+		spec.ApplicabilityRefs,
+		MaxProfileEvidenceReferences,
+		true,
+	)
 }
 
 // Spec returns an independent complete dependency declaration.
@@ -218,7 +284,8 @@ func NewDependencySet(
 	version Version,
 	dependencies []Dependency,
 ) (DependencySet, error) {
-	if !version.valid() || len(dependencies) == 0 {
+	if !version.valid() || len(dependencies) == 0 ||
+		len(dependencies) > MaxProfileDependencies {
 		return DependencySet{}, fmt.Errorf("dependency set is incomplete")
 	}
 	specs := make([]DependencySpec, len(dependencies))
@@ -298,6 +365,41 @@ const (
 type EvidenceReference struct {
 	ID                     string
 	PublicationDisposition PublicationDisposition
+}
+
+// OverlayDeltaKind identifies one base-relative vendor deviation.
+type OverlayDeltaKind string
+
+const (
+	OverlayDeltaModelApplicability OverlayDeltaKind = "model_applicability"
+	OverlayDeltaKnownExclusion     OverlayDeltaKind = "known_exclusion"
+	OverlayDeltaCodec              OverlayDeltaKind = "codec"
+	OverlayDeltaDependency         OverlayDeltaKind = "dependency"
+	OverlayDeltaCoherence          OverlayDeltaKind = "coherence"
+)
+
+// OverlayDeltaOperation describes the base-relative change.
+type OverlayDeltaOperation string
+
+const (
+	OverlayDeltaAdd     OverlayDeltaOperation = "add"
+	OverlayDeltaReplace OverlayDeltaOperation = "replace"
+	OverlayDeltaRemove  OverlayDeltaOperation = "remove"
+)
+
+// VendorOverlayDeltaSpec is one typed, evidence-backed deviation from a
+// qualified standard-family profile. Exactly one payload form is permitted.
+type VendorOverlayDeltaSpec struct {
+	ID                 string
+	Version            Version
+	Kind               OverlayDeltaKind
+	Operation          OverlayDeltaOperation
+	TargetID           string
+	ApplicabilityValue string
+	Codec              *CodecSpec
+	Dependency         *DependencySpec
+	Coherence          *CoherencePolicySpec
+	EvidenceReferences []string
 }
 
 // ProfileMaturity is documentary support maturity, not activation policy.
@@ -410,6 +512,7 @@ type ProfileDescriptorSpec struct {
 	RefinesProfileVersion  Version
 	SupersededByID         string
 	SupersededByVersion    Version
+	OverlayDeltas          []VendorOverlayDeltaSpec
 }
 
 // ProfileDescriptor is an immutable validated profile contract.
@@ -419,6 +522,9 @@ type ProfileDescriptor struct {
 
 // NewProfileDescriptor validates one complete immutable profile declaration.
 func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error) {
+	if err := preflightProfileSpec(spec); err != nil {
+		return ProfileDescriptor{}, err
+	}
 	spec = cloneProfileSpec(spec)
 	if spec.SchemaVersion != schemaVersionV1 || !validIdentity(spec.ID) ||
 		!spec.Version.valid() || !spec.RuntimeContractVersion.valid() ||
@@ -426,29 +532,39 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 		spec.CodecContractVersion != codecContractVersionV1 ||
 		!spec.NormalizationVersion.valid() ||
 		!spec.CoherenceVersion.valid() || !spec.QualificationVersion.valid() ||
-		!stringsComplete(spec.StandardApplicability) ||
-		!stringsDeclared(spec.ModelApplicability) ||
-		!stringsDeclared(spec.KnownExclusions) ||
-		spec.Dependencies.ID() == "" || !spec.Dependencies.Version().valid() ||
-		len(spec.Codecs) == 0 || len(spec.Evidence) == 0 {
+		len(spec.Evidence) == 0 {
 		return ProfileDescriptor{}, fmt.Errorf("profile descriptor is incomplete")
-	}
-	if err := validateCoherence(spec.Coherence); err != nil {
-		return ProfileDescriptor{}, err
-	}
-	if spec.Coherence.Version != spec.CoherenceVersion {
-		return ProfileDescriptor{}, fmt.Errorf("coherence versions disagree")
 	}
 	switch spec.Kind {
 	case ProfileStandardFamily:
 		if len(spec.VendorApplicability) != 0 ||
-			spec.RefinesProfileID != "" || spec.RefinesProfileVersion.valid() {
+			spec.RefinesProfileID != "" || spec.RefinesProfileVersion.valid() ||
+			len(spec.OverlayDeltas) != 0 ||
+			!stringsComplete(spec.StandardApplicability) ||
+			!stringsDeclared(spec.ModelApplicability) ||
+			!stringsDeclared(spec.KnownExclusions) ||
+			spec.Dependencies.ID() == "" ||
+			!spec.Dependencies.Version().valid() ||
+			len(spec.Codecs) == 0 {
 			return ProfileDescriptor{}, fmt.Errorf("standard family contains vendor assumptions")
+		}
+		if err := validateCoherence(spec.Coherence); err != nil {
+			return ProfileDescriptor{}, err
+		}
+		if spec.Coherence.Version != spec.CoherenceVersion {
+			return ProfileDescriptor{}, fmt.Errorf("coherence versions disagree")
 		}
 	case ProfileVendorOverlay:
 		if !stringsComplete(spec.VendorApplicability) ||
 			!validIdentity(spec.RefinesProfileID) ||
-			!spec.RefinesProfileVersion.valid() {
+			!spec.RefinesProfileVersion.valid() ||
+			len(spec.StandardApplicability) != 0 ||
+			len(spec.ModelApplicability) != 0 ||
+			len(spec.KnownExclusions) != 0 ||
+			len(spec.Codecs) != 0 || spec.Dependencies.ID() != "" ||
+			spec.Dependencies.Version().valid() ||
+			!reflect.DeepEqual(spec.Coherence, CoherencePolicySpec{}) ||
+			len(spec.OverlayDeltas) == 0 {
 			return ProfileDescriptor{}, fmt.Errorf("vendor overlay lacks qualified base")
 		}
 	default:
@@ -475,6 +591,11 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 			return ProfileDescriptor{}, fmt.Errorf("duplicate evidence reference")
 		}
 		evidenceIDs[evidence.ID] = struct{}{}
+	}
+	if spec.Kind == ProfileVendorOverlay {
+		if err := validateOverlayDeltas(spec.OverlayDeltas, evidenceIDs); err != nil {
+			return ProfileDescriptor{}, err
+		}
 	}
 	dependencies := spec.Dependencies.Dependencies()
 	dependencyIDs := make(map[string]struct{}, len(dependencies))
@@ -530,8 +651,11 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 			return ProfileDescriptor{}, fmt.Errorf("active profile has replacement")
 		}
 	case ProfileRevoked:
-		if spec.DefaultEnabled {
-			return ProfileDescriptor{}, fmt.Errorf("revoked profile cannot default on")
+		if spec.DefaultEnabled || spec.SupersededByID != "" ||
+			spec.SupersededByVersion.valid() {
+			return ProfileDescriptor{}, fmt.Errorf(
+				"revoked profile carries activation or successor fields",
+			)
 		}
 	case ProfileSuperseded:
 		if !validIdentity(spec.SupersededByID) ||
@@ -545,6 +669,213 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 		return ProfileDescriptor{}, fmt.Errorf("profile state is unknown")
 	}
 	return ProfileDescriptor{spec: spec}, nil
+}
+
+func preflightProfileSpec(spec ProfileDescriptorSpec) error {
+	stringFields := []struct {
+		name  string
+		value string
+	}{
+		{name: "profile ID", value: spec.ID},
+		{name: "refined profile ID", value: spec.RefinesProfileID},
+		{name: "superseded profile ID", value: spec.SupersededByID},
+	}
+	for _, field := range stringFields {
+		if err := validateBoundedString(field.name, field.value, false); err != nil {
+			return err
+		}
+	}
+	stringSlices := []struct {
+		name   string
+		values []string
+	}{
+		{name: "standard applicability", values: spec.StandardApplicability},
+		{name: "model applicability", values: spec.ModelApplicability},
+		{name: "vendor applicability", values: spec.VendorApplicability},
+		{name: "known exclusions", values: spec.KnownExclusions},
+	}
+	for _, field := range stringSlices {
+		if err := validateBoundedStrings(
+			field.name,
+			field.values,
+			MaxProfileEvidenceReferences,
+			false,
+		); err != nil {
+			return err
+		}
+	}
+	if len(spec.Codecs) > MaxProfileCodecs ||
+		len(spec.Evidence) > MaxProfileEvidenceReferences ||
+		len(spec.OverlayDeltas) > MaxProfileDependencies {
+		return fmt.Errorf("profile exceeds the contract collection boundary")
+	}
+	for _, evidence := range spec.Evidence {
+		if err := validateBoundedString(
+			"profile evidence ID",
+			evidence.ID,
+			true,
+		); err != nil {
+			return err
+		}
+	}
+	for _, delta := range spec.OverlayDeltas {
+		if err := preflightOverlayDelta(delta); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func preflightOverlayDelta(delta VendorOverlayDeltaSpec) error {
+	stringFields := []struct {
+		name  string
+		value string
+	}{
+		{name: "overlay delta ID", value: delta.ID},
+		{name: "overlay delta target", value: delta.TargetID},
+		{
+			name:  "overlay delta applicability value",
+			value: delta.ApplicabilityValue,
+		},
+	}
+	for _, field := range stringFields {
+		if err := validateBoundedString(field.name, field.value, false); err != nil {
+			return err
+		}
+	}
+	if err := validateBoundedStrings(
+		"overlay delta evidence",
+		delta.EvidenceReferences,
+		MaxProfileEvidenceReferences,
+		true,
+	); err != nil {
+		return err
+	}
+	if delta.Codec != nil {
+		if err := preflightCodecSpec(*delta.Codec); err != nil {
+			return fmt.Errorf("overlay codec preflight: %w", err)
+		}
+	}
+	if delta.Dependency != nil {
+		if err := preflightDependencySpec(*delta.Dependency); err != nil {
+			return fmt.Errorf("overlay dependency preflight: %w", err)
+		}
+	}
+	if delta.Coherence != nil {
+		if err := validateBoundedString(
+			"overlay coherence marker",
+			delta.Coherence.DocumentaryConsistencyMarker,
+			false,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateOverlayDeltas(
+	deltas []VendorOverlayDeltaSpec,
+	evidenceIDs map[string]struct{},
+) error {
+	seen := make(map[string]struct{}, len(deltas))
+	seenTargets := make(map[string]struct{}, len(deltas))
+	for _, delta := range deltas {
+		if !validIdentity(delta.ID) || !delta.Version.valid() {
+			return fmt.Errorf("overlay delta identity is incomplete")
+		}
+		if _, exists := seen[delta.ID]; exists {
+			return fmt.Errorf("overlay delta identity is duplicated")
+		}
+		seen[delta.ID] = struct{}{}
+		if !stringsComplete(delta.EvidenceReferences) {
+			return fmt.Errorf("overlay delta evidence is incomplete")
+		}
+		for _, evidenceID := range delta.EvidenceReferences {
+			if _, exists := evidenceIDs[evidenceID]; !exists {
+				return fmt.Errorf("overlay delta evidence is absent from profile")
+			}
+		}
+		switch delta.Kind {
+		case OverlayDeltaModelApplicability, OverlayDeltaKnownExclusion:
+			if (delta.Operation != OverlayDeltaAdd &&
+				delta.Operation != OverlayDeltaRemove) ||
+				delta.ApplicabilityValue == "" || delta.TargetID != "" ||
+				delta.Codec != nil || delta.Dependency != nil ||
+				delta.Coherence != nil {
+				return fmt.Errorf("overlay applicability delta is malformed")
+			}
+			target := string(delta.Kind) + ":" + delta.ApplicabilityValue
+			if _, exists := seenTargets[target]; exists {
+				return fmt.Errorf("overlay delta target is duplicated")
+			}
+			seenTargets[target] = struct{}{}
+		case OverlayDeltaCodec:
+			if (delta.Operation != OverlayDeltaAdd &&
+				delta.Operation != OverlayDeltaReplace) ||
+				!validIdentity(delta.TargetID) ||
+				delta.ApplicabilityValue != "" || delta.Codec == nil ||
+				delta.Dependency != nil || delta.Coherence != nil {
+				return fmt.Errorf("overlay codec delta is malformed")
+			}
+			target := string(delta.Kind) + ":" + delta.TargetID
+			if _, exists := seenTargets[target]; exists {
+				return fmt.Errorf("overlay delta target is duplicated")
+			}
+			seenTargets[target] = struct{}{}
+			codec, err := NewCodec(*delta.Codec)
+			if err != nil || codec.ID() != delta.TargetID {
+				return fmt.Errorf("overlay codec delta is invalid")
+			}
+		case OverlayDeltaDependency:
+			if !validIdentity(delta.TargetID) ||
+				delta.ApplicabilityValue != "" || delta.Codec != nil ||
+				delta.Coherence != nil {
+				return fmt.Errorf("overlay dependency delta is malformed")
+			}
+			target := string(delta.Kind) + ":" + delta.TargetID
+			if _, exists := seenTargets[target]; exists {
+				return fmt.Errorf("overlay delta target is duplicated")
+			}
+			seenTargets[target] = struct{}{}
+			switch delta.Operation {
+			case OverlayDeltaAdd, OverlayDeltaReplace:
+				if delta.Dependency == nil {
+					return fmt.Errorf("overlay dependency delta lacks payload")
+				}
+				dependency, err := NewDependency(*delta.Dependency)
+				if err != nil || dependency.ID() != delta.TargetID {
+					return fmt.Errorf("overlay dependency delta is invalid")
+				}
+				for _, evidenceID := range dependency.Spec().EvidenceReferences {
+					if !slices.Contains(delta.EvidenceReferences, evidenceID) {
+						return fmt.Errorf("overlay dependency payload lacks delta evidence")
+					}
+				}
+			case OverlayDeltaRemove:
+				if delta.Dependency != nil {
+					return fmt.Errorf("overlay dependency removal has payload")
+				}
+			default:
+				return fmt.Errorf("overlay dependency operation is unknown")
+			}
+		case OverlayDeltaCoherence:
+			if delta.Operation != OverlayDeltaReplace ||
+				delta.TargetID != "coherence-policy" ||
+				delta.ApplicabilityValue != "" || delta.Codec != nil ||
+				delta.Dependency != nil || delta.Coherence == nil ||
+				validateCoherence(*delta.Coherence) != nil {
+				return fmt.Errorf("overlay coherence delta is malformed")
+			}
+			target := string(delta.Kind) + ":" + delta.TargetID
+			if _, exists := seenTargets[target]; exists {
+				return fmt.Errorf("overlay delta target is duplicated")
+			}
+			seenTargets[target] = struct{}{}
+		default:
+			return fmt.Errorf("overlay delta kind is unknown")
+		}
+	}
+	return nil
 }
 
 func validateSingleWireDependencies(dependencies []Dependency) error {
@@ -627,7 +958,38 @@ func cloneProfileSpec(spec ProfileDescriptorSpec) ProfileDescriptorSpec {
 		spec.Dependencies.Dependencies(),
 	)
 	spec.Evidence = append([]EvidenceReference(nil), spec.Evidence...)
+	overlayDeltas := spec.OverlayDeltas
+	spec.OverlayDeltas = make(
+		[]VendorOverlayDeltaSpec,
+		len(overlayDeltas),
+	)
+	for index, delta := range overlayDeltas {
+		spec.OverlayDeltas[index] = cloneOverlayDelta(delta)
+	}
 	return spec
+}
+
+func cloneOverlayDelta(delta VendorOverlayDeltaSpec) VendorOverlayDeltaSpec {
+	delta.EvidenceReferences = cloneStrings(delta.EvidenceReferences)
+	if delta.Codec != nil {
+		codec := cloneCodecSpec(*delta.Codec)
+		delta.Codec = &codec
+	}
+	if delta.Dependency != nil {
+		dependency := *delta.Dependency
+		dependency.EvidenceReferences = cloneStrings(
+			dependency.EvidenceReferences,
+		)
+		dependency.ApplicabilityRefs = cloneStrings(
+			dependency.ApplicabilityRefs,
+		)
+		delta.Dependency = &dependency
+	}
+	if delta.Coherence != nil {
+		coherence := *delta.Coherence
+		delta.Coherence = &coherence
+	}
+	return delta
 }
 
 // Spec returns an independent complete profile declaration.
@@ -691,7 +1053,7 @@ type Catalog struct {
 
 // NewCatalog rejects duplicate IDs, including a second profile version.
 func NewCatalog(profiles ...ProfileDescriptor) (Catalog, error) {
-	if len(profiles) == 0 {
+	if len(profiles) == 0 || len(profiles) > MaxProfileDependencies {
 		return Catalog{}, fmt.Errorf("catalog is empty")
 	}
 	seen := make(map[string]struct{}, len(profiles))
@@ -730,6 +1092,26 @@ func NewCatalog(profiles ...ProfileDescriptor) (Catalog, error) {
 				base.spec.Maturity != MaturityQualified {
 				return Catalog{}, fmt.Errorf("vendor overlay base is not active and qualified")
 			}
+			if spec.RuntimeContractVersion != base.spec.RuntimeContractVersion ||
+				spec.DetectorVersion != base.spec.DetectorVersion ||
+				spec.CodecContractVersion != base.spec.CodecContractVersion ||
+				spec.NormalizationVersion != base.spec.NormalizationVersion ||
+				spec.CoherenceVersion != base.spec.CoherenceVersion ||
+				spec.QualificationVersion != base.spec.QualificationVersion {
+				return Catalog{}, fmt.Errorf("vendor overlay changes inherited contract versions")
+			}
+			if err := validateOverlayAgainstBase(spec, base.spec); err != nil {
+				return Catalog{}, err
+			}
+			baseEvidence := make(map[string]struct{}, len(base.spec.Evidence))
+			for _, evidence := range base.spec.Evidence {
+				baseEvidence[evidence.ID] = struct{}{}
+			}
+			for _, evidence := range spec.Evidence {
+				if _, copied := baseEvidence[evidence.ID]; copied {
+					return Catalog{}, fmt.Errorf("vendor overlay copied base evidence")
+				}
+			}
 		}
 		if spec.State != ProfileSuperseded {
 			continue
@@ -752,6 +1134,75 @@ func NewCatalog(profiles ...ProfileDescriptor) (Catalog, error) {
 		}
 	}
 	return Catalog{profiles: result}, nil
+}
+
+func validateOverlayAgainstBase(
+	overlay ProfileDescriptorSpec,
+	base ProfileDescriptorSpec,
+) error {
+	baseCodecs := make(map[string]CodecSpec, len(base.Codecs))
+	for _, codec := range base.Codecs {
+		baseCodecs[codec.ID()] = codec.Spec()
+	}
+	baseDependencies := make(map[string]DependencySpec)
+	for _, dependency := range base.Dependencies.Dependencies() {
+		baseDependencies[dependency.ID()] = dependency.Spec()
+	}
+	for _, delta := range overlay.OverlayDeltas {
+		switch delta.Kind {
+		case OverlayDeltaModelApplicability:
+			exists := slices.Contains(
+				base.ModelApplicability,
+				delta.ApplicabilityValue,
+			)
+			if (delta.Operation == OverlayDeltaAdd && exists) ||
+				(delta.Operation == OverlayDeltaRemove && !exists) {
+				return fmt.Errorf("overlay model-applicability delta is a no-op")
+			}
+		case OverlayDeltaKnownExclusion:
+			exists := slices.Contains(
+				base.KnownExclusions,
+				delta.ApplicabilityValue,
+			)
+			if (delta.Operation == OverlayDeltaAdd && exists) ||
+				(delta.Operation == OverlayDeltaRemove && !exists) {
+				return fmt.Errorf("overlay exclusion delta is a no-op")
+			}
+		case OverlayDeltaCodec:
+			baseCodec, exists := baseCodecs[delta.TargetID]
+			if delta.Operation == OverlayDeltaAdd && exists {
+				return fmt.Errorf("overlay codec addition already exists")
+			}
+			if delta.Operation == OverlayDeltaReplace &&
+				(!exists || reflect.DeepEqual(baseCodec, *delta.Codec)) {
+				return fmt.Errorf("overlay codec replacement is absent or unchanged")
+			}
+		case OverlayDeltaDependency:
+			baseDependency, exists := baseDependencies[delta.TargetID]
+			switch delta.Operation {
+			case OverlayDeltaAdd:
+				if exists {
+					return fmt.Errorf("overlay dependency addition already exists")
+				}
+			case OverlayDeltaReplace:
+				if !exists || reflect.DeepEqual(
+					baseDependency,
+					*delta.Dependency,
+				) {
+					return fmt.Errorf("overlay dependency replacement is absent or unchanged")
+				}
+			case OverlayDeltaRemove:
+				if !exists {
+					return fmt.Errorf("overlay dependency removal target is absent")
+				}
+			}
+		case OverlayDeltaCoherence:
+			if reflect.DeepEqual(base.Coherence, *delta.Coherence) {
+				return fmt.Errorf("overlay coherence replacement is unchanged")
+			}
+		}
+	}
+	return nil
 }
 
 // Profiles returns the deterministic catalog order.

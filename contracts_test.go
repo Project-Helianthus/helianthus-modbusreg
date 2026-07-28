@@ -139,7 +139,7 @@ func newFactory(
 	state reg.SampleLedgerState,
 ) (*reg.ObservationFactory, *reg.SampleLedger) {
 	t.Helper()
-	ledger, err := reg.NewSampleLedger(state)
+	ledger, err := reg.NewSampleLedger(state, 0)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
@@ -150,14 +150,33 @@ func newFactory(
 	return factory, ledger
 }
 
+func emptyLedgerState(
+	t *testing.T,
+	profile reg.ProfileDescriptor,
+) reg.SampleLedgerState {
+	t.Helper()
+	state, err := reg.EmptySampleLedgerState(
+		"fixture-issuer",
+		profile.Dependencies().ID(),
+	)
+	if err != nil {
+		t.Fatalf("EmptySampleLedgerState: %v", err)
+	}
+	return state
+}
+
 func buildObservation(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	spec reg.ObservationSpec,
 ) (reg.Observation, error) {
 	t.Helper()
-	factory, _ := newFactory(t, profile, reg.EmptySampleLedgerState())
-	return factory.NewObservation(spec)
+	factory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
+	admission, err := factory.NewObservation(spec)
+	if err != nil {
+		return reg.Observation{}, err
+	}
+	return admission.Observation(), nil
 }
 
 func logicalViewRecord(
@@ -219,7 +238,8 @@ func successfulObservationSpec(
 		NormalizationVersion:   profile.NormalizationVersion(),
 		CoherenceVersion:       profile.CoherenceVersion(),
 		QualificationVersion:   profile.QualificationVersion(),
-		SampleID:               "sample-0001",
+		SampleID:               "",
+		RetryAttemptID:         reg.RetryAttemptNotApplicable,
 		PollGenerationID:       41,
 		DependencySetID:        profile.Dependencies().ID(),
 		DependencySetVersion:   profile.Dependencies().Version(),
@@ -236,8 +256,9 @@ func successfulObservationSpec(
 				CodecVersion:      dependencies[0].CodecVersion(),
 				NormalizationVersion: dependencies[0].
 					Normalization().Spec().Version,
-				Status: reg.DependencyReadSuccessful,
-				View:   firstView,
+				Status:         reg.DependencyReadSuccessful,
+				View:           firstView,
+				RetryAttemptID: reg.RetryAttemptNotApplicable,
 			},
 			{
 				DependencyID:      dependencies[1].ID(),
@@ -246,8 +267,9 @@ func successfulObservationSpec(
 				CodecVersion:      dependencies[1].CodecVersion(),
 				NormalizationVersion: dependencies[1].
 					Normalization().Spec().Version,
-				Status: reg.DependencyReadSuccessful,
-				View:   secondView,
+				Status:         reg.DependencyReadSuccessful,
+				View:           secondView,
+				RetryAttemptID: reg.RetryAttemptNotApplicable,
 			},
 		},
 	}
@@ -646,8 +668,8 @@ func TestObservationRejectsIncompleteOrIncoherentInputs(t *testing.T) {
 		{"reused generation identity", func(spec *reg.ObservationSpec) {
 			spec.PollGenerationID++
 		}},
-		{"missing sample id", func(spec *reg.ObservationSpec) {
-			spec.SampleID = ""
+		{"caller-selected sample id", func(spec *reg.ObservationSpec) {
+			spec.SampleID = "caller-selected"
 		}},
 		{"missing source validity", func(spec *reg.ObservationSpec) {
 			spec.SourceValidity = ""
@@ -698,6 +720,7 @@ func TestBoundedMultiResponseEnforcesDeclaredSkewAndMarker(t *testing.T) {
 		t.Fatalf("NewProfileDescriptor: %v", err)
 	}
 	spec := successfulObservationSpec(t, profile)
+	spec.RetryAttemptID = 1
 	source := time.Unix(1_700_000_100, 0).UTC()
 	receipt := source.Add(time.Second)
 	for index := range spec.Dependencies {
@@ -716,6 +739,7 @@ func TestBoundedMultiResponseEnforcesDeclaredSkewAndMarker(t *testing.T) {
 		)
 		spec.Dependencies[index].DocumentaryConsistencyMarker = "sequence-7"
 		spec.Dependencies[index].AcquisitionOrdinal = uint32(index + 1)
+		spec.Dependencies[index].RetryAttemptID = 1
 	}
 	spec.SourceTime = reg.SourceTimeObserved(source.Add(time.Second))
 	spec.LocalReceiptTime = receipt.Add(time.Second)
@@ -755,13 +779,19 @@ func TestSourceTimeStateIsExplicit(t *testing.T) {
 
 func TestSampleLedgerRejectsEverySampleIDReuse(t *testing.T) {
 	profile := profileFixture(t)
-	factory, _ := newFactory(t, profile, reg.EmptySampleLedgerState())
+	factory, ledger := newFactory(t, profile, emptyLedgerState(t, profile))
 	spec := successfulObservationSpec(t, profile)
-	if _, err := factory.NewObservation(spec); err != nil {
+	first, err := factory.NewObservation(spec)
+	if err != nil {
 		t.Fatalf("first NewObservation: %v", err)
 	}
-	if _, err := factory.NewObservation(spec); err == nil {
-		t.Fatal("sample ID reuse was accepted")
+	second, err := factory.NewObservation(spec)
+	if err != nil {
+		t.Fatalf("second NewObservation: %v", err)
+	}
+	if first.Observation().SampleID() == second.Observation().SampleID() ||
+		ledger.ExportState().HighWater != 2 {
+		t.Fatal("factory reused a sample ID")
 	}
 }
 

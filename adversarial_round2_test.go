@@ -177,14 +177,41 @@ func TestRound2WireGroupingAppliesToEveryCoherenceMode(t *testing.T) {
 		{"physical request", func(record *reg.LogicalViewRecord) {
 			record.PhysicalRequestID++
 		}},
+		{"endpoint", func(record *reg.LogicalViewRecord) {
+			record.Endpoint = "tcp://forged.example:502"
+		}},
 		{"connection", func(record *reg.LogicalViewRecord) {
 			record.ConnectionID++
+		}},
+		{"transport", func(record *reg.LogicalViewRecord) {
+			record.Transport = reg.TransportRTU
+			record.ConnectionID = 0
+			record.PhysicalOffset = record.LogicalOffset
+			record.PhysicalWordCount = record.LogicalWordCount
+			record.SliceOffset = 0
 		}},
 		{"transport generation", func(record *reg.LogicalViewRecord) {
 			record.TransportGeneration++
 		}},
+		{"unit", func(record *reg.LogicalViewRecord) {
+			record.UnitID++
+		}},
+		{"function and table", func(record *reg.LogicalViewRecord) {
+			if record.Table == reg.HoldingRegisters {
+				record.RequestedFunction = reg.FunctionReadInputRegisters
+				record.ReceivedFunction = reg.FunctionReadInputRegisters
+				record.Table = reg.InputRegisters
+			} else {
+				record.RequestedFunction = reg.FunctionReadHoldingRegisters
+				record.ReceivedFunction = reg.FunctionReadHoldingRegisters
+				record.Table = reg.HoldingRegisters
+			}
+		}},
 		{"authorization scope", func(record *reg.LogicalViewRecord) {
 			record.AuthorizationScope = "forged-scope"
+		}},
+		{"poll generation", func(record *reg.LogicalViewRecord) {
+			record.PollGeneration++
 		}},
 		{"deadline identity", func(record *reg.LogicalViewRecord) {
 			record.DeadlineIdentity++
@@ -302,6 +329,25 @@ func TestRound2VendorOverlayIsOnlyEvidenceBackedDelta(t *testing.T) {
 	if _, err := reg.NewCatalog(base, overlay); err != nil {
 		t.Fatalf("real evidence-backed delta rejected: %v", err)
 	}
+	overlayBytes, err := reg.MarshalProfileDescriptor(overlay)
+	if err != nil {
+		t.Fatalf("MarshalProfileDescriptor(overlay): %v", err)
+	}
+	decodedOverlay, err := reg.UnmarshalProfileDescriptor(overlayBytes)
+	if err != nil {
+		t.Fatalf("UnmarshalProfileDescriptor(overlay): %v", err)
+	}
+	reencodedOverlay, err := reg.MarshalProfileDescriptor(decodedOverlay)
+	if err != nil {
+		t.Fatalf("MarshalProfileDescriptor(decoded overlay): %v", err)
+	}
+	if !bytes.Equal(overlayBytes, reencodedOverlay) ||
+		!reflect.DeepEqual(
+			overlay.Spec().OverlayDeltas,
+			decodedOverlay.Spec().OverlayDeltas,
+		) {
+		t.Fatal("overlay delta serialization is not lossless and deterministic")
+	}
 
 	noOp := overlayDeltaProfile(
 		t,
@@ -320,6 +366,16 @@ func TestRound2ConstructorsAndSerializationAreBounded(t *testing.T) {
 	}
 	if reg.MaxSampleLedgerRecords != 0 {
 		t.Fatal("O(1) ledger unexpectedly permits per-sample records")
+	}
+	overlongIssuer := strings.Repeat(
+		"i",
+		reg.MaxSampleIssuerDomainBytes+1,
+	)
+	if _, err := reg.EmptySampleLedgerState(
+		overlongIssuer,
+		profileFixture(t).Dependencies().ID(),
+	); err == nil {
+		t.Fatal("issuer domain could produce an oversized sample ID")
 	}
 
 	codecSpec := numericCodecSpec(t)
@@ -354,6 +410,45 @@ func TestRound2ConstructorsAndSerializationAreBounded(t *testing.T) {
 		make([]reg.Dependency, reg.MaxProfileDependencies+1),
 	); err == nil {
 		t.Fatal("dependency set above pinned runtime cap was accepted")
+	}
+
+	profileSpec := profileFixture(t).Spec()
+	profileSpec.Codecs = make([]reg.Codec, reg.MaxProfileCodecs+1)
+	if _, err := reg.NewProfileDescriptor(profileSpec); err == nil {
+		t.Fatal("oversized codec catalog was cloned or accepted")
+	}
+	profileSpec = profileFixture(t).Spec()
+	profileSpec.Evidence = make(
+		[]reg.EvidenceReference,
+		reg.MaxProfileEvidenceReferences+1,
+	)
+	if _, err := reg.NewProfileDescriptor(profileSpec); err == nil {
+		t.Fatal("oversized profile evidence was cloned or accepted")
+	}
+
+	base := qualifiedBaseProfile(t)
+	overlay := overlayDeltaProfile(
+		t,
+		base,
+		[]reg.VendorOverlayDeltaSpec{modelDelta(t, "bounded-model")},
+	)
+	oversizedOverlay := overlay.Spec()
+	oversizedCodec := numericCodecSpec(t)
+	oversizedCodec.Sentinels = make(
+		[]reg.RawSentinel,
+		reg.MaxCodecSentinels+1,
+	)
+	oversizedOverlay.OverlayDeltas = []reg.VendorOverlayDeltaSpec{{
+		ID:                 "oversized-codec-delta",
+		Version:            version(t, "1.0.0"),
+		Kind:               reg.OverlayDeltaCodec,
+		Operation:          reg.OverlayDeltaReplace,
+		TargetID:           oversizedCodec.ID,
+		Codec:              &oversizedCodec,
+		EvidenceReferences: []string{"overlay-evidence"},
+	}}
+	if _, err := reg.NewProfileDescriptor(oversizedOverlay); err == nil {
+		t.Fatal("oversized nested overlay codec was cloned or accepted")
 	}
 
 	record := logicalViewRecord(
@@ -429,6 +524,8 @@ func TestRound2JSONPreflightRejectsDuplicateAndCaseFoldedKeys(t *testing.T) {
 
 func TestRound2AdmissionCanonicalizesTimestamps(t *testing.T) {
 	profile := profileFixture(t)
+	state := round2EmptyLedgerState(t, profile)
+	factory, ledger := round2Factory(t, profile, state, 0)
 	spec := successfulObservationSpec(t, profile)
 	spec.LocalReceiptTime = time.Date(
 		10000,
@@ -440,16 +537,28 @@ func TestRound2AdmissionCanonicalizesTimestamps(t *testing.T) {
 		0,
 		time.UTC,
 	)
-	if _, err := admitRound2(t, profile, spec); err == nil {
+	if _, err := factory.NewObservation(spec); err == nil {
 		t.Fatal("RFC3339-inexpressible year was admitted")
 	}
+	if ledger.ExportState().HighWater != 0 {
+		t.Fatal("failed timestamp validation consumed a sample identity")
+	}
 
-	location := time.FixedZone("fixture-offset", 2*60*60)
 	now := time.Now()
+	location := time.FixedZone("fixture-offset", 2*60*60)
 	spec = successfulObservationSpec(t, profile)
-	spec.SourceTime = reg.SourceTimeObserved(now.In(location))
-	spec.LocalReceiptTime = now.Add(time.Second).In(location)
-	admission, err := admitRound2(t, profile, spec)
+	spec.SourceTime = reg.SourceTimeObserved(now)
+	spec.LocalReceiptTime = time.Date(
+		2026,
+		time.July,
+		28,
+		22,
+		30,
+		0,
+		123,
+		location,
+	)
+	admission, err := factory.NewObservation(spec)
 	if err != nil {
 		t.Fatalf("canonicalizable timestamp rejected: %v", err)
 	}
@@ -566,6 +675,11 @@ func TestRound2LedgerIsBoundedIssuerHighWaterWithCASAnchor(t *testing.T) {
 	badState.DependencySetID = "not-a-content-id"
 	if _, err := reg.NewSampleLedger(badState, 0); err == nil {
 		t.Fatal("malformed dependency-set identity was restored")
+	}
+	badState.DependencySetID =
+		"sha256:" + strings.Repeat("A", 64)
+	if _, err := reg.NewSampleLedger(badState, 0); err == nil {
+		t.Fatal("uppercase dependency-set identity was restored")
 	}
 }
 

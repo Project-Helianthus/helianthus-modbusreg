@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -92,6 +93,14 @@ class ScopePolicyTests(unittest.TestCase):
             destination = root / str(relative)
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.touch()
+
+    def authorized_non_go_code_layout(self, root: Path) -> None:
+        for relative in validator.EXPECTED_POLICY[
+            "allowed_code_bearing_non_go_files"
+        ]:
+            destination = root / str(relative)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((ROOT / str(relative)).read_bytes())
 
     def test_exact_policy_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -188,6 +197,68 @@ class ScopePolicyTests(unittest.TestCase):
             artifact.write_text("import socket\n", encoding="utf-8")
             with self.assertRaises(validator.PolicyError):
                 validator.validate_repository_inventory(
+                    root,
+                    validator.EXPECTED_POLICY,
+                )
+
+    def test_git_index_rejects_gitlink_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(
+                ["git", "init", "-q"],
+                cwd=root,
+                check=True,
+            )
+            blob = subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"],
+                cwd=root,
+                input=b"not-a-submodule\n",
+                check=True,
+                capture_output=True,
+            ).stdout.decode("ascii").strip()
+            subprocess.run(
+                [
+                    "git",
+                    "update-index",
+                    "--add",
+                    "--cacheinfo",
+                    f"160000,{blob},nested-repository",
+                ],
+                cwd=root,
+                check=True,
+            )
+            with self.assertRaisesRegex(validator.PolicyError, "non-regular mode"):
+                validator.validate_git_index(root, validator.EXPECTED_POLICY)
+
+    def test_git_index_rejects_unlisted_regular_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(
+                ["git", "init", "-q"],
+                cwd=root,
+                check=True,
+            )
+            extra = root / "existing-name.py"
+            extra.write_text("value = 1\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "existing-name.py"],
+                cwd=root,
+                check=True,
+            )
+            with self.assertRaisesRegex(validator.PolicyError, "unlisted"):
+                validator.validate_git_index(root, validator.EXPECTED_POLICY)
+
+    def test_existing_python_file_rejects_socket_import_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.authorized_non_go_code_layout(root)
+            target = root / "scripts" / "validate_consumer_locks.py"
+            target.write_text(
+                target.read_text(encoding="utf-8") + "\nimport socket\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(validator.PolicyError, "forbidden I/O"):
+                validator.validate_non_go_code(
                     root,
                     validator.EXPECTED_POLICY,
                 )

@@ -132,6 +132,9 @@ type Codec struct {
 
 // NewCodec validates every dimension and retains independent copies.
 func NewCodec(spec CodecSpec) (Codec, error) {
+	if err := preflightCodecSpec(spec); err != nil {
+		return Codec{}, err
+	}
 	spec = cloneCodecSpec(spec)
 	if !validIdentity(spec.ID) || !spec.Version.valid() ||
 		spec.RawWordCount == 0 ||
@@ -205,6 +208,46 @@ func NewCodec(spec CodecSpec) (Codec, error) {
 		seenSentinels[key] = struct{}{}
 	}
 	return Codec{spec: spec}, nil
+}
+
+func preflightCodecSpec(spec CodecSpec) error {
+	if spec.RawWordCount == 0 || spec.RawWordCount > modbus.MaxReadRegisters {
+		return fmt.Errorf("codec raw-word width exceeds the runtime boundary")
+	}
+	if err := validateBoundedString("codec ID", spec.ID, true); err != nil {
+		return err
+	}
+	if err := validateBoundedString(
+		"codec output profile type",
+		spec.OutputProfileType,
+		true,
+	); err != nil {
+		return err
+	}
+	if err := validateBoundedString(
+		"codec scale dependency",
+		spec.Scale.DependencyID,
+		false,
+	); err != nil {
+		return err
+	}
+	if err := validateBoundedString(
+		"codec character repertoire",
+		spec.String.DocumentaryCharacterRepertoire,
+		false,
+	); err != nil {
+		return err
+	}
+	if len(spec.WordPermutation) > MaxRawWords ||
+		len(spec.Sentinels) > MaxCodecSentinels {
+		return fmt.Errorf("codec input exceeds the contract collection boundary")
+	}
+	for _, sentinel := range spec.Sentinels {
+		if len(sentinel.Words) > MaxRawWords {
+			return fmt.Errorf("codec sentinel exceeds the raw-word boundary")
+		}
+	}
+	return nil
 }
 
 func validateScale(scale ScaleSpec) error {

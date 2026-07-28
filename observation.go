@@ -3,6 +3,8 @@ package modbusreg
 import (
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -93,6 +95,24 @@ func CaptureLogicalView(view modbus.LogicalReadView) (LogicalViewSnapshot, error
 func NewLogicalViewSnapshot(
 	record LogicalViewRecord,
 ) (LogicalViewSnapshot, error) {
+	if len(record.Words) > MaxRawWords {
+		return LogicalViewSnapshot{}, fmt.Errorf("logical-view words exceed runtime maximum")
+	}
+	stringFields := []struct {
+		name  string
+		value string
+	}{
+		{name: "logical-view endpoint", value: record.Endpoint},
+		{
+			name:  "logical-view authorization scope",
+			value: record.AuthorizationScope,
+		},
+	}
+	for _, field := range stringFields {
+		if err := validateBoundedString(field.name, field.value, true); err != nil {
+			return LogicalViewSnapshot{}, err
+		}
+	}
 	record.Words = append([]uint16(nil), record.Words...)
 	if record.LogicalViewID == 0 || record.WireResponseID == 0 ||
 		record.PhysicalRequestID == 0 || record.Endpoint == "" ||
@@ -196,11 +216,23 @@ func SourceTimeUnavailable() SourceTimeSpec {
 	return SourceTimeSpec{State: SourceTimeUnavailableState}
 }
 
+func canonicalTime(value time.Time) (time.Time, error) {
+	if value.IsZero() || value.Year() < 1 || value.Year() > 9999 {
+		return time.Time{}, fmt.Errorf("timestamp is outside RFC3339Nano range")
+	}
+	encoded := value.Round(0).UTC().Format(time.RFC3339Nano)
+	decoded, err := time.Parse(time.RFC3339Nano, encoded)
+	if err != nil || !decoded.Equal(value) {
+		return time.Time{}, fmt.Errorf("timestamp is not RFC3339Nano round-trippable")
+	}
+	return decoded, nil
+}
+
 func validateSourceTime(sourceTime SourceTimeSpec) error {
 	switch sourceTime.State {
 	case SourceTimeObservedState:
-		if sourceTime.Time.IsZero() {
-			return fmt.Errorf("observed source time is absent")
+		if _, err := canonicalTime(sourceTime.Time); err != nil {
+			return fmt.Errorf("observed source time is invalid: %w", err)
 		}
 	case SourceTimeUnavailableState:
 		if !sourceTime.Time.IsZero() {
@@ -211,6 +243,12 @@ func validateSourceTime(sourceTime SourceTimeSpec) error {
 	}
 	return nil
 }
+
+// RetryAttemptID identifies one complete whole-set read attempt. Zero is the
+// explicit not-applicable identity for single-wire observations.
+type RetryAttemptID uint64
+
+const RetryAttemptNotApplicable RetryAttemptID = 0
 
 // DependencyResult is one terminal dependency input for a profile sample.
 type DependencyResult struct {
@@ -225,6 +263,7 @@ type DependencyResult struct {
 	LocalReceiptTime             time.Time
 	DocumentaryConsistencyMarker string
 	AcquisitionOrdinal           uint32
+	RetryAttemptID               RetryAttemptID
 }
 
 // ObservationSpec is the complete successful source-observation envelope.
@@ -239,6 +278,7 @@ type ObservationSpec struct {
 	CoherenceVersion       Version
 	QualificationVersion   Version
 	SampleID               string
+	RetryAttemptID         RetryAttemptID
 	PollGenerationID       uint64
 	DependencySetID        string
 	DependencySetVersion   Version
@@ -260,6 +300,12 @@ func buildObservation(
 	profile ProfileDescriptor,
 	spec ObservationSpec,
 ) (Observation, error) {
+	if err := preflightObservationSpec(spec); err != nil {
+		return Observation{}, err
+	}
+	if err := canonicalizeObservationTimes(&spec); err != nil {
+		return Observation{}, err
+	}
 	spec.Dependencies = append([]DependencyResult(nil), spec.Dependencies...)
 	if profile.ID() == "" || spec.SchemaVersion != schemaVersionV1 ||
 		spec.RuntimeContractVersion != profile.RuntimeContractVersion() ||
@@ -270,7 +316,8 @@ func buildObservation(
 		spec.NormalizationVersion != profile.NormalizationVersion() ||
 		spec.CoherenceVersion != profile.CoherenceVersion() ||
 		spec.QualificationVersion != profile.QualificationVersion() ||
-		!validIdentity(spec.SampleID) || spec.PollGenerationID == 0 ||
+		(spec.SampleID != "" && !validIdentity(spec.SampleID)) ||
+		spec.PollGenerationID == 0 ||
 		spec.DependencySetID != profile.Dependencies().ID() ||
 		spec.DependencySetVersion != profile.Dependencies().Version() ||
 		spec.Endpoint == "" || spec.UnitID == 0 || spec.UnitID > 247 ||
@@ -337,6 +384,85 @@ func buildObservation(
 	return Observation{spec: cloneObservationSpec(spec), replayed: replayed}, nil
 }
 
+func preflightObservationSpec(spec ObservationSpec) error {
+	if len(spec.Dependencies) > MaxProfileDependencies {
+		return fmt.Errorf("observation dependencies exceed the contract maximum")
+	}
+	stringFields := []struct {
+		name  string
+		value string
+	}{
+		{name: "sample ID", value: spec.SampleID},
+		{name: "profile ID", value: spec.ProfileID},
+		{name: "dependency-set ID", value: spec.DependencySetID},
+		{name: "endpoint", value: spec.Endpoint},
+	}
+	for _, field := range stringFields {
+		if err := validateBoundedString(field.name, field.value, false); err != nil {
+			return err
+		}
+	}
+	for _, dependency := range spec.Dependencies {
+		dependencyFields := []struct {
+			name  string
+			value string
+		}{
+			{name: "dependency result ID", value: dependency.DependencyID},
+			{name: "dependency result codec ID", value: dependency.CodecID},
+			{
+				name:  "consistency marker",
+				value: dependency.DocumentaryConsistencyMarker,
+			},
+		}
+		for _, field := range dependencyFields {
+			if err := validateBoundedString(field.name, field.value, false); err != nil {
+				return err
+			}
+		}
+		if len(dependency.View.record.Words) > MaxRawWords {
+			return fmt.Errorf("dependency result words exceed runtime maximum")
+		}
+	}
+	return nil
+}
+
+func canonicalizeObservationTimes(spec *ObservationSpec) error {
+	if spec == nil {
+		return fmt.Errorf("observation is nil")
+	}
+	var err error
+	if spec.SourceTime.State == SourceTimeObservedState {
+		spec.SourceTime.Time, err = canonicalTime(spec.SourceTime.Time)
+		if err != nil {
+			return err
+		}
+	}
+	spec.LocalReceiptTime, err = canonicalTime(spec.LocalReceiptTime)
+	if err != nil {
+		return err
+	}
+	for index := range spec.Dependencies {
+		dependency := &spec.Dependencies[index]
+		if dependency.SourceTime.State == SourceTimeObservedState {
+			dependency.SourceTime.Time, err = canonicalTime(
+				dependency.SourceTime.Time,
+			)
+			if err != nil {
+				return fmt.Errorf("dependency %d source time: %w", index, err)
+			}
+		}
+		if !dependency.LocalReceiptTime.IsZero() {
+			dependency.LocalReceiptTime, err = canonicalTime(
+				dependency.LocalReceiptTime,
+			)
+			if err != nil {
+				return fmt.Errorf("dependency %d receipt time: %w", index, err)
+			}
+		}
+	}
+	return nil
+}
+
 func validateObservationCoherence(
 	policy CoherencePolicySpec,
 	spec ObservationSpec,
@@ -345,49 +471,36 @@ func validateObservationCoherence(
 	if len(dependencies) == 0 {
 		return fmt.Errorf("coherent sample is empty")
 	}
+	if err := validateWireResponseGroups(dependencies); err != nil {
+		return err
+	}
 	switch policy.Mode {
 	case CoherenceSingleWireResponse:
 		first := dependencies[0].view.record
 		if first.Transport == TransportRTU && len(dependencies) != 1 {
 			return fmt.Errorf("RTU response cannot produce multiple logical views")
 		}
-		physicalWords := make([]uint16, first.PhysicalWordCount)
-		physicalWordSet := make([]bool, first.PhysicalWordCount)
-		if spec.Dependencies[0].AcquisitionOrdinal != 0 {
+		if spec.RetryAttemptID != RetryAttemptNotApplicable ||
+			spec.Dependencies[0].AcquisitionOrdinal != 0 ||
+			spec.Dependencies[0].RetryAttemptID !=
+				RetryAttemptNotApplicable {
 			return fmt.Errorf("single-wire response has acquisition ordinal")
 		}
-		for _, dependency := range dependencies[1:] {
+		for index, dependency := range dependencies[1:] {
 			record := dependency.view.record
-			if record.WireResponseID != first.WireResponseID ||
-				record.PhysicalRequestID != first.PhysicalRequestID ||
-				record.Endpoint != first.Endpoint ||
-				record.ConnectionID != first.ConnectionID ||
-				record.Transport != first.Transport ||
-				record.TransportGeneration != first.TransportGeneration ||
-				record.UnitID != first.UnitID ||
-				record.AuthorizationScope != first.AuthorizationScope ||
-				record.RequestedFunction != first.RequestedFunction ||
-				record.Table != first.Table ||
-				record.PhysicalOffset != first.PhysicalOffset ||
-				record.PhysicalWordCount != first.PhysicalWordCount {
+			if record.WireResponseID != first.WireResponseID {
 				return fmt.Errorf("single-wire-response coherence failed")
 			}
-		}
-		for index, dependency := range dependencies {
-			if spec.Dependencies[index].AcquisitionOrdinal != 0 {
-				return fmt.Errorf("single-wire response has acquisition ordinal")
-			}
-			record := dependency.view.record
-			for wordIndex, word := range record.Words {
-				position := int(record.SliceOffset) + wordIndex
-				if physicalWordSet[position] && physicalWords[position] != word {
-					return fmt.Errorf("shared wire response has contradictory words")
-				}
-				physicalWords[position] = word
-				physicalWordSet[position] = true
+			result := spec.Dependencies[index+1]
+			if result.AcquisitionOrdinal != 0 ||
+				result.RetryAttemptID != RetryAttemptNotApplicable {
+				return fmt.Errorf("single-wire response has retry/acquisition identity")
 			}
 		}
 	case CoherenceBoundedMultiResponse:
+		if spec.RetryAttemptID == RetryAttemptNotApplicable {
+			return fmt.Errorf("bounded response lacks retry-set identity")
+		}
 		var minimumSource, maximumSource time.Time
 		var minimumReceipt, maximumReceipt time.Time
 		first := dependencies[0].view.record
@@ -405,7 +518,8 @@ func validateObservationCoherence(
 			if result.SourceTime.State != SourceTimeObservedState ||
 				result.SourceTime.Time.IsZero() ||
 				result.LocalReceiptTime.IsZero() ||
-				result.AcquisitionOrdinal == 0 {
+				result.AcquisitionOrdinal == 0 ||
+				result.RetryAttemptID != spec.RetryAttemptID {
 				return fmt.Errorf("bounded response lacks per-dependency time facts")
 			}
 			if _, exists := ordinals[result.AcquisitionOrdinal]; exists {
@@ -488,6 +602,58 @@ func validateObservationCoherence(
 		return fmt.Errorf("coherence mode is unknown")
 	}
 	return nil
+}
+
+func validateWireResponseGroups(dependencies []ReplayedDependency) error {
+	type wireGroup struct {
+		record LogicalViewRecord
+		words  []uint16
+		set    []bool
+	}
+	groups := make(map[uint64]*wireGroup, len(dependencies))
+	for _, dependency := range dependencies {
+		record := dependency.view.record
+		group, exists := groups[record.WireResponseID]
+		if !exists {
+			group = &wireGroup{
+				record: record,
+				words:  make([]uint16, record.PhysicalWordCount),
+				set:    make([]bool, record.PhysicalWordCount),
+			}
+			groups[record.WireResponseID] = group
+		} else if !sameWireResponseIdentity(group.record, record) {
+			return fmt.Errorf("wire response identity was reused incompatibly")
+		}
+		for wordIndex, word := range record.Words {
+			position := int(record.SliceOffset) + wordIndex
+			if group.set[position] && group.words[position] != word {
+				return fmt.Errorf("wire response has contradictory overlapping words")
+			}
+			group.words[position] = word
+			group.set[position] = true
+		}
+	}
+	return nil
+}
+
+func sameWireResponseIdentity(
+	first LogicalViewRecord,
+	second LogicalViewRecord,
+) bool {
+	return first.PhysicalRequestID == second.PhysicalRequestID &&
+		first.Endpoint == second.Endpoint &&
+		first.ConnectionID == second.ConnectionID &&
+		first.Transport == second.Transport &&
+		first.TransportGeneration == second.TransportGeneration &&
+		first.UnitID == second.UnitID &&
+		first.RequestedFunction == second.RequestedFunction &&
+		first.ReceivedFunction == second.ReceivedFunction &&
+		first.Table == second.Table &&
+		first.PhysicalOffset == second.PhysicalOffset &&
+		first.PhysicalWordCount == second.PhysicalWordCount &&
+		first.AuthorizationScope == second.AuthorizationScope &&
+		first.PollGeneration == second.PollGeneration &&
+		first.DeadlineIdentity == second.DeadlineIdentity
 }
 
 func cloneObservationSpec(spec ObservationSpec) ObservationSpec {
@@ -591,91 +757,147 @@ func (observation Observation) SampleID() string {
 	return observation.spec.SampleID
 }
 
-type sampleBinding struct {
-	sampleID         string
-	profileID        string
-	pollGenerationID uint64
-	dependencySetID  string
-	profileVersion   Version
-}
-
-// SampleIdentityRecord is one explicitly persisted admitted identity.
-type SampleIdentityRecord struct {
-	SampleID         string
-	ProfileID        string
-	ProfileVersion   Version
-	PollGenerationID uint64
-	DependencySetID  string
-}
-
-// SampleLedgerState is the explicit restart boundary for sample identity.
+// SampleLedgerState is the O(1) explicit restart and CAS boundary.
 type SampleLedgerState struct {
-	SchemaVersion Version
-	Samples       []SampleIdentityRecord
+	SchemaVersion   Version
+	IssuerDomain    string
+	DependencySetID string
+	Revision        uint64
+	HighWater       uint64
 }
 
-// EmptySampleLedgerState makes a fresh identity domain an explicit choice.
-func EmptySampleLedgerState() SampleLedgerState {
-	return SampleLedgerState{
-		SchemaVersion: schemaVersionV1,
-		Samples:       []SampleIdentityRecord{},
+// EmptySampleLedgerState explicitly creates a new issuer/dependency-set domain.
+func EmptySampleLedgerState(
+	issuerDomain string,
+	dependencySetID string,
+) (SampleLedgerState, error) {
+	state := SampleLedgerState{
+		SchemaVersion:   schemaVersionV1,
+		IssuerDomain:    issuerDomain,
+		DependencySetID: dependencySetID,
 	}
+	if err := validateSampleLedgerState(state, 0); err != nil {
+		return SampleLedgerState{}, err
+	}
+	return state, nil
 }
 
-// SampleLedger rejects reuse across retries, generations, dependency sets, and
-// process restarts when its exported state is restored.
+// SampleLedger issues monotonic sample identities in one immutable domain.
 type SampleLedger struct {
-	mu      sync.Mutex
-	samples map[string]sampleBinding
+	mu              sync.Mutex
+	issuerDomain    string
+	dependencySetID string
+	revision        uint64
+	highWater       uint64
 }
 
-// NewSampleLedger imports an explicit empty or persisted state.
-func NewSampleLedger(state SampleLedgerState) (*SampleLedger, error) {
-	if state.SchemaVersion != schemaVersionV1 || state.Samples == nil {
-		return nil, fmt.Errorf("sample ledger state is incomplete or incompatible")
+// NewSampleLedger restores state only at or above a trusted external revision.
+func NewSampleLedger(
+	state SampleLedgerState,
+	trustedMinimumRevision uint64,
+) (*SampleLedger, error) {
+	if err := validateSampleLedgerState(
+		state,
+		trustedMinimumRevision,
+	); err != nil {
+		return nil, err
 	}
-	ledger := &SampleLedger{
-		samples: make(map[string]sampleBinding, len(state.Samples)),
-	}
-	for _, record := range state.Samples {
-		binding, err := sampleBindingFromRecord(record)
-		if err != nil {
-			return nil, err
-		}
-		if _, exists := ledger.samples[binding.sampleID]; exists {
-			return nil, fmt.Errorf("sample ledger state contains a duplicate")
-		}
-		ledger.samples[binding.sampleID] = binding
-	}
-	return ledger, nil
-}
-
-func sampleBindingFromRecord(record SampleIdentityRecord) (sampleBinding, error) {
-	if !validIdentity(record.SampleID) || !validIdentity(record.ProfileID) ||
-		!record.ProfileVersion.valid() || record.PollGenerationID == 0 ||
-		record.DependencySetID == "" {
-		return sampleBinding{}, fmt.Errorf("sample identity record is incomplete")
-	}
-	return sampleBinding{
-		sampleID:         record.SampleID,
-		profileID:        record.ProfileID,
-		profileVersion:   record.ProfileVersion,
-		pollGenerationID: record.PollGenerationID,
-		dependencySetID:  record.DependencySetID,
+	return &SampleLedger{
+		issuerDomain:    state.IssuerDomain,
+		dependencySetID: state.DependencySetID,
+		revision:        state.Revision,
+		highWater:       state.HighWater,
 	}, nil
 }
 
-func (ledger *SampleLedger) admit(binding sampleBinding) error {
-	if ledger == nil || binding.sampleID == "" {
-		return fmt.Errorf("sample ledger input is invalid")
+func validateSampleLedgerState(
+	state SampleLedgerState,
+	trustedMinimumRevision uint64,
+) error {
+	if state.SchemaVersion != schemaVersionV1 ||
+		!validIssuerDomain(state.IssuerDomain) ||
+		!validDependencySetID(state.DependencySetID) ||
+		state.Revision != state.HighWater ||
+		state.Revision < trustedMinimumRevision {
+		return fmt.Errorf("sample ledger state is incomplete, stale, or incompatible")
+	}
+	return nil
+}
+
+func validIssuerDomain(value string) bool {
+	if len(value) > MaxSampleIssuerDomainBytes || !validIdentity(value) {
+		return false
+	}
+	for _, character := range value {
+		if character == ':' {
+			return false
+		}
+	}
+	return true
+}
+
+func (ledger *SampleLedger) issue() (
+	string,
+	uint64,
+	SampleLedgerState,
+	error,
+) {
+	if ledger == nil {
+		return "", 0, SampleLedgerState{}, fmt.Errorf("sample ledger is invalid")
 	}
 	ledger.mu.Lock()
 	defer ledger.mu.Unlock()
-	if _, exists := ledger.samples[binding.sampleID]; exists {
-		return fmt.Errorf("sample ID was reused")
+	if ledger.revision == ^uint64(0) || ledger.highWater == ^uint64(0) {
+		return "", 0, SampleLedgerState{}, fmt.Errorf("sample ledger is exhausted")
 	}
-	ledger.samples[binding.sampleID] = binding
-	return nil
+	expectedRevision := ledger.revision
+	ledger.revision++
+	ledger.highWater++
+	state := ledger.stateLocked()
+	return fmt.Sprintf(
+		"%s:%d",
+		ledger.issuerDomain,
+		ledger.highWater,
+	), expectedRevision, state, nil
+}
+
+func (ledger *SampleLedger) admitSerialized(
+	sampleID string,
+) (uint64, SampleLedgerState, error) {
+	if ledger == nil {
+		return 0, SampleLedgerState{}, fmt.Errorf("sample ledger is invalid")
+	}
+	separator := strings.LastIndexByte(sampleID, ':')
+	if separator <= 0 || sampleID[:separator] != ledger.issuerDomain {
+		return 0, SampleLedgerState{}, fmt.Errorf("sample ID issuer domain disagrees")
+	}
+	sequence, err := strconv.ParseUint(sampleID[separator+1:], 10, 64)
+	if err != nil {
+		return 0, SampleLedgerState{}, fmt.Errorf("sample ID sequence is invalid")
+	}
+	if sampleID != fmt.Sprintf("%s:%d", ledger.issuerDomain, sequence) {
+		return 0, SampleLedgerState{}, fmt.Errorf("sample ID is not canonical")
+	}
+	ledger.mu.Lock()
+	defer ledger.mu.Unlock()
+	if ledger.highWater == ^uint64(0) ||
+		sequence != ledger.highWater+1 {
+		return 0, SampleLedgerState{}, fmt.Errorf("sample ID is reused or out of sequence")
+	}
+	expectedRevision := ledger.revision
+	ledger.highWater = sequence
+	ledger.revision++
+	return expectedRevision, ledger.stateLocked(), nil
+}
+
+func (ledger *SampleLedger) stateLocked() SampleLedgerState {
+	return SampleLedgerState{
+		SchemaVersion:   schemaVersionV1,
+		IssuerDomain:    ledger.issuerDomain,
+		DependencySetID: ledger.dependencySetID,
+		Revision:        ledger.revision,
+		HighWater:       ledger.highWater,
+	}
 }
 
 // ExportState returns deterministic explicit restart state.
@@ -683,23 +905,32 @@ func (ledger *SampleLedger) ExportState() SampleLedgerState {
 	if ledger == nil {
 		return SampleLedgerState{}
 	}
-	state := EmptySampleLedgerState()
 	ledger.mu.Lock()
 	defer ledger.mu.Unlock()
-	state.Samples = make([]SampleIdentityRecord, 0, len(ledger.samples))
-	for _, binding := range ledger.samples {
-		state.Samples = append(state.Samples, SampleIdentityRecord{
-			SampleID:         binding.sampleID,
-			ProfileID:        binding.profileID,
-			ProfileVersion:   binding.profileVersion,
-			PollGenerationID: binding.pollGenerationID,
-			DependencySetID:  binding.dependencySetID,
-		})
-	}
-	sort.Slice(state.Samples, func(first, second int) bool {
-		return state.Samples[first].SampleID < state.Samples[second].SampleID
-	})
-	return state
+	return ledger.stateLocked()
+}
+
+// SampleAdmission binds one observation to the exact external CAS transition
+// that must be durably persisted before consumers use it.
+type SampleAdmission struct {
+	observation      Observation
+	expectedRevision uint64
+	persistedState   SampleLedgerState
+}
+
+// Observation returns the immutable admitted sample.
+func (admission SampleAdmission) Observation() Observation {
+	return admission.observation
+}
+
+// ExpectedRevision returns the external compare-and-swap anchor.
+func (admission SampleAdmission) ExpectedRevision() uint64 {
+	return admission.expectedRevision
+}
+
+// PersistedState returns the exact state to CAS-persist before external use.
+func (admission SampleAdmission) PersistedState() SampleLedgerState {
+	return admission.persistedState
 }
 
 // ObservationFactory makes ledger admission structurally mandatory.
@@ -720,31 +951,60 @@ func NewObservationFactory(
 	if err != nil {
 		return nil, fmt.Errorf("observation factory profile: %w", err)
 	}
+	if copy.spec.Kind != ProfileStandardFamily {
+		return nil, fmt.Errorf("vendor overlay requires M3 resolution")
+	}
+	state := ledger.ExportState()
+	if state.DependencySetID != copy.Dependencies().ID() {
+		return nil, fmt.Errorf("observation factory dependency-set domain disagrees")
+	}
 	return &ObservationFactory{profile: copy, ledger: ledger}, nil
 }
 
 // NewObservation validates and atomically admits one successful observation.
 func (factory *ObservationFactory) NewObservation(
 	spec ObservationSpec,
-) (Observation, error) {
+) (SampleAdmission, error) {
 	if factory == nil || factory.ledger == nil {
-		return Observation{}, fmt.Errorf("observation factory is invalid")
+		return SampleAdmission{}, fmt.Errorf("observation factory is invalid")
+	}
+	if spec.SampleID != "" {
+		return SampleAdmission{}, fmt.Errorf("sample ID must be factory-issued")
 	}
 	observation, err := buildObservation(factory.profile, spec)
 	if err != nil {
-		return Observation{}, err
+		return SampleAdmission{}, err
 	}
-	binding := sampleBinding{
-		sampleID:         observation.spec.SampleID,
-		profileID:        observation.spec.ProfileID,
-		profileVersion:   observation.spec.ProfileVersion,
-		pollGenerationID: observation.spec.PollGenerationID,
-		dependencySetID:  observation.spec.DependencySetID,
+	sampleID, expectedRevision, state, err := factory.ledger.issue()
+	if err != nil {
+		return SampleAdmission{}, err
 	}
-	if err := factory.ledger.admit(binding); err != nil {
-		return Observation{}, err
+	observation.spec.SampleID = sampleID
+	return SampleAdmission{
+		observation:      observation,
+		expectedRevision: expectedRevision,
+		persistedState:   state,
+	}, nil
+}
+
+func (factory *ObservationFactory) admitSerializedObservation(
+	observation Observation,
+) (SampleAdmission, error) {
+	if factory == nil || factory.ledger == nil ||
+		observation.SampleID() == "" {
+		return SampleAdmission{}, fmt.Errorf("observation factory is invalid")
 	}
-	return observation, nil
+	expectedRevision, state, err := factory.ledger.admitSerialized(
+		observation.SampleID(),
+	)
+	if err != nil {
+		return SampleAdmission{}, err
+	}
+	return SampleAdmission{
+		observation:      observation,
+		expectedRevision: expectedRevision,
+		persistedState:   state,
+	}, nil
 }
 
 // OwnershipBoundary documents that this package records source facts only.

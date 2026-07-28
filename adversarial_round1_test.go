@@ -62,6 +62,14 @@ func TestRound1SharedWireRejectsForgeryAndContradictoryWords(t *testing.T) {
 				spec.Dependencies[1].View = snapshotFromRecord(t, record)
 			},
 		},
+		{
+			name: "forged deadline identity",
+			mutate: func(spec *reg.ObservationSpec) {
+				record := spec.Dependencies[1].View.Record()
+				record.DeadlineIdentity++
+				spec.Dependencies[1].View = snapshotFromRecord(t, record)
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -74,14 +82,6 @@ func TestRound1SharedWireRejectsForgeryAndContradictoryWords(t *testing.T) {
 	}
 
 	spec := successfulObservationSpec(t, profile)
-	second := spec.Dependencies[1].View.Record()
-	second.DeadlineIdentity++
-	spec.Dependencies[1].View = snapshotFromRecord(t, second)
-	if _, err := buildObservation(t, profile, spec); err != nil {
-		t.Fatalf("per-dependent deadline identity was rejected: %v", err)
-	}
-
-	spec = successfulObservationSpec(t, profile)
 	for index := range spec.Dependencies {
 		record := spec.Dependencies[index].View.Record()
 		record.PhysicalOffset--
@@ -195,6 +195,7 @@ func boundedFixture(
 		t.Fatalf("NewProfileDescriptor: %v", err)
 	}
 	spec := successfulObservationSpec(t, profile)
+	spec.RetryAttemptID = 1
 	source := time.Unix(1_700_000_100, 0).UTC()
 	receipt := source.Add(time.Second)
 	for index := range spec.Dependencies {
@@ -210,6 +211,7 @@ func boundedFixture(
 		)
 		spec.Dependencies[index].DocumentaryConsistencyMarker = "sequence-7"
 		spec.Dependencies[index].AcquisitionOrdinal = uint32(index + 1)
+		spec.Dependencies[index].RetryAttemptID = 1
 	}
 	spec.SourceTime = reg.SourceTimeObserved(source.Add(time.Second))
 	spec.LocalReceiptTime = receipt.Add(time.Second)
@@ -398,10 +400,28 @@ func overlayProfile(
 	spec := base.Spec()
 	spec.ID = "example.vendor.overlay"
 	spec.Kind = reg.ProfileVendorOverlay
+	spec.StandardApplicability = nil
+	spec.ModelApplicability = nil
+	spec.KnownExclusions = nil
+	spec.Codecs = nil
+	spec.Dependencies = reg.DependencySet{}
+	spec.Coherence = reg.CoherencePolicySpec{}
 	spec.VendorApplicability = []string{"example-vendor"}
+	spec.Evidence = []reg.EvidenceReference{{
+		ID:                     "overlay-evidence",
+		PublicationDisposition: reg.PublicationMetadataOnly,
+	}}
 	spec.RefinesProfileID = base.ID()
 	spec.RefinesProfileVersion = baseVersion
 	spec.Maturity = reg.MaturityExperimental
+	spec.OverlayDeltas = []reg.VendorOverlayDeltaSpec{{
+		ID:                 "model-delta",
+		Version:            version(t, "1.0.0"),
+		Kind:               reg.OverlayDeltaModelApplicability,
+		Operation:          reg.OverlayDeltaAdd,
+		ApplicabilityValue: "vendor-model",
+		EvidenceReferences: []string{"overlay-evidence"},
+	}}
 	profile, err := reg.NewProfileDescriptor(spec)
 	if err != nil {
 		t.Fatalf("NewProfileDescriptor(overlay): %v", err)
@@ -589,23 +609,25 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 		t.Fatal("unknown profile field was accepted")
 	}
 
-	factory, _ := newFactory(t, profile, reg.EmptySampleLedgerState())
-	observation, err := factory.NewObservation(
+	factory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
+	admission, err := factory.NewObservation(
 		successfulObservationSpec(t, profile),
 	)
 	if err != nil {
 		t.Fatalf("NewObservation: %v", err)
 	}
+	observation := admission.Observation()
 	observationBytes, err := reg.MarshalObservation(observation)
 	if err != nil {
 		t.Fatalf("MarshalObservation: %v", err)
 	}
 	replayRecord := observation.Replay()[0].LogicalViewRecord()
-	freshFactory, _ := newFactory(t, profile, reg.EmptySampleLedgerState())
-	decodedObservation, err := freshFactory.UnmarshalObservation(observationBytes)
+	freshFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
+	decodedAdmission, err := freshFactory.UnmarshalObservation(observationBytes)
 	if err != nil {
 		t.Fatalf("UnmarshalObservation: %v", err)
 	}
+	decodedObservation := decodedAdmission.Observation()
 	reencodedObservation, err := reg.MarshalObservation(decodedObservation)
 	if err != nil {
 		t.Fatalf("MarshalObservation(round trip): %v", err)
@@ -627,7 +649,8 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 	); err != nil {
 		t.Fatalf("json.Unmarshal(ObservationSpec): %v", err)
 	}
-	specFactory, _ := newFactory(t, profile, reg.EmptySampleLedgerState())
+	specFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
+	decodedObservationSpec.SampleID = ""
 	if _, err := specFactory.NewObservation(decodedObservationSpec); err != nil {
 		t.Fatalf("decoded ObservationSpec was not valid: %v", err)
 	}
@@ -643,7 +666,7 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 		[]byte(`"schema_version":"9.0.0"`),
 		1,
 	)
-	thirdFactory, _ := newFactory(t, profile, reg.EmptySampleLedgerState())
+	thirdFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
 	if _, err := thirdFactory.UnmarshalObservation(badObservation); err == nil {
 		t.Fatal("unknown observation schema was accepted")
 	}
@@ -651,7 +674,7 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 		append([]byte(nil), observationBytes[:len(observationBytes)-1]...),
 		[]byte(`,"unknown_contract_field":true}`)...,
 	)
-	fourthFactory, _ := newFactory(t, profile, reg.EmptySampleLedgerState())
+	fourthFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
 	if _, err := fourthFactory.UnmarshalObservation(
 		unknownObservationField,
 	); err == nil {
@@ -673,7 +696,7 @@ func TestRound1SchemaAuthoritiesAreReadOnlyValues(t *testing.T) {
 
 func TestRound1ObservationFactoryMakesSampleAdmissionMandatory(t *testing.T) {
 	profile := profileFixture(t)
-	factory, ledger := newFactory(t, profile, reg.EmptySampleLedgerState())
+	factory, ledger := newFactory(t, profile, emptyLedgerState(t, profile))
 	spec := successfulObservationSpec(t, profile)
 
 	var successes atomic.Int32
@@ -691,7 +714,7 @@ func TestRound1ObservationFactoryMakesSampleAdmissionMandatory(t *testing.T) {
 		}()
 	}
 	wait.Wait()
-	if successes.Load() != 1 || failures.Load() != 15 {
+	if successes.Load() != 16 || failures.Load() != 0 {
 		t.Fatalf(
 			"atomic admission results success=%d failure=%d",
 			successes.Load(),
@@ -709,8 +732,12 @@ func TestRound1ObservationFactoryMakesSampleAdmissionMandatory(t *testing.T) {
 		t.Fatalf("UnmarshalSampleLedgerState: %v", err)
 	}
 	restartedFactory, _ := newFactory(t, profile, restartedState)
-	if _, err := restartedFactory.NewObservation(spec); err == nil {
-		t.Fatal("imported restart state silently reused a sample ID")
+	next, err := restartedFactory.NewObservation(spec)
+	if err != nil {
+		t.Fatal("imported restart state did not continue issuance:", err)
+	}
+	if next.ExpectedRevision() != 16 {
+		t.Fatal("imported restart state reset the issuance revision")
 	}
 }
 

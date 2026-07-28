@@ -33,8 +33,9 @@ This repository owns:
 - complete, versioned codec declarations without silent coercion;
 - exact ordered dependency-set and documentary address normalization records;
 - immutable source-observation snapshots and exact raw-word replay;
-- fail-closed coherence validation and mandatory sample admission;
-- deterministic validated profile/observation serialization.
+- fail-closed coherence, retry-attempt, and complete wire-group validation;
+- O(1) factory-issued sample admission with an explicit external CAS boundary;
+- bounded deterministic profile/observation serialization.
 
 The following ownership is planned but is not implemented by M2-01:
 
@@ -79,10 +80,12 @@ The gate validates the exact machine-readable
 [`policy/registry-boundary.json`](policy/registry-boundary.json), rejects
 unauthorized project/transport dependencies, prevents named vendor leakage into
 standard-family source, requires an evidence manifest for future vendor artifacts,
-and runs mutation tests for those boundaries. The M2-01 policy inventories
-every admitted repository file regardless of language and separately hashes
-all product Go files. Detector, qualification, standard/vendor profile,
-non-Go probe, socket artifact, and fixture source remains rejected.
+and runs mutation tests for those boundaries. The M2-01 policy checks the Git
+index for regular tracked files, inventories every admitted repository file,
+anchors and scans code-bearing non-Go files, and separately hashes all product
+Go files. This is an enforced CI scope invariant, not a malicious-committer
+security boundary. Detector, qualification, standard/vendor profile, non-Go
+probe, socket artifact, and fixture source remain rejected.
 
 The same gate verifies
 [`modbus-runtime-consumer-lock-v1.json`](policy/modbus-runtime-consumer-lock-v1.json)

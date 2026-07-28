@@ -14,9 +14,12 @@ qualification, vendor matching, canonical projection, or gateway composition.
 5. Construct a `ProfileDescriptor` and deterministic `Catalog`.
 6. Copy successful runtime views with `CaptureLogicalView`, or validate a
    serialized `LogicalViewRecord` with `NewLogicalViewSnapshot`.
-7. Import explicit `SampleLedgerState`, bind an `ObservationFactory`, and
-   atomically construct/admit an all-or-nothing `Observation`.
-8. Use `Replay` and `LogicalViewRecord` for complete immutable raw words and
+7. Restore explicit issuer-domain/high-water `SampleLedgerState` with a trusted
+   minimum revision, then bind an `ObservationFactory`.
+8. Atomically issue a factory-owned sample identity and receive
+   `SampleAdmission`, including the expected revision and next state for
+   external compare-and-swap persistence.
+9. Use `Replay` and `LogicalViewRecord` for complete immutable raw words and
    transport provenance.
 
 ## Codec Contract
@@ -62,48 +65,83 @@ the pinned runtime contract.
 
 ## Observation And Replay
 
-`ObservationFactory.NewObservation` requires every contract version, a
-unique non-empty
-`sample_id`, one `poll_generation_id`, the exact `dependency_set_id`, explicit
-source validity, either a real source time or the explicit unavailable state,
-local receipt time, endpoint, and unit.
+`ObservationFactory.NewObservation` requires every contract version, one
+`poll_generation_id`, the exact `dependency_set_id`, explicit source validity,
+either a real source time or the explicit unavailable state, local receipt
+time, endpoint, and unit. Caller-selected `sample_id` values are rejected; the
+factory issues them from the ledger's immutable issuer domain and monotonic
+high-water.
 
 Dependencies must appear in declaration order and every result must be
 successful, complete, version-matched, and provenance-consistent. Missing,
 torn, malformed, exceptional, mixed-generation, mixed-endpoint, or incomplete
 inputs fail closed and produce no observation.
 
-`single_wire_response` requires one physical/wire response, connection,
-authorization scope, transport generation, function, table, endpoint, and unit.
-Logical-view IDs are unique. Shared physical positions are reconstructed and
-overlapping words must agree exactly. Per-dependent deadline identities are
-retained losslessly and are not collapsed into one inferred value.
+Every repeated `wire_response_id`, in either coherence mode, binds one exact
+physical request, endpoint, TCP connection, transport/generation, unit,
+function/table, physical range, authorization scope, poll generation, and
+deadline identity. Shared physical positions are reconstructed and overlapping
+words must agree exactly. The exact deadline equality matches
+`helianthus-modbus` V1 `sameCoalescingIdentity`.
+
+`single_wire_response` requires one such physical/wire group. Logical-view IDs
+are unique, acquisition ordinals are absent, and retry-attempt identity is
+explicitly not applicable.
 
 `bounded_multi_response` requires explicit acquisition ordering, declared
 source/receipt skew, transport-generation equality, same transport family,
 endpoint and unit, whole-set retry behavior, and any documentary consistency
-marker. Its envelope times are the latest source and receipt times in the
-validated set.
+marker. The envelope and every dependency carry the same nonzero
+`retry_attempt_id`, preventing retained-old/new-attempt mixtures. Its envelope
+times are the latest source and receipt times in the validated set.
 
-`SampleLedger` state is mandatory factory input. Admission is atomic under
-concurrency. `ExportState`, `MarshalSampleLedgerState`, and
-`UnmarshalSampleLedgerState` define the restart boundary so a restart cannot
-silently create a fresh identity domain. M2-01 does not own durable storage:
-the consumer must persist exported state before publishing or otherwise using
-the returned observation externally.
+`SampleLedger` is O(1): state contains schema, issuer domain, exact
+`dependency_set_id`, monotonic revision, and high-water, with no per-sample map
+or record list. Restore requires a trusted minimum revision. Every
+`SampleAdmission` exposes `ExpectedRevision` and `PersistedState`. Before
+publishing, serializing for external consumption, or otherwise using its
+observation, the consumer must atomically compare the durable revision with
+`ExpectedRevision` and replace it with `PersistedState`; a failed CAS discards
+the admission. `EmptySampleLedgerState` is only for a newly allocated issuer
+domain; external persistence must never recreate an old domain at high-water
+zero. M2-01 supplies the CAS anchor and validates imported state, but owns no
+durable store and cannot prove that an external write reached durable media.
+
+All admitted times are normalized to UTC, stripped of monotonic/location
+metadata, and checked for exact RFC3339Nano round-trip. Out-of-range years fail
+before sample issuance.
+
+## Vendor Overlay Delta
+
+A `vendor_overlay` descriptor carries no copied standard applicability, codec
+catalog, dependency set, or coherence policy. It references one exact active,
+qualified standard-family base and contains only typed
+`VendorOverlayDeltaSpec` records. Each delta has its own version and nonempty
+overlay-evidence references. The catalog rejects copied base evidence,
+duplicate targets, absent targets, and add/remove/replace operations that are
+no-ops against the base. Applying these deltas is reserved for M3.
 
 ## Serialization
 
 `ProfileDescriptorSpec`, `ProfileDescriptor`, `ObservationSpec`, and admitted
 `Observation` use validated deterministic JSON contracts. Profile and
 observation round trips retain exact versions, dependency order, raw words, and
-the complete `LogicalViewRecord`. Unknown fields and incompatible schemas fail
-closed. Optional relationship versions remain absent; zero values are never
-rewritten as current schema versions.
+the complete `LogicalViewRecord`, retry attempt, overlay delta, and O(1) ledger
+state. A recursive bounded token preflight rejects oversized bytes, excessive
+depth/collections/strings, duplicate keys, and case-fold aliases at every
+object level before strict decoding. Unknown fields and incompatible schemas
+fail closed. Optional relationship versions remain absent; zero values are
+never rewritten as current schema versions.
 
-`Catalog` validates relationship graphs. Vendor overlays require their exact
-active, qualified standard-family base in the same catalog. Superseded profiles
-require a distinct active, version-matched, kind-compatible replacement.
+Direct constructors apply the same limits before cloning caller slices.
+`MaxProfileDependencies` equals the pinned V1 runtime absolute coalesced
+dependent cap, `4096`, from runtime commit
+`4f81cbeb6321e64fa51676ed6e375ce36b60d16d`; it is not inferred from mutable
+scheduler configuration.
+
+`Catalog` validates relationship graphs. Superseded profiles require a distinct
+active, version-matched, kind-compatible replacement. Revoked profiles cannot
+carry successor fields.
 
 ## Ownership Boundary
 

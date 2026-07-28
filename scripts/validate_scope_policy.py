@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import ast
 import json
 import os
 import re
@@ -14,7 +15,7 @@ from typing import Iterable
 
 
 EXPECTED_POLICY = {
-    "schema": "helianthus-modbusreg-boundary/v2",
+    "schema": "helianthus-modbusreg-boundary/v3",
     "repository_mode": "single_multi_vendor",
     "implementation_lock": "m2_01_contracts_only",
     "allowed_repository_files": [
@@ -26,12 +27,15 @@ EXPECTED_POLICY = {
         "LICENSE",
         "README.md",
         "adversarial_round1_test.go",
+        "adversarial_round2_test.go",
         "codec.go",
         "contracts_test.go",
         "doc.go",
         "docs/m2-01-api.md",
         "go.mod",
         "go.sum",
+        "json_preflight.go",
+        "limits.go",
         "observation.go",
         "policy/modbus-companion-consumer-lock-v1.json",
         "policy/modbus-runtime-consumer-lock-v1.json",
@@ -50,30 +54,49 @@ EXPECTED_POLICY = {
     "allowed_product_go_files": [
         "codec.go",
         "doc.go",
+        "json_preflight.go",
+        "limits.go",
         "observation.go",
         "profile.go",
         "serialization.go",
         "version.go",
     ],
     "allowed_product_go_sha256": {
-        "codec.go": "42ad189f96889e64a15c370dc6aae22d0d42b967fb48ecc7c47a6b0b4657572a",
-        "doc.go": "2bb397c67dba2394c500c0e11be9e46d17006fcba85d36ce430d1ec5ca5891e3",
+        "codec.go": "8fb14faeec53d783e10926625a68340b39e8777e580aad3a882bc253379824a7",
+        "doc.go": "5893c46b249d5f8ee427ec030d0bc49f6d6ea4d40065bd676598e4a9e20d565c",
+        "json_preflight.go": (
+            "57b022061a19fe07329a0cb0ea6b69213abc95abca1ea50ff8694e185aaf4306"
+        ),
+        "limits.go": (
+            "5b4d506ff7ddfe609b908a627b6900096e33787ec6b96ceed83586708b33c56e"
+        ),
         "observation.go": (
-            "410934b3efe09cea112b77f1b73297238e8b087b0b6e55fb03375b5dbaa9d838"
+            "7ef4ba3e6ee9e42ee2d6aad62381ce18a24f7a49762edbea71005479bd6ac78b"
         ),
         "profile.go": (
-            "541c1b170b9e8ff58c98b6ba9cae92e663fc80d0b0630e34cebf42f1b53208f3"
+            "e59fbdc1556494314b83bf5360800608f38854526ba84728c1ece9b879d48192"
         ),
         "serialization.go": (
-            "b7e04ac61fb4f0aee5187dd723bada23ef22b5028e5245720886eeb75b557e6c"
+            "0de978735b5fae0cab51ce4b00127d94384aa23b935f7c25a96cecc0cd3e997a"
         ),
         "version.go": (
-            "cb70b1065e77831d5cd9d1171ee555037fe6369b3149e120f9e5236dec7d0865"
+            "c0f6494939056c2ee8323de13e29b50691d3ff1ada9b44df662e0e000f23f7a4"
         ),
     },
     "allowed_test_go_files": [
         "adversarial_round1_test.go",
+        "adversarial_round2_test.go",
         "contracts_test.go",
+    ],
+    "allowed_code_bearing_non_go_files": [
+        ".github/workflows/ci.yml",
+        "scripts/ci_local.sh",
+        "scripts/scope_gate.sh",
+        "scripts/validate_companion_lock.sh",
+        "scripts/validate_consumer_locks.py",
+        "scripts/validate_scope_policy.py",
+        "tests/test_consumer_locks.py",
+        "tests/test_scope_policy.py",
     ],
     "documentation_consumer_lock": "policy/modbus-companion-consumer-lock-v1.json",
     "runtime_consumer_lock": "policy/modbus-runtime-consumer-lock-v1.json",
@@ -187,6 +210,90 @@ def validate_repository_inventory(root: Path, policy: dict[str, object]) -> None
             f"repository file inventory mismatch: unexpected={sorted(unexpected)} "
             f"missing={sorted(missing)}"
         )
+
+
+def validate_git_index(root: Path, policy: dict[str, object]) -> None:
+    result = subprocess.run(
+        ["git", "ls-files", "--stage", "-z"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        raise PolicyError(
+            "cannot inspect git index: "
+            + result.stderr.decode("utf-8", errors="replace").strip()
+        )
+    tracked: set[str] = set()
+    for raw_entry in result.stdout.split(b"\0"):
+        if not raw_entry:
+            continue
+        try:
+            metadata, raw_path = raw_entry.split(b"\t", 1)
+            mode, _object_id, stage = metadata.decode("ascii").split(" ")
+            path = raw_path.decode("utf-8")
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise PolicyError("git index contains an undecodable entry") from exc
+        if stage != "0":
+            raise PolicyError(f"git index contains an unresolved stage: {path}")
+        if mode not in {"100644", "100755"}:
+            raise PolicyError(
+                f"git index contains a non-regular mode {mode}: {path}"
+            )
+        if path in tracked:
+            raise PolicyError(f"git index contains a duplicate path: {path}")
+        tracked.add(path)
+    allowed = {str(item) for item in policy["allowed_repository_files"]}
+    unlisted = tracked - allowed
+    missing = allowed - tracked
+    if unlisted or missing:
+        raise PolicyError(
+            f"git index scope mismatch: unlisted={sorted(unlisted)} "
+            f"missing={sorted(missing)}"
+        )
+
+
+def validate_non_go_code(root: Path, policy: dict[str, object]) -> None:
+    anchored = {
+        str(item) for item in policy["allowed_code_bearing_non_go_files"]
+    }
+    admitted = {
+        str(item)
+        for item in policy["allowed_repository_files"]
+        if Path(str(item)).suffix in {".py", ".sh", ".yml", ".yaml"}
+    }
+    if anchored != admitted:
+        raise PolicyError("non-Go code-bearing inventory is not fully anchored")
+    forbidden_modules = {"socket", "serial", "pty"}
+    forbidden_script = re.compile(
+        r"(?i)(?:^|[\s;])(socat|nc)(?:\s|$)|/dev/(?:tty|cu)"
+    )
+    for relative in sorted(anchored):
+        path = root / relative
+        try:
+            source = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise PolicyError(f"cannot inspect non-Go code {relative}: {exc}") from exc
+        if path.suffix == ".py":
+            try:
+                tree = ast.parse(source, filename=relative)
+            except SyntaxError as exc:
+                raise PolicyError(f"non-Go code is not valid Python: {relative}") from exc
+            for node in ast.walk(tree):
+                modules: list[str] = []
+                if isinstance(node, ast.Import):
+                    modules = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                    modules = [node.module]
+                for module in modules:
+                    if module.split(".", 1)[0] in forbidden_modules:
+                        raise PolicyError(
+                            f"non-Go code imports forbidden I/O module: {relative}"
+                        )
+        if forbidden_script.search(source):
+            raise PolicyError(
+                f"non-Go code contains forbidden device/socket command: {relative}"
+            )
 
 
 def validate_implementation_lock(root: Path, policy: dict[str, object]) -> None:
@@ -436,6 +543,8 @@ def go_imports(root: Path) -> list[str]:
 def validate(root: Path) -> None:
     policy = load_policy(root)
     validate_repository_inventory(root, policy)
+    validate_git_index(root, policy)
+    validate_non_go_code(root, policy)
     validate_implementation_lock(root, policy)
     validate_imports(go_imports(root), policy)
     validate_standard_sources(root, policy)

@@ -7,6 +7,7 @@ import (
 )
 
 var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+var dependencySetIDPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 // Version is an immutable semantic contract version.
 type Version struct {
@@ -17,7 +18,7 @@ type Version struct {
 // records. Pre-release aliases are deliberately not accepted as immutable
 // contract identities.
 func ParseVersion(value string) (Version, error) {
-	if !versionPattern.MatchString(value) {
+	if len(value) > MaxContractStringBytes || !versionPattern.MatchString(value) {
 		return Version{}, fmt.Errorf("invalid contract version %q", value)
 	}
 	return Version{value: value}, nil
@@ -39,7 +40,8 @@ func (version Version) String() string {
 }
 
 func (version Version) valid() bool {
-	return versionPattern.MatchString(version.value)
+	return len(version.value) <= MaxContractStringBytes &&
+		versionPattern.MatchString(version.value)
 }
 
 // MarshalText preserves versions as strings in deterministic records.
@@ -95,7 +97,7 @@ func cloneStrings(values []string) []string {
 }
 
 func validIdentity(value string) bool {
-	if value == "" {
+	if value == "" || len(value) > MaxContractStringBytes {
 		return false
 	}
 	for _, character := range value {
@@ -111,20 +113,27 @@ func validIdentity(value string) bool {
 	return true
 }
 
+func validDependencySetID(value string) bool {
+	return len(value) == len("sha256:")+64 &&
+		dependencySetIDPattern.MatchString(value)
+}
+
 func stringsComplete(values []string) bool {
-	if len(values) == 0 || !stringsDeclared(values) {
+	if len(values) == 0 ||
+		len(values) > MaxProfileEvidenceReferences ||
+		!stringsDeclared(values) {
 		return false
 	}
 	return true
 }
 
 func stringsDeclared(values []string) bool {
-	if values == nil {
+	if values == nil || len(values) > MaxProfileEvidenceReferences {
 		return false
 	}
 	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
-		if value == "" {
+		if validateBoundedString("string collection", value, true) != nil {
 			return false
 		}
 		if _, exists := seen[value]; exists {
