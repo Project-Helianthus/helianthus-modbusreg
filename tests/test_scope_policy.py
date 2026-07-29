@@ -263,6 +263,34 @@ class ScopePolicyTests(unittest.TestCase):
                     validator.EXPECTED_POLICY,
                 )
 
+    def test_go_import_inventory_includes_all_test_import_classes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "go.mod").write_text(
+                "module example.invalid/scopefixture\n\ngo 1.22\n",
+                encoding="utf-8",
+            )
+            (root / "fixture.go").write_text(
+                "package fixture\n",
+                encoding="utf-8",
+            )
+            (root / "fixture_test.go").write_text(
+                'package fixture\n\nimport _ "net/http"\n',
+                encoding="utf-8",
+            )
+            (root / "external_test.go").write_text(
+                'package fixture_test\n\nimport _ "syscall"\n',
+                encoding="utf-8",
+            )
+            imports = validator.go_imports(root)
+            self.assertIn("net/http", imports)
+            self.assertIn("syscall", imports)
+            with self.assertRaises(validator.PolicyError):
+                validator.validate_imports(
+                    imports,
+                    validator.EXPECTED_POLICY,
+                )
+
     def test_vendor_overlay_with_exact_evidence_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
