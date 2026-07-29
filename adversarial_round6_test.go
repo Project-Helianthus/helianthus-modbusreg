@@ -2,6 +2,7 @@ package modbusreg_test
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -465,5 +466,470 @@ func TestRound6MissingJSONFieldErrorIsDeterministic(t *testing.T) {
 		if err == nil || err.Error() != expected {
 			t.Fatalf("iteration %d missing-key error = %v", iteration, err)
 		}
+	}
+}
+
+func TestRound7RuntimePublishUsesAdmittedImmutableSnapshot(t *testing.T) {
+	profile := round6BoundedSingleProfile(t)
+	state := round3State(t, profile, "round7-runtime-snapshot")
+	factory := round3Factory(t, profile, state, &round3MemoryCAS{state: state})
+	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: 41,
+		RetryOrdinal:     1,
+	})
+	if err != nil {
+		t.Fatalf("BeginObservationAttempt: %v", err)
+	}
+	runtimeView := round6RuntimeRTUView(t)
+	capture, err := reg.CaptureLogicalView(runtimeView)
+	if err != nil {
+		t.Fatalf("CaptureLogicalView: %v", err)
+	}
+	observed := time.Unix(1_700_000_200, 0).UTC()
+	result, err := attempt.CaptureDependency(
+		"energy-a",
+		capture,
+		reg.RuntimeDependencyFacts{
+			SourceTime:                   reg.SourceTimeObserved(observed),
+			LocalReceiptTime:             observed,
+			DocumentaryConsistencyMarker: "round6-sequence",
+			AcquisitionOrdinal:           1,
+		},
+	)
+	if err != nil {
+		t.Fatalf("CaptureDependency: %v", err)
+	}
+	admitted := result.View.Record()
+	mutated := admitted
+	mutated.LogicalViewID++
+	mutated.WireResponseID++
+	mutated.PhysicalRequestID++
+	mutated.Words = []uint16{0x9999, 0x8888}
+	result.View = snapshotFromRecord(t, mutated)
+
+	observation, err := attempt.Publish(round6RuntimeObservationSpec(profile, result))
+	if err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	replayed := observation.Replay()
+	if len(replayed) != 1 ||
+		!reflect.DeepEqual(replayed[0].LogicalViewRecord(), admitted) {
+		t.Fatalf("runtime replay used caller-mutated DTO: %#v", replayed)
+	}
+}
+
+func TestRound7FixturePublishUsesDecodedImmutableSnapshot(t *testing.T) {
+	profile, spec := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	state := round3State(t, profile, "round7-fixture-snapshot")
+	factory := round3Factory(t, profile, state, &round3MemoryCAS{state: state})
+	attempt, decoded := round3Attempt(t, factory, spec)
+	admitted := decoded.Dependencies[0].View.Record()
+	mutated := admitted
+	mutated.LogicalViewID += 100
+	mutated.WireResponseID += 100
+	mutated.PhysicalRequestID += 100
+	mutated.Words = []uint16{0x9999, 0x8888}
+	decoded.Dependencies[0].View = snapshotFromRecord(t, mutated)
+
+	observation, err := attempt.Publish(decoded)
+	if err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if got := observation.Replay()[0].LogicalViewRecord(); !reflect.DeepEqual(got, admitted) {
+		t.Fatalf("fixture replay used caller-mutated DTO: %#v", got)
+	}
+}
+
+func TestRound7RuntimeSourceIdentityCannotBeRemintedAfterFailedRetry(t *testing.T) {
+	profile := round6BoundedSingleProfile(t)
+	state := round3State(t, profile, "round7-runtime-remint")
+	factory := round3Factory(t, profile, state, &round3MemoryCAS{state: state})
+	runtimeView := round6RuntimeRTUView(t)
+	observed := time.Unix(1_700_000_200, 0).UTC()
+	facts := reg.RuntimeDependencyFacts{
+		SourceTime:                   reg.SourceTimeObserved(observed),
+		LocalReceiptTime:             observed,
+		DocumentaryConsistencyMarker: "round6-sequence",
+		AcquisitionOrdinal:           1,
+	}
+	first, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: 41,
+		RetryOrdinal:     1,
+	})
+	if err != nil {
+		t.Fatalf("BeginObservationAttempt(first): %v", err)
+	}
+	firstCapture, err := reg.CaptureLogicalView(runtimeView)
+	if err != nil {
+		t.Fatalf("CaptureLogicalView(first): %v", err)
+	}
+	firstResult, err := first.CaptureDependency("energy-a", firstCapture, facts)
+	if err != nil {
+		t.Fatalf("CaptureDependency(first): %v", err)
+	}
+	invalid := round6RuntimeObservationSpec(profile, firstResult)
+	invalid.SourceValidity = ""
+	if _, err := first.Publish(invalid); err == nil {
+		t.Fatal("first retry did not become terminally failed")
+	}
+
+	second, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: 41,
+		RetryOrdinal:     2,
+	})
+	if err != nil {
+		t.Fatalf("BeginObservationAttempt(second): %v", err)
+	}
+	reminted, err := reg.CaptureLogicalView(runtimeView)
+	if err != nil {
+		t.Fatalf("CaptureLogicalView(reminted): %v", err)
+	}
+	if _, err := second.CaptureDependency("energy-a", reminted, facts); err == nil {
+		t.Fatal("failed retry reminted the same stable M1 source identity")
+	}
+}
+
+func TestRound7FixtureSourceIdentityCannotBeRemintedAfterFailedRetry(t *testing.T) {
+	profile, spec := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	state := round3State(t, profile, "round7-fixture-remint")
+	factory := round3Factory(t, profile, state, &round3MemoryCAS{state: state})
+	first, decoded := round3Attempt(t, factory, spec)
+	decoded.SourceValidity = ""
+	if _, err := first.Publish(decoded); err == nil {
+		t.Fatal("first fixture retry did not become terminally failed")
+	}
+
+	retry := spec
+	retry.RetryOrdinal = 2
+	for index := range retry.Dependencies {
+		retry.Dependencies[index].RetryOrdinal = 2
+	}
+	encoded, err := reg.MarshalFixtureSpec(retry)
+	if err != nil {
+		t.Fatalf("MarshalFixtureSpec(retry): %v", err)
+	}
+	second, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: retry.PollGenerationID,
+		RetryOrdinal:     retry.RetryOrdinal,
+	})
+	if err != nil {
+		t.Fatalf("BeginObservationAttempt(second): %v", err)
+	}
+	if _, err := second.DecodeSpec(encoded); err == nil {
+		t.Fatal("failed fixture retry reminted the same stable source identities")
+	}
+}
+
+func TestRound7DistinctFixtureViewsWithEqualWordsRemainAdmissible(t *testing.T) {
+	profile, spec := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	firstWords := spec.Dependencies[0].View.Record().Words
+	second := spec.Dependencies[1].View.Record()
+	second.Words = append([]uint16(nil), firstWords...)
+	spec.Dependencies[1].View = snapshotFromRecord(t, second)
+	state := round3State(t, profile, "round7-fixture-equal-words")
+	factory := round3Factory(t, profile, state, &round3MemoryCAS{state: state})
+	if _, decoded := round3Attempt(t, factory, spec); !reflect.DeepEqual(
+		decoded.Dependencies[0].View.Record().Words,
+		decoded.Dependencies[1].View.Record().Words,
+	) {
+		t.Fatal("fixture setup did not retain equal raw words")
+	}
+}
+
+func TestRound7FixturePhysicalResponseOwnsChronologyFacts(t *testing.T) {
+	profile, valid := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	makeRepeatedWireGroup(t, &valid)
+	observed := time.Unix(1_700_000_600, 0).UTC()
+	receipt := observed.Add(time.Second)
+	for index := range valid.Dependencies {
+		valid.Dependencies[index].SourceTime = reg.SourceTimeObserved(observed)
+		valid.Dependencies[index].LocalReceiptTime = receipt
+		valid.Dependencies[index].AcquisitionOrdinal = 1
+	}
+	valid.SourceTime = reg.SourceTimeObserved(observed)
+	valid.LocalReceiptTime = receipt
+	if _, err := round3Publish(t, profile, valid); err != nil {
+		t.Fatalf("fixture shared physical chronology rejected: %v", err)
+	}
+
+	_, contradictory := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	makeRepeatedWireGroup(t, &contradictory)
+	if _, err := round3Publish(t, profile, contradictory); err == nil {
+		t.Fatal("fixture physical response accepted contradictory chronology facts")
+	}
+}
+
+func TestRound7RuntimeBoundedSourceTimeStateIsExplicit(t *testing.T) {
+	tests := []struct {
+		name       string
+		sourceTime reg.SourceTimeSpec
+	}{
+		{
+			name:       "unavailable",
+			sourceTime: reg.SourceTimeUnavailable(),
+		},
+		{
+			name:       "observed UTC year one",
+			sourceTime: reg.SourceTimeObserved(time.Time{}),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			profile := round6BoundedSingleProfile(t)
+			state := round3State(t, profile, "round7-runtime-source-time")
+			factory := round3Factory(
+				t,
+				profile,
+				state,
+				&round3MemoryCAS{state: state},
+			)
+			attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+				PollGenerationID: 41,
+				RetryOrdinal:     1,
+			})
+			if err != nil {
+				t.Fatalf("BeginObservationAttempt: %v", err)
+			}
+			capture, err := reg.CaptureLogicalView(round6RuntimeRTUView(t))
+			if err != nil {
+				t.Fatalf("CaptureLogicalView: %v", err)
+			}
+			receipt := time.Unix(1_700_000_700, 0).UTC()
+			result, err := attempt.CaptureDependency(
+				"energy-a",
+				capture,
+				reg.RuntimeDependencyFacts{
+					SourceTime:                   test.sourceTime,
+					LocalReceiptTime:             receipt,
+					DocumentaryConsistencyMarker: "round6-sequence",
+					AcquisitionOrdinal:           1,
+				},
+			)
+			if err != nil {
+				t.Fatalf("CaptureDependency: %v", err)
+			}
+			spec := round6RuntimeObservationSpec(profile, result)
+			spec.SourceTime = test.sourceTime
+			spec.LocalReceiptTime = receipt
+			observation, err := attempt.Publish(spec)
+			if err != nil {
+				t.Fatalf("Publish: %v", err)
+			}
+			got := observation.Spec().SourceTime
+			if got.State != test.sourceTime.State ||
+				!got.Time.Equal(test.sourceTime.Time) {
+				t.Fatalf("source time = %#v, want %#v", got, test.sourceTime)
+			}
+		})
+	}
+}
+
+func TestRound7FixtureBoundedSourceTimeStatesUseReceiptSkew(t *testing.T) {
+	t.Run("explicit unavailable", func(t *testing.T) {
+		profile, spec := boundedFixture(
+			t,
+			reg.AcquisitionOrderDependencyDeclaration,
+		)
+		for index := range spec.Dependencies {
+			spec.Dependencies[index].SourceTime = reg.SourceTimeUnavailable()
+		}
+		spec.SourceTime = reg.SourceTimeUnavailable()
+		if _, err := round3Publish(t, profile, spec); err != nil {
+			t.Fatalf("fixture unavailable source time rejected: %v", err)
+		}
+	})
+
+	t.Run("receipt skew still enforced", func(t *testing.T) {
+		profile, spec := boundedFixture(
+			t,
+			reg.AcquisitionOrderDependencyDeclaration,
+		)
+		for index := range spec.Dependencies {
+			spec.Dependencies[index].SourceTime = reg.SourceTimeUnavailable()
+		}
+		spec.Dependencies[1].LocalReceiptTime =
+			spec.Dependencies[0].LocalReceiptTime.Add(4 * time.Second)
+		spec.SourceTime = reg.SourceTimeUnavailable()
+		spec.LocalReceiptTime = spec.Dependencies[1].LocalReceiptTime
+		if _, err := round3Publish(t, profile, spec); err == nil {
+			t.Fatal("fixture unavailable source time bypassed receipt skew")
+		}
+	})
+
+	t.Run("explicit observed UTC year one", func(t *testing.T) {
+		profile, spec := boundedFixture(
+			t,
+			reg.AcquisitionOrderDependencyDeclaration,
+		)
+		for index := range spec.Dependencies {
+			spec.Dependencies[index].SourceTime =
+				reg.SourceTimeObserved(time.Time{})
+		}
+		spec.SourceTime = reg.SourceTimeObserved(time.Time{})
+		observation, err := round3Publish(t, profile, spec)
+		if err != nil {
+			t.Fatalf("fixture year-one source time rejected: %v", err)
+		}
+		if got := observation.Spec().SourceTime; got.State !=
+			reg.SourceTimeObservedState || !got.Time.Equal(time.Time{}) {
+			t.Fatalf("fixture year-one source time = %#v", got)
+		}
+	})
+}
+
+func round7FixtureJSONWithReceipts(
+	t *testing.T,
+	spec reg.ObservationSpec,
+	value any,
+) []byte {
+	t.Helper()
+	encoded, err := reg.MarshalFixtureSpec(spec)
+	if err != nil {
+		t.Fatalf("MarshalFixtureSpec: %v", err)
+	}
+	var record map[string]any
+	if err := json.Unmarshal(encoded, &record); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	record["local_receipt_time"] = value
+	dependencies, ok := record["dependencies"].([]any)
+	if !ok {
+		t.Fatal("fixture dependencies have an unexpected JSON shape")
+	}
+	for _, item := range dependencies {
+		dependency, ok := item.(map[string]any)
+		if !ok {
+			t.Fatal("fixture dependency has an unexpected JSON shape")
+		}
+		dependency["local_receipt_time"] = value
+	}
+	mutated, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	return mutated
+}
+
+func TestRound7FixtureJSONRetainsRequiredYearOneReceiptPresence(t *testing.T) {
+	profile, spec := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	const yearOne = "0001-01-01T00:00:00Z"
+	encoded := round7FixtureJSONWithReceipts(t, spec, yearOne)
+	state := round3State(t, profile, "round7-json-year-one")
+	factory := round3Factory(t, profile, state, &round3MemoryCAS{state: state})
+	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: spec.PollGenerationID,
+		RetryOrdinal:     spec.RetryOrdinal,
+	})
+	if err != nil {
+		t.Fatalf("BeginObservationAttempt: %v", err)
+	}
+	decoded, err := attempt.DecodeSpec(encoded)
+	if err != nil {
+		t.Fatalf("DecodeSpec(year one receipt): %v", err)
+	}
+	observation, err := attempt.Publish(decoded)
+	if err != nil {
+		t.Fatalf("Publish(year one receipt): %v", err)
+	}
+	if !observation.Spec().LocalReceiptTime.Equal(time.Time{}) {
+		t.Fatalf(
+			"year-one receipt = %s",
+			observation.Spec().LocalReceiptTime.Format(time.RFC3339Nano),
+		)
+	}
+	reencoded, err := reg.MarshalObservation(observation)
+	if err != nil {
+		t.Fatalf("MarshalObservation: %v", err)
+	}
+	if strings.Count(string(reencoded), yearOne) < len(spec.Dependencies)+1 {
+		t.Fatal("year-one receipt presence was lost during replay serialization")
+	}
+
+	for _, test := range []struct {
+		name     string
+		mutate   func(map[string]any)
+		expected string
+	}{
+		{
+			name: "absent",
+			mutate: func(record map[string]any) {
+				delete(record, "local_receipt_time")
+			},
+			expected: `serialized object is missing required key "local_receipt_time"`,
+		},
+		{
+			name: "null",
+			mutate: func(record map[string]any) {
+				record["local_receipt_time"] = nil
+			},
+			expected: `serialized key "local_receipt_time": serialized contract contains a non-canonical null`,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var record map[string]any
+			if err := json.Unmarshal(encoded, &record); err != nil {
+				t.Fatalf("json.Unmarshal: %v", err)
+			}
+			test.mutate(record)
+			candidate, err := json.Marshal(record)
+			if err != nil {
+				t.Fatalf("json.Marshal: %v", err)
+			}
+			candidateState := round3State(
+				t,
+				profile,
+				"round7-json-"+test.name,
+			)
+			candidateFactory := round3Factory(
+				t,
+				profile,
+				candidateState,
+				&round3MemoryCAS{state: candidateState},
+			)
+			candidateAttempt, err := candidateFactory.BeginObservationAttempt(
+				reg.AttemptIdentity{
+					PollGenerationID: spec.PollGenerationID,
+					RetryOrdinal:     spec.RetryOrdinal,
+				},
+			)
+			if err != nil {
+				t.Fatalf("BeginObservationAttempt: %v", err)
+			}
+			_, err = candidateAttempt.DecodeSpec(candidate)
+			if err == nil || err.Error() != test.expected {
+				t.Fatalf("DecodeSpec error = %v, want %q", err, test.expected)
+			}
+		})
+	}
+}
+
+func TestRound7BoundedCoherenceRejectsMixedTCPConnections(t *testing.T) {
+	profile, spec := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	second := spec.Dependencies[1].View.Record()
+	second.ConnectionID++
+	spec.Dependencies[1].View = snapshotFromRecord(t, second)
+	if _, err := round3Publish(t, profile, spec); err == nil {
+		t.Fatal("bounded sample mixed TCP connection identities in one generation")
 	}
 }
