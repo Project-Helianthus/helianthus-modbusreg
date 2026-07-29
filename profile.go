@@ -3,7 +3,6 @@ package modbusreg
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"slices"
@@ -197,6 +196,13 @@ func preflightDependencySpec(spec DependencySpec) error {
 	if spec.WordCount == 0 || spec.WordCount > modbus.MaxReadRegisters {
 		return fmt.Errorf("dependency width exceeds the runtime boundary")
 	}
+	if len(spec.EvidenceReferences) > MaxProfileEvidenceReferences ||
+		len(spec.ApplicabilityRefs) > MaxProfileEvidenceReferences {
+		return fmt.Errorf("dependency exceeds the contract collection boundary")
+	}
+	if err := preflightAggregate(spec); err != nil {
+		return err
+	}
 	if err := preflightAddressNormalizationSpec(spec.Normalization); err != nil {
 		return err
 	}
@@ -288,6 +294,9 @@ func NewDependencySet(
 		len(dependencies) > MaxProfileDependencies {
 		return DependencySet{}, fmt.Errorf("dependency set is incomplete")
 	}
+	if err := preflightAggregate(version, dependencies); err != nil {
+		return DependencySet{}, err
+	}
 	specs := make([]DependencySpec, len(dependencies))
 	copies := make([]Dependency, len(dependencies))
 	seen := make(map[string]struct{}, len(dependencies))
@@ -306,7 +315,7 @@ func NewDependencySet(
 		}
 		copies[index] = copy
 	}
-	encoded, err := json.Marshal(struct {
+	encoded, err := marshalBounded(struct {
 		Schema       string           `json:"schema"`
 		Version      Version          `json:"version"`
 		Dependencies []DependencySpec `json:"dependencies"`
@@ -472,6 +481,8 @@ func validateCoherence(spec CoherencePolicySpec) error {
 		}
 	case CoherenceBoundedMultiResponse:
 		if spec.MaximumSourceSkew <= 0 || spec.MaximumReceiptSkew <= 0 ||
+			spec.MaximumSourceSkew > MaxDeclaredCoherenceSkew ||
+			spec.MaximumReceiptSkew > MaxDeclaredCoherenceSkew ||
 			!spec.RequireGenerationEquality ||
 			(spec.AcquisitionOrder != AcquisitionOrderDependencyDeclaration &&
 				spec.AcquisitionOrder != AcquisitionOrderSourceTimeAscending &&
@@ -527,7 +538,8 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 	}
 	spec = cloneProfileSpec(spec)
 	if spec.SchemaVersion != schemaVersionV1 || !validIdentity(spec.ID) ||
-		!spec.Version.valid() || !spec.RuntimeContractVersion.valid() ||
+		!spec.Version.valid() ||
+		spec.RuntimeContractVersion != runtimeContractVersionV1 ||
 		!spec.DetectorVersion.valid() ||
 		spec.CodecContractVersion != codecContractVersionV1 ||
 		!spec.NormalizationVersion.valid() ||
@@ -672,6 +684,18 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 }
 
 func preflightProfileSpec(spec ProfileDescriptorSpec) error {
+	if len(spec.StandardApplicability) > MaxProfileEvidenceReferences ||
+		len(spec.ModelApplicability) > MaxProfileEvidenceReferences ||
+		len(spec.VendorApplicability) > MaxProfileEvidenceReferences ||
+		len(spec.KnownExclusions) > MaxProfileEvidenceReferences ||
+		len(spec.Codecs) > MaxProfileCodecs ||
+		len(spec.Evidence) > MaxProfileEvidenceReferences ||
+		len(spec.OverlayDeltas) > MaxProfileDependencies {
+		return fmt.Errorf("profile exceeds the contract collection boundary")
+	}
+	if err := preflightAggregate(spec); err != nil {
+		return err
+	}
 	stringFields := []struct {
 		name  string
 		value string
@@ -703,11 +727,6 @@ func preflightProfileSpec(spec ProfileDescriptorSpec) error {
 		); err != nil {
 			return err
 		}
-	}
-	if len(spec.Codecs) > MaxProfileCodecs ||
-		len(spec.Evidence) > MaxProfileEvidenceReferences ||
-		len(spec.OverlayDeltas) > MaxProfileDependencies {
-		return fmt.Errorf("profile exceeds the contract collection boundary")
 	}
 	for _, evidence := range spec.Evidence {
 		if err := validateBoundedString(
@@ -1054,7 +1073,10 @@ type Catalog struct {
 // NewCatalog rejects duplicate IDs, including a second profile version.
 func NewCatalog(profiles ...ProfileDescriptor) (Catalog, error) {
 	if len(profiles) == 0 || len(profiles) > MaxProfileDependencies {
-		return Catalog{}, fmt.Errorf("catalog is empty")
+		return Catalog{}, fmt.Errorf("catalog is empty or exceeds the contract maximum")
+	}
+	if err := preflightAggregate(profiles); err != nil {
+		return Catalog{}, err
 	}
 	seen := make(map[string]struct{}, len(profiles))
 	result := make([]ProfileDescriptor, len(profiles))
@@ -1096,7 +1118,6 @@ func NewCatalog(profiles ...ProfileDescriptor) (Catalog, error) {
 				spec.DetectorVersion != base.spec.DetectorVersion ||
 				spec.CodecContractVersion != base.spec.CodecContractVersion ||
 				spec.NormalizationVersion != base.spec.NormalizationVersion ||
-				spec.CoherenceVersion != base.spec.CoherenceVersion ||
 				spec.QualificationVersion != base.spec.QualificationVersion {
 				return Catalog{}, fmt.Errorf("vendor overlay changes inherited contract versions")
 			}
@@ -1140,69 +1161,248 @@ func validateOverlayAgainstBase(
 	overlay ProfileDescriptorSpec,
 	base ProfileDescriptorSpec,
 ) error {
-	baseCodecs := make(map[string]CodecSpec, len(base.Codecs))
-	for _, codec := range base.Codecs {
-		baseCodecs[codec.ID()] = codec.Spec()
+	models := cloneStrings(base.ModelApplicability)
+	exclusions := cloneStrings(base.KnownExclusions)
+	codecs := make([]CodecSpec, len(base.Codecs))
+	for index, codec := range base.Codecs {
+		codecs[index] = codec.Spec()
 	}
-	baseDependencies := make(map[string]DependencySpec)
-	for _, dependency := range base.Dependencies.Dependencies() {
-		baseDependencies[dependency.ID()] = dependency.Spec()
+	baseDependencies := base.Dependencies.Dependencies()
+	dependencies := make([]DependencySpec, len(baseDependencies))
+	for index, dependency := range baseDependencies {
+		dependencies[index] = dependency.Spec()
 	}
+	coherence := base.Coherence
+	coherenceChanged := false
 	for _, delta := range overlay.OverlayDeltas {
 		switch delta.Kind {
 		case OverlayDeltaModelApplicability:
-			exists := slices.Contains(
-				base.ModelApplicability,
-				delta.ApplicabilityValue,
-			)
+			exists := slices.Contains(models, delta.ApplicabilityValue)
 			if (delta.Operation == OverlayDeltaAdd && exists) ||
 				(delta.Operation == OverlayDeltaRemove && !exists) {
 				return fmt.Errorf("overlay model-applicability delta is a no-op")
 			}
+			if delta.Operation == OverlayDeltaAdd {
+				models = append(models, delta.ApplicabilityValue)
+			} else {
+				models = removeString(models, delta.ApplicabilityValue)
+			}
 		case OverlayDeltaKnownExclusion:
-			exists := slices.Contains(
-				base.KnownExclusions,
-				delta.ApplicabilityValue,
-			)
+			exists := slices.Contains(exclusions, delta.ApplicabilityValue)
 			if (delta.Operation == OverlayDeltaAdd && exists) ||
 				(delta.Operation == OverlayDeltaRemove && !exists) {
 				return fmt.Errorf("overlay exclusion delta is a no-op")
 			}
+			if delta.Operation == OverlayDeltaAdd {
+				exclusions = append(exclusions, delta.ApplicabilityValue)
+			} else {
+				exclusions = removeString(exclusions, delta.ApplicabilityValue)
+			}
 		case OverlayDeltaCodec:
-			baseCodec, exists := baseCodecs[delta.TargetID]
-			if delta.Operation == OverlayDeltaAdd && exists {
+			index := codecSpecIndex(codecs, delta.TargetID)
+			if delta.Operation == OverlayDeltaAdd && index >= 0 {
 				return fmt.Errorf("overlay codec addition already exists")
 			}
-			if delta.Operation == OverlayDeltaReplace &&
-				(!exists || reflect.DeepEqual(baseCodec, *delta.Codec)) {
-				return fmt.Errorf("overlay codec replacement is absent or unchanged")
+			if delta.Operation == OverlayDeltaAdd {
+				codecs = append(codecs, cloneCodecSpec(*delta.Codec))
+				continue
 			}
+			if index < 0 {
+				return fmt.Errorf("overlay codec replacement target is absent")
+			}
+			current := codecs[index]
+			if !codecSemanticsChanged(current, *delta.Codec) {
+				return fmt.Errorf("overlay codec replacement is semantically unchanged")
+			}
+			if compareVersion(delta.Codec.Version, current.Version) <= 0 {
+				return fmt.Errorf("overlay codec replacement did not advance version")
+			}
+			codecs[index] = cloneCodecSpec(*delta.Codec)
 		case OverlayDeltaDependency:
-			baseDependency, exists := baseDependencies[delta.TargetID]
+			index := dependencySpecIndex(dependencies, delta.TargetID)
 			switch delta.Operation {
 			case OverlayDeltaAdd:
-				if exists {
+				if index >= 0 {
 					return fmt.Errorf("overlay dependency addition already exists")
 				}
+				dependencies = append(
+					dependencies,
+					cloneDependencySpec(*delta.Dependency),
+				)
 			case OverlayDeltaReplace:
-				if !exists || reflect.DeepEqual(
-					baseDependency,
-					*delta.Dependency,
-				) {
-					return fmt.Errorf("overlay dependency replacement is absent or unchanged")
+				if index < 0 {
+					return fmt.Errorf("overlay dependency replacement target is absent")
 				}
+				current := dependencies[index]
+				if !dependencySemanticsChanged(current, *delta.Dependency) {
+					return fmt.Errorf(
+						"overlay dependency replacement is semantically unchanged",
+					)
+				}
+				if compareVersion(delta.Dependency.Version, current.Version) <= 0 {
+					return fmt.Errorf(
+						"overlay dependency replacement did not advance version",
+					)
+				}
+				dependencies[index] = cloneDependencySpec(*delta.Dependency)
 			case OverlayDeltaRemove:
-				if !exists {
+				if index < 0 {
 					return fmt.Errorf("overlay dependency removal target is absent")
 				}
+				dependencies = append(
+					dependencies[:index],
+					dependencies[index+1:]...,
+				)
 			}
 		case OverlayDeltaCoherence:
-			if reflect.DeepEqual(base.Coherence, *delta.Coherence) {
-				return fmt.Errorf("overlay coherence replacement is unchanged")
+			if !coherenceSemanticsChanged(coherence, *delta.Coherence) {
+				return fmt.Errorf("overlay coherence replacement is semantically unchanged")
 			}
+			if compareVersion(delta.Coherence.Version, coherence.Version) <= 0 {
+				return fmt.Errorf("overlay coherence replacement did not advance version")
+			}
+			coherence = *delta.Coherence
+			coherenceChanged = true
 		}
 	}
+	if coherenceChanged {
+		if overlay.CoherenceVersion != coherence.Version {
+			return fmt.Errorf("overlay coherence contract version disagrees with delta")
+		}
+	} else if overlay.CoherenceVersion != base.CoherenceVersion {
+		return fmt.Errorf("overlay changes inherited coherence version")
+	}
+	effectiveCodecs := make([]Codec, len(codecs))
+	for index, codec := range codecs {
+		validated, err := NewCodec(codec)
+		if err != nil {
+			return fmt.Errorf("effective overlay codec %d: %w", index, err)
+		}
+		effectiveCodecs[index] = validated
+	}
+	effectiveDependencies := make([]Dependency, len(dependencies))
+	for index, dependency := range dependencies {
+		validated, err := NewDependency(dependency)
+		if err != nil {
+			return fmt.Errorf("effective overlay dependency %d: %w", index, err)
+		}
+		effectiveDependencies[index] = validated
+	}
+	dependencySet, err := NewDependencySet(
+		base.Dependencies.Version(),
+		effectiveDependencies,
+	)
+	if err != nil {
+		return fmt.Errorf("effective overlay dependency set: %w", err)
+	}
+	evidence := append([]EvidenceReference(nil), base.Evidence...)
+	evidence = append(evidence, overlay.Evidence...)
+	_, err = NewProfileDescriptor(ProfileDescriptorSpec{
+		SchemaVersion:          overlay.SchemaVersion,
+		ID:                     overlay.ID,
+		Version:                overlay.Version,
+		Kind:                   ProfileStandardFamily,
+		StandardApplicability:  cloneStrings(base.StandardApplicability),
+		ModelApplicability:     models,
+		KnownExclusions:        exclusions,
+		RuntimeContractVersion: overlay.RuntimeContractVersion,
+		DetectorVersion:        overlay.DetectorVersion,
+		CodecContractVersion:   overlay.CodecContractVersion,
+		NormalizationVersion:   overlay.NormalizationVersion,
+		CoherenceVersion:       coherence.Version,
+		QualificationVersion:   overlay.QualificationVersion,
+		Codecs:                 effectiveCodecs,
+		Dependencies:           dependencySet,
+		Coherence:              coherence,
+		Evidence:               evidence,
+		Maturity:               base.Maturity,
+		DefaultEnabled:         false,
+		State:                  ProfileActive,
+	})
+	if err != nil {
+		return fmt.Errorf("effective overlay graph: %w", err)
+	}
 	return nil
+}
+
+func removeString(values []string, target string) []string {
+	result := make([]string, 0, len(values)-1)
+	for _, value := range values {
+		if value != target {
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
+func codecSpecIndex(codecs []CodecSpec, target string) int {
+	for index := range codecs {
+		if codecs[index].ID == target {
+			return index
+		}
+	}
+	return -1
+}
+
+func dependencySpecIndex(dependencies []DependencySpec, target string) int {
+	for index := range dependencies {
+		if dependencies[index].ID == target {
+			return index
+		}
+	}
+	return -1
+}
+
+func cloneDependencySpec(spec DependencySpec) DependencySpec {
+	spec.EvidenceReferences = cloneStrings(spec.EvidenceReferences)
+	spec.ApplicabilityRefs = cloneStrings(spec.ApplicabilityRefs)
+	return spec
+}
+
+func codecSemanticsChanged(first, second CodecSpec) bool {
+	first.Version = Version{}
+	second.Version = Version{}
+	return !reflect.DeepEqual(first, second)
+}
+
+func dependencySemanticsChanged(first, second DependencySpec) bool {
+	first.Version = Version{}
+	second.Version = Version{}
+	return !reflect.DeepEqual(first, second)
+}
+
+func coherenceSemanticsChanged(first, second CoherencePolicySpec) bool {
+	first.Version = Version{}
+	second.Version = Version{}
+	return !reflect.DeepEqual(first, second)
+}
+
+func compareVersion(first, second Version) int {
+	firstParts := strings.Split(first.String(), ".")
+	secondParts := strings.Split(second.String(), ".")
+	for index := 0; index < 3; index++ {
+		firstPart := strings.TrimLeft(firstParts[index], "0")
+		secondPart := strings.TrimLeft(secondParts[index], "0")
+		if firstPart == "" {
+			firstPart = "0"
+		}
+		if secondPart == "" {
+			secondPart = "0"
+		}
+		if len(firstPart) < len(secondPart) {
+			return -1
+		}
+		if len(firstPart) > len(secondPart) {
+			return 1
+		}
+		if firstPart < secondPart {
+			return -1
+		}
+		if firstPart > secondPart {
+			return 1
+		}
+	}
+	return 0
 }
 
 // Profiles returns the deterministic catalog order.

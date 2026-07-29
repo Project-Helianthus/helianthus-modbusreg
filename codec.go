@@ -214,6 +214,18 @@ func preflightCodecSpec(spec CodecSpec) error {
 	if spec.RawWordCount == 0 || spec.RawWordCount > modbus.MaxReadRegisters {
 		return fmt.Errorf("codec raw-word width exceeds the runtime boundary")
 	}
+	if len(spec.WordPermutation) > MaxRawWords ||
+		len(spec.Sentinels) > MaxCodecSentinels {
+		return fmt.Errorf("codec input exceeds the contract collection boundary")
+	}
+	for _, sentinel := range spec.Sentinels {
+		if len(sentinel.Words) > MaxRawWords {
+			return fmt.Errorf("codec sentinel exceeds the raw-word boundary")
+		}
+	}
+	if err := preflightAggregate(spec); err != nil {
+		return err
+	}
 	if err := validateBoundedString("codec ID", spec.ID, true); err != nil {
 		return err
 	}
@@ -237,15 +249,6 @@ func preflightCodecSpec(spec CodecSpec) error {
 		false,
 	); err != nil {
 		return err
-	}
-	if len(spec.WordPermutation) > MaxRawWords ||
-		len(spec.Sentinels) > MaxCodecSentinels {
-		return fmt.Errorf("codec input exceeds the contract collection boundary")
-	}
-	for _, sentinel := range spec.Sentinels {
-		if len(sentinel.Words) > MaxRawWords {
-			return fmt.Errorf("codec sentinel exceeds the raw-word boundary")
-		}
 	}
 	return nil
 }

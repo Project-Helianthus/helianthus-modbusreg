@@ -195,7 +195,6 @@ func boundedFixture(
 		t.Fatalf("NewProfileDescriptor: %v", err)
 	}
 	spec := successfulObservationSpec(t, profile)
-	spec.RetryAttemptID = 1
 	source := time.Unix(1_700_000_100, 0).UTC()
 	receipt := source.Add(time.Second)
 	for index := range spec.Dependencies {
@@ -211,7 +210,6 @@ func boundedFixture(
 		)
 		spec.Dependencies[index].DocumentaryConsistencyMarker = "sequence-7"
 		spec.Dependencies[index].AcquisitionOrdinal = uint32(index + 1)
-		spec.Dependencies[index].RetryAttemptID = 1
 	}
 	spec.SourceTime = reg.SourceTimeObserved(source.Add(time.Second))
 	spec.LocalReceiptTime = receipt.Add(time.Second)
@@ -610,25 +608,28 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 	}
 
 	factory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	admission, err := factory.NewObservation(
+	observation, err := publishWithFactory(
+		factory,
 		successfulObservationSpec(t, profile),
 	)
 	if err != nil {
 		t.Fatalf("NewObservation: %v", err)
 	}
-	observation := admission.Observation()
 	observationBytes, err := reg.MarshalObservation(observation)
 	if err != nil {
 		t.Fatalf("MarshalObservation: %v", err)
 	}
 	replayRecord := observation.Replay()[0].LogicalViewRecord()
 	freshFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	decodedAdmission, err := freshFactory.UnmarshalObservation(observationBytes)
+	freshAttempt, err := freshFactory.BeginObservationAttempt()
 	if err != nil {
-		t.Fatalf("UnmarshalObservation: %v", err)
+		t.Fatalf("BeginObservationAttempt: %v", err)
 	}
-	decodedObservation := decodedAdmission.Observation()
-	reencodedObservation, err := reg.MarshalObservation(decodedObservation)
+	decodedObservationSpec, err := freshAttempt.DecodeSpec(observationBytes)
+	if err != nil {
+		t.Fatalf("DecodeSpec: %v", err)
+	}
+	reencodedObservation, err := freshAttempt.MarshalSpec(decodedObservationSpec)
 	if err != nil {
 		t.Fatalf("MarshalObservation(round trip): %v", err)
 	}
@@ -642,21 +643,24 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 	if !bytes.Equal(observationBytes, observationSpecBytes) {
 		t.Fatal("observation construction spec lost its logical-view snapshot")
 	}
-	var decodedObservationSpec reg.ObservationSpec
+	var JSONDecodedObservationSpec reg.ObservationSpec
 	if err := json.Unmarshal(
 		observationSpecBytes,
-		&decodedObservationSpec,
+		&JSONDecodedObservationSpec,
 	); err != nil {
 		t.Fatalf("json.Unmarshal(ObservationSpec): %v", err)
 	}
 	specFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	decodedObservationSpec.SampleID = ""
-	if _, err := specFactory.NewObservation(decodedObservationSpec); err != nil {
+	JSONDecodedObservationSpec.SampleID = ""
+	if _, err := publishWithFactory(
+		specFactory,
+		JSONDecodedObservationSpec,
+	); err != nil {
 		t.Fatalf("decoded ObservationSpec was not valid: %v", err)
 	}
 	if !reflect.DeepEqual(
 		replayRecord,
-		decodedObservation.Replay()[0].LogicalViewRecord(),
+		decodedObservationSpec.Dependencies[0].View.Record(),
 	) {
 		t.Fatal("observation round trip lost raw words or provenance")
 	}
@@ -667,7 +671,8 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 		1,
 	)
 	thirdFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	if _, err := thirdFactory.UnmarshalObservation(badObservation); err == nil {
+	thirdAttempt, _ := thirdFactory.BeginObservationAttempt()
+	if _, err := thirdAttempt.DecodeSpec(badObservation); err == nil {
 		t.Fatal("unknown observation schema was accepted")
 	}
 	unknownObservationField := append(
@@ -675,7 +680,8 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 		[]byte(`,"unknown_contract_field":true}`)...,
 	)
 	fourthFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	if _, err := fourthFactory.UnmarshalObservation(
+	fourthAttempt, _ := fourthFactory.BeginObservationAttempt()
+	if _, err := fourthAttempt.DecodeSpec(
 		unknownObservationField,
 	); err == nil {
 		t.Fatal("unknown observation field was accepted")
@@ -694,7 +700,7 @@ func TestRound1SchemaAuthoritiesAreReadOnlyValues(t *testing.T) {
 	}
 }
 
-func TestRound1ObservationFactoryMakesSampleAdmissionMandatory(t *testing.T) {
+func TestRound1ObservationFactoryMakesCASPublicationMandatory(t *testing.T) {
 	profile := profileFixture(t)
 	factory, ledger := newFactory(t, profile, emptyLedgerState(t, profile))
 	spec := successfulObservationSpec(t, profile)
@@ -706,7 +712,7 @@ func TestRound1ObservationFactoryMakesSampleAdmissionMandatory(t *testing.T) {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			if _, err := factory.NewObservation(spec); err != nil {
+			if _, err := publishWithFactory(factory, spec); err != nil {
 				failures.Add(1)
 				return
 			}
@@ -731,12 +737,12 @@ func TestRound1ObservationFactoryMakesSampleAdmissionMandatory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UnmarshalSampleLedgerState: %v", err)
 	}
-	restartedFactory, _ := newFactory(t, profile, restartedState)
-	next, err := restartedFactory.NewObservation(spec)
+	restartedFactory, restartedLedger := newFactory(t, profile, restartedState)
+	next, err := publishWithFactory(restartedFactory, spec)
 	if err != nil {
 		t.Fatal("imported restart state did not continue issuance:", err)
 	}
-	if next.ExpectedRevision() != 16 {
+	if next.SampleID() == "" || restartedLedger.ExportState().Revision != 17 {
 		t.Fatal("imported restart state reset the issuance revision")
 	}
 }

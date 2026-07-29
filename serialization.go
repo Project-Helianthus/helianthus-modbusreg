@@ -2,6 +2,9 @@ package modbusreg
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -307,7 +310,7 @@ func profileFromDTO(record profileDTO) (ProfileDescriptor, error) {
 }
 
 func decodeStrict(data []byte, target any) error {
-	if err := preflightJSON(data); err != nil {
+	if err := preflightJSON(data, target); err != nil {
 		return err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -324,15 +327,31 @@ func decodeStrict(data []byte, target any) error {
 	return nil
 }
 
+type boundedBuffer struct {
+	bytes.Buffer
+}
+
+func (buffer *boundedBuffer) Write(data []byte) (int, error) {
+	if len(data) > MaxSerializedContractBytes-buffer.Len() {
+		return 0, fmt.Errorf("serialized contract exceeds the byte boundary")
+	}
+	return buffer.Buffer.Write(data)
+}
+
 func marshalBounded(value any) ([]byte, error) {
-	encoded, err := json.Marshal(value)
-	if err != nil {
+	if err := preflightAggregate(value); err != nil {
 		return nil, err
 	}
-	if len(encoded) > MaxSerializedContractBytes {
-		return nil, fmt.Errorf("serialized contract exceeds the byte boundary")
+	var buffer boundedBuffer
+	encoder := json.NewEncoder(&buffer)
+	if err := encoder.Encode(value); err != nil {
+		return nil, err
 	}
-	return encoded, nil
+	encoded := buffer.Bytes()
+	if len(encoded) == 0 || encoded[len(encoded)-1] != '\n' {
+		return nil, fmt.Errorf("serialized contract encoder did not terminate")
+	}
+	return append([]byte(nil), encoded[:len(encoded)-1]...), nil
 }
 
 // MarshalProfileDescriptor emits deterministic validated profile bytes.
@@ -404,7 +423,7 @@ type dependencyResultDTO struct {
 	LocalReceiptTime             string               `json:"local_receipt_time,omitempty"`
 	DocumentaryConsistencyMarker string               `json:"documentary_consistency_marker"`
 	AcquisitionOrdinal           uint32               `json:"acquisition_ordinal"`
-	RetryAttemptID               RetryAttemptID       `json:"retry_attempt_id"`
+	RetryAttemptToken            string               `json:"retry_attempt_token"`
 }
 
 type observationDTO struct {
@@ -418,7 +437,7 @@ type observationDTO struct {
 	CoherenceVersion       string                `json:"coherence_version"`
 	QualificationVersion   string                `json:"qualification_version"`
 	SampleID               string                `json:"sample_id"`
-	RetryAttemptID         RetryAttemptID        `json:"retry_attempt_id"`
+	RetryAttemptToken      string                `json:"retry_attempt_token"`
 	PollGenerationID       uint64                `json:"poll_generation_id"`
 	DependencySetID        string                `json:"dependency_set_id"`
 	DependencySetVersion   string                `json:"dependency_set_version"`
@@ -529,7 +548,7 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 			LocalReceiptTime:             localReceipt,
 			DocumentaryConsistencyMarker: result.DocumentaryConsistencyMarker,
 			AcquisitionOrdinal:           result.AcquisitionOrdinal,
-			RetryAttemptID:               result.RetryAttemptID,
+			RetryAttemptToken:            spec.serializedAttemptToken,
 		}
 	}
 	return observationDTO{
@@ -543,7 +562,7 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 		CoherenceVersion:       spec.CoherenceVersion.String(),
 		QualificationVersion:   spec.QualificationVersion.String(),
 		SampleID:               spec.SampleID,
-		RetryAttemptID:         spec.RetryAttemptID,
+		RetryAttemptToken:      spec.serializedAttemptToken,
 		PollGenerationID:       spec.PollGenerationID,
 		DependencySetID:        spec.DependencySetID,
 		DependencySetVersion:   spec.DependencySetVersion.String(),
@@ -559,6 +578,9 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 	if record.SchemaVersion != schemaVersionV1.String() {
 		return ObservationSpec{}, fmt.Errorf("observation schema is incompatible")
+	}
+	if !validDependencySetID(record.DependencySetID) {
+		return ObservationSpec{}, fmt.Errorf("observation dependency-set ID is malformed")
 	}
 	parse := func(field, value string) (Version, error) {
 		return parseRequiredVersion(field, value)
@@ -618,6 +640,11 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 	}
 	dependencies := make([]DependencyResult, len(record.Dependencies))
 	for index, dependency := range record.Dependencies {
+		if dependency.RetryAttemptToken != record.RetryAttemptToken {
+			return ObservationSpec{}, fmt.Errorf(
+				"dependency retry-attempt token disagrees",
+			)
+		}
 		dependencyVersion, err := parse(
 			"dependency_version",
 			dependency.DependencyVersion,
@@ -663,7 +690,6 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 			LocalReceiptTime:             dependencyReceipt,
 			DocumentaryConsistencyMarker: dependency.DocumentaryConsistencyMarker,
 			AcquisitionOrdinal:           dependency.AcquisitionOrdinal,
-			RetryAttemptID:               dependency.RetryAttemptID,
 		}
 	}
 	return ObservationSpec{
@@ -677,7 +703,6 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 		CoherenceVersion:       coherenceVersion,
 		QualificationVersion:   qualificationVersion,
 		SampleID:               record.SampleID,
-		RetryAttemptID:         record.RetryAttemptID,
 		PollGenerationID:       record.PollGenerationID,
 		DependencySetID:        record.DependencySetID,
 		DependencySetVersion:   dependencySetVersion,
@@ -687,6 +712,7 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 		Endpoint:               record.Endpoint,
 		UnitID:                 record.UnitID,
 		Dependencies:           dependencies,
+		serializedAttemptToken: record.RetryAttemptToken,
 	}, nil
 }
 
@@ -718,7 +744,11 @@ func MarshalObservation(observation Observation) ([]byte, error) {
 	if observation.SampleID() == "" {
 		return nil, fmt.Errorf("observation is invalid")
 	}
-	return marshalBounded(observation.Spec())
+	record, err := observationSpecToDTO(observation.Spec())
+	if err != nil {
+		return nil, err
+	}
+	return marshalBounded(record)
 }
 
 // MarshalJSON serializes an immutable admitted observation.
@@ -726,27 +756,128 @@ func (observation Observation) MarshalJSON() ([]byte, error) {
 	return MarshalObservation(observation)
 }
 
-// UnmarshalObservation validates bytes and atomically admits the sample.
-func (factory *ObservationFactory) UnmarshalObservation(
-	data []byte,
-) (SampleAdmission, error) {
-	if factory == nil {
-		return SampleAdmission{}, fmt.Errorf("observation factory is invalid")
-	}
-	var spec ObservationSpec
-	if err := decodeStrict(data, &spec); err != nil {
-		return SampleAdmission{}, err
-	}
-	observation, err := buildObservation(factory.profile, spec)
+// MarshalSpec serializes an attempt-bound input without publishing it.
+func (attempt *ObservationAttempt) MarshalSpec(
+	spec ObservationSpec,
+) ([]byte, error) {
+	prepared, err := attempt.prepareSpec(spec)
 	if err != nil {
-		return SampleAdmission{}, err
+		return nil, err
 	}
-	return factory.admitSerializedObservation(observation)
+	if _, err := buildObservation(attempt.factory.profile, prepared); err != nil {
+		return nil, err
+	}
+	prepared, err = attempt.sealSpec(prepared)
+	if err != nil {
+		return nil, err
+	}
+	record, err := observationSpecToDTO(prepared)
+	if err != nil {
+		return nil, err
+	}
+	return marshalBounded(record)
+}
+
+// DecodeSpec validates serialized input and rebinds it to this exact attempt.
+func (attempt *ObservationAttempt) DecodeSpec(
+	data []byte,
+) (ObservationSpec, error) {
+	if attempt == nil || attempt.factory == nil {
+		return ObservationSpec{}, fmt.Errorf("observation attempt is invalid")
+	}
+	var record observationDTO
+	if err := decodeStrict(data, &record); err != nil {
+		return ObservationSpec{}, err
+	}
+	if err := attempt.verifySerializedRecord(record); err != nil {
+		return ObservationSpec{}, err
+	}
+	spec, err := observationSpecFromDTO(record)
+	if err != nil {
+		return ObservationSpec{}, err
+	}
+	spec.serializedAttemptToken = ""
+	for index := range spec.Dependencies {
+		spec.Dependencies[index].attemptToken = attempt.token
+	}
+	if attempt.factory.profile.spec.Coherence.Mode ==
+		CoherenceBoundedMultiResponse {
+		spec.attemptToken = attempt.token
+	}
+	prepared, err := attempt.prepareSpec(spec)
+	if err != nil {
+		return ObservationSpec{}, err
+	}
+	if _, err := buildObservation(attempt.factory.profile, prepared); err != nil {
+		return ObservationSpec{}, err
+	}
+	return prepared, nil
+}
+
+func (attempt *ObservationAttempt) verifySerializedRecord(
+	record observationDTO,
+) error {
+	switch attempt.factory.profile.spec.Coherence.Mode {
+	case CoherenceSingleWireResponse:
+		if record.RetryAttemptToken != "" {
+			return fmt.Errorf("single-wire retry token is not applicable")
+		}
+		for _, dependency := range record.Dependencies {
+			if dependency.RetryAttemptToken != "" {
+				return fmt.Errorf(
+					"single-wire dependency retry token is not applicable",
+				)
+			}
+		}
+		return nil
+	case CoherenceBoundedMultiResponse:
+		if record.RetryAttemptToken == "" {
+			return fmt.Errorf("serialized retry attempt token is missing")
+		}
+		for _, dependency := range record.Dependencies {
+			if dependency.RetryAttemptToken != record.RetryAttemptToken {
+				return fmt.Errorf(
+					"serialized dependency retry attempt token disagrees",
+				)
+			}
+		}
+	default:
+		return fmt.Errorf("observation coherence mode is invalid")
+	}
+	supplied, err := hex.DecodeString(record.RetryAttemptToken)
+	if err != nil || len(supplied) != sha256.Size ||
+		record.RetryAttemptToken != hex.EncodeToString(supplied) {
+		return fmt.Errorf("serialized retry attempt token is malformed")
+	}
+	canonicalRecord := record
+	canonicalRecord.Dependencies = append(
+		[]dependencyResultDTO(nil),
+		record.Dependencies...,
+	)
+	canonicalRecord.SampleID = ""
+	canonicalRecord.RetryAttemptToken = ""
+	for index := range canonicalRecord.Dependencies {
+		canonicalRecord.Dependencies[index].RetryAttemptToken = ""
+	}
+	canonical, err := marshalBounded(canonicalRecord)
+	if err != nil {
+		return err
+	}
+	mac := hmac.New(sha256.New, attempt.key[:])
+	if _, err := mac.Write(canonical); err != nil {
+		return err
+	}
+	if !hmac.Equal(supplied, mac.Sum(nil)) {
+		return fmt.Errorf("serialized retry attempt token does not authenticate the set")
+	}
+	return nil
 }
 
 type sampleLedgerDTO struct {
 	SchemaVersion   string `json:"schema_version"`
 	IssuerDomain    string `json:"issuer_domain"`
+	ProfileID       string `json:"profile_id"`
+	ProfileVersion  string `json:"profile_version"`
 	DependencySetID string `json:"dependency_set_id"`
 	Revision        uint64 `json:"revision"`
 	HighWater       uint64 `json:"high_water"`
@@ -760,6 +891,8 @@ func MarshalSampleLedgerState(state SampleLedgerState) ([]byte, error) {
 	return marshalBounded(sampleLedgerDTO{
 		SchemaVersion:   state.SchemaVersion.String(),
 		IssuerDomain:    state.IssuerDomain,
+		ProfileID:       state.ProfileID,
+		ProfileVersion:  state.ProfileVersion.String(),
 		DependencySetID: state.DependencySetID,
 		Revision:        state.Revision,
 		HighWater:       state.HighWater,
@@ -775,9 +908,18 @@ func UnmarshalSampleLedgerState(data []byte) (SampleLedgerState, error) {
 	if record.SchemaVersion != schemaVersionV1.String() {
 		return SampleLedgerState{}, fmt.Errorf("sample ledger schema is incompatible")
 	}
+	profileVersion, err := parseRequiredVersion(
+		"profile_version",
+		record.ProfileVersion,
+	)
+	if err != nil {
+		return SampleLedgerState{}, err
+	}
 	state := SampleLedgerState{
 		SchemaVersion:   schemaVersionV1,
 		IssuerDomain:    record.IssuerDomain,
+		ProfileID:       record.ProfileID,
+		ProfileVersion:  profileVersion,
 		DependencySetID: record.DependencySetID,
 		Revision:        record.Revision,
 		HighWater:       record.HighWater,

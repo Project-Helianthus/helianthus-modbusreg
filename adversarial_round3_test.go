@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -71,6 +70,10 @@ func round3Attempt(
 	spec reg.ObservationSpec,
 ) (*reg.ObservationAttempt, reg.ObservationSpec) {
 	t.Helper()
+	spec.Dependencies = append(
+		[]reg.DependencyResult(nil),
+		spec.Dependencies...,
+	)
 	attempt, err := factory.BeginObservationAttempt()
 	if err != nil {
 		t.Fatalf("BeginObservationAttempt: %v", err)
@@ -185,6 +188,10 @@ func TestRound3RetryAttemptBindingIsOpaqueAndNonRelabelable(t *testing.T) {
 	secondAttempt, secondBound := round3Attempt(t, factory, secondSpec)
 
 	mixed := firstBound
+	mixed.Dependencies = append(
+		[]reg.DependencyResult(nil),
+		firstBound.Dependencies...,
+	)
 	mixed.Dependencies[1] = secondBound.Dependencies[1]
 	if _, err := firstAttempt.Publish(mixed); err == nil {
 		t.Fatal("retained-old and new-attempt dependencies were mixed")
@@ -204,6 +211,38 @@ func TestRound3RetryAttemptBindingIsOpaqueAndNonRelabelable(t *testing.T) {
 	}
 	if _, err := secondAttempt.DecodeSpec(encoded); err == nil {
 		t.Fatal("serialized dependencies rebound to a different attempt")
+	}
+	secondCurrent := secondBound
+	secondCurrent.Dependencies = append(
+		[]reg.DependencyResult(nil),
+		secondBound.Dependencies...,
+	)
+	currentRecord := secondCurrent.Dependencies[0].View.Record()
+	currentRecord.Words[0] ^= 0x0001
+	secondCurrent.Dependencies[0].View = snapshotFromRecord(t, currentRecord)
+	secondEncoded, err := secondAttempt.MarshalSpec(secondCurrent)
+	if err != nil {
+		t.Fatalf("MarshalSpec(second attempt): %v", err)
+	}
+	var firstRecord, secondRecord map[string]any
+	if err := json.Unmarshal(encoded, &firstRecord); err != nil {
+		t.Fatalf("json.Unmarshal(first token): %v", err)
+	}
+	if err := json.Unmarshal(secondEncoded, &secondRecord); err != nil {
+		t.Fatalf("json.Unmarshal(second token): %v", err)
+	}
+	firstToken, _ := firstRecord["retry_attempt_token"].(string)
+	secondToken, _ := secondRecord["retry_attempt_token"].(string)
+	if firstToken == "" || secondToken == "" || firstToken == secondToken {
+		t.Fatal("attempt seals are absent or not attempt-specific")
+	}
+	relabelled := bytes.ReplaceAll(
+		encoded,
+		[]byte(firstToken),
+		[]byte(secondToken),
+	)
+	if _, err := secondAttempt.DecodeSpec(relabelled); err == nil {
+		t.Fatal("caller relabelled an old serialized set into a new attempt")
 	}
 	if _, err := firstAttempt.Publish(decoded); err != nil {
 		t.Fatalf("same-attempt serialized input was rejected: %v", err)

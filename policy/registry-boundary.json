@@ -12,6 +12,7 @@
     "README.md",
     "adversarial_round1_test.go",
     "adversarial_round2_test.go",
+    "adversarial_round3_test.go",
     "codec.go",
     "contracts_test.go",
     "doc.go",
@@ -46,18 +47,19 @@
     "version.go"
   ],
   "allowed_product_go_sha256": {
-    "codec.go": "8fb14faeec53d783e10926625a68340b39e8777e580aad3a882bc253379824a7",
-    "doc.go": "5893c46b249d5f8ee427ec030d0bc49f6d6ea4d40065bd676598e4a9e20d565c",
-    "json_preflight.go": "57b022061a19fe07329a0cb0ea6b69213abc95abca1ea50ff8694e185aaf4306",
-    "limits.go": "5b4d506ff7ddfe609b908a627b6900096e33787ec6b96ceed83586708b33c56e",
-    "observation.go": "7ef4ba3e6ee9e42ee2d6aad62381ce18a24f7a49762edbea71005479bd6ac78b",
-    "profile.go": "e59fbdc1556494314b83bf5360800608f38854526ba84728c1ece9b879d48192",
-    "serialization.go": "0de978735b5fae0cab51ce4b00127d94384aa23b935f7c25a96cecc0cd3e997a",
-    "version.go": "c0f6494939056c2ee8323de13e29b50691d3ff1ada9b44df662e0e000f23f7a4"
+    "codec.go": "c8c3a32dc1175ded6c65715236c6a665c5957749745aa671ca0694d6e3e3415d",
+    "doc.go": "dfb7c5e962a5f0988b944eecc37b717efc708b10d3782e72b0519012da69ba3e",
+    "json_preflight.go": "7c5dafdf8f568080598cb6f4b225ee100e62bc1ac880f314dcf17cd338eb84ad",
+    "limits.go": "2c0281d690bce4ab26ad8437d3b6f98778dab741a2dfe237fb26fcec9a53f268",
+    "observation.go": "e0a2955d0f8b837c3237f952d5a15b3d4f55f30ad95ee395c07848517e5c1bff",
+    "profile.go": "608e810978b33c33594e70ea274724054004f9b2c7f61035ab34cbfd284748de",
+    "serialization.go": "8da8381d2dbbdfc979feb6c78684a037a2a7cecb331e56b7e6ba5ae9e5caf15d",
+    "version.go": "2c497e14ac4755025ddc6d9ac589fcff1c85888f435ca42b5abbe27066f16637"
   },
   "allowed_test_go_files": [
     "adversarial_round1_test.go",
     "adversarial_round2_test.go",
+    "adversarial_round3_test.go",
     "contracts_test.go"
   ],
   "allowed_code_bearing_non_go_files": [

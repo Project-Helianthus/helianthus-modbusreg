@@ -75,8 +75,9 @@ func (version *Version) UnmarshalJSON(data []byte) error {
 }
 
 var (
-	schemaVersionV1        = MustParseVersion("1.0.0")
-	codecContractVersionV1 = MustParseVersion("1.0.0")
+	schemaVersionV1          = MustParseVersion("1.0.0")
+	codecContractVersionV1   = MustParseVersion("1.0.0")
+	runtimeContractVersionV1 = MustParseVersion("1.0.0")
 )
 
 // CurrentSchemaVersion returns the immutable M2-01 serialized schema authority.
@@ -87,6 +88,12 @@ func CurrentSchemaVersion() Version {
 // CurrentCodecContractVersion returns the immutable codec contract authority.
 func CurrentCodecContractVersion() Version {
 	return codecContractVersionV1
+}
+
+// PinnedRuntimeContractVersion returns the exact M1-04 runtime contract
+// consumed by this package.
+func PinnedRuntimeContractVersion() Version {
+	return runtimeContractVersionV1
 }
 
 func cloneStrings(values []string) []string {

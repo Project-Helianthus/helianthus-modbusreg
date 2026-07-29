@@ -34,7 +34,7 @@ This repository owns:
 - exact ordered dependency-set and documentary address normalization records;
 - immutable source-observation snapshots and exact raw-word replay;
 - fail-closed coherence, retry-attempt, and complete wire-group validation;
-- O(1) factory-issued sample admission with an explicit external CAS boundary;
+- O(1) factory-issued samples published only after a consumer-supplied CAS;
 - bounded deterministic profile/observation serialization.
 
 The following ownership is planned but is not implemented by M2-01:
@@ -83,9 +83,12 @@ standard-family source, requires an evidence manifest for future vendor artifact
 and runs mutation tests for those boundaries. The M2-01 policy checks the Git
 index for regular tracked files, inventories every admitted repository file,
 anchors and scans code-bearing non-Go files, and separately hashes all product
-Go files. This is an enforced CI scope invariant, not a malicious-committer
-security boundary. Detector, qualification, standard/vendor profile, non-Go
-probe, socket artifact, and fixture source remain rejected.
+Go files. Go import inspection includes product, internal-test, and
+external-test imports. This hash gate is an enforced scope/change detector, not
+a malicious-committer security boundary. Exact-head adversarial status and
+protected-branch enforcement are the external trust boundary. Detector,
+qualification, standard/vendor profile, non-Go probe, socket artifact, and
+fixture source remain rejected.
 
 The same gate verifies
 [`modbus-runtime-consumer-lock-v1.json`](policy/modbus-runtime-consumer-lock-v1.json)

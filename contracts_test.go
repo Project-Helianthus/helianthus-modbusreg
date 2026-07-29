@@ -3,11 +3,30 @@ package modbusreg_test
 import (
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
+
+type memorySampleCAS struct {
+	mu    sync.Mutex
+	state reg.SampleLedgerState
+}
+
+func (store *memorySampleCAS) CompareAndSwap(
+	expected reg.SampleLedgerState,
+	next reg.SampleLedgerState,
+) (bool, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if store.state != expected {
+		return false, nil
+	}
+	store.state = next
+	return true, nil
+}
 
 func version(t *testing.T, value string) reg.Version {
 	t.Helper()
@@ -143,7 +162,11 @@ func newFactory(
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
-	factory, err := reg.NewObservationFactory(profile, ledger)
+	factory, err := reg.NewObservationFactory(
+		profile,
+		ledger,
+		&memorySampleCAS{state: state},
+	)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -157,12 +180,35 @@ func emptyLedgerState(
 	t.Helper()
 	state, err := reg.EmptySampleLedgerState(
 		"fixture-issuer",
-		profile.Dependencies().ID(),
+		profile,
 	)
 	if err != nil {
 		t.Fatalf("EmptySampleLedgerState: %v", err)
 	}
 	return state
+}
+
+func publishWithFactory(
+	factory *reg.ObservationFactory,
+	spec reg.ObservationSpec,
+) (reg.Observation, error) {
+	spec.Dependencies = append(
+		[]reg.DependencyResult(nil),
+		spec.Dependencies...,
+	)
+	attempt, err := factory.BeginObservationAttempt()
+	if err != nil {
+		return reg.Observation{}, err
+	}
+	for index := range spec.Dependencies {
+		spec.Dependencies[index], err = attempt.BindDependency(
+			spec.Dependencies[index],
+		)
+		if err != nil {
+			return reg.Observation{}, err
+		}
+	}
+	return attempt.Publish(spec)
 }
 
 func buildObservation(
@@ -172,11 +218,7 @@ func buildObservation(
 ) (reg.Observation, error) {
 	t.Helper()
 	factory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	admission, err := factory.NewObservation(spec)
-	if err != nil {
-		return reg.Observation{}, err
-	}
-	return admission.Observation(), nil
+	return publishWithFactory(factory, spec)
 }
 
 func logicalViewRecord(
@@ -239,7 +281,6 @@ func successfulObservationSpec(
 		CoherenceVersion:       profile.CoherenceVersion(),
 		QualificationVersion:   profile.QualificationVersion(),
 		SampleID:               "",
-		RetryAttemptID:         reg.RetryAttemptNotApplicable,
 		PollGenerationID:       41,
 		DependencySetID:        profile.Dependencies().ID(),
 		DependencySetVersion:   profile.Dependencies().Version(),
@@ -256,9 +297,8 @@ func successfulObservationSpec(
 				CodecVersion:      dependencies[0].CodecVersion(),
 				NormalizationVersion: dependencies[0].
 					Normalization().Spec().Version,
-				Status:         reg.DependencyReadSuccessful,
-				View:           firstView,
-				RetryAttemptID: reg.RetryAttemptNotApplicable,
+				Status: reg.DependencyReadSuccessful,
+				View:   firstView,
 			},
 			{
 				DependencyID:      dependencies[1].ID(),
@@ -267,9 +307,8 @@ func successfulObservationSpec(
 				CodecVersion:      dependencies[1].CodecVersion(),
 				NormalizationVersion: dependencies[1].
 					Normalization().Spec().Version,
-				Status:         reg.DependencyReadSuccessful,
-				View:           secondView,
-				RetryAttemptID: reg.RetryAttemptNotApplicable,
+				Status: reg.DependencyReadSuccessful,
+				View:   secondView,
 			},
 		},
 	}
@@ -720,7 +759,6 @@ func TestBoundedMultiResponseEnforcesDeclaredSkewAndMarker(t *testing.T) {
 		t.Fatalf("NewProfileDescriptor: %v", err)
 	}
 	spec := successfulObservationSpec(t, profile)
-	spec.RetryAttemptID = 1
 	source := time.Unix(1_700_000_100, 0).UTC()
 	receipt := source.Add(time.Second)
 	for index := range spec.Dependencies {
@@ -739,7 +777,6 @@ func TestBoundedMultiResponseEnforcesDeclaredSkewAndMarker(t *testing.T) {
 		)
 		spec.Dependencies[index].DocumentaryConsistencyMarker = "sequence-7"
 		spec.Dependencies[index].AcquisitionOrdinal = uint32(index + 1)
-		spec.Dependencies[index].RetryAttemptID = 1
 	}
 	spec.SourceTime = reg.SourceTimeObserved(source.Add(time.Second))
 	spec.LocalReceiptTime = receipt.Add(time.Second)
@@ -781,15 +818,15 @@ func TestSampleLedgerRejectsEverySampleIDReuse(t *testing.T) {
 	profile := profileFixture(t)
 	factory, ledger := newFactory(t, profile, emptyLedgerState(t, profile))
 	spec := successfulObservationSpec(t, profile)
-	first, err := factory.NewObservation(spec)
+	first, err := publishWithFactory(factory, spec)
 	if err != nil {
 		t.Fatalf("first NewObservation: %v", err)
 	}
-	second, err := factory.NewObservation(spec)
+	second, err := publishWithFactory(factory, spec)
 	if err != nil {
 		t.Fatalf("second NewObservation: %v", err)
 	}
-	if first.Observation().SampleID() == second.Observation().SampleID() ||
+	if first.SampleID() == second.SampleID() ||
 		ledger.ExportState().HighWater != 2 {
 		t.Fatal("factory reused a sample ID")
 	}
