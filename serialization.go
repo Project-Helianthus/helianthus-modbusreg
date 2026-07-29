@@ -517,23 +517,27 @@ func sourceTimeFromDTO(record sourceTimeDTO) (SourceTimeSpec, error) {
 	}
 }
 
-func formatRequiredTime(value time.Time) (string, error) {
-	canonical, err := canonicalRequiredTime(value)
+func formatRequiredTime(value time.Time, present bool) (string, error) {
+	canonical, err := canonicalRequiredTime(value, present)
 	if err != nil {
 		return "", err
 	}
 	return canonical.Format(time.RFC3339Nano), nil
 }
 
-func parseOptionalTime(value string) (time.Time, error) {
+func parseOptionalTime(value string) (time.Time, bool, error) {
 	if value == "" {
-		return time.Time{}, nil
+		return time.Time{}, false, nil
 	}
 	parsed, err := time.Parse(time.RFC3339Nano, value)
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, false, err
 	}
-	return canonicalRequiredTime(parsed)
+	canonical, err := canonicalObservedTime(parsed)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	return canonical, true, nil
 }
 
 func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
@@ -548,7 +552,10 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 	if err != nil {
 		return observationDTO{}, err
 	}
-	receipt, err := formatRequiredTime(spec.LocalReceiptTime)
+	receipt, err := formatRequiredTime(
+		spec.LocalReceiptTime,
+		spec.localReceiptTimePresent,
+	)
 	if err != nil {
 		return observationDTO{}, err
 	}
@@ -562,8 +569,22 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 			return observationDTO{}, fmt.Errorf("dependency %d source time: %w", index, err)
 		}
 		localReceipt := ""
-		if !result.LocalReceiptTime.IsZero() {
-			localReceipt = result.LocalReceiptTime.UTC().Format(time.RFC3339Nano)
+		if hasLocalReceiptTime(
+			result.LocalReceiptTime,
+			result.localReceiptTimePresent,
+		) {
+			canonicalReceipt, err := canonicalRequiredTime(
+				result.LocalReceiptTime,
+				result.localReceiptTimePresent,
+			)
+			if err != nil {
+				return observationDTO{}, fmt.Errorf(
+					"dependency %d receipt time: %w",
+					index,
+					err,
+				)
+			}
+			localReceipt = canonicalReceipt.Format(time.RFC3339Nano)
 		}
 		dependencies[index] = dependencyResultDTO{
 			DependencyID:                 result.DependencyID,
@@ -663,8 +684,8 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 	if err != nil {
 		return ObservationSpec{}, err
 	}
-	receipt, err := parseOptionalTime(record.LocalReceiptTime)
-	if err != nil || receipt.IsZero() {
+	receipt, receiptPresent, err := parseOptionalTime(record.LocalReceiptTime)
+	if err != nil || !receiptPresent {
 		return ObservationSpec{}, fmt.Errorf("observation receipt time is invalid")
 	}
 	dependencies := make([]DependencyResult, len(record.Dependencies))
@@ -703,7 +724,9 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 				return ObservationSpec{}, err
 			}
 		}
-		dependencyReceipt, err := parseOptionalTime(dependency.LocalReceiptTime)
+		dependencyReceipt, dependencyReceiptPresent, err := parseOptionalTime(
+			dependency.LocalReceiptTime,
+		)
 		if err != nil {
 			return ObservationSpec{}, err
 		}
@@ -720,29 +743,31 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 			DocumentaryConsistencyMarker: dependency.DocumentaryConsistencyMarker,
 			AcquisitionOrdinal:           dependency.AcquisitionOrdinal,
 			RetryOrdinal:                 dependency.RetryOrdinal,
+			localReceiptTimePresent:      dependencyReceiptPresent,
 		}
 	}
 	return ObservationSpec{
-		SchemaVersion:          schema,
-		RuntimeContractVersion: runtimeVersion,
-		ProfileID:              record.ProfileID,
-		ProfileVersion:         profileVersion,
-		CodecContractVersion:   codecVersion,
-		DetectorVersion:        detectorVersion,
-		NormalizationVersion:   normalizationVersion,
-		CoherenceVersion:       coherenceVersion,
-		QualificationVersion:   qualificationVersion,
-		SampleID:               record.SampleID,
-		PollGenerationID:       record.PollGenerationID,
-		RetryOrdinal:           record.RetryOrdinal,
-		DependencySetID:        record.DependencySetID,
-		DependencySetVersion:   dependencySetVersion,
-		SourceValidity:         record.SourceValidity,
-		SourceTime:             sourceTime,
-		LocalReceiptTime:       receipt,
-		Endpoint:               record.Endpoint,
-		UnitID:                 record.UnitID,
-		Dependencies:           dependencies,
+		SchemaVersion:           schema,
+		RuntimeContractVersion:  runtimeVersion,
+		ProfileID:               record.ProfileID,
+		ProfileVersion:          profileVersion,
+		CodecContractVersion:    codecVersion,
+		DetectorVersion:         detectorVersion,
+		NormalizationVersion:    normalizationVersion,
+		CoherenceVersion:        coherenceVersion,
+		QualificationVersion:    qualificationVersion,
+		SampleID:                record.SampleID,
+		PollGenerationID:        record.PollGenerationID,
+		RetryOrdinal:            record.RetryOrdinal,
+		DependencySetID:         record.DependencySetID,
+		DependencySetVersion:    dependencySetVersion,
+		SourceValidity:          record.SourceValidity,
+		SourceTime:              sourceTime,
+		LocalReceiptTime:        receipt,
+		Endpoint:                record.Endpoint,
+		UnitID:                  record.UnitID,
+		Dependencies:            dependencies,
+		localReceiptTimePresent: receiptPresent,
 	}, nil
 }
 
@@ -863,8 +888,10 @@ func (attempt *ObservationAttempt) DecodeSpec(
 		return ObservationSpec{}, err
 	}
 	for index := range spec.Dependencies {
-		spec.Dependencies[index].claim = &dependencyResultClaim{}
-		spec.Dependencies[index].owner = state
+		spec.Dependencies[index] = bindDependencyResult(
+			spec.Dependencies[index],
+			state,
+		)
 	}
 	prepared, err := attempt.prepareSpec(spec)
 	if err != nil {
@@ -880,6 +907,17 @@ func (attempt *ObservationAttempt) DecodeSpec(
 	}
 	if state.capture != captureUnset {
 		return ObservationSpec{}, fmt.Errorf("attempt already owns a capture")
+	}
+	records := make([]LogicalViewRecord, len(prepared.Dependencies))
+	for index, dependency := range prepared.Dependencies {
+		records[index] = dependency.View.Record()
+	}
+	if err := state.factory.claimSources(
+		state.identity,
+		captureSerialized,
+		records,
+	); err != nil {
+		return ObservationSpec{}, err
 	}
 	state.capture = captureSerialized
 	return prepared, nil

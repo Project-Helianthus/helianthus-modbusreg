@@ -54,9 +54,9 @@
     "doc.go": "dfb7c5e962a5f0988b944eecc37b717efc708b10d3782e72b0519012da69ba3e",
     "json_preflight.go": "b667c5fde808e2b9f2aa6951a391ba50333555b6cb39b0d8d9df19db6a94fe49",
     "limits.go": "29a128c7acc587dbfdf2b52b5d12afa681b4411ca5b1a153fc9707065dfb72b2",
-    "observation.go": "a8b59dff8fa616b18a87bfffe149ab536fe6a42f4cc64583a723c75ed8ac79d8",
+    "observation.go": "3f6340e676a2a36ff3128639b73e406ea8ccf2af86813c4e3043b662f7acc87a",
     "profile.go": "64c4173434bbfea5e76339e1fdb5008996c6ccf4cc1a552ee25bdebbb0eefc53",
-    "serialization.go": "1026f49da42f7344c986ddad3e977858b8f3baba70747cbe27b5a080bb8dafde",
+    "serialization.go": "43e366e5ae1e57710166f469622e1c40cf71b49c3e5291d7a751f63862e56a59",
     "version.go": "2c497e14ac4755025ddc6d9ac589fcff1c85888f435ca42b5abbe27066f16637"
   },
   "allowed_test_go_files": [

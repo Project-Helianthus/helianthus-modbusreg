@@ -152,6 +152,15 @@ func makeRepeatedWireGroup(
 	second.PollGeneration = first.PollGeneration
 	second.DeadlineIdentity = first.DeadlineIdentity
 	spec.Dependencies[1].View = snapshotFromRecord(t, second)
+	spec.Dependencies[1].SourceTime = spec.Dependencies[0].SourceTime
+	spec.Dependencies[1].LocalReceiptTime =
+		spec.Dependencies[0].LocalReceiptTime
+	spec.Dependencies[1].DocumentaryConsistencyMarker =
+		spec.Dependencies[0].DocumentaryConsistencyMarker
+	spec.Dependencies[1].AcquisitionOrdinal =
+		spec.Dependencies[0].AcquisitionOrdinal
+	spec.SourceTime = spec.Dependencies[0].SourceTime
+	spec.LocalReceiptTime = spec.Dependencies[0].LocalReceiptTime
 }
 
 func TestRound2WireGroupingAppliesToEveryCoherenceMode(t *testing.T) {

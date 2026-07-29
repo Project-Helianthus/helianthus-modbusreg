@@ -669,6 +669,12 @@ func TestRound7FixturePhysicalResponseOwnsChronologyFacts(t *testing.T) {
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
 	makeRepeatedWireGroup(t, &contradictory)
+	contradictory.Dependencies[1].SourceTime = reg.SourceTimeObserved(
+		contradictory.Dependencies[0].SourceTime.Time.Add(time.Second),
+	)
+	contradictory.Dependencies[1].LocalReceiptTime =
+		contradictory.Dependencies[0].LocalReceiptTime.Add(time.Second)
+	contradictory.Dependencies[1].AcquisitionOrdinal = 2
 	if _, err := round3Publish(t, profile, contradictory); err == nil {
 		t.Fatal("fixture physical response accepted contradictory chronology facts")
 	}

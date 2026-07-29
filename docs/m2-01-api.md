@@ -68,7 +68,10 @@ retains:
 `poll_generation_id` from immutable provenance, derives `retry_ordinal` from
 the attempt, and derives dependency/codec/normalization versions from the
 profile declaration. A retained token copy cannot be relabelled into another
-retry or attempt.
+retry or attempt. The factory also retains each stable logical-view source
+identity for the current poll generation. Calling `CaptureLogicalView` again
+cannot remint the same M1 source into a later retry after a failed attempt.
+Distinct logical views remain distinct even when their raw words are equal.
 
 `NewLogicalViewSnapshot` validates operation identity and checked range/slice
 arithmetic for synthetic fixture/replay records. `NewDependencyResult` likewise
@@ -93,6 +96,12 @@ Dependencies must appear in declaration order and every result must be
 successful, complete, version-matched, and provenance-consistent. Missing,
 torn, malformed, exceptional, mixed-generation, mixed-endpoint, or incomplete
 inputs fail closed and produce no observation.
+
+Runtime capture and `DecodeSpec` retain a private complete snapshot for every
+attempt-owned dependency. The returned `DependencyResult` is a caller-facing
+handle, not mutable publication storage. Replacing its view or changing its
+source facts after admission cannot change validation, replay, or serialized
+observation output; publication uses the retained snapshot.
 
 Every repeated `wire_response_id`, in either coherence mode, binds one exact
 physical request, endpoint, TCP connection, transport/generation, unit,
@@ -120,16 +129,30 @@ register limit.
 
 `bounded_multi_response` requires explicit acquisition ordering, declared
 source/receipt skew, transport-generation equality, same transport family,
-endpoint and unit, whole-set retry behavior, and any documentary consistency
-marker. An `ObservationAttempt` owns one deterministic identity formed by the
-declared `poll_generation_id` and nonzero `retry_ordinal`. Every dependency
-carries the same pair. Serialization retains those fixture-stable facts, so an
-equivalent fresh-process attempt can validate and rebind exactly one serialized
-capture without random state. `DependencyResult` capture handles have a private
+endpoint, TCP connection and unit, whole-set retry behavior, and any documentary
+consistency marker. Acquisition ordinals identify unique physical responses,
+not dependency views. Multiple logical views from one physical response must
+carry the same ordinal, source-time state/value, local receipt time, and marker;
+contradictory chronology fails closed. Physical ordinals remain contiguous and
+ordered under the declared policy.
+
+An `ObservationAttempt` owns one deterministic identity formed by the declared
+`poll_generation_id` and nonzero `retry_ordinal`. Every dependency carries the
+same pair. Serialization retains those fixture-stable facts, so an equivalent
+fresh-process attempt can validate and rebind exactly one serialized capture
+without random state. `DependencyResult` capture handles have a private
 single-use claim and an attempt-owned pointer; copied DTOs cannot be rebound or
 mixed across attempts. Value copies of `ObservationAttempt` share one private
-lifecycle and cannot publish twice. Envelope times are the latest source and
-receipt times in the validated set. Declared skew is
+lifecycle and cannot publish twice.
+
+When every physical acquisition has an observed source time, source skew and
+the declared source-time order are checked and the envelope carries the latest
+source time. If any acquisition explicitly reports `SourceTimeUnavailable`,
+the whole envelope reports unavailable and coherence falls back to the required
+local receipt times and receipt skew. Source-time ordering cannot be claimed
+when a source time is unavailable. `SourceTimeObserved(time.Time{})` remains an
+explicit observed UTC year-one value because presence is determined by
+`SourceTime.State`, never `time.Time.IsZero`. Declared skew is
 capped by `MaxDeclaredCoherenceSkew`; checked seconds/nanoseconds comparison
 avoids `time.Duration` saturation across years 1 through 9999.
 
@@ -164,9 +187,12 @@ durability beyond the `SampleStateCAS` result.
 All admitted times are first normalized to UTC, then checked for the supported
 year range, stripped of monotonic/location metadata, and checked for exact
 RFC3339Nano round-trip. The explicit `observed` source-time state can represent
-`0001-01-01T00:00:00Z`; the same Go zero value remains invalid for required
-local receipt time or implicit absence. Offset-bearing year-boundary values
-that cross into UTC year 0 or 10000 fail before sample issuance and before CAS.
+`0001-01-01T00:00:00Z`. A decoded required `local_receipt_time` key can also
+represent that instant: decode retains key presence separately from the Go zero
+value. An absent key, JSON `null`, an empty timestamp, or an unmarked zero value
+constructed directly in Go remains invalid. Offset-bearing year-boundary
+values that cross into UTC year 0 or 10000 fail before sample issuance and
+before CAS.
 
 ## Vendor Overlay Delta
 
@@ -194,6 +220,10 @@ UTF-8, unpaired UTF-16 surrogate escapes, explicit JSON `null`, and every
 missing required member before strict decoding. Unknown fields and incompatible
 schemas fail closed. Optional relationship versions remain absent; zero values
 are never rewritten as current schema versions.
+
+Required timestamp presence is structural. In particular,
+`local_receipt_time:"0001-01-01T00:00:00Z"` is present and valid, while an
+absent or `null` `local_receipt_time` remains a deterministic decode error.
 
 Missing required JSON members are reported in DTO declaration order, so the
 same malformed bytes produce the same error across runs. The fixture lane is a

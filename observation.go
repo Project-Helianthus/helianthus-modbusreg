@@ -71,6 +71,30 @@ type LogicalViewCapture struct {
 	claim    *logicalViewCaptureClaim
 }
 
+type logicalSourceIdentity struct {
+	logicalViewID       uint64
+	wireResponseID      uint64
+	physicalRequestID   uint64
+	endpoint            string
+	connectionID        uint64
+	transport           TransportFamily
+	transportGeneration uint64
+	pollGeneration      uint64
+}
+
+func sourceIdentityOf(record LogicalViewRecord) logicalSourceIdentity {
+	return logicalSourceIdentity{
+		logicalViewID:       record.LogicalViewID,
+		wireResponseID:      record.WireResponseID,
+		physicalRequestID:   record.PhysicalRequestID,
+		endpoint:            record.Endpoint,
+		connectionID:        record.ConnectionID,
+		transport:           record.Transport,
+		transportGeneration: record.TransportGeneration,
+		pollGeneration:      record.PollGeneration,
+	}
+}
+
 // CaptureLogicalView consumes the exact exported helianthus-modbus view and
 // emits an opaque single-use token for attempt-owned admission.
 func CaptureLogicalView(view modbus.LogicalReadView) (LogicalViewCapture, error) {
@@ -247,8 +271,12 @@ func canonicalObservedTime(value time.Time) (time.Time, error) {
 	return decoded, nil
 }
 
-func canonicalRequiredTime(value time.Time) (time.Time, error) {
-	if value.IsZero() {
+func hasLocalReceiptTime(value time.Time, present bool) bool {
+	return present || !value.IsZero()
+}
+
+func canonicalRequiredTime(value time.Time, present bool) (time.Time, error) {
+	if !hasLocalReceiptTime(value, present) {
 		return time.Time{}, fmt.Errorf("timestamp is outside RFC3339Nano range")
 	}
 	return canonicalObservedTime(value)
@@ -284,6 +312,7 @@ type DependencyResult struct {
 	DocumentaryConsistencyMarker string
 	AcquisitionOrdinal           uint32
 	RetryOrdinal                 uint32
+	localReceiptTimePresent      bool
 	claim                        *dependencyResultClaim
 	owner                        *observationAttemptState
 }
@@ -297,7 +326,10 @@ type RuntimeDependencyFacts struct {
 	AcquisitionOrdinal           uint32
 }
 
-type dependencyResultClaim struct{}
+type dependencyResultClaim struct {
+	snapshot DependencyResult
+	bound    bool
+}
 
 // NewDependencyResult validates a synthetic fixture dependency. It can enter
 // admission only after deterministic serialization and DecodeSpec.
@@ -322,26 +354,27 @@ type AttemptIdentity struct {
 
 // ObservationSpec is the complete successful source-observation envelope.
 type ObservationSpec struct {
-	SchemaVersion          Version
-	RuntimeContractVersion Version
-	ProfileID              string
-	ProfileVersion         Version
-	CodecContractVersion   Version
-	DetectorVersion        Version
-	NormalizationVersion   Version
-	CoherenceVersion       Version
-	QualificationVersion   Version
-	SampleID               string
-	PollGenerationID       uint64
-	RetryOrdinal           uint32
-	DependencySetID        string
-	DependencySetVersion   Version
-	SourceValidity         SourceValidity
-	SourceTime             SourceTimeSpec
-	LocalReceiptTime       time.Time
-	Endpoint               string
-	UnitID                 byte
-	Dependencies           []DependencyResult
+	SchemaVersion           Version
+	RuntimeContractVersion  Version
+	ProfileID               string
+	ProfileVersion          Version
+	CodecContractVersion    Version
+	DetectorVersion         Version
+	NormalizationVersion    Version
+	CoherenceVersion        Version
+	QualificationVersion    Version
+	SampleID                string
+	PollGenerationID        uint64
+	RetryOrdinal            uint32
+	DependencySetID         string
+	DependencySetVersion    Version
+	SourceValidity          SourceValidity
+	SourceTime              SourceTimeSpec
+	LocalReceiptTime        time.Time
+	Endpoint                string
+	UnitID                  byte
+	Dependencies            []DependencyResult
+	localReceiptTimePresent bool
 }
 
 // Observation is an immutable coherent profile sample.
@@ -375,7 +408,10 @@ func buildObservation(
 		spec.DependencySetID != profile.Dependencies().ID() ||
 		spec.DependencySetVersion != profile.Dependencies().Version() ||
 		spec.Endpoint == "" || spec.UnitID == 0 || spec.UnitID > 247 ||
-		spec.LocalReceiptTime.IsZero() {
+		!hasLocalReceiptTime(
+			spec.LocalReceiptTime,
+			spec.localReceiptTimePresent,
+		) {
 		return Observation{}, fmt.Errorf("observation envelope is incomplete or mismatched")
 	}
 	switch spec.SourceValidity {
@@ -499,7 +535,10 @@ func canonicalizeObservationTimes(spec *ObservationSpec) error {
 			return err
 		}
 	}
-	spec.LocalReceiptTime, err = canonicalRequiredTime(spec.LocalReceiptTime)
+	spec.LocalReceiptTime, err = canonicalRequiredTime(
+		spec.LocalReceiptTime,
+		spec.localReceiptTimePresent,
+	)
 	if err != nil {
 		return err
 	}
@@ -513,9 +552,13 @@ func canonicalizeObservationTimes(spec *ObservationSpec) error {
 				return fmt.Errorf("dependency %d source time: %w", index, err)
 			}
 		}
-		if !dependency.LocalReceiptTime.IsZero() {
+		if hasLocalReceiptTime(
+			dependency.LocalReceiptTime,
+			dependency.localReceiptTimePresent,
+		) {
 			dependency.LocalReceiptTime, err = canonicalRequiredTime(
 				dependency.LocalReceiptTime,
+				dependency.localReceiptTimePresent,
 			)
 			if err != nil {
 				return fmt.Errorf("dependency %d receipt time: %w", index, err)
@@ -523,6 +566,10 @@ func canonicalizeObservationTimes(spec *ObservationSpec) error {
 		}
 	}
 	return nil
+}
+
+func sourceTimesEqual(first, second SourceTimeSpec) bool {
+	return first.State == second.State && first.Time.Equal(second.Time)
 }
 
 func validateObservationCoherence(
@@ -551,7 +598,10 @@ func validateObservationCoherence(
 				result.AcquisitionOrdinal != 0 ||
 				result.SourceTime.State != SourceTimeUnavailableState ||
 				!result.SourceTime.Time.IsZero() ||
-				!result.LocalReceiptTime.IsZero() {
+				hasLocalReceiptTime(
+					result.LocalReceiptTime,
+					result.localReceiptTimePresent,
+				) {
 				return fmt.Errorf("single-wire dependency time/retry identity is not applicable")
 			}
 			if index == 0 {
@@ -568,30 +618,32 @@ func validateObservationCoherence(
 		}
 		var minimumSource, maximumSource time.Time
 		var minimumReceipt, maximumReceipt time.Time
+		var sourceRangeSet, receiptRangeSet bool
+		sourceUnavailable := false
 		first := dependencies[0].view.record
 		type acquisitionFact struct {
-			ordinal uint32
-			index   int
-			source  time.Time
-			receipt time.Time
+			wireResponseID uint64
+			ordinal        uint32
+			source         SourceTimeSpec
+			receipt        time.Time
+			marker         string
 		}
-		facts := make([]acquisitionFact, len(dependencies))
-		ordinals := make(map[uint32]struct{}, len(dependencies))
+		facts := make([]acquisitionFact, 0, len(dependencies))
+		factByWire := make(map[uint64]int, len(dependencies))
 		for index := range dependencies {
 			result := spec.Dependencies[index]
 			record := dependencies[index].view.record
-			if result.SourceTime.State != SourceTimeObservedState ||
-				result.SourceTime.Time.IsZero() ||
-				result.LocalReceiptTime.IsZero() ||
+			if err := validateSourceTime(result.SourceTime); err != nil ||
+				!hasLocalReceiptTime(
+					result.LocalReceiptTime,
+					result.localReceiptTimePresent,
+				) ||
 				result.AcquisitionOrdinal == 0 ||
 				result.RetryOrdinal != spec.RetryOrdinal {
 				return fmt.Errorf("bounded response lacks per-dependency time facts")
 			}
-			if _, exists := ordinals[result.AcquisitionOrdinal]; exists {
-				return fmt.Errorf("bounded response acquisition ordinal is duplicated")
-			}
-			ordinals[result.AcquisitionOrdinal] = struct{}{}
 			if record.Endpoint != first.Endpoint ||
+				record.ConnectionID != first.ConnectionID ||
 				record.UnitID != first.UnitID ||
 				record.Transport != first.Transport ||
 				(policy.RequireGenerationEquality &&
@@ -603,26 +655,52 @@ func validateObservationCoherence(
 					policy.DocumentaryConsistencyMarker {
 				return fmt.Errorf("documentary consistency marker disagrees")
 			}
-			source := result.SourceTime.Time
-			receipt := result.LocalReceiptTime
-			facts[index] = acquisitionFact{
-				ordinal: result.AcquisitionOrdinal,
-				index:   index,
-				source:  source,
-				receipt: receipt,
+			if factIndex, exists := factByWire[record.WireResponseID]; exists {
+				fact := facts[factIndex]
+				if fact.ordinal != result.AcquisitionOrdinal ||
+					!sourceTimesEqual(fact.source, result.SourceTime) ||
+					!fact.receipt.Equal(result.LocalReceiptTime) ||
+					fact.marker != result.DocumentaryConsistencyMarker {
+					return fmt.Errorf(
+						"physical response chronology facts disagree",
+					)
+				}
+				continue
 			}
-			if minimumSource.IsZero() || source.Before(minimumSource) {
-				minimumSource = source
+			factByWire[record.WireResponseID] = len(facts)
+			facts = append(facts, acquisitionFact{
+				wireResponseID: record.WireResponseID,
+				ordinal:        result.AcquisitionOrdinal,
+				source:         result.SourceTime,
+				receipt:        result.LocalReceiptTime,
+				marker:         result.DocumentaryConsistencyMarker,
+			})
+		}
+		ordinals := make(map[uint32]uint64, len(facts))
+		for _, fact := range facts {
+			if wireID, exists := ordinals[fact.ordinal]; exists &&
+				wireID != fact.wireResponseID {
+				return fmt.Errorf("bounded response acquisition ordinal is duplicated")
 			}
-			if maximumSource.IsZero() || source.After(maximumSource) {
-				maximumSource = source
+			ordinals[fact.ordinal] = fact.wireResponseID
+			if !receiptRangeSet || fact.receipt.Before(minimumReceipt) {
+				minimumReceipt = fact.receipt
 			}
-			if minimumReceipt.IsZero() || receipt.Before(minimumReceipt) {
-				minimumReceipt = receipt
+			if !receiptRangeSet || fact.receipt.After(maximumReceipt) {
+				maximumReceipt = fact.receipt
 			}
-			if maximumReceipt.IsZero() || receipt.After(maximumReceipt) {
-				maximumReceipt = receipt
+			receiptRangeSet = true
+			if fact.source.State == SourceTimeUnavailableState {
+				sourceUnavailable = true
+				continue
 			}
+			if !sourceRangeSet || fact.source.Time.Before(minimumSource) {
+				minimumSource = fact.source.Time
+			}
+			if !sourceRangeSet || fact.source.Time.After(maximumSource) {
+				maximumSource = fact.source.Time
+			}
+			sourceRangeSet = true
 		}
 		sort.Slice(facts, func(first, second int) bool {
 			return facts[first].ordinal < facts[second].ordinal
@@ -634,14 +712,19 @@ func validateObservationCoherence(
 		}
 		switch policy.AcquisitionOrder {
 		case AcquisitionOrderDependencyDeclaration:
-			for index, fact := range facts {
-				if fact.index != index {
+			var previous uint32
+			for index, result := range spec.Dependencies {
+				if index != 0 && result.AcquisitionOrdinal < previous {
 					return fmt.Errorf("dependency acquisition order is reversed")
 				}
+				previous = result.AcquisitionOrdinal
 			}
 		case AcquisitionOrderSourceTimeAscending:
+			if sourceUnavailable {
+				return fmt.Errorf("source-time acquisition order is unavailable")
+			}
 			for index := 1; index < len(facts); index++ {
-				if facts[index].source.Before(facts[index-1].source) {
+				if facts[index].source.Time.Before(facts[index-1].source.Time) {
 					return fmt.Errorf("source-time acquisition order is reversed")
 				}
 			}
@@ -654,13 +737,34 @@ func validateObservationCoherence(
 		default:
 			return fmt.Errorf("bounded response acquisition order is unknown")
 		}
-		if exceedsTimeSkew(minimumSource, maximumSource, policy.MaximumSourceSkew) ||
-			exceedsTimeSkew(minimumReceipt, maximumReceipt, policy.MaximumReceiptSkew) {
+		if exceedsTimeSkew(
+			minimumReceipt,
+			maximumReceipt,
+			policy.MaximumReceiptSkew,
+		) ||
+			(!sourceUnavailable &&
+				exceedsTimeSkew(
+					minimumSource,
+					maximumSource,
+					policy.MaximumSourceSkew,
+				)) {
 			return fmt.Errorf("bounded response exceeds declared skew")
 		}
-		if spec.SourceTime.State != SourceTimeObservedState ||
-			!spec.SourceTime.Time.Equal(maximumSource) ||
+		if !hasLocalReceiptTime(
+			spec.LocalReceiptTime,
+			spec.localReceiptTimePresent,
+		) ||
 			!spec.LocalReceiptTime.Equal(maximumReceipt) {
+			return fmt.Errorf("bounded response envelope time disagrees")
+		}
+		if sourceUnavailable {
+			if spec.SourceTime.State != SourceTimeUnavailableState ||
+				!spec.SourceTime.Time.IsZero() {
+				return fmt.Errorf("bounded response envelope time disagrees")
+			}
+		} else if !sourceRangeSet ||
+			spec.SourceTime.State != SourceTimeObservedState ||
+			!spec.SourceTime.Time.Equal(maximumSource) {
 			return fmt.Errorf("bounded response envelope time disagrees")
 		}
 	default:
@@ -830,6 +934,35 @@ func cloneDependencyResult(result DependencyResult) DependencyResult {
 		result.View, _ = NewLogicalViewSnapshot(record)
 	}
 	return result
+}
+
+func bindDependencyResult(
+	result DependencyResult,
+	owner *observationAttemptState,
+) DependencyResult {
+	snapshot := cloneDependencyResult(result)
+	snapshot.claim = nil
+	snapshot.owner = nil
+	result = cloneDependencyResult(snapshot)
+	result.claim = &dependencyResultClaim{
+		snapshot: snapshot,
+		bound:    true,
+	}
+	result.owner = owner
+	return result
+}
+
+func admittedDependencyResult(
+	result DependencyResult,
+	owner *observationAttemptState,
+) (DependencyResult, error) {
+	if result.owner != owner || result.claim == nil || !result.claim.bound {
+		return DependencyResult{}, fmt.Errorf("dependency result is not attempt-owned")
+	}
+	admitted := cloneDependencyResult(result.claim.snapshot)
+	admitted.claim = result.claim
+	admitted.owner = owner
+	return admitted, nil
 }
 
 // ReplayedDependency is one exact raw dependency and its retained provenance.
@@ -1122,9 +1255,12 @@ func (ledger *SampleLedger) ExportState() SampleLedgerState {
 
 // ObservationFactory binds attempts to one profile and persistence domain.
 type ObservationFactory struct {
-	profile ProfileDescriptor
-	ledger  *SampleLedger
-	store   SampleStateCAS
+	profile              ProfileDescriptor
+	ledger               *SampleLedger
+	store                SampleStateCAS
+	sourceMu             sync.Mutex
+	sourcePollGeneration uint64
+	sourceClaims         map[logicalSourceIdentity]logicalSourceClaim
 }
 
 // NewObservationFactory requires the consumer's atomic persistence boundary.
@@ -1163,7 +1299,12 @@ func NewObservationFactory(
 			return nil, fmt.Errorf("observation coherence mode is invalid")
 		}
 	}
-	return &ObservationFactory{profile: copy, ledger: ledger, store: store}, nil
+	return &ObservationFactory{
+		profile:      copy,
+		ledger:       ledger,
+		store:        store,
+		sourceClaims: make(map[logicalSourceIdentity]logicalSourceClaim),
+	}, nil
 }
 
 type observationAttemptPhase uint8
@@ -1182,6 +1323,67 @@ const (
 	captureDirect
 	captureSerialized
 )
+
+type logicalSourceClaim struct {
+	attempt AttemptIdentity
+	mode    observationCaptureMode
+}
+
+func (factory *ObservationFactory) beginSourcePoll(pollGeneration uint64) error {
+	factory.sourceMu.Lock()
+	defer factory.sourceMu.Unlock()
+	if factory.sourcePollGeneration > pollGeneration {
+		return fmt.Errorf("attempt poll generation is superseded")
+	}
+	if factory.sourcePollGeneration < pollGeneration {
+		factory.sourcePollGeneration = pollGeneration
+		clear(factory.sourceClaims)
+	}
+	return nil
+}
+
+func (factory *ObservationFactory) claimSources(
+	identity AttemptIdentity,
+	mode observationCaptureMode,
+	records []LogicalViewRecord,
+) error {
+	factory.sourceMu.Lock()
+	defer factory.sourceMu.Unlock()
+	if factory.sourcePollGeneration != identity.PollGenerationID {
+		return fmt.Errorf("attempt poll generation is superseded")
+	}
+	pending := make(map[logicalSourceIdentity]struct{}, len(records))
+	for _, record := range records {
+		source := sourceIdentityOf(record)
+		if _, exists := pending[source]; exists {
+			return fmt.Errorf("logical-view source identity is duplicated")
+		}
+		pending[source] = struct{}{}
+		if existing, exists := factory.sourceClaims[source]; exists &&
+			(mode != captureSerialized ||
+				existing.mode != captureSerialized ||
+				existing.attempt != identity) {
+			return fmt.Errorf("logical-view source identity was already claimed")
+		}
+	}
+	for source := range pending {
+		if _, exists := factory.sourceClaims[source]; !exists {
+			factory.sourceClaims[source] = logicalSourceClaim{
+				attempt: identity,
+				mode:    mode,
+			}
+		}
+	}
+	return nil
+}
+
+func (factory *ObservationFactory) sourcePollCurrent(
+	pollGeneration uint64,
+) bool {
+	factory.sourceMu.Lock()
+	defer factory.sourceMu.Unlock()
+	return factory.sourcePollGeneration == pollGeneration
+}
 
 type observationAttemptState struct {
 	mu       sync.Mutex
@@ -1223,6 +1425,9 @@ func (factory *ObservationFactory) BeginObservationAttempt(
 	if committed.PollGenerationID != 0 &&
 		identity.PollGenerationID <= committed.PollGenerationID {
 		return nil, fmt.Errorf("attempt poll generation is already terminal")
+	}
+	if err := factory.beginSourcePoll(identity.PollGenerationID); err != nil {
+		return nil, err
 	}
 	return &ObservationAttempt{
 		state: &observationAttemptState{
@@ -1281,8 +1486,6 @@ func (attempt *ObservationAttempt) CaptureDependency(
 		DocumentaryConsistencyMarker: facts.DocumentaryConsistencyMarker,
 		AcquisitionOrdinal:           facts.AcquisitionOrdinal,
 		RetryOrdinal:                 state.identity.RetryOrdinal,
-		claim:                        &dependencyResultClaim{},
-		owner:                        state,
 	}
 	if err := preflightDependencyResult(result); err != nil {
 		return DependencyResult{}, err
@@ -1292,7 +1495,15 @@ func (attempt *ObservationAttempt) CaptureDependency(
 	if capture.claim.consumed {
 		return DependencyResult{}, fmt.Errorf("runtime logical-view capture was already consumed")
 	}
+	if err := state.factory.claimSources(
+		state.identity,
+		captureDirect,
+		[]LogicalViewRecord{record},
+	); err != nil {
+		return DependencyResult{}, err
+	}
 	capture.claim.consumed = true
+	result = bindDependencyResult(result, state)
 	state.capture = captureDirect
 	return cloneDependencyResult(result), nil
 }
@@ -1351,13 +1562,17 @@ func (attempt *ObservationAttempt) prepareSpec(
 		return ObservationSpec{}, fmt.Errorf("observation coherence mode is invalid")
 	}
 	for index := range spec.Dependencies {
-		if spec.Dependencies[index].owner != state ||
-			spec.Dependencies[index].RetryOrdinal != spec.RetryOrdinal {
+		admitted, err := admittedDependencyResult(
+			spec.Dependencies[index],
+			state,
+		)
+		if err != nil || admitted.RetryOrdinal != spec.RetryOrdinal {
 			return ObservationSpec{}, fmt.Errorf(
 				"dependency %d is not bound to this attempt",
 				index,
 			)
 		}
+		spec.Dependencies[index] = admitted
 	}
 	return cloneObservationSpec(spec), nil
 }
@@ -1395,16 +1610,23 @@ func (attempt *ObservationAttempt) Publish(
 		return Observation{}, fmt.Errorf("observation attempt identity disagrees")
 	}
 	for index := range prepared.Dependencies {
-		if prepared.Dependencies[index].owner != state ||
-			prepared.Dependencies[index].RetryOrdinal != prepared.RetryOrdinal {
+		admitted, err := admittedDependencyResult(
+			prepared.Dependencies[index],
+			state,
+		)
+		if err != nil || admitted.RetryOrdinal != prepared.RetryOrdinal {
 			return Observation{}, fmt.Errorf(
 				"dependency %d is not bound to this attempt",
 				index,
 			)
 		}
+		prepared.Dependencies[index] = admitted
 	}
 	if prepared.SampleID != "" {
 		return Observation{}, fmt.Errorf("sample ID must be factory-issued")
+	}
+	if !state.factory.sourcePollCurrent(state.identity.PollGenerationID) {
+		return Observation{}, fmt.Errorf("attempt poll generation is superseded")
 	}
 	observation, err := buildObservation(state.factory.profile, prepared)
 	if err != nil {
