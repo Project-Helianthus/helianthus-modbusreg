@@ -98,6 +98,15 @@ acquisition ordinals use their explicit not-applicable representation. Numeric
 logical-view IDs may be reused by distinct physical response groups because the
 pinned runtime scopes them to one coalesced read.
 
+An RTU physical response produces exactly one logical view in every coherence
+mode. TCP may retain multiple views from one physical response. Those retained
+TCP views do not need a common overlapping position: the pinned runtime first
+forms a valid overlapping coalesced request, but `ReplaySuccessfulResponse`
+skips dependents cancelled after the write. The remaining active views can
+therefore be disjoint while retaining the same valid physical-response
+provenance. Profile validation still requires one table/function and a physical
+union within the runtime register limit.
+
 `bounded_multi_response` requires explicit acquisition ordering, declared
 source/receipt skew, transport-generation equality, same transport family,
 endpoint and unit, whole-set retry behavior, and any documentary consistency
@@ -114,8 +123,14 @@ capped by `MaxDeclaredCoherenceSkew`; checked seconds/nanoseconds comparison
 avoids `time.Duration` saturation across years 1 through 9999.
 
 `SampleLedger` is O(1): state contains schema, issuer domain, exact profile
-ID/version, exact `dependency_set_id`, monotonic revision, and high-water, with
-no per-sample map or record list. Restore requires a trusted minimum revision.
+ID/version, exact `dependency_set_id`, monotonic revision, high-water, and the
+last committed `(poll_generation_id, retry_ordinal)`, with no per-sample map or
+record list. Attempt order is lexicographic: a higher poll generation advances;
+within one generation, only a higher retry ordinal advances. The exact same or
+any lower attempt is rejected before CAS. Because the committed attempt is part
+of the serialized `expected` and `next` states, restart cannot replay the same
+serialized attempt under a new sample ID. Restore requires a trusted minimum
+revision.
 `SampleStateCAS.CompareAndSwap(expected, next)` is called without holding the
 ledger or attempt-state mutex. A separate local commit serializer snapshots the
 expected and next states, releases internal locks, invokes the consumer, and
@@ -133,9 +148,10 @@ external persistence must never recreate an old domain at high-water zero.
 M2-01 owns no file, database, socket, or durable store and cannot prove external
 durability beyond the `SampleStateCAS` result.
 
-All admitted times are normalized to UTC, stripped of monotonic/location
-metadata, and checked for exact RFC3339Nano round-trip. Out-of-range years fail
-before sample issuance.
+All admitted times are first normalized to UTC, then checked for the supported
+year range, stripped of monotonic/location metadata, and checked for exact
+RFC3339Nano round-trip. Offset-bearing year-boundary values that cross into UTC
+year 0 or 10000 fail before sample issuance and before CAS.
 
 ## Vendor Overlay Delta
 

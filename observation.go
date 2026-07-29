@@ -215,12 +215,16 @@ func SourceTimeUnavailable() SourceTimeSpec {
 }
 
 func canonicalTime(value time.Time) (time.Time, error) {
-	if value.IsZero() || value.Year() < 1 || value.Year() > 9999 {
+	if value.IsZero() {
 		return time.Time{}, fmt.Errorf("timestamp is outside RFC3339Nano range")
 	}
-	encoded := value.Round(0).UTC().Format(time.RFC3339Nano)
+	canonical := value.Round(0).UTC()
+	if canonical.Year() < 1 || canonical.Year() > 9999 {
+		return time.Time{}, fmt.Errorf("timestamp is outside RFC3339Nano range")
+	}
+	encoded := canonical.Format(time.RFC3339Nano)
 	decoded, err := time.Parse(time.RFC3339Nano, encoded)
-	if err != nil || !decoded.Equal(value) {
+	if err != nil || !decoded.Equal(canonical) {
 		return time.Time{}, fmt.Errorf("timestamp is not RFC3339Nano round-trippable")
 	}
 	return decoded, nil
@@ -705,9 +709,16 @@ func validateWireResponseGroups(dependencies []ReplayedDependency) error {
 		len(dependencies),
 	)
 	wireToPhysical := make(map[uint64]physicalIdentity, len(dependencies))
+	rtuWireResponses := make(map[uint64]struct{}, len(dependencies))
 	for _, dependency := range dependencies {
 		record := dependency.view.record
 		identity := identityOf(record)
+		if record.Transport == TransportRTU {
+			if _, exists := rtuWireResponses[record.WireResponseID]; exists {
+				return fmt.Errorf("RTU response maps to multiple logical views")
+			}
+			rtuWireResponses[record.WireResponseID] = struct{}{}
+		}
 		requestKey := physicalRequestKey{
 			endpoint:            record.Endpoint,
 			connectionID:        record.ConnectionID,
@@ -863,13 +874,14 @@ func (observation Observation) SampleID() string {
 
 // SampleLedgerState is the O(1) explicit restart and CAS boundary.
 type SampleLedgerState struct {
-	SchemaVersion   Version
-	IssuerDomain    string
-	ProfileID       string
-	ProfileVersion  Version
-	DependencySetID string
-	Revision        uint64
-	HighWater       uint64
+	SchemaVersion        Version
+	IssuerDomain         string
+	ProfileID            string
+	ProfileVersion       Version
+	DependencySetID      string
+	Revision             uint64
+	HighWater            uint64
+	LastCommittedAttempt AttemptIdentity
 }
 
 // EmptySampleLedgerState creates a new issuer/profile/dependency-set domain.
@@ -895,14 +907,15 @@ func EmptySampleLedgerState(
 
 // SampleLedger issues monotonic sample identities in one immutable domain.
 type SampleLedger struct {
-	mu              sync.Mutex
-	commitSerial    chan struct{}
-	issuerDomain    string
-	profileID       string
-	profileVersion  Version
-	dependencySetID string
-	revision        uint64
-	highWater       uint64
+	mu                   sync.Mutex
+	commitSerial         chan struct{}
+	issuerDomain         string
+	profileID            string
+	profileVersion       Version
+	dependencySetID      string
+	revision             uint64
+	highWater            uint64
+	lastCommittedAttempt AttemptIdentity
 }
 
 // NewSampleLedger restores state only at or above a trusted external revision.
@@ -917,13 +930,14 @@ func NewSampleLedger(
 		return nil, err
 	}
 	ledger := &SampleLedger{
-		commitSerial:    make(chan struct{}, 1),
-		issuerDomain:    state.IssuerDomain,
-		profileID:       state.ProfileID,
-		profileVersion:  state.ProfileVersion,
-		dependencySetID: state.DependencySetID,
-		revision:        state.Revision,
-		highWater:       state.HighWater,
+		commitSerial:         make(chan struct{}, 1),
+		issuerDomain:         state.IssuerDomain,
+		profileID:            state.ProfileID,
+		profileVersion:       state.ProfileVersion,
+		dependencySetID:      state.DependencySetID,
+		revision:             state.Revision,
+		highWater:            state.HighWater,
+		lastCommittedAttempt: state.LastCommittedAttempt,
 	}
 	ledger.commitSerial <- struct{}{}
 	return ledger, nil
@@ -933,13 +947,19 @@ func validateSampleLedgerState(
 	state SampleLedgerState,
 	trustedMinimumRevision uint64,
 ) error {
+	initialAttemptState := state.LastCommittedAttempt == (AttemptIdentity{})
 	if state.SchemaVersion != schemaVersionV1 ||
 		!validIssuerDomain(state.IssuerDomain) ||
 		!validIdentity(state.ProfileID) ||
 		!state.ProfileVersion.valid() ||
 		!validDependencySetID(state.DependencySetID) ||
 		state.Revision != state.HighWater ||
-		state.Revision < trustedMinimumRevision {
+		state.Revision < trustedMinimumRevision ||
+		(state.Revision == 0 && !initialAttemptState) ||
+		(state.Revision != 0 &&
+			state.LastCommittedAttempt.PollGenerationID == 0) ||
+		(state.LastCommittedAttempt.PollGenerationID == 0 &&
+			state.LastCommittedAttempt.RetryOrdinal != 0) {
 		return fmt.Errorf("sample ledger state is incomplete, stale, or incompatible")
 	}
 	return nil
@@ -963,7 +983,10 @@ type SampleStateCAS interface {
 	CompareAndSwap(expected, next SampleLedgerState) (bool, error)
 }
 
-func (ledger *SampleLedger) commit(store SampleStateCAS) (string, error) {
+func (ledger *SampleLedger) commit(
+	store SampleStateCAS,
+	attempt AttemptIdentity,
+) (string, error) {
 	if ledger == nil {
 		return "", fmt.Errorf("sample ledger is invalid")
 	}
@@ -979,10 +1002,15 @@ func (ledger *SampleLedger) commit(store SampleStateCAS) (string, error) {
 		ledger.mu.Unlock()
 		return "", fmt.Errorf("sample ledger is exhausted")
 	}
+	if !attemptIdentityAdvances(ledger.lastCommittedAttempt, attempt) {
+		ledger.mu.Unlock()
+		return "", fmt.Errorf("observation attempt does not advance the ledger")
+	}
 	expected := ledger.stateLocked()
 	next := expected
 	next.Revision++
 	next.HighWater++
+	next.LastCommittedAttempt = attempt
 	ledger.mu.Unlock()
 	sampleID := fmt.Sprintf(
 		"%s:%d",
@@ -1003,18 +1031,33 @@ func (ledger *SampleLedger) commit(store SampleStateCAS) (string, error) {
 	}
 	ledger.revision = next.Revision
 	ledger.highWater = next.HighWater
+	ledger.lastCommittedAttempt = next.LastCommittedAttempt
 	return sampleID, nil
+}
+
+func attemptIdentityAdvances(previous, next AttemptIdentity) bool {
+	if next.PollGenerationID == 0 {
+		return false
+	}
+	if previous.PollGenerationID == 0 {
+		return true
+	}
+	if next.PollGenerationID != previous.PollGenerationID {
+		return next.PollGenerationID > previous.PollGenerationID
+	}
+	return next.RetryOrdinal > previous.RetryOrdinal
 }
 
 func (ledger *SampleLedger) stateLocked() SampleLedgerState {
 	return SampleLedgerState{
-		SchemaVersion:   schemaVersionV1,
-		IssuerDomain:    ledger.issuerDomain,
-		ProfileID:       ledger.profileID,
-		ProfileVersion:  ledger.profileVersion,
-		DependencySetID: ledger.dependencySetID,
-		Revision:        ledger.revision,
-		HighWater:       ledger.highWater,
+		SchemaVersion:        schemaVersionV1,
+		IssuerDomain:         ledger.issuerDomain,
+		ProfileID:            ledger.profileID,
+		ProfileVersion:       ledger.profileVersion,
+		DependencySetID:      ledger.dependencySetID,
+		Revision:             ledger.revision,
+		HighWater:            ledger.highWater,
+		LastCommittedAttempt: ledger.lastCommittedAttempt,
 	}
 }
 
@@ -1266,7 +1309,10 @@ func (attempt *ObservationAttempt) Publish(
 	if err != nil {
 		return Observation{}, err
 	}
-	sampleID, err := state.factory.ledger.commit(state.factory.store)
+	sampleID, err := state.factory.ledger.commit(
+		state.factory.store,
+		state.identity,
+	)
 	if err != nil {
 		return Observation{}, err
 	}

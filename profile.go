@@ -918,8 +918,6 @@ func validateSingleWireDependencies(dependencies []Dependency) error {
 	table := dependencies[0].Table()
 	minOffset := uint32(dependencies[0].Normalization().ResolvedPDUOffset())
 	maxEnd := minOffset + uint32(dependencies[0].WordCount())
-	maxStart := minOffset
-	minEnd := maxEnd
 	for _, dependency := range dependencies[1:] {
 		if dependency.Table() != table {
 			return fmt.Errorf("single-wire dependencies span FC03 and FC04")
@@ -932,18 +930,9 @@ func validateSingleWireDependencies(dependencies []Dependency) error {
 		if end > maxEnd {
 			maxEnd = end
 		}
-		if start > maxStart {
-			maxStart = start
-		}
-		if end < minEnd {
-			minEnd = end
-		}
 	}
 	if maxEnd-minOffset > modbus.MaxReadRegisters {
 		return fmt.Errorf("single-wire physical union exceeds runtime maximum")
-	}
-	if len(dependencies) > 1 && maxStart >= minEnd {
-		return fmt.Errorf("single-wire dependencies cannot coalesce")
 	}
 	return nil
 }

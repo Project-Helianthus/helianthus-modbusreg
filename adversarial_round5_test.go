@@ -184,10 +184,12 @@ func TestRound5UTCRangeValidationPrecedesCAS(t *testing.T) {
 	profile := profileFixture(t)
 	cases := []struct {
 		name   string
+		issuer string
 		mutate func(*reg.ObservationSpec)
 	}{
 		{
-			name: "lower bound crosses into UTC year zero",
+			name:   "lower bound crosses into UTC year zero",
+			issuer: "round5-time-lower",
 			mutate: func(spec *reg.ObservationSpec) {
 				location := time.FixedZone("UTC+14", 14*60*60)
 				spec.SourceTime = reg.SourceTimeObserved(
@@ -196,7 +198,8 @@ func TestRound5UTCRangeValidationPrecedesCAS(t *testing.T) {
 			},
 		},
 		{
-			name: "upper bound crosses into UTC year 10000",
+			name:   "upper bound crosses into UTC year 10000",
+			issuer: "round5-time-upper",
 			mutate: func(spec *reg.ObservationSpec) {
 				location := time.FixedZone("UTC-14", -14*60*60)
 				spec.LocalReceiptTime = time.Date(
@@ -216,7 +219,7 @@ func TestRound5UTCRangeValidationPrecedesCAS(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			spec := successfulObservationSpec(t, profile)
 			test.mutate(&spec)
-			initial := round3State(t, profile, "round5-time-"+test.name)
+			initial := round3State(t, profile, test.issuer)
 			store := &round3MemoryCAS{state: initial}
 			factory := round3Factory(t, profile, initial, store)
 			marshalAttempt := round4Attempt(t, factory, spec)

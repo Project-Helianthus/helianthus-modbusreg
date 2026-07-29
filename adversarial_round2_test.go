@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"sort"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -596,36 +594,16 @@ func TestRound2LedgerIsBoundedIssuerHighWaterWithCASAnchor(t *testing.T) {
 		t.Fatal("factory trusted a caller-selected sample ID")
 	}
 	const count = 512
-	var wait sync.WaitGroup
-	observations := make(chan reg.Observation, count)
-	errors := make(chan error, count)
-	for range count {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
-			observation, err := publishWithFactory(
-				factory,
-				successfulObservationSpec(t, profile),
-			)
-			if err != nil {
-				errors <- err
-				return
-			}
-			observations <- observation
-		}()
-	}
-	wait.Wait()
-	close(observations)
-	close(errors)
-	for err := range errors {
-		t.Fatalf("concurrent issuance failed: %v", err)
-	}
-
 	ids := make([]string, 0, count)
-	for observation := range observations {
+	for index := range count {
+		next := successfulObservationSpec(t, profile)
+		setObservationPollGeneration(t, &next, uint64(41+index))
+		observation, err := publishWithFactory(factory, next)
+		if err != nil {
+			t.Fatalf("ordered issuance %d failed: %v", index, err)
+		}
 		ids = append(ids, observation.SampleID())
 	}
-	sort.Strings(ids)
 	if len(ids) != count {
 		t.Fatalf("issued %d IDs", len(ids))
 	}
@@ -662,10 +640,9 @@ func TestRound2LedgerIsBoundedIssuerHighWaterWithCASAnchor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewObservationFactory(restarted): %v", err)
 	}
-	next, err := publishWithFactory(
-		restartedFactory,
-		successfulObservationSpec(t, profile),
-	)
+	nextSpec := successfulObservationSpec(t, profile)
+	setObservationPollGeneration(t, &nextSpec, 41+count)
+	next, err := publishWithFactory(restartedFactory, nextSpec)
 	if err != nil {
 		t.Fatalf("post-restart issuance failed: %v", err)
 	}

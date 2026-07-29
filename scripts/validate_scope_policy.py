@@ -30,6 +30,7 @@ EXPECTED_POLICY = {
         "adversarial_round2_test.go",
         "adversarial_round3_test.go",
         "adversarial_round4_test.go",
+        "adversarial_round5_test.go",
         "codec.go",
         "contracts_test.go",
         "doc.go",
@@ -73,13 +74,13 @@ EXPECTED_POLICY = {
             "29a128c7acc587dbfdf2b52b5d12afa681b4411ca5b1a153fc9707065dfb72b2"
         ),
         "observation.go": (
-            "b7558ed04b5b6dc09d96efd929df5c8d908c2c8dd699362d7fc6ca6fd449f804"
+            "fd3dadcd3dda7a4fb033074343d2142a392718e29d043ae3851eff0ccd6d9288"
         ),
         "profile.go": (
-            "b6b5428dfc063a0881098c9c0346748dd593ae8578f202d4629b5c6a6caa879a"
+            "38fe21d4937c4d5945af5d10e6897d9d8e02a0247666ff52448b77bdf67810e7"
         ),
         "serialization.go": (
-            "c1b9272be5c7e805a59db27fd047403d91f9f7b98a724d31e70c7fa5b8e7aeb7"
+            "5131ca3d19812949554a42eb54970ba54061b706fb1fec52a2a912dd53955b37"
         ),
         "version.go": (
             "2c497e14ac4755025ddc6d9ac589fcff1c85888f435ca42b5abbe27066f16637"
@@ -90,6 +91,7 @@ EXPECTED_POLICY = {
         "adversarial_round2_test.go",
         "adversarial_round3_test.go",
         "adversarial_round4_test.go",
+        "adversarial_round5_test.go",
         "contracts_test.go",
     ],
     "allowed_code_bearing_non_go_files": [

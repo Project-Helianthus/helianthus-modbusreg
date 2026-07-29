@@ -324,6 +324,20 @@ func successfulObservationSpec(
 	}
 }
 
+func setObservationPollGeneration(
+	t *testing.T,
+	spec *reg.ObservationSpec,
+	pollGeneration uint64,
+) {
+	t.Helper()
+	spec.PollGenerationID = pollGeneration
+	for index := range spec.Dependencies {
+		record := spec.Dependencies[index].View.Record()
+		record.PollGeneration = pollGeneration
+		spec.Dependencies[index].View = snapshotFromRecord(t, record)
+	}
+}
+
 func TestProfileCodecAndDependencySetAreImmutableAndVersioned(t *testing.T) {
 	codecSpec := numericCodecSpec(t)
 	codec, err := reg.NewCodec(codecSpec)
@@ -836,7 +850,11 @@ func TestSampleLedgerRejectsEverySampleIDReuse(t *testing.T) {
 	}
 	second, err := publishWithFactory(
 		factory,
-		successfulObservationSpec(t, profile),
+		func() reg.ObservationSpec {
+			next := successfulObservationSpec(t, profile)
+			setObservationPollGeneration(t, &next, 42)
+			return next
+		}(),
 	)
 	if err != nil {
 		t.Fatalf("second NewObservation: %v", err)

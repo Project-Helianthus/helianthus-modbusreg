@@ -35,7 +35,8 @@ This repository owns:
 - immutable source-observation snapshots and exact raw-word replay;
 - fail-closed coherence, deterministic retry-attempt, and complete physical
   and wire-group validation;
-- O(1) factory-issued samples published only after a consumer-supplied CAS;
+- O(1) factory-issued samples with persisted monotonic attempt identity,
+  published only after a consumer-supplied CAS;
 - bounded deterministic profile/observation serialization.
 
 The following ownership is planned but is not implemented by M2-01:

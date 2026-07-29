@@ -541,22 +541,22 @@ func TestRound1SingleWireRejectsImpossibleDependencySets(t *testing.T) {
 		t.Fatal("single-wire FC03/FC04 dependency set was accepted")
 	}
 
-	farSpec := dependencySpec(t, "far", 120)
+	farSpec := dependencySpec(t, "far", 224)
 	far, err := reg.NewDependency(farSpec)
 	if err != nil {
 		t.Fatalf("NewDependency(far): %v", err)
 	}
-	disjoint, err := reg.NewDependencySet(
+	oversized, err := reg.NewDependencySet(
 		base.Dependencies().Version(),
 		[]reg.Dependency{dependencies[0], far},
 	)
 	if err != nil {
-		t.Fatalf("NewDependencySet(disjoint): %v", err)
+		t.Fatalf("NewDependencySet(oversized): %v", err)
 	}
 	spec = base.Spec()
-	spec.Dependencies = disjoint
+	spec.Dependencies = oversized
 	if _, err := reg.NewProfileDescriptor(spec); err == nil {
-		t.Fatal("single-wire disjoint dependency set was accepted")
+		t.Fatal("single-wire oversized physical union was accepted")
 	}
 }
 
@@ -732,7 +732,7 @@ func TestRound1ObservationFactoryMakesCASPublicationMandatory(t *testing.T) {
 		}()
 	}
 	wait.Wait()
-	if successes.Load() != 16 || failures.Load() != 0 {
+	if successes.Load() != 1 || failures.Load() != 15 {
 		t.Fatalf(
 			"atomic admission results success=%d failure=%d",
 			successes.Load(),
@@ -750,14 +750,16 @@ func TestRound1ObservationFactoryMakesCASPublicationMandatory(t *testing.T) {
 		t.Fatalf("UnmarshalSampleLedgerState: %v", err)
 	}
 	restartedFactory, restartedLedger := newFactory(t, profile, restartedState)
+	nextSpec := successfulObservationSpec(t, profile)
+	setObservationPollGeneration(t, &nextSpec, 42)
 	next, err := publishWithFactory(
 		restartedFactory,
-		successfulObservationSpec(t, profile),
+		nextSpec,
 	)
 	if err != nil {
 		t.Fatal("imported restart state did not continue issuance:", err)
 	}
-	if next.SampleID() == "" || restartedLedger.ExportState().Revision != 17 {
+	if next.SampleID() == "" || restartedLedger.ExportState().Revision != 2 {
 		t.Fatal("imported restart state reset the issuance revision")
 	}
 }

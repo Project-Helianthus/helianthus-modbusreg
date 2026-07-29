@@ -867,14 +867,20 @@ func (attempt *ObservationAttempt) DecodeSpec(
 	return prepared, nil
 }
 
+type attemptIdentityDTO struct {
+	PollGenerationID uint64 `json:"poll_generation_id"`
+	RetryOrdinal     uint32 `json:"retry_ordinal"`
+}
+
 type sampleLedgerDTO struct {
-	SchemaVersion   string `json:"schema_version"`
-	IssuerDomain    string `json:"issuer_domain"`
-	ProfileID       string `json:"profile_id"`
-	ProfileVersion  string `json:"profile_version"`
-	DependencySetID string `json:"dependency_set_id"`
-	Revision        uint64 `json:"revision"`
-	HighWater       uint64 `json:"high_water"`
+	SchemaVersion        string             `json:"schema_version"`
+	IssuerDomain         string             `json:"issuer_domain"`
+	ProfileID            string             `json:"profile_id"`
+	ProfileVersion       string             `json:"profile_version"`
+	DependencySetID      string             `json:"dependency_set_id"`
+	Revision             uint64             `json:"revision"`
+	HighWater            uint64             `json:"high_water"`
+	LastCommittedAttempt attemptIdentityDTO `json:"last_committed_attempt"`
 }
 
 // MarshalSampleLedgerState emits deterministic explicit restart state.
@@ -890,6 +896,10 @@ func MarshalSampleLedgerState(state SampleLedgerState) ([]byte, error) {
 		DependencySetID: state.DependencySetID,
 		Revision:        state.Revision,
 		HighWater:       state.HighWater,
+		LastCommittedAttempt: attemptIdentityDTO{
+			PollGenerationID: state.LastCommittedAttempt.PollGenerationID,
+			RetryOrdinal:     state.LastCommittedAttempt.RetryOrdinal,
+		},
 	})
 }
 
@@ -917,6 +927,10 @@ func UnmarshalSampleLedgerState(data []byte) (SampleLedgerState, error) {
 		DependencySetID: record.DependencySetID,
 		Revision:        record.Revision,
 		HighWater:       record.HighWater,
+		LastCommittedAttempt: AttemptIdentity{
+			PollGenerationID: record.LastCommittedAttempt.PollGenerationID,
+			RetryOrdinal:     record.LastCommittedAttempt.RetryOrdinal,
+		},
 	}
 	if err := validateSampleLedgerState(state, 0); err != nil {
 		return SampleLedgerState{}, err
