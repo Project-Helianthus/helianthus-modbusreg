@@ -75,6 +75,7 @@ func (budget *aggregateBudget) consume(amount uint64) error {
 }
 
 var timeValueType = reflect.TypeOf(time.Time{})
+var dependencyResultValueType = reflect.TypeOf(DependencyResult{})
 
 func preflightAggregate(values ...any) error {
 	budget := aggregateBudget{remaining: MaxSerializedContractBytes}
@@ -156,6 +157,10 @@ func consumeAggregateValue(
 		}
 		for index := 0; index < value.NumField(); index++ {
 			field := valueType.Field(index)
+			if valueType == dependencyResultValueType &&
+				(field.Name == "claim" || field.Name == "owner") {
+				continue
+			}
 			if err := budget.consume(uint64(len(field.Name))*2 + 8); err != nil {
 				return err
 			}

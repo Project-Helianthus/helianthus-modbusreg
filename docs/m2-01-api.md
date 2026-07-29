@@ -18,9 +18,11 @@ qualification, vendor matching, canonical projection, or gateway composition.
    with a trusted minimum revision.
 8. Bind an `ObservationFactory` to the ledger and a consumer-supplied
    `SampleStateCAS`.
-9. Start an `ObservationAttempt`, bind each captured result with
-   `BindDependency`, and call `Publish`. `Publish` returns an `Observation` only
-   after the exact ledger-state compare-and-swap succeeds.
+9. Wrap each captured source result with `NewDependencyResult`, start an
+   `ObservationAttempt` with the declared poll generation and retry ordinal,
+   bind each result once with `BindDependency`, and call `Publish`. `Publish`
+   returns an `Observation` only after the exact ledger-state compare-and-swap
+   succeeds.
 10. Use `Replay` and `LogicalViewRecord` for complete immutable raw words and
    transport provenance.
 
@@ -44,7 +46,8 @@ Documentary notation is never treated as a PDU offset. Each normalization
 record retains its source locator, notation, base, address-space label,
 transformation, documentary address, and resolved zero-based PDU offset. The
 constructor recomputes the offset and rejects ambiguity, inconsistency, and
-overflow.
+overflow. HTTPS locators require a parsed host and non-root identifier path;
+`urn:helianthus:evidence:` locators require a nonempty valid identity suffix.
 
 ## Logical View Snapshot
 
@@ -90,19 +93,22 @@ identity. The exact deadline equality matches `helianthus-modbus` V1
 
 `single_wire_response` requires one such physical/wire group. Logical-view IDs
 are unique inside that physical group, acquisition ordinals are absent, and
-serialized retry-attempt identity is explicitly not applicable. Numeric
+retry ordinal, dependency source times, local dependency receipt times, and
+acquisition ordinals use their explicit not-applicable representation. Numeric
 logical-view IDs may be reused by distinct physical response groups because the
 pinned runtime scopes them to one coalesced read.
 
 `bounded_multi_response` requires explicit acquisition ordering, declared
 source/receipt skew, transport-generation equality, same transport family,
 endpoint and unit, whole-set retry behavior, and any documentary consistency
-marker. An `ObservationAttempt` owns an opaque retry binding and binds every
-dependency in the whole set. Bounded serialized input carries an
-attempt-specific HMAC seal as `retry_attempt_token`; changing the token or any
-sealed dependency/provenance fact fails validation. The bytes can only be
-decoded by the same attempt, preventing caller relabeling and
-retained-old/new-attempt mixtures. Its envelope times are the latest source and
+marker. An `ObservationAttempt` owns one deterministic identity formed by the
+declared `poll_generation_id` and nonzero `retry_ordinal`. Every dependency
+carries the same pair. Serialization retains those fixture-stable facts, so an
+equivalent fresh-process attempt can validate and rebind exactly one serialized
+capture without random state. `DependencyResult` capture handles have a private
+single-use claim and an attempt-owned pointer; copied DTOs cannot be rebound or
+mixed across attempts. Value copies of `ObservationAttempt` share one private
+lifecycle and cannot publish twice. Envelope times are the latest source and
 receipt times in the validated set. Declared skew is
 capped by `MaxDeclaredCoherenceSkew`; checked seconds/nanoseconds comparison
 avoids `time.Duration` saturation across years 1 through 9999.
@@ -110,11 +116,14 @@ avoids `time.Duration` saturation across years 1 through 9999.
 `SampleLedger` is O(1): state contains schema, issuer domain, exact profile
 ID/version, exact `dependency_set_id`, monotonic revision, and high-water, with
 no per-sample map or record list. Restore requires a trusted minimum revision.
-`SampleStateCAS.CompareAndSwap(expected, next)` is called while the local ledger
-transition is locked. Only a true result advances local state and permits the
-observation to escape; false or error returns a zero observation. Two processes
-restored from the same state therefore publish at most one sample when the
-consumer implements exact atomic compare-and-swap.
+`SampleStateCAS.CompareAndSwap(expected, next)` is called without holding the
+ledger or attempt-state mutex. A separate local commit serializer snapshots the
+expected and next states, releases internal locks, invokes the consumer, and
+then finalizes local state. Reentrant callbacks may call `ExportState` without
+deadlock. Only a true result advances local state and permits the observation to
+escape; false or error returns a zero observation and terminally closes that
+attempt. Two processes restored from the same state therefore publish at most
+one sample when the consumer implements exact atomic compare-and-swap.
 
 The external store must key transitions by issuer domain, compare the complete
 profile/dependency-set-bound state, perform the replacement atomically, and
@@ -150,9 +159,10 @@ observation round trips retain exact versions, dependency order, raw words, and
 the complete `LogicalViewRecord`, retry attempt, overlay delta, and O(1) ledger
 state. A recursive bounded token preflight rejects oversized bytes, excessive
 depth/collections/strings, duplicate keys, non-exact field aliases, invalid
-UTF-8, and unpaired UTF-16 surrogate escapes before strict decoding. Unknown
-fields and incompatible schemas fail closed. Optional relationship versions
-remain absent; zero values are never rewritten as current schema versions.
+UTF-8, unpaired UTF-16 surrogate escapes, explicit JSON `null`, and every
+missing required member before strict decoding. Unknown fields and incompatible
+schemas fail closed. Optional relationship versions remain absent; zero values
+are never rewritten as current schema versions.
 
 Direct constructors apply one cumulative aggregate budget before cloning caller
 slices. Serialization uses a conservative size preflight and bounded writer, so

@@ -74,7 +74,10 @@ func round3Attempt(
 		[]reg.DependencyResult(nil),
 		spec.Dependencies...,
 	)
-	attempt, err := factory.BeginObservationAttempt()
+	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: spec.PollGenerationID,
+		RetryOrdinal:     spec.RetryOrdinal,
+	})
 	if err != nil {
 		t.Fatalf("BeginObservationAttempt: %v", err)
 	}
@@ -171,7 +174,9 @@ func TestRound3PhysicalAndWireIdentityIsBidirectional(t *testing.T) {
 	}
 }
 
-func TestRound3RetryAttemptBindingIsOpaqueAndNonRelabelable(t *testing.T) {
+func TestRound3RetryAttemptBindingIsOwnedAndDeterministicallyReplayable(
+	t *testing.T,
+) {
 	profile, firstSpec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
@@ -185,7 +190,7 @@ func TestRound3RetryAttemptBindingIsOpaqueAndNonRelabelable(t *testing.T) {
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
-	secondAttempt, secondBound := round3Attempt(t, factory, secondSpec)
+	_, secondBound := round3Attempt(t, factory, secondSpec)
 
 	mixed := firstBound
 	mixed.Dependencies = append(
@@ -197,61 +202,44 @@ func TestRound3RetryAttemptBindingIsOpaqueAndNonRelabelable(t *testing.T) {
 		t.Fatal("retained-old and new-attempt dependencies were mixed")
 	}
 
-	encoded, err := firstAttempt.MarshalSpec(firstBound)
+	_, serialSpec := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	serialAttempt, serialBound := round3Attempt(t, factory, serialSpec)
+	encoded, err := serialAttempt.MarshalSpec(serialBound)
 	if err != nil {
 		t.Fatalf("MarshalSpec: %v", err)
 	}
-	if bytes.Contains(encoded, []byte(`"retry_attempt_id"`)) ||
-		!bytes.Contains(encoded, []byte(`"retry_attempt_token"`)) {
-		t.Fatal("serialized retry identity remained a caller-owned numeric label")
+	if bytes.Contains(encoded, []byte(`"retry_attempt_token"`)) ||
+		!bytes.Contains(encoded, []byte(`"retry_ordinal":1`)) {
+		t.Fatal("serialized retry identity is not deterministic")
 	}
-	decoded, err := firstAttempt.DecodeSpec(encoded)
+	replayAttempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: serialSpec.PollGenerationID,
+		RetryOrdinal:     serialSpec.RetryOrdinal,
+	})
 	if err != nil {
-		t.Fatalf("DecodeSpec(same attempt): %v", err)
+		t.Fatalf("BeginObservationAttempt(replay): %v", err)
 	}
-	if _, err := secondAttempt.DecodeSpec(encoded); err == nil {
-		t.Fatal("serialized dependencies rebound to a different attempt")
-	}
-	secondCurrent := secondBound
-	secondCurrent.Dependencies = append(
-		[]reg.DependencyResult(nil),
-		secondBound.Dependencies...,
-	)
-	currentRecord := secondCurrent.Dependencies[0].View.Record()
-	currentRecord.Words[0] ^= 0x0001
-	secondCurrent.Dependencies[0].View = snapshotFromRecord(t, currentRecord)
-	secondEncoded, err := secondAttempt.MarshalSpec(secondCurrent)
+	replayed, err := replayAttempt.DecodeSpec(encoded)
 	if err != nil {
-		t.Fatalf("MarshalSpec(second attempt): %v", err)
+		t.Fatalf("deterministic fresh-attempt replay failed: %v", err)
 	}
-	var firstRecord, secondRecord map[string]any
-	if err := json.Unmarshal(encoded, &firstRecord); err != nil {
-		t.Fatalf("json.Unmarshal(first token): %v", err)
+	reencoded, err := replayAttempt.MarshalSpec(replayed)
+	if err != nil {
+		t.Fatalf("MarshalSpec(replayed): %v", err)
 	}
-	if err := json.Unmarshal(secondEncoded, &secondRecord); err != nil {
-		t.Fatalf("json.Unmarshal(second token): %v", err)
+	if !bytes.Equal(encoded, reencoded) {
+		t.Fatal("deterministic replay changed serialized bytes")
 	}
-	firstToken, _ := firstRecord["retry_attempt_token"].(string)
-	secondToken, _ := secondRecord["retry_attempt_token"].(string)
-	if firstToken == "" || secondToken == "" || firstToken == secondToken {
-		t.Fatal("attempt seals are absent or not attempt-specific")
-	}
-	relabelled := bytes.ReplaceAll(
-		encoded,
-		[]byte(firstToken),
-		[]byte(secondToken),
-	)
-	if _, err := secondAttempt.DecodeSpec(relabelled); err == nil {
-		t.Fatal("caller relabelled an old serialized set into a new attempt")
-	}
-	if _, err := firstAttempt.Publish(decoded); err != nil {
-		t.Fatalf("same-attempt serialized input was rejected: %v", err)
+	if _, err := replayAttempt.Publish(replayed); err != nil {
+		t.Fatalf("fresh-attempt serialized input was rejected: %v", err)
 	}
 }
 
 func TestRound3ObservationPublishesOnlyAfterExternalCAS(t *testing.T) {
 	profile := profileFixture(t)
-	spec := successfulObservationSpec(t, profile)
 	initial := round3State(t, profile, "cas-domain")
 	if initial.ProfileID != profile.ID() ||
 		initial.ProfileVersion != profile.Version() ||
@@ -264,7 +252,7 @@ func TestRound3ObservationPublishesOnlyAfterExternalCAS(t *testing.T) {
 	rejectingAttempt, rejectingSpec := round3Attempt(
 		t,
 		rejectingFactory,
-		spec,
+		successfulObservationSpec(t, profile),
 	)
 	unpublished, err := rejectingAttempt.Publish(rejectingSpec)
 	if err == nil || unpublished.SampleID() != "" {
@@ -277,8 +265,16 @@ func TestRound3ObservationPublishesOnlyAfterExternalCAS(t *testing.T) {
 	sharedStore := &round3MemoryCAS{state: initial}
 	firstFactory := round3Factory(t, profile, initial, sharedStore)
 	secondFactory := round3Factory(t, profile, initial, sharedStore)
-	firstAttempt, firstSpec := round3Attempt(t, firstFactory, spec)
-	secondAttempt, secondSpec := round3Attempt(t, secondFactory, spec)
+	firstAttempt, firstSpec := round3Attempt(
+		t,
+		firstFactory,
+		successfulObservationSpec(t, profile),
+	)
+	secondAttempt, secondSpec := round3Attempt(
+		t,
+		secondFactory,
+		successfulObservationSpec(t, profile),
+	)
 
 	type result struct {
 		observation reg.Observation

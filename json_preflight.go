@@ -12,6 +12,11 @@ import (
 
 var versionValueType = reflect.TypeOf(Version{})
 
+type jsonField struct {
+	valueType reflect.Type
+	required  bool
+}
+
 func preflightJSON(data []byte, target any) error {
 	if len(data) == 0 || len(data) > MaxSerializedContractBytes {
 		return fmt.Errorf("serialized contract exceeds the byte boundary")
@@ -122,11 +127,6 @@ func scanJSONValue(
 	if depth > MaxContractJSONDepth {
 		return fmt.Errorf("serialized contract exceeds the nesting boundary")
 	}
-	nullable := expected != nil &&
-		(expected.Kind() == reflect.Pointer ||
-			expected.Kind() == reflect.Slice ||
-			expected.Kind() == reflect.Map ||
-			expected.Kind() == reflect.Interface)
 	expected = indirectJSONType(expected)
 	token, err := decoder.Token()
 	if err != nil {
@@ -165,9 +165,7 @@ func scanJSONValue(
 		}
 	case bool:
 	case nil:
-		if nullable {
-			return nil
-		}
+		return fmt.Errorf("serialized contract contains a non-canonical null")
 	default:
 		return fmt.Errorf("serialized contract has an unknown token")
 	}
@@ -207,7 +205,7 @@ func scanJSONObject(
 			return fmt.Errorf("serialized object has a duplicate or case-folded key")
 		}
 		seen[canonical] = struct{}{}
-		fieldType, exists := fields[key]
+		field, exists := fields[key]
 		if !exists {
 			return fmt.Errorf("serialized object key %q is not canonical", key)
 		}
@@ -215,9 +213,9 @@ func scanJSONObject(
 			decoder,
 			depth+1,
 			jsonArrayLimit(key),
-			fieldType,
+			field.valueType,
 		); err != nil {
-			return err
+			return fmt.Errorf("serialized key %q: %w", key, err)
 		}
 	}
 	closing, err := decoder.Token()
@@ -227,27 +225,41 @@ func scanJSONObject(
 	if closing != json.Delim('}') {
 		return fmt.Errorf("serialized object is not closed")
 	}
+	for key, field := range fields {
+		if field.required {
+			if _, exists := seen[strings.ToLower(key)]; !exists {
+				return fmt.Errorf("serialized object is missing required key %q", key)
+			}
+		}
+	}
 	return nil
 }
 
-func jsonFields(value reflect.Type) map[string]reflect.Type {
-	result := make(map[string]reflect.Type)
+func jsonFields(value reflect.Type) map[string]jsonField {
+	result := make(map[string]jsonField)
 	for index := 0; index < value.NumField(); index++ {
 		field := value.Field(index)
 		if field.PkgPath != "" {
 			continue
 		}
 		name := field.Name
+		required := true
 		if tag, exists := field.Tag.Lookup("json"); exists {
-			tagName := strings.Split(tag, ",")[0]
+			parts := strings.Split(tag, ",")
+			tagName := parts[0]
 			if tagName == "-" {
 				continue
 			}
 			if tagName != "" {
 				name = tagName
 			}
+			for _, option := range parts[1:] {
+				if option == "omitempty" {
+					required = false
+				}
+			}
 		}
-		result[name] = field.Type
+		result[name] = jsonField{valueType: field.Type, required: required}
 	}
 	return result
 }

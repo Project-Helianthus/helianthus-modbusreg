@@ -95,7 +95,7 @@ type StringSpec struct {
 	Applicability                  StringApplicability
 	WordPacking                    StringWordPacking
 	ByteOrder                      ByteOrder
-	PaddingByte                    *byte
+	PaddingByte                    *byte `json:"PaddingByte,omitempty"`
 	Termination                    StringTermination
 	RetainedRawLength              uint32
 	DocumentaryCharacterRepertoire string

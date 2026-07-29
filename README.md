@@ -33,7 +33,8 @@ This repository owns:
 - complete, versioned codec declarations without silent coercion;
 - exact ordered dependency-set and documentary address normalization records;
 - immutable source-observation snapshots and exact raw-word replay;
-- fail-closed coherence, retry-attempt, and complete wire-group validation;
+- fail-closed coherence, deterministic retry-attempt, and complete physical
+  and wire-group validation;
 - O(1) factory-issued samples published only after a consumer-supplied CAS;
 - bounded deterministic profile/observation serialization.
 

@@ -196,7 +196,10 @@ func publishWithFactory(
 		[]reg.DependencyResult(nil),
 		spec.Dependencies...,
 	)
-	attempt, err := factory.BeginObservationAttempt()
+	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: spec.PollGenerationID,
+		RetryOrdinal:     spec.RetryOrdinal,
+	})
 	if err != nil {
 		return reg.Observation{}, err
 	}
@@ -270,6 +273,34 @@ func successfulObservationSpec(
 	if err != nil {
 		t.Fatalf("NewLogicalViewSnapshot(second): %v", err)
 	}
+	firstResult, err := reg.NewDependencyResult(reg.DependencyResult{
+		DependencyID:      dependencies[0].ID(),
+		DependencyVersion: dependencies[0].Version(),
+		CodecID:           dependencies[0].CodecID(),
+		CodecVersion:      dependencies[0].CodecVersion(),
+		NormalizationVersion: dependencies[0].
+			Normalization().Spec().Version,
+		Status:     reg.DependencyReadSuccessful,
+		View:       firstView,
+		SourceTime: reg.SourceTimeUnavailable(),
+	})
+	if err != nil {
+		t.Fatalf("NewDependencyResult(first): %v", err)
+	}
+	secondResult, err := reg.NewDependencyResult(reg.DependencyResult{
+		DependencyID:      dependencies[1].ID(),
+		DependencyVersion: dependencies[1].Version(),
+		CodecID:           dependencies[1].CodecID(),
+		CodecVersion:      dependencies[1].CodecVersion(),
+		NormalizationVersion: dependencies[1].
+			Normalization().Spec().Version,
+		Status:     reg.DependencyReadSuccessful,
+		View:       secondView,
+		SourceTime: reg.SourceTimeUnavailable(),
+	})
+	if err != nil {
+		t.Fatalf("NewDependencyResult(second): %v", err)
+	}
 	return reg.ObservationSpec{
 		SchemaVersion:          version(t, "1.0.0"),
 		RuntimeContractVersion: profile.RuntimeContractVersion(),
@@ -289,28 +320,7 @@ func successfulObservationSpec(
 		LocalReceiptTime:       time.Unix(1_700_000_000, 0).UTC(),
 		Endpoint:               "fixture://endpoint-a",
 		UnitID:                 1,
-		Dependencies: []reg.DependencyResult{
-			{
-				DependencyID:      dependencies[0].ID(),
-				DependencyVersion: dependencies[0].Version(),
-				CodecID:           dependencies[0].CodecID(),
-				CodecVersion:      dependencies[0].CodecVersion(),
-				NormalizationVersion: dependencies[0].
-					Normalization().Spec().Version,
-				Status: reg.DependencyReadSuccessful,
-				View:   firstView,
-			},
-			{
-				DependencyID:      dependencies[1].ID(),
-				DependencyVersion: dependencies[1].Version(),
-				CodecID:           dependencies[1].CodecID(),
-				CodecVersion:      dependencies[1].CodecVersion(),
-				NormalizationVersion: dependencies[1].
-					Normalization().Spec().Version,
-				Status: reg.DependencyReadSuccessful,
-				View:   secondView,
-			},
-		},
+		Dependencies:           []reg.DependencyResult{firstResult, secondResult},
 	}
 }
 
@@ -759,6 +769,7 @@ func TestBoundedMultiResponseEnforcesDeclaredSkewAndMarker(t *testing.T) {
 		t.Fatalf("NewProfileDescriptor: %v", err)
 	}
 	spec := successfulObservationSpec(t, profile)
+	spec.RetryOrdinal = 1
 	source := time.Unix(1_700_000_100, 0).UTC()
 	receipt := source.Add(time.Second)
 	for index := range spec.Dependencies {
@@ -777,6 +788,7 @@ func TestBoundedMultiResponseEnforcesDeclaredSkewAndMarker(t *testing.T) {
 		)
 		spec.Dependencies[index].DocumentaryConsistencyMarker = "sequence-7"
 		spec.Dependencies[index].AcquisitionOrdinal = uint32(index + 1)
+		spec.Dependencies[index].RetryOrdinal = spec.RetryOrdinal
 	}
 	spec.SourceTime = reg.SourceTimeObserved(source.Add(time.Second))
 	spec.LocalReceiptTime = receipt.Add(time.Second)
@@ -822,7 +834,10 @@ func TestSampleLedgerRejectsEverySampleIDReuse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first NewObservation: %v", err)
 	}
-	second, err := publishWithFactory(factory, spec)
+	second, err := publishWithFactory(
+		factory,
+		successfulObservationSpec(t, profile),
+	)
 	if err != nil {
 		t.Fatalf("second NewObservation: %v", err)
 	}

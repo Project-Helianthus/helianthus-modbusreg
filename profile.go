@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"reflect"
 	"slices"
 	"sort"
@@ -69,8 +70,7 @@ func NewAddressNormalization(
 		spec.DocumentaryNotation == "" || spec.AddressSpaceLabel == "" {
 		return AddressNormalization{}, fmt.Errorf("normalization metadata is incomplete")
 	}
-	if !strings.HasPrefix(spec.SourceLocator, "https://") &&
-		!strings.HasPrefix(spec.SourceLocator, "urn:helianthus:evidence:") {
+	if !validNormalizationSourceLocator(spec.SourceLocator) {
 		return AddressNormalization{}, fmt.Errorf("normalization source locator is unstable")
 	}
 	var resolved uint32
@@ -103,6 +103,20 @@ func NewAddressNormalization(
 		return AddressNormalization{}, fmt.Errorf("resolved PDU offset is inconsistent")
 	}
 	return AddressNormalization{spec: spec}, nil
+}
+
+func validNormalizationSourceLocator(locator string) bool {
+	const evidencePrefix = "urn:helianthus:evidence:"
+	if strings.HasPrefix(locator, evidencePrefix) {
+		suffix := strings.TrimPrefix(locator, evidencePrefix)
+		return suffix != "" && validIdentity(suffix)
+	}
+	parsed, err := url.Parse(locator)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" ||
+		parsed.Hostname() == "" || parsed.User != nil || parsed.Fragment != "" {
+		return false
+	}
+	return parsed.Path != "" && parsed.Path != "/"
 }
 
 func preflightAddressNormalizationSpec(spec AddressNormalizationSpec) error {
@@ -399,16 +413,16 @@ const (
 // VendorOverlayDeltaSpec is one typed, evidence-backed deviation from a
 // qualified standard-family profile. Exactly one payload form is permitted.
 type VendorOverlayDeltaSpec struct {
-	ID                 string
-	Version            Version
-	Kind               OverlayDeltaKind
-	Operation          OverlayDeltaOperation
-	TargetID           string
-	ApplicabilityValue string
-	Codec              *CodecSpec
-	Dependency         *DependencySpec
-	Coherence          *CoherencePolicySpec
-	EvidenceReferences []string
+	ID                 string                `json:"ID"`
+	Version            Version               `json:"Version"`
+	Kind               OverlayDeltaKind      `json:"Kind"`
+	Operation          OverlayDeltaOperation `json:"Operation"`
+	TargetID           string                `json:"TargetID"`
+	ApplicabilityValue string                `json:"ApplicabilityValue"`
+	Codec              *CodecSpec            `json:"Codec,omitempty"`
+	Dependency         *DependencySpec       `json:"Dependency,omitempty"`
+	Coherence          *CoherencePolicySpec  `json:"Coherence,omitempty"`
+	EvidenceReferences []string              `json:"EvidenceReferences"`
 }
 
 // ProfileMaturity is documentary support maturity, not activation policy.

@@ -128,6 +128,11 @@ class ScopePolicyTests(unittest.TestCase):
         with self.assertRaises(validator.PolicyError):
             validator.validate_imports(["net/http"], validator.EXPECTED_POLICY)
 
+    def test_url_parser_is_the_only_network_namespace_exception(self) -> None:
+        validator.validate_imports(["net/url"], validator.EXPECTED_POLICY)
+        with self.assertRaises(validator.PolicyError):
+            validator.validate_imports(["net"], validator.EXPECTED_POLICY)
+
     def test_token_free_profile_file_is_rejected_by_m2_01_lock(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

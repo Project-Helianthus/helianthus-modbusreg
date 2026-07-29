@@ -67,43 +67,41 @@ func admitRound2(
 }
 
 func TestRound2RetrySetIdentityRejectsMixedAttempts(t *testing.T) {
-	profile, spec := boundedFixture(
+	profile, validSpec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
-	if _, err := admitRound2(t, profile, spec); err != nil {
+	if _, err := admitRound2(t, profile, validSpec); err != nil {
 		t.Fatalf("valid whole-set retry identity rejected: %v", err)
 	}
+	_, firstSpec := boundedFixture(t, reg.AcquisitionOrderDependencyDeclaration)
+	_, secondSpec := boundedFixture(t, reg.AcquisitionOrderDependencyDeclaration)
 
 	state := round2EmptyLedgerState(t, profile)
 	factory, _ := round2Factory(t, profile, state, 0)
-	first, err := factory.BeginObservationAttempt()
+	first, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: firstSpec.PollGenerationID,
+		RetryOrdinal:     firstSpec.RetryOrdinal,
+	})
 	if err != nil {
 		t.Fatalf("BeginObservationAttempt(first): %v", err)
 	}
-	second, err := factory.BeginObservationAttempt()
+	second, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: secondSpec.PollGenerationID,
+		RetryOrdinal:     secondSpec.RetryOrdinal,
+	})
 	if err != nil {
 		t.Fatalf("BeginObservationAttempt(second): %v", err)
 	}
-	firstSpec := spec
-	firstSpec.Dependencies = append(
-		[]reg.DependencyResult(nil),
-		spec.Dependencies...,
-	)
-	secondSpec := spec
-	secondSpec.Dependencies = append(
-		[]reg.DependencyResult(nil),
-		spec.Dependencies...,
-	)
-	for index := range spec.Dependencies {
+	for index := range firstSpec.Dependencies {
 		firstSpec.Dependencies[index], err = first.BindDependency(
-			spec.Dependencies[index],
+			firstSpec.Dependencies[index],
 		)
 		if err != nil {
 			t.Fatalf("BindDependency(first,%d): %v", index, err)
 		}
 		secondSpec.Dependencies[index], err = second.BindDependency(
-			spec.Dependencies[index],
+			secondSpec.Dependencies[index],
 		)
 		if err != nil {
 			t.Fatalf("BindDependency(second,%d): %v", index, err)
@@ -118,7 +116,9 @@ func TestRound2RetrySetIdentityRejectsMixedAttempts(t *testing.T) {
 	single := profileFixture(t)
 	singleState := round2EmptyLedgerState(t, single)
 	singleFactory, _ := round2Factory(t, single, singleState, 0)
-	singleAttempt, err := singleFactory.BeginObservationAttempt()
+	singleAttempt, err := singleFactory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: 41,
+	})
 	if err != nil {
 		t.Fatalf("BeginObservationAttempt(single): %v", err)
 	}
@@ -139,8 +139,9 @@ func TestRound2RetrySetIdentityRejectsMixedAttempts(t *testing.T) {
 	if err := json.Unmarshal(encoded, &record); err != nil {
 		t.Fatalf("json.Unmarshal(single): %v", err)
 	}
-	if record["retry_attempt_token"] != "" {
-		t.Fatal("single-wire serialization carried an applicable retry token")
+	if _, exists := record["retry_attempt_token"]; exists ||
+		record["retry_ordinal"] != float64(0) {
+		t.Fatal("single-wire serialization carried a retry token or ordinal")
 	}
 }
 
@@ -594,8 +595,6 @@ func TestRound2LedgerIsBoundedIssuerHighWaterWithCASAnchor(t *testing.T) {
 	if _, err := publishWithFactory(factory, spec); err == nil {
 		t.Fatal("factory trusted a caller-selected sample ID")
 	}
-	spec.SampleID = ""
-
 	const count = 512
 	var wait sync.WaitGroup
 	observations := make(chan reg.Observation, count)
@@ -604,7 +603,10 @@ func TestRound2LedgerIsBoundedIssuerHighWaterWithCASAnchor(t *testing.T) {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			observation, err := publishWithFactory(factory, spec)
+			observation, err := publishWithFactory(
+				factory,
+				successfulObservationSpec(t, profile),
+			)
 			if err != nil {
 				errors <- err
 				return
@@ -660,7 +662,10 @@ func TestRound2LedgerIsBoundedIssuerHighWaterWithCASAnchor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewObservationFactory(restarted): %v", err)
 	}
-	next, err := publishWithFactory(restartedFactory, spec)
+	next, err := publishWithFactory(
+		restartedFactory,
+		successfulObservationSpec(t, profile),
+	)
 	if err != nil {
 		t.Fatalf("post-restart issuance failed: %v", err)
 	}
@@ -699,7 +704,10 @@ func TestRound2SerializationRoundTripsNewFields(t *testing.T) {
 	)
 	state := round2EmptyLedgerState(t, profile)
 	factory, ledger := round2Factory(t, profile, state, 0)
-	attempt, err := factory.BeginObservationAttempt()
+	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: spec.PollGenerationID,
+		RetryOrdinal:     spec.RetryOrdinal,
+	})
 	if err != nil {
 		t.Fatalf("BeginObservationAttempt: %v", err)
 	}
@@ -715,11 +723,18 @@ func TestRound2SerializationRoundTripsNewFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarshalSpec: %v", err)
 	}
-	decodedSpec, err := attempt.DecodeSpec(encoded)
+	replayAttempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: spec.PollGenerationID,
+		RetryOrdinal:     spec.RetryOrdinal,
+	})
+	if err != nil {
+		t.Fatalf("BeginObservationAttempt(replay): %v", err)
+	}
+	decodedSpec, err := replayAttempt.DecodeSpec(encoded)
 	if err != nil {
 		t.Fatalf("DecodeSpec: %v", err)
 	}
-	reencoded, err := attempt.MarshalSpec(decodedSpec)
+	reencoded, err := replayAttempt.MarshalSpec(decodedSpec)
 	if err != nil {
 		t.Fatalf("MarshalSpec(round trip): %v", err)
 	}
@@ -730,11 +745,11 @@ func TestRound2SerializationRoundTripsNewFields(t *testing.T) {
 	if err := json.Unmarshal(encoded, &observationRecord); err != nil {
 		t.Fatalf("json.Unmarshal(observation): %v", err)
 	}
-	token, _ := observationRecord["retry_attempt_token"].(string)
-	if token == "" || bytes.Contains(encoded, []byte(`"retry_attempt_id"`)) {
-		t.Fatal("opaque retry-attempt identity was not preserved")
+	if observationRecord["retry_ordinal"] != float64(1) ||
+		bytes.Contains(encoded, []byte(`"retry_attempt_token"`)) {
+		t.Fatal("deterministic retry-attempt identity was not preserved")
 	}
-	if _, err := attempt.Publish(decodedSpec); err != nil {
+	if _, err := replayAttempt.Publish(decodedSpec); err != nil {
 		t.Fatalf("Publish(decoded): %v", err)
 	}
 

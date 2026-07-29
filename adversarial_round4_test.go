@@ -66,6 +66,9 @@ func TestRound4DeterministicReplayAcrossFreshFactories(t *testing.T) {
 		!bytes.Contains(encoded, []byte(`"retry_ordinal":1`)) {
 		t.Fatal("serialized attempt identity is random or incomplete")
 	}
+	if _, err := firstAttempt.DecodeSpec(encoded); err == nil {
+		t.Fatal("a direct-capture attempt also rebound serialized input")
+	}
 
 	secondState := round3State(t, profile, "round4-replay-second")
 	secondStore := &round3MemoryCAS{state: secondState}
@@ -74,6 +77,15 @@ func TestRound4DeterministicReplayAcrossFreshFactories(t *testing.T) {
 	decoded, err := secondAttempt.DecodeSpec(encoded)
 	if err != nil {
 		t.Fatalf("DecodeSpec(fresh factory): %v", err)
+	}
+	_, additional := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	if _, err := secondAttempt.BindDependency(
+		additional.Dependencies[0],
+	); err == nil {
+		t.Fatal("a serialized-capture attempt accepted a direct dependency")
 	}
 	reencoded, err := secondAttempt.MarshalSpec(decoded)
 	if err != nil {
@@ -168,7 +180,11 @@ func TestRound4DependencyResultCanOnlyBeCapturedOnce(t *testing.T) {
 	if _, err := secondAttempt.BindDependency(spec.Dependencies[0]); err == nil {
 		t.Fatal("the original dependency result was rebound to another attempt")
 	}
-	mixed := round4Bind(t, secondAttempt, spec)
+	_, secondSpec := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	mixed := round4Bind(t, secondAttempt, secondSpec)
 	mixed.Dependencies[0] = captured
 	if _, err := secondAttempt.Publish(mixed); err == nil {
 		t.Fatal("a dependency captured by another attempt was relabelled")
@@ -298,6 +314,12 @@ func TestRound4JSONRejectsNullAndMissingRequiredMembers(t *testing.T) {
 			[]byte(`"profile_id":null`),
 			1,
 		),
+		bytes.Replace(
+			profileBytes,
+			[]byte(`"require_generation_equality":false`),
+			[]byte(`"require_generation_equality":null`),
+			1,
+		),
 	}
 	for index, candidate := range profileCases {
 		if bytes.Equal(candidate, profileBytes) {
@@ -328,6 +350,69 @@ func TestRound4JSONRejectsNullAndMissingRequiredMembers(t *testing.T) {
 		}
 		if _, err := reg.UnmarshalSampleLedgerState(candidate); err == nil {
 			t.Fatalf("ledger null/missing case %d was accepted", index)
+		}
+	}
+
+	boundedProfile, observationSpec := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	observationState := round3State(t, boundedProfile, "round4-json-observation")
+	observationFactory := round3Factory(
+		t,
+		boundedProfile,
+		observationState,
+		&round3MemoryCAS{state: observationState},
+	)
+	observationAttempt := round4Attempt(
+		t,
+		observationFactory,
+		observationSpec,
+	)
+	observationBytes, err := observationAttempt.MarshalSpec(
+		round4Bind(t, observationAttempt, observationSpec),
+	)
+	if err != nil {
+		t.Fatalf("MarshalSpec: %v", err)
+	}
+	observationCases := [][]byte{
+		bytes.Replace(
+			observationBytes,
+			[]byte(`"retry_ordinal":1,`),
+			nil,
+			1,
+		),
+		bytes.Replace(
+			observationBytes,
+			[]byte(`"PollGeneration":41`),
+			[]byte(`"PollGeneration":null`),
+			1,
+		),
+		bytes.Replace(
+			observationBytes,
+			[]byte(`"state":"observed"`),
+			[]byte(`"state":null`),
+			1,
+		),
+	}
+	for index, candidate := range observationCases {
+		if bytes.Equal(candidate, observationBytes) {
+			t.Fatalf("observation mutation %d did not apply", index)
+		}
+		freshState := round3State(
+			t,
+			boundedProfile,
+			"round4-json-observation-decode",
+		)
+		freshFactory := round3Factory(
+			t,
+			boundedProfile,
+			freshState,
+			&round3MemoryCAS{state: freshState},
+		)
+		freshAttempt := round4Attempt(t, freshFactory, observationSpec)
+		if _, err := freshAttempt.DecodeSpec(candidate); err == nil {
+			t.Fatalf("observation null/missing case %d was accepted", index)
 		}
 	}
 }

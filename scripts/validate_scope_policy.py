@@ -29,6 +29,7 @@ EXPECTED_POLICY = {
         "adversarial_round1_test.go",
         "adversarial_round2_test.go",
         "adversarial_round3_test.go",
+        "adversarial_round4_test.go",
         "codec.go",
         "contracts_test.go",
         "doc.go",
@@ -63,22 +64,22 @@ EXPECTED_POLICY = {
         "version.go",
     ],
     "allowed_product_go_sha256": {
-        "codec.go": "c8c3a32dc1175ded6c65715236c6a665c5957749745aa671ca0694d6e3e3415d",
+        "codec.go": "fa991d0bacf6c610804913366e2936c2a49290ffbf83433cd746d34edb614720",
         "doc.go": "dfb7c5e962a5f0988b944eecc37b717efc708b10d3782e72b0519012da69ba3e",
         "json_preflight.go": (
-            "7c5dafdf8f568080598cb6f4b225ee100e62bc1ac880f314dcf17cd338eb84ad"
+            "78e25d348d7ce77f2dc69524fbe0f35e8a26dddef2f4d6b73a39be95e067d431"
         ),
         "limits.go": (
-            "2c0281d690bce4ab26ad8437d3b6f98778dab741a2dfe237fb26fcec9a53f268"
+            "29a128c7acc587dbfdf2b52b5d12afa681b4411ca5b1a153fc9707065dfb72b2"
         ),
         "observation.go": (
-            "e0a2955d0f8b837c3237f952d5a15b3d4f55f30ad95ee395c07848517e5c1bff"
+            "b7558ed04b5b6dc09d96efd929df5c8d908c2c8dd699362d7fc6ca6fd449f804"
         ),
         "profile.go": (
-            "608e810978b33c33594e70ea274724054004f9b2c7f61035ab34cbfd284748de"
+            "b6b5428dfc063a0881098c9c0346748dd593ae8578f202d4629b5c6a6caa879a"
         ),
         "serialization.go": (
-            "8da8381d2dbbdfc979feb6c78684a037a2a7cecb331e56b7e6ba5ae9e5caf15d"
+            "c1b9272be5c7e805a59db27fd047403d91f9f7b98a724d31e70c7fa5b8e7aeb7"
         ),
         "version.go": (
             "2c497e14ac4755025ddc6d9ac589fcff1c85888f435ca42b5abbe27066f16637"
@@ -88,6 +89,7 @@ EXPECTED_POLICY = {
         "adversarial_round1_test.go",
         "adversarial_round2_test.go",
         "adversarial_round3_test.go",
+        "adversarial_round4_test.go",
         "contracts_test.go",
     ],
     "allowed_code_bearing_non_go_files": [
@@ -109,6 +111,7 @@ EXPECTED_POLICY = {
         "github.com/Project-Helianthus/helianthus-modbus",
         "github.com/Project-Helianthus/helianthus-modbusreg",
     ],
+    "allowed_standard_library_imports": ["net/url"],
     "forbidden_import_prefixes": ["net", "syscall", "golang.org/x/sys/"],
     "forbidden_import_tokens": ["serial", "modbus"],
     "vendor_identifiers": ["fronius", "growatt", "huawei"],
@@ -171,6 +174,9 @@ def project_import_allowed(import_path: str, allowed: tuple[str, ...]) -> bool:
 
 def validate_imports(imports: Iterable[str], policy: dict[str, object]) -> None:
     allowed = tuple(str(item) for item in policy["allowed_project_import_prefixes"])
+    allowed_standard = {
+        str(item) for item in policy["allowed_standard_library_imports"]
+    }
     forbidden_prefixes = tuple(str(item) for item in policy["forbidden_import_prefixes"])
     forbidden_tokens = tuple(str(item) for item in policy["forbidden_import_tokens"])
     runtime_prefix = "github.com/Project-Helianthus/helianthus-modbus"
@@ -180,7 +186,9 @@ def validate_imports(imports: Iterable[str], policy: dict[str, object]) -> None:
         if import_path.startswith("github.com/Project-Helianthus/"):
             if not project_import_allowed(import_path, allowed):
                 raise PolicyError(f"forbidden Helianthus dependency: {import_path}")
-        if import_path == "net" or import_path.startswith("net/"):
+        if (
+            import_path == "net" or import_path.startswith("net/")
+        ) and import_path not in allowed_standard:
             raise PolicyError(f"registry must not own network transport: {import_path}")
         if any(
             import_path == prefix or import_path.startswith(prefix)

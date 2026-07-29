@@ -195,6 +195,7 @@ func boundedFixture(
 		t.Fatalf("NewProfileDescriptor: %v", err)
 	}
 	spec := successfulObservationSpec(t, profile)
+	spec.RetryOrdinal = 1
 	source := time.Unix(1_700_000_100, 0).UTC()
 	receipt := source.Add(time.Second)
 	for index := range spec.Dependencies {
@@ -210,6 +211,7 @@ func boundedFixture(
 		)
 		spec.Dependencies[index].DocumentaryConsistencyMarker = "sequence-7"
 		spec.Dependencies[index].AcquisitionOrdinal = uint32(index + 1)
+		spec.Dependencies[index].RetryOrdinal = spec.RetryOrdinal
 	}
 	spec.SourceTime = reg.SourceTimeObserved(source.Add(time.Second))
 	spec.LocalReceiptTime = receipt.Add(time.Second)
@@ -621,7 +623,10 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 	}
 	replayRecord := observation.Replay()[0].LogicalViewRecord()
 	freshFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	freshAttempt, err := freshFactory.BeginObservationAttempt()
+	freshAttempt, err := freshFactory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: observation.Spec().PollGenerationID,
+		RetryOrdinal:     observation.Spec().RetryOrdinal,
+	})
 	if err != nil {
 		t.Fatalf("BeginObservationAttempt: %v", err)
 	}
@@ -650,13 +655,13 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 	); err != nil {
 		t.Fatalf("json.Unmarshal(ObservationSpec): %v", err)
 	}
-	specFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
 	JSONDecodedObservationSpec.SampleID = ""
+	specFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
 	if _, err := publishWithFactory(
 		specFactory,
 		JSONDecodedObservationSpec,
-	); err != nil {
-		t.Fatalf("decoded ObservationSpec was not valid: %v", err)
+	); err == nil {
+		t.Fatal("plain JSON DTO bypassed attempt-owned capture rebinding")
 	}
 	if !reflect.DeepEqual(
 		replayRecord,
@@ -671,7 +676,10 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 		1,
 	)
 	thirdFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	thirdAttempt, _ := thirdFactory.BeginObservationAttempt()
+	thirdAttempt, _ := thirdFactory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: observation.Spec().PollGenerationID,
+		RetryOrdinal:     observation.Spec().RetryOrdinal,
+	})
 	if _, err := thirdAttempt.DecodeSpec(badObservation); err == nil {
 		t.Fatal("unknown observation schema was accepted")
 	}
@@ -680,7 +688,10 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 		[]byte(`,"unknown_contract_field":true}`)...,
 	)
 	fourthFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	fourthAttempt, _ := fourthFactory.BeginObservationAttempt()
+	fourthAttempt, _ := fourthFactory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: observation.Spec().PollGenerationID,
+		RetryOrdinal:     observation.Spec().RetryOrdinal,
+	})
 	if _, err := fourthAttempt.DecodeSpec(
 		unknownObservationField,
 	); err == nil {
@@ -703,8 +714,6 @@ func TestRound1SchemaAuthoritiesAreReadOnlyValues(t *testing.T) {
 func TestRound1ObservationFactoryMakesCASPublicationMandatory(t *testing.T) {
 	profile := profileFixture(t)
 	factory, ledger := newFactory(t, profile, emptyLedgerState(t, profile))
-	spec := successfulObservationSpec(t, profile)
-
 	var successes atomic.Int32
 	var failures atomic.Int32
 	var wait sync.WaitGroup
@@ -712,7 +721,10 @@ func TestRound1ObservationFactoryMakesCASPublicationMandatory(t *testing.T) {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			if _, err := publishWithFactory(factory, spec); err != nil {
+			if _, err := publishWithFactory(
+				factory,
+				successfulObservationSpec(t, profile),
+			); err != nil {
 				failures.Add(1)
 				return
 			}
@@ -738,7 +750,10 @@ func TestRound1ObservationFactoryMakesCASPublicationMandatory(t *testing.T) {
 		t.Fatalf("UnmarshalSampleLedgerState: %v", err)
 	}
 	restartedFactory, restartedLedger := newFactory(t, profile, restartedState)
-	next, err := publishWithFactory(restartedFactory, spec)
+	next, err := publishWithFactory(
+		restartedFactory,
+		successfulObservationSpec(t, profile),
+	)
 	if err != nil {
 		t.Fatal("imported restart state did not continue issuance:", err)
 	}

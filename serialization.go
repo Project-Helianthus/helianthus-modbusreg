@@ -2,9 +2,6 @@ package modbusreg
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -65,6 +62,23 @@ func versionPointer(version Version) *string {
 	return &value
 }
 
+func nonNilStrings(values []string) []string {
+	return append([]string{}, values...)
+}
+
+func serializationCodecSpec(spec CodecSpec) CodecSpec {
+	spec = cloneCodecSpec(spec)
+	spec.WordPermutation = append([]uint16{}, spec.WordPermutation...)
+	spec.Sentinels = append([]RawSentinel{}, spec.Sentinels...)
+	for index := range spec.Sentinels {
+		spec.Sentinels[index].Words = append(
+			[]uint16{},
+			spec.Sentinels[index].Words...,
+		)
+	}
+	return spec
+}
+
 func profileToDTO(profile ProfileDescriptor) (profileDTO, error) {
 	validated, err := NewProfileDescriptor(profile.Spec())
 	if err != nil {
@@ -73,22 +87,28 @@ func profileToDTO(profile ProfileDescriptor) (profileDTO, error) {
 	spec := validated.Spec()
 	codecs := make([]CodecSpec, len(spec.Codecs))
 	for index, codec := range spec.Codecs {
-		codecs[index] = codec.Spec()
+		codecs[index] = serializationCodecSpec(codec.Spec())
 	}
 	dependencies := spec.Dependencies.Dependencies()
 	dependencySpecs := make([]DependencySpec, len(dependencies))
 	for index, dependency := range dependencies {
 		dependencySpecs[index] = dependency.Spec()
+		dependencySpecs[index].EvidenceReferences = nonNilStrings(
+			dependencySpecs[index].EvidenceReferences,
+		)
+		dependencySpecs[index].ApplicabilityRefs = nonNilStrings(
+			dependencySpecs[index].ApplicabilityRefs,
+		)
 	}
 	return profileDTO{
 		SchemaVersion:          spec.SchemaVersion.String(),
 		ID:                     spec.ID,
 		Version:                spec.Version.String(),
 		Kind:                   spec.Kind,
-		StandardApplicability:  cloneStrings(spec.StandardApplicability),
-		ModelApplicability:     cloneStrings(spec.ModelApplicability),
-		VendorApplicability:    cloneStrings(spec.VendorApplicability),
-		KnownExclusions:        cloneStrings(spec.KnownExclusions),
+		StandardApplicability:  nonNilStrings(spec.StandardApplicability),
+		ModelApplicability:     nonNilStrings(spec.ModelApplicability),
+		VendorApplicability:    nonNilStrings(spec.VendorApplicability),
+		KnownExclusions:        nonNilStrings(spec.KnownExclusions),
 		RuntimeContractVersion: spec.RuntimeContractVersion.String(),
 		DetectorVersion:        spec.DetectorVersion.String(),
 		CodecContractVersion:   spec.CodecContractVersion.String(),
@@ -111,7 +131,7 @@ func profileToDTO(profile ProfileDescriptor) (profileDTO, error) {
 			RetrySetBehavior:             spec.Coherence.RetrySetBehavior,
 			DocumentaryConsistencyMarker: spec.Coherence.DocumentaryConsistencyMarker,
 		},
-		Evidence:              append([]EvidenceReference(nil), spec.Evidence...),
+		Evidence:              append([]EvidenceReference{}, spec.Evidence...),
 		Maturity:              spec.Maturity,
 		DefaultEnabled:        spec.DefaultEnabled,
 		State:                 spec.State,
@@ -126,12 +146,24 @@ func profileToDTO(profile ProfileDescriptor) (profileDTO, error) {
 func cloneOverlayDeltas(
 	deltas []VendorOverlayDeltaSpec,
 ) []VendorOverlayDeltaSpec {
-	if deltas == nil {
-		return nil
-	}
 	result := make([]VendorOverlayDeltaSpec, len(deltas))
 	for index, delta := range deltas {
 		result[index] = cloneOverlayDelta(delta)
+		result[index].EvidenceReferences = nonNilStrings(
+			result[index].EvidenceReferences,
+		)
+		if result[index].Dependency != nil {
+			result[index].Dependency.EvidenceReferences = nonNilStrings(
+				result[index].Dependency.EvidenceReferences,
+			)
+			result[index].Dependency.ApplicabilityRefs = nonNilStrings(
+				result[index].Dependency.ApplicabilityRefs,
+			)
+		}
+		if result[index].Codec != nil {
+			codec := serializationCodecSpec(*result[index].Codec)
+			result[index].Codec = &codec
+		}
 	}
 	return result
 }
@@ -423,7 +455,7 @@ type dependencyResultDTO struct {
 	LocalReceiptTime             string               `json:"local_receipt_time,omitempty"`
 	DocumentaryConsistencyMarker string               `json:"documentary_consistency_marker"`
 	AcquisitionOrdinal           uint32               `json:"acquisition_ordinal"`
-	RetryAttemptToken            string               `json:"retry_attempt_token"`
+	RetryOrdinal                 uint32               `json:"retry_ordinal"`
 }
 
 type observationDTO struct {
@@ -437,8 +469,8 @@ type observationDTO struct {
 	CoherenceVersion       string                `json:"coherence_version"`
 	QualificationVersion   string                `json:"qualification_version"`
 	SampleID               string                `json:"sample_id"`
-	RetryAttemptToken      string                `json:"retry_attempt_token"`
 	PollGenerationID       uint64                `json:"poll_generation_id"`
+	RetryOrdinal           uint32                `json:"retry_ordinal"`
 	DependencySetID        string                `json:"dependency_set_id"`
 	DependencySetVersion   string                `json:"dependency_set_version"`
 	SourceValidity         SourceValidity        `json:"source_validity"`
@@ -508,6 +540,7 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 	if err := preflightObservationSpec(spec); err != nil {
 		return observationDTO{}, err
 	}
+	spec = cloneObservationSpec(spec)
 	if err := canonicalizeObservationTimes(&spec); err != nil {
 		return observationDTO{}, err
 	}
@@ -526,11 +559,7 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 		}
 		dependencySourceTime, err := sourceTimeToDTO(result.SourceTime)
 		if err != nil {
-			if result.SourceTime.State == "" && result.LocalReceiptTime.IsZero() {
-				dependencySourceTime = sourceTimeDTO{}
-			} else {
-				return observationDTO{}, fmt.Errorf("dependency %d source time: %w", index, err)
-			}
+			return observationDTO{}, fmt.Errorf("dependency %d source time: %w", index, err)
 		}
 		localReceipt := ""
 		if !result.LocalReceiptTime.IsZero() {
@@ -548,7 +577,7 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 			LocalReceiptTime:             localReceipt,
 			DocumentaryConsistencyMarker: result.DocumentaryConsistencyMarker,
 			AcquisitionOrdinal:           result.AcquisitionOrdinal,
-			RetryAttemptToken:            spec.serializedAttemptToken,
+			RetryOrdinal:                 result.RetryOrdinal,
 		}
 	}
 	return observationDTO{
@@ -562,8 +591,8 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 		CoherenceVersion:       spec.CoherenceVersion.String(),
 		QualificationVersion:   spec.QualificationVersion.String(),
 		SampleID:               spec.SampleID,
-		RetryAttemptToken:      spec.serializedAttemptToken,
 		PollGenerationID:       spec.PollGenerationID,
+		RetryOrdinal:           spec.RetryOrdinal,
 		DependencySetID:        spec.DependencySetID,
 		DependencySetVersion:   spec.DependencySetVersion.String(),
 		SourceValidity:         spec.SourceValidity,
@@ -640,9 +669,9 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 	}
 	dependencies := make([]DependencyResult, len(record.Dependencies))
 	for index, dependency := range record.Dependencies {
-		if dependency.RetryAttemptToken != record.RetryAttemptToken {
+		if dependency.RetryOrdinal != record.RetryOrdinal {
 			return ObservationSpec{}, fmt.Errorf(
-				"dependency retry-attempt token disagrees",
+				"dependency retry ordinal disagrees",
 			)
 		}
 		dependencyVersion, err := parse(
@@ -690,6 +719,7 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 			LocalReceiptTime:             dependencyReceipt,
 			DocumentaryConsistencyMarker: dependency.DocumentaryConsistencyMarker,
 			AcquisitionOrdinal:           dependency.AcquisitionOrdinal,
+			RetryOrdinal:                 dependency.RetryOrdinal,
 		}
 	}
 	return ObservationSpec{
@@ -704,6 +734,7 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 		QualificationVersion:   qualificationVersion,
 		SampleID:               record.SampleID,
 		PollGenerationID:       record.PollGenerationID,
+		RetryOrdinal:           record.RetryOrdinal,
 		DependencySetID:        record.DependencySetID,
 		DependencySetVersion:   dependencySetVersion,
 		SourceValidity:         record.SourceValidity,
@@ -712,7 +743,6 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 		Endpoint:               record.Endpoint,
 		UnitID:                 record.UnitID,
 		Dependencies:           dependencies,
-		serializedAttemptToken: record.RetryAttemptToken,
 	}, nil
 }
 
@@ -764,11 +794,7 @@ func (attempt *ObservationAttempt) MarshalSpec(
 	if err != nil {
 		return nil, err
 	}
-	if _, err := buildObservation(attempt.factory.profile, prepared); err != nil {
-		return nil, err
-	}
-	prepared, err = attempt.sealSpec(prepared)
-	if err != nil {
+	if _, err := buildObservation(attempt.state.factory.profile, prepared); err != nil {
 		return nil, err
 	}
 	record, err := observationSpecToDTO(prepared)
@@ -782,95 +808,63 @@ func (attempt *ObservationAttempt) MarshalSpec(
 func (attempt *ObservationAttempt) DecodeSpec(
 	data []byte,
 ) (ObservationSpec, error) {
-	if attempt == nil || attempt.factory == nil {
+	state, err := attempt.openState()
+	if err != nil {
 		return ObservationSpec{}, fmt.Errorf("observation attempt is invalid")
 	}
 	var record observationDTO
 	if err := decodeStrict(data, &record); err != nil {
 		return ObservationSpec{}, err
 	}
-	if err := attempt.verifySerializedRecord(record); err != nil {
-		return ObservationSpec{}, err
+	if record.PollGenerationID != state.identity.PollGenerationID ||
+		record.RetryOrdinal != state.identity.RetryOrdinal {
+		return ObservationSpec{}, fmt.Errorf("serialized attempt identity disagrees")
+	}
+	for _, dependency := range record.Dependencies {
+		if dependency.RetryOrdinal != record.RetryOrdinal ||
+			dependency.View.PollGeneration != record.PollGenerationID {
+			return ObservationSpec{}, fmt.Errorf(
+				"serialized dependency attempt identity disagrees",
+			)
+		}
+	}
+	switch state.factory.profile.spec.Coherence.Mode {
+	case CoherenceSingleWireResponse:
+		if record.RetryOrdinal != 0 {
+			return ObservationSpec{}, fmt.Errorf("single-wire retry identity is not applicable")
+		}
+	case CoherenceBoundedMultiResponse:
+		if record.RetryOrdinal == 0 {
+			return ObservationSpec{}, fmt.Errorf("bounded retry identity is absent")
+		}
+	default:
+		return ObservationSpec{}, fmt.Errorf("observation coherence mode is invalid")
 	}
 	spec, err := observationSpecFromDTO(record)
 	if err != nil {
 		return ObservationSpec{}, err
 	}
-	spec.serializedAttemptToken = ""
 	for index := range spec.Dependencies {
-		spec.Dependencies[index].attemptToken = attempt.token
-	}
-	if attempt.factory.profile.spec.Coherence.Mode ==
-		CoherenceBoundedMultiResponse {
-		spec.attemptToken = attempt.token
+		spec.Dependencies[index].claim = &dependencyResultClaim{consumed: true}
+		spec.Dependencies[index].owner = state
 	}
 	prepared, err := attempt.prepareSpec(spec)
 	if err != nil {
 		return ObservationSpec{}, err
 	}
-	if _, err := buildObservation(attempt.factory.profile, prepared); err != nil {
+	if _, err := buildObservation(state.factory.profile, prepared); err != nil {
 		return ObservationSpec{}, err
 	}
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.phase != attemptOpen {
+		return ObservationSpec{}, fmt.Errorf("observation attempt is closed")
+	}
+	if state.capture != captureUnset {
+		return ObservationSpec{}, fmt.Errorf("attempt already owns a capture")
+	}
+	state.capture = captureSerialized
 	return prepared, nil
-}
-
-func (attempt *ObservationAttempt) verifySerializedRecord(
-	record observationDTO,
-) error {
-	switch attempt.factory.profile.spec.Coherence.Mode {
-	case CoherenceSingleWireResponse:
-		if record.RetryAttemptToken != "" {
-			return fmt.Errorf("single-wire retry token is not applicable")
-		}
-		for _, dependency := range record.Dependencies {
-			if dependency.RetryAttemptToken != "" {
-				return fmt.Errorf(
-					"single-wire dependency retry token is not applicable",
-				)
-			}
-		}
-		return nil
-	case CoherenceBoundedMultiResponse:
-		if record.RetryAttemptToken == "" {
-			return fmt.Errorf("serialized retry attempt token is missing")
-		}
-		for _, dependency := range record.Dependencies {
-			if dependency.RetryAttemptToken != record.RetryAttemptToken {
-				return fmt.Errorf(
-					"serialized dependency retry attempt token disagrees",
-				)
-			}
-		}
-	default:
-		return fmt.Errorf("observation coherence mode is invalid")
-	}
-	supplied, err := hex.DecodeString(record.RetryAttemptToken)
-	if err != nil || len(supplied) != sha256.Size ||
-		record.RetryAttemptToken != hex.EncodeToString(supplied) {
-		return fmt.Errorf("serialized retry attempt token is malformed")
-	}
-	canonicalRecord := record
-	canonicalRecord.Dependencies = append(
-		[]dependencyResultDTO(nil),
-		record.Dependencies...,
-	)
-	canonicalRecord.SampleID = ""
-	canonicalRecord.RetryAttemptToken = ""
-	for index := range canonicalRecord.Dependencies {
-		canonicalRecord.Dependencies[index].RetryAttemptToken = ""
-	}
-	canonical, err := marshalBounded(canonicalRecord)
-	if err != nil {
-		return err
-	}
-	mac := hmac.New(sha256.New, attempt.key[:])
-	if _, err := mac.Write(canonical); err != nil {
-		return err
-	}
-	if !hmac.Equal(supplied, mac.Sum(nil)) {
-		return fmt.Errorf("serialized retry attempt token does not authenticate the set")
-	}
-	return nil
 }
 
 type sampleLedgerDTO struct {
