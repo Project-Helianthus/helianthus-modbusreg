@@ -225,14 +225,42 @@ func scanJSONObject(
 	if closing != json.Delim('}') {
 		return fmt.Errorf("serialized object is not closed")
 	}
-	for key, field := range fields {
-		if field.required {
-			if _, exists := seen[strings.ToLower(key)]; !exists {
-				return fmt.Errorf("serialized object is missing required key %q", key)
-			}
+	for _, key := range requiredJSONFieldNames(expected) {
+		if _, exists := seen[strings.ToLower(key)]; !exists {
+			return fmt.Errorf("serialized object is missing required key %q", key)
 		}
 	}
 	return nil
+}
+
+func requiredJSONFieldNames(value reflect.Type) []string {
+	result := make([]string, 0, value.NumField())
+	for index := 0; index < value.NumField(); index++ {
+		field := value.Field(index)
+		if field.PkgPath != "" {
+			continue
+		}
+		name := field.Name
+		required := true
+		if tag, exists := field.Tag.Lookup("json"); exists {
+			parts := strings.Split(tag, ",")
+			if parts[0] == "-" {
+				continue
+			}
+			if parts[0] != "" {
+				name = parts[0]
+			}
+			for _, option := range parts[1:] {
+				if option == "omitempty" {
+					required = false
+				}
+			}
+		}
+		if required {
+			result = append(result, name)
+		}
+	}
+	return result
 }
 
 func jsonFields(value reflect.Type) map[string]jsonField {

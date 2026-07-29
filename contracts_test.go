@@ -192,10 +192,10 @@ func publishWithFactory(
 	factory *reg.ObservationFactory,
 	spec reg.ObservationSpec,
 ) (reg.Observation, error) {
-	spec.Dependencies = append(
-		[]reg.DependencyResult(nil),
-		spec.Dependencies...,
-	)
+	encoded, err := reg.MarshalFixtureSpec(spec)
+	if err != nil {
+		return reg.Observation{}, err
+	}
 	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
 		PollGenerationID: spec.PollGenerationID,
 		RetryOrdinal:     spec.RetryOrdinal,
@@ -203,15 +203,11 @@ func publishWithFactory(
 	if err != nil {
 		return reg.Observation{}, err
 	}
-	for index := range spec.Dependencies {
-		spec.Dependencies[index], err = attempt.BindDependency(
-			spec.Dependencies[index],
-		)
-		if err != nil {
-			return reg.Observation{}, err
-		}
+	decoded, err := attempt.DecodeSpec(encoded)
+	if err != nil {
+		return reg.Observation{}, err
 	}
-	return attempt.Publish(spec)
+	return attempt.Publish(decoded)
 }
 
 func buildObservation(
@@ -828,8 +824,8 @@ func TestSourceTimeStateIsExplicit(t *testing.T) {
 		t.Fatalf("explicit observed source time rejected: %v", err)
 	}
 	spec.SourceTime = reg.SourceTimeSpec{State: reg.SourceTimeObservedState}
-	if _, err := buildObservation(t, profile, spec); err == nil {
-		t.Fatal("observed source-time state without a time was accepted")
+	if _, err := buildObservation(t, profile, spec); err != nil {
+		t.Fatal("explicit observed UTC year-one was rejected:", err)
 	}
 	spec.SourceTime = reg.SourceTimeSpec{
 		State: reg.SourceTimeUnavailableState,

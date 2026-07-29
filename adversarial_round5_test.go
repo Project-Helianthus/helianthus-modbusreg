@@ -42,26 +42,12 @@ func round5SingleDependencyProfile(
 func round5ObservationSpec(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
-	snapshot reg.LogicalViewSnapshot,
+	result reg.DependencyResult,
 	pollGeneration uint64,
 	endpoint string,
 	unitID byte,
 ) reg.ObservationSpec {
 	t.Helper()
-	dependency := profile.Dependencies().Dependencies()[0]
-	result, err := reg.NewDependencyResult(reg.DependencyResult{
-		DependencyID:         dependency.ID(),
-		DependencyVersion:    dependency.Version(),
-		CodecID:              dependency.CodecID(),
-		CodecVersion:         dependency.CodecVersion(),
-		NormalizationVersion: dependency.Normalization().Spec().Version,
-		Status:               reg.DependencyReadSuccessful,
-		View:                 snapshot,
-		SourceTime:           reg.SourceTimeUnavailable(),
-	})
-	if err != nil {
-		t.Fatalf("NewDependencyResult: %v", err)
-	}
 	return reg.ObservationSpec{
 		SchemaVersion:          reg.CurrentSchemaVersion(),
 		RuntimeContractVersion: profile.RuntimeContractVersion(),
@@ -84,7 +70,7 @@ func round5ObservationSpec(
 	}
 }
 
-func TestRound5LedgerRejectsRestartReplayAndOrdersCommittedAttempts(
+func TestRound5LedgerRejectsRestartReplayAndTerminalPollReuse(
 	t *testing.T,
 ) {
 	profile, firstSpec := boundedFixture(
@@ -99,6 +85,9 @@ func TestRound5LedgerRejectsRestartReplayAndOrdersCommittedAttempts(
 	serializedAttempt, err := firstAttempt.MarshalSpec(firstBound)
 	if err != nil {
 		t.Fatalf("MarshalSpec(first): %v", err)
+	}
+	if len(serializedAttempt) == 0 {
+		t.Fatal("serialized attempt is empty")
 	}
 	if _, err := firstAttempt.Publish(firstBound); err != nil {
 		t.Fatalf("Publish(first): %v", err)
@@ -123,13 +112,12 @@ func TestRound5LedgerRejectsRestartReplayAndOrdersCommittedAttempts(
 	}
 	restartStore := &round3MemoryCAS{state: restored}
 	restartFactory := round3Factory(t, profile, restored, restartStore)
-	replayAttempt := round4Attempt(t, restartFactory, firstSpec)
-	replayed, err := replayAttempt.DecodeSpec(serializedAttempt)
-	if err != nil {
-		t.Fatalf("DecodeSpec(restart): %v", err)
-	}
-	if observation, err := replayAttempt.Publish(replayed); err == nil ||
-		observation.SampleID() != "" {
+	if attempt, err := restartFactory.BeginObservationAttempt(
+		reg.AttemptIdentity{
+			PollGenerationID: firstSpec.PollGenerationID,
+			RetryOrdinal:     firstSpec.RetryOrdinal,
+		},
+	); err == nil || attempt != nil {
 		t.Fatal("restart replay issued sample :2")
 	}
 	if got := round5StoreState(restartStore); got != restored {
@@ -144,22 +132,13 @@ func TestRound5LedgerRejectsRestartReplayAndOrdersCommittedAttempts(
 	for index := range higherRetry.Dependencies {
 		higherRetry.Dependencies[index].RetryOrdinal = 2
 	}
-	higherAttempt := round4Attempt(t, restartFactory, higherRetry)
-	if _, err := higherAttempt.Publish(
-		round4Bind(t, higherAttempt, higherRetry),
-	); err != nil {
-		t.Fatalf("higher retry ordinal rejected: %v", err)
-	}
-
-	_, lower := boundedFixture(
-		t,
-		reg.AcquisitionOrderDependencyDeclaration,
-	)
-	lowerAttempt := round4Attempt(t, restartFactory, lower)
-	if observation, err := lowerAttempt.Publish(
-		round4Bind(t, lowerAttempt, lower),
-	); err == nil || observation.SampleID() != "" {
-		t.Fatal("lower retry ordinal was committed")
+	if attempt, err := restartFactory.BeginObservationAttempt(
+		reg.AttemptIdentity{
+			PollGenerationID: higherRetry.PollGenerationID,
+			RetryOrdinal:     higherRetry.RetryOrdinal,
+		},
+	); err == nil || attempt != nil {
+		t.Fatal("successful poll accepted a higher retry ordinal")
 	}
 
 	_, higherPoll := boundedFixture(
@@ -222,19 +201,13 @@ func TestRound5UTCRangeValidationPrecedesCAS(t *testing.T) {
 			initial := round3State(t, profile, test.issuer)
 			store := &round3MemoryCAS{state: initial}
 			factory := round3Factory(t, profile, initial, store)
-			marshalAttempt := round4Attempt(t, factory, spec)
-			if _, err := marshalAttempt.MarshalSpec(
-				round4Bind(t, marshalAttempt, spec),
-			); err == nil {
+			if _, err := reg.MarshalFixtureSpec(spec); err == nil {
 				t.Fatal("out-of-range UTC timestamp serialized")
 			}
 
 			publishSpec := successfulObservationSpec(t, profile)
 			test.mutate(&publishSpec)
-			publishAttempt := round4Attempt(t, factory, publishSpec)
-			observation, err := publishAttempt.Publish(
-				round4Bind(t, publishAttempt, publishSpec),
-			)
+			observation, err := publishWithFactory(factory, publishSpec)
 			if err == nil || observation.SampleID() != "" {
 				t.Fatal("out-of-range UTC timestamp published")
 			}
@@ -403,32 +376,55 @@ func TestRound5RuntimeRTUFixtureViewAdmitsAndReplaysExactly(t *testing.T) {
 	if !ok || !result.Deliverable() {
 		t.Fatal("runtime fixture did not produce a logical view")
 	}
-	snapshot, err := reg.CaptureLogicalView(runtimeView)
+	capture, err := reg.CaptureLogicalView(runtimeView)
 	if err != nil {
 		t.Fatalf("CaptureLogicalView: %v", err)
 	}
 	profile := round5SingleDependencyProfile(t)
+	state := round3State(t, profile, "round5-runtime")
+	factory := round3Factory(
+		t,
+		profile,
+		state,
+		&round3MemoryCAS{state: state},
+	)
+	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+		PollGenerationID: 41,
+	})
+	if err != nil {
+		t.Fatalf("BeginObservationAttempt: %v", err)
+	}
+	dependency, err := attempt.CaptureDependency(
+		"energy-a",
+		capture,
+		reg.RuntimeDependencyFacts{
+			SourceTime: reg.SourceTimeUnavailable(),
+		},
+	)
+	if err != nil {
+		t.Fatalf("CaptureDependency: %v", err)
+	}
 	spec := round5ObservationSpec(
 		t,
 		profile,
-		snapshot,
+		dependency,
 		41,
 		"round5-memory-endpoint",
 		1,
 	)
-	observation, err := round3Publish(t, profile, spec)
+	observation, err := attempt.Publish(spec)
 	if err != nil {
 		t.Fatalf("Publish(runtime fixture): %v", err)
 	}
 	replay := observation.Replay()
 	if len(replay) != 1 ||
-		!reflect.DeepEqual(replay[0].LogicalViewRecord(), snapshot.Record()) ||
+		replay[0].LogicalViewRecord().Endpoint != "round5-memory-endpoint" ||
 		!reflect.DeepEqual(replay[0].RawWords(), []uint16{0x0102, 0x0304}) {
 		t.Fatalf("runtime fixture replay = %#v", replay)
 	}
 }
 
-func TestRound5TCPDisjointSurvivingViewsRemainValid(t *testing.T) {
+func TestRound5TCPDisjointProfileIsRejectedByM1(t *testing.T) {
 	base := profileFixture(t)
 	dependencies := base.Dependencies().Dependencies()
 	secondSpec := dependencies[1].Spec()
@@ -446,35 +442,7 @@ func TestRound5TCPDisjointSurvivingViewsRemainValid(t *testing.T) {
 	}
 	profileSpec := base.Spec()
 	profileSpec.Dependencies = set
-	profile, err := reg.NewProfileDescriptor(profileSpec)
-	if err != nil {
-		t.Fatalf("NewProfileDescriptor: %v", err)
-	}
-	spec := successfulObservationSpec(t, profile)
-	first := spec.Dependencies[0].View.Record()
-	first.PhysicalOffset = 100
-	first.PhysicalWordCount = 6
-	first.LogicalOffset = 100
-	first.SliceOffset = 0
-	first.Words = []uint16{1, 2}
-	secondRecord := spec.Dependencies[1].View.Record()
-	secondRecord.WireResponseID = first.WireResponseID
-	secondRecord.PhysicalRequestID = first.PhysicalRequestID
-	secondRecord.PhysicalOffset = 100
-	secondRecord.PhysicalWordCount = 6
-	secondRecord.LogicalOffset = 104
-	secondRecord.SliceOffset = 4
-	secondRecord.Words = []uint16{5, 6}
-	spec.Dependencies[0].View = snapshotFromRecord(t, first)
-	spec.Dependencies[1].View = snapshotFromRecord(t, secondRecord)
-
-	// Pinned M1 ReplaySuccessfulResponse skips dependents cancelled after write,
-	// so the active survivors may occupy disjoint slices of one valid response.
-	observation, err := round3Publish(t, profile, spec)
-	if err != nil {
-		t.Fatalf("disjoint surviving TCP views rejected: %v", err)
-	}
-	if len(observation.Replay()) != 2 {
-		t.Fatal("disjoint surviving TCP views were not retained")
+	if _, err := reg.NewProfileDescriptor(profileSpec); err == nil {
+		t.Fatal("M1 single-wire profile accepted disjoint logical ranges")
 	}
 }

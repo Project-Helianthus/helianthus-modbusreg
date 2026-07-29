@@ -91,19 +91,21 @@ func TestRound2RetrySetIdentityRejectsMixedAttempts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeginObservationAttempt(second): %v", err)
 	}
-	for index := range firstSpec.Dependencies {
-		firstSpec.Dependencies[index], err = first.BindDependency(
-			firstSpec.Dependencies[index],
-		)
-		if err != nil {
-			t.Fatalf("BindDependency(first,%d): %v", index, err)
-		}
-		secondSpec.Dependencies[index], err = second.BindDependency(
-			secondSpec.Dependencies[index],
-		)
-		if err != nil {
-			t.Fatalf("BindDependency(second,%d): %v", index, err)
-		}
+	firstBytes, err := reg.MarshalFixtureSpec(firstSpec)
+	if err != nil {
+		t.Fatalf("MarshalFixtureSpec(first): %v", err)
+	}
+	firstSpec, err = first.DecodeSpec(firstBytes)
+	if err != nil {
+		t.Fatalf("DecodeSpec(first): %v", err)
+	}
+	secondBytes, err := reg.MarshalFixtureSpec(secondSpec)
+	if err != nil {
+		t.Fatalf("MarshalFixtureSpec(second): %v", err)
+	}
+	secondSpec, err = second.DecodeSpec(secondBytes)
+	if err != nil {
+		t.Fatalf("DecodeSpec(second): %v", err)
 	}
 	mixed := firstSpec
 	mixed.Dependencies[1] = secondSpec.Dependencies[1]
@@ -112,26 +114,10 @@ func TestRound2RetrySetIdentityRejectsMixedAttempts(t *testing.T) {
 	}
 
 	single := profileFixture(t)
-	singleState := round2EmptyLedgerState(t, single)
-	singleFactory, _ := round2Factory(t, single, singleState, 0)
-	singleAttempt, err := singleFactory.BeginObservationAttempt(reg.AttemptIdentity{
-		PollGenerationID: 41,
-	})
-	if err != nil {
-		t.Fatalf("BeginObservationAttempt(single): %v", err)
-	}
 	singleSpec := successfulObservationSpec(t, single)
-	for index := range singleSpec.Dependencies {
-		singleSpec.Dependencies[index], err = singleAttempt.BindDependency(
-			singleSpec.Dependencies[index],
-		)
-		if err != nil {
-			t.Fatalf("BindDependency(single,%d): %v", index, err)
-		}
-	}
-	encoded, err := singleAttempt.MarshalSpec(singleSpec)
+	encoded, err := reg.MarshalFixtureSpec(singleSpec)
 	if err != nil {
-		t.Fatalf("MarshalSpec(single): %v", err)
+		t.Fatalf("MarshalFixtureSpec(single): %v", err)
 	}
 	var record map[string]any
 	if err := json.Unmarshal(encoded, &record); err != nil {
@@ -681,24 +667,9 @@ func TestRound2SerializationRoundTripsNewFields(t *testing.T) {
 	)
 	state := round2EmptyLedgerState(t, profile)
 	factory, ledger := round2Factory(t, profile, state, 0)
-	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
-		PollGenerationID: spec.PollGenerationID,
-		RetryOrdinal:     spec.RetryOrdinal,
-	})
+	encoded, err := reg.MarshalFixtureSpec(spec)
 	if err != nil {
-		t.Fatalf("BeginObservationAttempt: %v", err)
-	}
-	for index := range spec.Dependencies {
-		spec.Dependencies[index], err = attempt.BindDependency(
-			spec.Dependencies[index],
-		)
-		if err != nil {
-			t.Fatalf("BindDependency(%d): %v", index, err)
-		}
-	}
-	encoded, err := attempt.MarshalSpec(spec)
-	if err != nil {
-		t.Fatalf("MarshalSpec: %v", err)
+		t.Fatalf("MarshalFixtureSpec: %v", err)
 	}
 	replayAttempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
 		PollGenerationID: spec.PollGenerationID,

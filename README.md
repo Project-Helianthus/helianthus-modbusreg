@@ -32,7 +32,8 @@ This repository owns:
 - versioned profile declarations and catalog lookup;
 - complete, versioned codec declarations without silent coercion;
 - exact ordered dependency-set and documentary address normalization records;
-- immutable source-observation snapshots and exact raw-word replay;
+- attempt-owned runtime captures, fixture-gated synthetic snapshots, and exact
+  raw-word replay;
 - fail-closed coherence, deterministic retry-attempt, and complete physical
   and wire-group validation;
 - O(1) factory-issued samples with persisted monotonic attempt identity,

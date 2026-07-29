@@ -487,7 +487,7 @@ func sourceTimeToDTO(source SourceTimeSpec) (sourceTimeDTO, error) {
 	}
 	record := sourceTimeDTO{State: source.State}
 	if source.State == SourceTimeObservedState {
-		value, err := canonicalTime(source.Time)
+		value, err := canonicalObservedTime(source.Time)
 		if err != nil {
 			return sourceTimeDTO{}, err
 		}
@@ -518,7 +518,7 @@ func sourceTimeFromDTO(record sourceTimeDTO) (SourceTimeSpec, error) {
 }
 
 func formatRequiredTime(value time.Time) (string, error) {
-	canonical, err := canonicalTime(value)
+	canonical, err := canonicalRequiredTime(value)
 	if err != nil {
 		return "", err
 	}
@@ -533,7 +533,7 @@ func parseOptionalTime(value string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-	return canonicalTime(parsed)
+	return canonicalRequiredTime(parsed)
 }
 
 func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
@@ -755,6 +755,24 @@ func (spec ObservationSpec) MarshalJSON() ([]byte, error) {
 	return marshalBounded(record)
 }
 
+// MarshalFixtureSpec emits deterministic synthetic fixture bytes. Such bytes
+// become attempt-owned only after DecodeSpec validates their attempt identity.
+func MarshalFixtureSpec(spec ObservationSpec) ([]byte, error) {
+	for index, dependency := range spec.Dependencies {
+		if dependency.owner != nil || dependency.claim == nil {
+			return nil, fmt.Errorf(
+				"fixture dependency %d is not an unbound synthetic record",
+				index,
+			)
+		}
+	}
+	record, err := observationSpecToDTO(spec)
+	if err != nil {
+		return nil, err
+	}
+	return marshalBounded(record)
+}
+
 // UnmarshalJSON reconstructs validated logical-view snapshots.
 func (spec *ObservationSpec) UnmarshalJSON(data []byte) error {
 	var record observationDTO
@@ -845,7 +863,7 @@ func (attempt *ObservationAttempt) DecodeSpec(
 		return ObservationSpec{}, err
 	}
 	for index := range spec.Dependencies {
-		spec.Dependencies[index].claim = &dependencyResultClaim{consumed: true}
+		spec.Dependencies[index].claim = &dependencyResultClaim{}
 		spec.Dependencies[index].owner = state
 	}
 	prepared, err := attempt.prepareSpec(spec)

@@ -12,17 +12,19 @@ qualification, vendor matching, canonical projection, or gateway composition.
    `NewAddressNormalization`.
 4. Construct dependencies and an ordered `DependencySet`.
 5. Construct a `ProfileDescriptor` and deterministic `Catalog`.
-6. Copy successful runtime views with `CaptureLogicalView`, or validate a
-   serialized `LogicalViewRecord` with `NewLogicalViewSnapshot`.
+6. Convert a successful runtime `LogicalReadView` into an opaque single-use
+   token with `CaptureLogicalView`. Synthetic `LogicalViewRecord` values belong
+   only to the fixture/replay lane.
 7. Create or restore issuer/profile/dependency-set-bound `SampleLedgerState`
    with a trusted minimum revision.
 8. Bind an `ObservationFactory` to the ledger and a consumer-supplied
    `SampleStateCAS`.
-9. Wrap each captured source result with `NewDependencyResult`, start an
-   `ObservationAttempt` with the declared poll generation and retry ordinal,
-   bind each result once with `BindDependency`, and call `Publish`. `Publish`
-   returns an `Observation` only after the exact ledger-state compare-and-swap
-   succeeds.
+9. Start an `ObservationAttempt` with the declared poll generation and retry
+   ordinal. For runtime input, call `CaptureDependency` with the declared
+   dependency ID, opaque runtime token, and non-view source facts. For fixture
+   input, emit deterministic bytes with `MarshalFixtureSpec` and bind them only
+   through `DecodeSpec`. Call `Publish`; it returns an `Observation` only after
+   the exact ledger-state compare-and-swap succeeds.
 10. Use `Replay` and `LogicalViewRecord` for complete immutable raw words and
    transport provenance.
 
@@ -51,8 +53,9 @@ overflow. HTTPS locators require a parsed host and non-root identifier path;
 
 ## Logical View Snapshot
 
-`CaptureLogicalView` consumes `helianthus-modbus.LogicalReadView`. The immutable
-snapshot retains:
+`CaptureLogicalView` consumes `helianthus-modbus.LogicalReadView` and emits an
+opaque token whose value copies share one private single-use claim. The token
+retains:
 
 - logical, wire-response, and physical-request identities;
 - endpoint, unit, transport, connection, and transport generation;
@@ -61,12 +64,21 @@ snapshot retains:
 - logical offset/count and physical slice offset/count; and
 - an independent copy of exact wire-order words.
 
+`ObservationAttempt.CaptureDependency` consumes that claim, derives
+`poll_generation_id` from immutable provenance, derives `retry_ordinal` from
+the attempt, and derives dependency/codec/normalization versions from the
+profile declaration. A retained token copy cannot be relabelled into another
+retry or attempt.
+
 `NewLogicalViewSnapshot` validates operation identity and checked range/slice
-arithmetic. A malformed or exceptional wire response cannot provide a
-successful runtime logical view and therefore cannot become a valid snapshot.
-TCP snapshots require connection identity. RTU snapshots require
-`ConnectionID=0`, equal physical/logical ranges, and `SliceOffset=0`, matching
-the pinned runtime contract.
+arithmetic for synthetic fixture/replay records. `NewDependencyResult` likewise
+constructs fixture records only; `BindDependency` rejects them on the direct
+runtime lane. Synthetic records become attempt-owned only after
+`MarshalFixtureSpec` and `DecodeSpec` validate the complete serialized attempt
+identity. A malformed or exceptional wire response cannot provide a successful
+runtime logical view. TCP snapshots require connection identity. RTU snapshots
+require `ConnectionID=0`, equal physical/logical ranges, and `SliceOffset=0`,
+matching the pinned runtime contract.
 
 ## Observation And Replay
 
@@ -99,13 +111,12 @@ logical-view IDs may be reused by distinct physical response groups because the
 pinned runtime scopes them to one coalesced read.
 
 An RTU physical response produces exactly one logical view in every coherence
-mode. TCP may retain multiple views from one physical response. Those retained
-TCP views do not need a common overlapping position: the pinned runtime first
-forms a valid overlapping coalesced request, but `ReplaySuccessfulResponse`
-skips dependents cancelled after the write. The remaining active views can
-therefore be disjoint while retaining the same valid physical-response
-provenance. Profile validation still requires one table/function and a physical
-union within the runtime register limit.
+mode. TCP may retain multiple views from one physical response only when their
+declared logical ranges have one nonempty common intersection:
+`max(logical_start) < min(logical_end)`. The same M1 invariant is enforced when
+constructing a `single_wire_response` profile. Equal boundaries and disjoint
+ranges fail closed even when their physical union fits within the runtime
+register limit.
 
 `bounded_multi_response` requires explicit acquisition ordering, declared
 source/receipt skew, transport-generation equality, same transport family,
@@ -125,12 +136,14 @@ avoids `time.Duration` saturation across years 1 through 9999.
 `SampleLedger` is O(1): state contains schema, issuer domain, exact profile
 ID/version, exact `dependency_set_id`, monotonic revision, high-water, and the
 last committed `(poll_generation_id, retry_ordinal)`, with no per-sample map or
-record list. Attempt order is lexicographic: a higher poll generation advances;
-within one generation, only a higher retry ordinal advances. The exact same or
-any lower attempt is rejected before CAS. Because the committed attempt is part
-of the serialized `expected` and `next` states, restart cannot replay the same
-serialized attempt under a new sample ID. Restore requires a trusted minimum
-revision.
+record list. Retries within one poll may be attempted only before a successful
+commit. After success, that poll is terminal: every attempt whose
+`poll_generation_id` is equal to or below the committed poll is rejected,
+regardless of retry ordinal. Because the committed attempt is part of the
+serialized `expected` and `next` states, restart cannot replay the same
+serialized attempt under a new sample ID. At factory construction, committed
+single-wire state requires retry ordinal zero, while committed bounded state
+requires a nonzero retry ordinal. Restore requires a trusted minimum revision.
 `SampleStateCAS.CompareAndSwap(expected, next)` is called without holding the
 ledger or attempt-state mutex. A separate local commit serializer snapshots the
 expected and next states, releases internal locks, invokes the consumer, and
@@ -150,8 +163,10 @@ durability beyond the `SampleStateCAS` result.
 
 All admitted times are first normalized to UTC, then checked for the supported
 year range, stripped of monotonic/location metadata, and checked for exact
-RFC3339Nano round-trip. Offset-bearing year-boundary values that cross into UTC
-year 0 or 10000 fail before sample issuance and before CAS.
+RFC3339Nano round-trip. The explicit `observed` source-time state can represent
+`0001-01-01T00:00:00Z`; the same Go zero value remains invalid for required
+local receipt time or implicit absence. Offset-bearing year-boundary values
+that cross into UTC year 0 or 10000 fail before sample issuance and before CAS.
 
 ## Vendor Overlay Delta
 
@@ -179,6 +194,12 @@ UTF-8, unpaired UTF-16 surrogate escapes, explicit JSON `null`, and every
 missing required member before strict decoding. Unknown fields and incompatible
 schemas fail closed. Optional relationship versions remain absent; zero values
 are never rewritten as current schema versions.
+
+Missing required JSON members are reported in DTO declaration order, so the
+same malformed bytes produce the same error across runs. The fixture lane is a
+deterministic replay trust boundary, not a runtime capture substitute:
+serialized attempt identity is validated now, and M2-03 will additionally bind
+fixture bytes to public evidence hashes.
 
 Direct constructors apply one cumulative aggregate budget before cloning caller
 slices. Serialization uses a conservative size preflight and bounded writer, so

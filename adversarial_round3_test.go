@@ -70,10 +70,10 @@ func round3Attempt(
 	spec reg.ObservationSpec,
 ) (*reg.ObservationAttempt, reg.ObservationSpec) {
 	t.Helper()
-	spec.Dependencies = append(
-		[]reg.DependencyResult(nil),
-		spec.Dependencies...,
-	)
+	encoded, err := reg.MarshalFixtureSpec(spec)
+	if err != nil {
+		t.Fatalf("MarshalFixtureSpec: %v", err)
+	}
 	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
 		PollGenerationID: spec.PollGenerationID,
 		RetryOrdinal:     spec.RetryOrdinal,
@@ -81,15 +81,11 @@ func round3Attempt(
 	if err != nil {
 		t.Fatalf("BeginObservationAttempt: %v", err)
 	}
-	for index := range spec.Dependencies {
-		spec.Dependencies[index], err = attempt.BindDependency(
-			spec.Dependencies[index],
-		)
-		if err != nil {
-			t.Fatalf("BindDependency(%d): %v", index, err)
-		}
+	decoded, err := attempt.DecodeSpec(encoded)
+	if err != nil {
+		t.Fatalf("DecodeSpec: %v", err)
 	}
-	return attempt, spec
+	return attempt, decoded
 }
 
 func round3Publish(
@@ -101,8 +97,7 @@ func round3Publish(
 	state := round3State(t, profile, "round3-issuer")
 	store := &round3MemoryCAS{state: state}
 	factory := round3Factory(t, profile, state, store)
-	attempt, bound := round3Attempt(t, factory, spec)
-	return attempt.Publish(bound)
+	return publishWithFactory(factory, spec)
 }
 
 func TestRound3LogicalViewIDIsUniqueOnlyWithinPhysicalGroup(t *testing.T) {

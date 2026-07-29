@@ -52,18 +52,31 @@ type LogicalViewRecord struct {
 	Words               []uint16
 }
 
-// LogicalViewSnapshot is an immutable transport-to-registry input snapshot.
+// LogicalViewSnapshot is an immutable validated fixture/replay snapshot.
+// Direct runtime admission requires LogicalViewCapture instead.
 type LogicalViewSnapshot struct {
 	record LogicalViewRecord
 	valid  bool
 }
 
+type logicalViewCaptureClaim struct {
+	mu       sync.Mutex
+	consumed bool
+}
+
+// LogicalViewCapture is an opaque single-use runtime capture. Value copies
+// share one source claim.
+type LogicalViewCapture struct {
+	snapshot LogicalViewSnapshot
+	claim    *logicalViewCaptureClaim
+}
+
 // CaptureLogicalView consumes the exact exported helianthus-modbus view and
-// copies only the immutable facts required by the registry.
-func CaptureLogicalView(view modbus.LogicalReadView) (LogicalViewSnapshot, error) {
+// emits an opaque single-use token for attempt-owned admission.
+func CaptureLogicalView(view modbus.LogicalReadView) (LogicalViewCapture, error) {
 	provenance := view.Provenance()
 	wire := provenance.Wire
-	return NewLogicalViewSnapshot(LogicalViewRecord{
+	snapshot, err := NewLogicalViewSnapshot(LogicalViewRecord{
 		LogicalViewID:       view.LogicalViewID(),
 		WireResponseID:      view.WireResponseID(),
 		PhysicalRequestID:   provenance.PhysicalRequestID,
@@ -86,10 +99,17 @@ func CaptureLogicalView(view modbus.LogicalReadView) (LogicalViewSnapshot, error
 		SliceWordCount:      view.SliceWordCount(),
 		Words:               view.Words(),
 	})
+	if err != nil {
+		return LogicalViewCapture{}, err
+	}
+	return LogicalViewCapture{
+		snapshot: snapshot,
+		claim:    &logicalViewCaptureClaim{},
+	}, nil
 }
 
-// NewLogicalViewSnapshot validates checked slice arithmetic and all request,
-// generation, endpoint, and operation identities.
+// NewLogicalViewSnapshot validates a synthetic fixture/replay record. The
+// result cannot enter direct runtime admission; DecodeSpec is the trust gate.
 func NewLogicalViewSnapshot(
 	record LogicalViewRecord,
 ) (LogicalViewSnapshot, error) {
@@ -214,10 +234,7 @@ func SourceTimeUnavailable() SourceTimeSpec {
 	return SourceTimeSpec{State: SourceTimeUnavailableState}
 }
 
-func canonicalTime(value time.Time) (time.Time, error) {
-	if value.IsZero() {
-		return time.Time{}, fmt.Errorf("timestamp is outside RFC3339Nano range")
-	}
+func canonicalObservedTime(value time.Time) (time.Time, error) {
 	canonical := value.Round(0).UTC()
 	if canonical.Year() < 1 || canonical.Year() > 9999 {
 		return time.Time{}, fmt.Errorf("timestamp is outside RFC3339Nano range")
@@ -230,10 +247,17 @@ func canonicalTime(value time.Time) (time.Time, error) {
 	return decoded, nil
 }
 
+func canonicalRequiredTime(value time.Time) (time.Time, error) {
+	if value.IsZero() {
+		return time.Time{}, fmt.Errorf("timestamp is outside RFC3339Nano range")
+	}
+	return canonicalObservedTime(value)
+}
+
 func validateSourceTime(sourceTime SourceTimeSpec) error {
 	switch sourceTime.State {
 	case SourceTimeObservedState:
-		if _, err := canonicalTime(sourceTime.Time); err != nil {
+		if _, err := canonicalObservedTime(sourceTime.Time); err != nil {
 			return fmt.Errorf("observed source time is invalid: %w", err)
 		}
 	case SourceTimeUnavailableState:
@@ -264,13 +288,19 @@ type DependencyResult struct {
 	owner                        *observationAttemptState
 }
 
-type dependencyResultClaim struct {
-	mu       sync.Mutex
-	consumed bool
+// RuntimeDependencyFacts are source facts that are not part of the runtime
+// LogicalReadView. Dependency identity and retry identity are attempt-derived.
+type RuntimeDependencyFacts struct {
+	SourceTime                   SourceTimeSpec
+	LocalReceiptTime             time.Time
+	DocumentaryConsistencyMarker string
+	AcquisitionOrdinal           uint32
 }
 
-// NewDependencyResult creates one capture handle. Copies of the returned value
-// share a single-use claim and cannot be rebound to different attempts.
+type dependencyResultClaim struct{}
+
+// NewDependencyResult validates a synthetic fixture dependency. It can enter
+// admission only after deterministic serialization and DecodeSpec.
 func NewDependencyResult(spec DependencyResult) (DependencyResult, error) {
 	if spec.claim != nil || spec.owner != nil {
 		return DependencyResult{}, fmt.Errorf("dependency result is already owned")
@@ -464,19 +494,19 @@ func canonicalizeObservationTimes(spec *ObservationSpec) error {
 	}
 	var err error
 	if spec.SourceTime.State == SourceTimeObservedState {
-		spec.SourceTime.Time, err = canonicalTime(spec.SourceTime.Time)
+		spec.SourceTime.Time, err = canonicalObservedTime(spec.SourceTime.Time)
 		if err != nil {
 			return err
 		}
 	}
-	spec.LocalReceiptTime, err = canonicalTime(spec.LocalReceiptTime)
+	spec.LocalReceiptTime, err = canonicalRequiredTime(spec.LocalReceiptTime)
 	if err != nil {
 		return err
 	}
 	for index := range spec.Dependencies {
 		dependency := &spec.Dependencies[index]
 		if dependency.SourceTime.State == SourceTimeObservedState {
-			dependency.SourceTime.Time, err = canonicalTime(
+			dependency.SourceTime.Time, err = canonicalObservedTime(
 				dependency.SourceTime.Time,
 			)
 			if err != nil {
@@ -484,7 +514,7 @@ func canonicalizeObservationTimes(spec *ObservationSpec) error {
 			}
 		}
 		if !dependency.LocalReceiptTime.IsZero() {
-			dependency.LocalReceiptTime, err = canonicalTime(
+			dependency.LocalReceiptTime, err = canonicalRequiredTime(
 				dependency.LocalReceiptTime,
 			)
 			if err != nil {
@@ -680,10 +710,13 @@ func validateWireResponseGroups(dependencies []ReplayedDependency) error {
 		deadlineIdentity    uint64
 	}
 	type physicalGroup struct {
-		wireResponseID uint64
-		words          []uint16
-		set            []bool
-		logicalViewIDs map[uint64]struct{}
+		wireResponseID  uint64
+		words           []uint16
+		set             []bool
+		logicalViewIDs  map[uint64]struct{}
+		maxLogicalStart uint32
+		minLogicalEnd   uint32
+		viewCount       int
 	}
 	identityOf := func(record LogicalViewRecord) physicalIdentity {
 		return physicalIdentity{
@@ -738,16 +771,29 @@ func validateWireResponseGroups(dependencies []ReplayedDependency) error {
 		wireToPhysical[record.WireResponseID] = identity
 		group, exists := physicalGroups[identity]
 		if !exists {
+			logicalStart := uint32(record.LogicalOffset)
 			group = &physicalGroup{
-				wireResponseID: record.WireResponseID,
-				words:          make([]uint16, record.PhysicalWordCount),
-				set:            make([]bool, record.PhysicalWordCount),
-				logicalViewIDs: make(map[uint64]struct{}),
+				wireResponseID:  record.WireResponseID,
+				words:           make([]uint16, record.PhysicalWordCount),
+				set:             make([]bool, record.PhysicalWordCount),
+				logicalViewIDs:  make(map[uint64]struct{}),
+				maxLogicalStart: logicalStart,
+				minLogicalEnd: logicalStart +
+					uint32(record.LogicalWordCount),
 			}
 			physicalGroups[identity] = group
 		} else if group.wireResponseID != record.WireResponseID {
 			return fmt.Errorf("physical identity maps to multiple wire responses")
 		}
+		logicalStart := uint32(record.LogicalOffset)
+		logicalEnd := logicalStart + uint32(record.LogicalWordCount)
+		if logicalStart > group.maxLogicalStart {
+			group.maxLogicalStart = logicalStart
+		}
+		if logicalEnd < group.minLogicalEnd {
+			group.minLogicalEnd = logicalEnd
+		}
+		group.viewCount++
 		if _, exists := group.logicalViewIDs[record.LogicalViewID]; exists {
 			return fmt.Errorf("logical view identity is duplicated in one physical group")
 		}
@@ -759,6 +805,12 @@ func validateWireResponseGroups(dependencies []ReplayedDependency) error {
 			}
 			group.words[position] = word
 			group.set[position] = true
+		}
+	}
+	for identity, group := range physicalGroups {
+		if identity.transport == TransportTCP && group.viewCount > 1 &&
+			group.maxLogicalStart >= group.minLogicalEnd {
+			return fmt.Errorf("TCP logical views lack a common intersection")
 		}
 	}
 	return nil
@@ -1042,10 +1094,7 @@ func attemptIdentityAdvances(previous, next AttemptIdentity) bool {
 	if previous.PollGenerationID == 0 {
 		return true
 	}
-	if next.PollGenerationID != previous.PollGenerationID {
-		return next.PollGenerationID > previous.PollGenerationID
-	}
-	return next.RetryOrdinal > previous.RetryOrdinal
+	return next.PollGenerationID > previous.PollGenerationID
 }
 
 func (ledger *SampleLedger) stateLocked() SampleLedgerState {
@@ -1099,6 +1148,20 @@ func NewObservationFactory(
 		state.ProfileVersion != copy.Version() ||
 		state.DependencySetID != copy.Dependencies().ID() {
 		return nil, fmt.Errorf("observation factory persistence domain disagrees")
+	}
+	if state.Revision > 0 {
+		switch copy.spec.Coherence.Mode {
+		case CoherenceSingleWireResponse:
+			if state.LastCommittedAttempt.RetryOrdinal != 0 {
+				return nil, fmt.Errorf("persisted attempt disagrees with profile mode")
+			}
+		case CoherenceBoundedMultiResponse:
+			if state.LastCommittedAttempt.RetryOrdinal == 0 {
+				return nil, fmt.Errorf("persisted attempt disagrees with profile mode")
+			}
+		default:
+			return nil, fmt.Errorf("observation coherence mode is invalid")
+		}
 	}
 	return &ObservationFactory{profile: copy, ledger: ledger, store: store}, nil
 }
@@ -1156,6 +1219,11 @@ func (factory *ObservationFactory) BeginObservationAttempt(
 	default:
 		return nil, fmt.Errorf("observation coherence mode is invalid")
 	}
+	committed := factory.ledger.ExportState().LastCommittedAttempt
+	if committed.PollGenerationID != 0 &&
+		identity.PollGenerationID <= committed.PollGenerationID {
+		return nil, fmt.Errorf("attempt poll generation is already terminal")
+	}
 	return &ObservationAttempt{
 		state: &observationAttemptState{
 			factory:  factory,
@@ -1165,9 +1233,11 @@ func (factory *ObservationFactory) BeginObservationAttempt(
 	}, nil
 }
 
-// BindDependency captures a result into this attempt without mutating input.
-func (attempt *ObservationAttempt) BindDependency(
-	result DependencyResult,
+// CaptureDependency consumes one runtime capture into this exact attempt.
+func (attempt *ObservationAttempt) CaptureDependency(
+	dependencyID string,
+	capture LogicalViewCapture,
+	facts RuntimeDependencyFacts,
 ) (DependencyResult, error) {
 	if attempt == nil || attempt.state == nil {
 		return DependencyResult{}, fmt.Errorf("observation attempt is invalid")
@@ -1179,31 +1249,62 @@ func (attempt *ObservationAttempt) BindDependency(
 		return DependencyResult{}, fmt.Errorf("observation attempt is closed")
 	}
 	if state.capture == captureSerialized {
-		return DependencyResult{}, fmt.Errorf("serialized capture cannot accept direct dependencies")
+		return DependencyResult{}, fmt.Errorf("serialized capture cannot accept runtime views")
 	}
-	if result.claim == nil || result.owner != nil {
-		return DependencyResult{}, fmt.Errorf("dependency result is not an unbound capture")
+	if capture.claim == nil || !capture.snapshot.valid {
+		return DependencyResult{}, fmt.Errorf("runtime logical-view capture is invalid")
 	}
-	if result.View.valid &&
-		result.View.record.PollGeneration != state.identity.PollGenerationID {
-		return DependencyResult{}, fmt.Errorf("dependency poll generation disagrees")
+	record := capture.snapshot.record
+	if record.PollGeneration != state.identity.PollGenerationID {
+		return DependencyResult{}, fmt.Errorf("runtime poll generation disagrees")
 	}
-	if result.RetryOrdinal != state.identity.RetryOrdinal {
-		return DependencyResult{}, fmt.Errorf("dependency retry ordinal disagrees")
+	var declaration Dependency
+	for _, candidate := range state.factory.profile.Dependencies().Dependencies() {
+		if candidate.ID() == dependencyID {
+			declaration = candidate
+			break
+		}
+	}
+	if declaration.ID() == "" {
+		return DependencyResult{}, fmt.Errorf("runtime dependency is not declared")
+	}
+	result := DependencyResult{
+		DependencyID:                 declaration.ID(),
+		DependencyVersion:            declaration.Version(),
+		CodecID:                      declaration.CodecID(),
+		CodecVersion:                 declaration.CodecVersion(),
+		NormalizationVersion:         declaration.Normalization().Spec().Version,
+		Status:                       DependencyReadSuccessful,
+		View:                         capture.snapshot,
+		SourceTime:                   facts.SourceTime,
+		LocalReceiptTime:             facts.LocalReceiptTime,
+		DocumentaryConsistencyMarker: facts.DocumentaryConsistencyMarker,
+		AcquisitionOrdinal:           facts.AcquisitionOrdinal,
+		RetryOrdinal:                 state.identity.RetryOrdinal,
+		claim:                        &dependencyResultClaim{},
+		owner:                        state,
 	}
 	if err := preflightDependencyResult(result); err != nil {
 		return DependencyResult{}, err
 	}
-	result.claim.mu.Lock()
-	defer result.claim.mu.Unlock()
-	if result.claim.consumed {
-		return DependencyResult{}, fmt.Errorf("dependency belongs to another attempt")
+	capture.claim.mu.Lock()
+	defer capture.claim.mu.Unlock()
+	if capture.claim.consumed {
+		return DependencyResult{}, fmt.Errorf("runtime logical-view capture was already consumed")
 	}
-	result.claim.consumed = true
-	result = cloneDependencyResult(result)
-	result.owner = state
+	capture.claim.consumed = true
 	state.capture = captureDirect
-	return result, nil
+	return cloneDependencyResult(result), nil
+}
+
+// BindDependency rejects caller-reminted fixture DTOs. Runtime captures must
+// use CaptureDependency; serialized fixtures must use DecodeSpec.
+func (attempt *ObservationAttempt) BindDependency(
+	result DependencyResult,
+) (DependencyResult, error) {
+	return DependencyResult{}, fmt.Errorf(
+		"dependency binding requires CaptureDependency or DecodeSpec",
+	)
 }
 
 func (attempt *ObservationAttempt) openState() (*observationAttemptState, error) {

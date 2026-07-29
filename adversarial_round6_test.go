@@ -389,6 +389,31 @@ func TestRound6CoherenceMarkerIsBoundedBeforeConstruction(t *testing.T) {
 	if _, err := reg.NewProfileDescriptor(spec); err == nil {
 		t.Fatal("4097-byte coherence marker was admitted")
 	}
+
+	spec = base.Spec()
+	spec.Coherence.DocumentaryConsistencyMarker = strings.Repeat(
+		"x",
+		reg.MaxContractStringBytes,
+	)
+	maximum, err := reg.NewProfileDescriptor(spec)
+	if err != nil {
+		t.Fatalf("maximum coherence marker rejected: %v", err)
+	}
+	encoded, err := reg.MarshalProfileDescriptor(maximum)
+	if err != nil {
+		t.Fatalf("MarshalProfileDescriptor(maximum marker): %v", err)
+	}
+	decoded, err := reg.UnmarshalProfileDescriptor(encoded)
+	if err != nil {
+		t.Fatalf("UnmarshalProfileDescriptor(maximum marker): %v", err)
+	}
+	reencoded, err := reg.MarshalProfileDescriptor(decoded)
+	if err != nil {
+		t.Fatalf("MarshalProfileDescriptor(round trip): %v", err)
+	}
+	if !reflect.DeepEqual(encoded, reencoded) {
+		t.Fatal("maximum coherence marker is not byte-stable")
+	}
 }
 
 func TestRound6ExplicitObservedUTCYearOneRoundTrips(t *testing.T) {

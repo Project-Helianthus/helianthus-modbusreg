@@ -31,6 +31,7 @@ EXPECTED_POLICY = {
         "adversarial_round3_test.go",
         "adversarial_round4_test.go",
         "adversarial_round5_test.go",
+        "adversarial_round6_test.go",
         "codec.go",
         "contracts_test.go",
         "doc.go",
@@ -68,19 +69,19 @@ EXPECTED_POLICY = {
         "codec.go": "fa991d0bacf6c610804913366e2936c2a49290ffbf83433cd746d34edb614720",
         "doc.go": "dfb7c5e962a5f0988b944eecc37b717efc708b10d3782e72b0519012da69ba3e",
         "json_preflight.go": (
-            "78e25d348d7ce77f2dc69524fbe0f35e8a26dddef2f4d6b73a39be95e067d431"
+            "b667c5fde808e2b9f2aa6951a391ba50333555b6cb39b0d8d9df19db6a94fe49"
         ),
         "limits.go": (
             "29a128c7acc587dbfdf2b52b5d12afa681b4411ca5b1a153fc9707065dfb72b2"
         ),
         "observation.go": (
-            "fd3dadcd3dda7a4fb033074343d2142a392718e29d043ae3851eff0ccd6d9288"
+            "a8b59dff8fa616b18a87bfffe149ab536fe6a42f4cc64583a723c75ed8ac79d8"
         ),
         "profile.go": (
-            "38fe21d4937c4d5945af5d10e6897d9d8e02a0247666ff52448b77bdf67810e7"
+            "64c4173434bbfea5e76339e1fdb5008996c6ccf4cc1a552ee25bdebbb0eefc53"
         ),
         "serialization.go": (
-            "5131ca3d19812949554a42eb54970ba54061b706fb1fec52a2a912dd53955b37"
+            "1026f49da42f7344c986ddad3e977858b8f3baba70747cbe27b5a080bb8dafde"
         ),
         "version.go": (
             "2c497e14ac4755025ddc6d9ac589fcff1c85888f435ca42b5abbe27066f16637"
@@ -92,6 +93,7 @@ EXPECTED_POLICY = {
         "adversarial_round3_test.go",
         "adversarial_round4_test.go",
         "adversarial_round5_test.go",
+        "adversarial_round6_test.go",
         "contracts_test.go",
     ],
     "allowed_code_bearing_non_go_files": [

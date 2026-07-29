@@ -32,20 +32,15 @@ func round4Bind(
 	spec reg.ObservationSpec,
 ) reg.ObservationSpec {
 	t.Helper()
-	spec.Dependencies = append(
-		[]reg.DependencyResult(nil),
-		spec.Dependencies...,
-	)
-	var err error
-	for index := range spec.Dependencies {
-		spec.Dependencies[index], err = attempt.BindDependency(
-			spec.Dependencies[index],
-		)
-		if err != nil {
-			t.Fatalf("BindDependency(%d): %v", index, err)
-		}
+	encoded, err := reg.MarshalFixtureSpec(spec)
+	if err != nil {
+		t.Fatalf("MarshalFixtureSpec: %v", err)
 	}
-	return spec
+	decoded, err := attempt.DecodeSpec(encoded)
+	if err != nil {
+		t.Fatalf("DecodeSpec: %v", err)
+	}
+	return decoded
 }
 
 func TestRound4DeterministicReplayAcrossFreshFactories(t *testing.T) {
@@ -151,7 +146,7 @@ func TestRound4AttemptCopiesShareTerminalLifecycle(t *testing.T) {
 	}
 }
 
-func TestRound4DependencyResultCanOnlyBeCapturedOnce(t *testing.T) {
+func TestRound4FixtureDependenciesCannotCrossAttemptOwnership(t *testing.T) {
 	profile, spec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
@@ -173,21 +168,21 @@ func TestRound4DependencyResultCanOnlyBeCapturedOnce(t *testing.T) {
 	firstAttempt := round4Attempt(t, firstFactory, spec)
 	secondAttempt := round4Attempt(t, secondFactory, spec)
 
-	captured, err := firstAttempt.BindDependency(spec.Dependencies[0])
+	encoded, err := reg.MarshalFixtureSpec(spec)
 	if err != nil {
-		t.Fatalf("BindDependency(first): %v", err)
+		t.Fatalf("MarshalFixtureSpec: %v", err)
 	}
-	if _, err := secondAttempt.BindDependency(spec.Dependencies[0]); err == nil {
-		t.Fatal("the original dependency result was rebound to another attempt")
+	firstBound, err := firstAttempt.DecodeSpec(encoded)
+	if err != nil {
+		t.Fatalf("DecodeSpec(first): %v", err)
 	}
-	_, secondSpec := boundedFixture(
-		t,
-		reg.AcquisitionOrderDependencyDeclaration,
-	)
-	mixed := round4Bind(t, secondAttempt, secondSpec)
-	mixed.Dependencies[0] = captured
-	if _, err := secondAttempt.Publish(mixed); err == nil {
-		t.Fatal("a dependency captured by another attempt was relabelled")
+	secondBound, err := secondAttempt.DecodeSpec(encoded)
+	if err != nil {
+		t.Fatalf("DecodeSpec(second): %v", err)
+	}
+	firstBound.Dependencies[0] = secondBound.Dependencies[0]
+	if _, err := firstAttempt.Publish(firstBound); err == nil {
+		t.Fatal("a fixture dependency crossed attempt ownership")
 	}
 }
 
