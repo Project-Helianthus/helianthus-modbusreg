@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -177,6 +178,130 @@ func (internalTerminalCommitter) CommitTerminalState(
 	TerminalStateCommitRequest,
 ) error {
 	return nil
+}
+
+type retryJoinTerminalCommitter struct {
+	internalTerminalCommitter
+	mu           sync.Mutex
+	calls        int
+	retryEntered chan struct{}
+	retryRelease chan struct{}
+}
+
+func (committer *retryJoinTerminalCommitter) CommitTerminalState(
+	ctx context.Context,
+	_ TerminalStateCommitRequest,
+) error {
+	committer.mu.Lock()
+	committer.calls++
+	call := committer.calls
+	committer.mu.Unlock()
+	switch call {
+	case 1:
+		return errors.New("forced initial terminal persistence failure")
+	case 2:
+		close(committer.retryEntered)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-committer.retryRelease:
+			return nil
+		}
+	default:
+		return errors.New("duplicate terminal persistence retry")
+	}
+}
+
+func (committer *retryJoinTerminalCommitter) callCount() int {
+	committer.mu.Lock()
+	defer committer.mu.Unlock()
+	return committer.calls
+}
+
+func TestConcurrentCancellationRetriesJoinTerminalPersistence(t *testing.T) {
+	limits := DefaultLedgerLimits()
+	ledger := &SampleLedger{
+		limits:                      limits,
+		attempts:                    make(map[string]*runtimeAttemptState),
+		commitSerial:                make(chan struct{}, 1),
+		nextTerminalSequence:        3,
+		durableNextTerminalSequence: 1,
+		auditTombstones:             make([]LedgerAuditTombstone, 0, limits.AuditTombstoneLimit),
+	}
+	ledger.commitSerial <- struct{}{}
+	committer := &retryJoinTerminalCommitter{
+		retryEntered: make(chan struct{}),
+		retryRelease: make(chan struct{}),
+	}
+	factory := &ObservationFactory{
+		ledger:                ledger,
+		committer:             committer,
+		terminalCommitTimeout: DefaultTerminalCommitTimeout,
+	}
+	state := &runtimeAttemptState{
+		factory:          factory,
+		key:              "concurrent-terminal-retry",
+		phase:            AttemptOpen,
+		terminalSequence: 1,
+		entries: []runtimeClaimEntry{
+			{phase: runtimeClaimUnresolved, terminalSequence: 2},
+		},
+		admitted:   true,
+		cancelOpen: func() error { return nil },
+	}
+	state.cond = sync.NewCond(&state.mu)
+	ledger.attempts[state.key] = state
+	ledger.retainedClaims = 1
+	attempt := &ObservationAttempt{state: state}
+
+	if result, err := attempt.Cancel(); err == nil || result != CancellationFailed {
+		t.Fatalf("initial Cancel=(%q, %v), want retryable persistence failure", result, err)
+	}
+
+	type cancellation struct {
+		result CancellationResult
+		err    error
+	}
+	results := make(chan cancellation, 2)
+	go func() {
+		result, err := attempt.Cancel()
+		results <- cancellation{result: result, err: err}
+	}()
+	<-committer.retryEntered
+	go func() {
+		result, err := attempt.Cancel()
+		results <- cancellation{result: result, err: err}
+	}()
+
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	for {
+		state.mu.Lock()
+		waiters := state.terminalWaiters
+		state.mu.Unlock()
+		if waiters == 1 {
+			break
+		}
+		select {
+		case got := <-results:
+			t.Fatalf("concurrent retry returned before shared commit: (%q, %v)", got.result, got.err)
+		case <-deadline.C:
+			t.Fatal("concurrent retry did not join terminal persistence")
+		default:
+			runtime.Gosched()
+		}
+	}
+	close(committer.retryRelease)
+
+	for index := 0; index < 2; index++ {
+		got := <-results
+		if got.err != nil || got.result != CancellationCompleted {
+			t.Fatalf("retry %d Cancel=(%q, %v)", index, got.result, got.err)
+		}
+	}
+	if calls := committer.callCount(); calls != 2 {
+		t.Fatalf("terminal persistence calls=%d, want initial failure plus one retry", calls)
+	}
 }
 
 func TestUnknownDrainErrorTerminalizesAndWakesCancellationWaiters(t *testing.T) {

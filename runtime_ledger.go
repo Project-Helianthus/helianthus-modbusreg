@@ -1693,7 +1693,8 @@ func (attempt *ObservationAttempt) Cancel() (CancellationResult, error) {
 			if state.terminalPersistenceErr != nil {
 				persistenceErr := state.terminalPersistenceErr
 				outcome := state.terminalOutcome
-				if waitedForPersistence || state.terminalWaiters != 0 {
+				if waitedForPersistence ||
+					(!state.terminalCommitInProgress && state.terminalWaiters != 0) {
 					state.mu.Unlock()
 					return CancellationFailed, persistenceErr
 				}
@@ -1719,7 +1720,8 @@ func (attempt *ObservationAttempt) Cancel() (CancellationResult, error) {
 			if state.terminalPersistenceErr != nil {
 				persistenceErr := state.terminalPersistenceErr
 				outcome := state.terminalOutcome
-				if waitedForPersistence || state.terminalWaiters != 0 {
+				if waitedForPersistence ||
+					(!state.terminalCommitInProgress && state.terminalWaiters != 0) {
 					state.mu.Unlock()
 					return CancellationFailed, persistenceErr
 				}
@@ -1944,8 +1946,26 @@ func (attempt *ObservationAttempt) persistTerminalOutcome(outcome AttemptPhase) 
 		return fmt.Errorf("terminal persistence outcome is immutable")
 	}
 	if state.terminalCommitInProgress {
+		if state.terminalOutcome != outcome {
+			state.mu.Unlock()
+			return fmt.Errorf("terminal persistence outcome is immutable")
+		}
+		state.terminalWaiters++
+		for state.terminalCommitInProgress {
+			state.cond.Wait()
+		}
+		state.terminalWaiters--
+		if state.terminalPersistenceErr != nil {
+			err := state.terminalPersistenceErr
+			state.mu.Unlock()
+			return err
+		}
+		if state.phase != outcome {
+			state.mu.Unlock()
+			return fmt.Errorf("terminal persistence retry is unavailable")
+		}
 		state.mu.Unlock()
-		return fmt.Errorf("terminal persistence is already in progress")
+		return nil
 	}
 	state.terminalOutcome = outcome
 	state.terminalCommitInProgress = true
