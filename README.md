@@ -6,13 +6,10 @@ registry for Helianthus.
 ## Status
 
 M2-01 defines immutable profile and observation contracts and consumes the
-public M1-06 opaque runtime-acquisition API. Production observations use a
-bounded attempt ledger and a caller-supplied transactional publication
-boundary. Offline fixture replay is a separate nonpublishable result.
-
-The repository contains no concrete detector, probe plan, qualification
-record, standard-family profile, vendor overlay, or vendor fixture. Those
-surfaces belong to later M2 milestones and require a separate operator request.
+public M1-06 opaque runtime-acquisition API. M2-02 adds bounded, deterministic,
+read-only profile detection over the immutable catalog. The repository still
+contains no standard-family profile, vendor overlay, qualification record, or
+vendor fixture; those belong to later milestones and require public evidence.
 
 ## One Registry, Multiple Vendors
 
@@ -42,14 +39,16 @@ This repository owns:
 - a transactional publication interface joining the irreversible external
   effect and terminal publication decision;
 - strict bounded serialization for contracts, observations, and ledger state;
-  and
+- bounded read-only probe plans and deterministic qualification-aware profile
+  detection; and
 - evidence-gated vendor overlay declarations for future milestones.
 
 This repository does not own:
 
 - sockets, serial ports, endpoint scheduling, retries, or transport recovery;
 - Modbus TCP/RTU framing or arbitrary protocol operations;
-- concrete detection, probe execution, or hardware qualification;
+- transport I/O behind the caller-supplied read-only probe interface or
+  hardware qualification execution;
 - canonical energy/PV publication policy;
 - gateway composition or private output bindings.
 
@@ -68,9 +67,10 @@ Fixture bytes use `FixtureReplayer.Replay`. `FixtureReplay` has a fixture
 content identity and immutable replay facts, but no runtime capability,
 production sample ID, seal, or publish method.
 
-The detailed API contract is in [`docs/m2-01-api.md`](docs/m2-01-api.md). The
-cross-repository architecture remains documented in the public Helianthus
-protocol documentation repository.
+The detailed contracts are in [`docs/m2-01-api.md`](docs/m2-01-api.md) and
+[`docs/m2-02-detection.md`](docs/m2-02-detection.md). The cross-repository
+architecture remains documented in the public Helianthus protocol
+documentation repository.
 
 ## Development
 
@@ -88,7 +88,7 @@ Run:
 
 The offline gate validates
 [`policy/registry-boundary.json`](policy/registry-boundary.json) against the
-current tree. It enforces the one-registry and M2-01 contracts-only boundary,
+current tree. It enforces the one-registry public semantic boundary,
 the public Modbus dependency, product import restrictions, forbidden ownership
 directories, vendor neutrality for future standard-family source, and public
 evidence for future vendor overlays. Python mutation tests prove that forbidden
@@ -103,8 +103,8 @@ Work remains one issue and one pull request at a time, with squash merge,
 proportionate test-first evidence, applicable public documentation/evidence,
 and blocker-driven review of the current head.
 
-Completion of M2-01 is a hard stop. Gateway work or another milestone starts
-only after a separate operator request.
+The current execution cycle stops after M3-03 and before all gateway work in
+M4-01. Crossing that boundary requires a separate operator request.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 
