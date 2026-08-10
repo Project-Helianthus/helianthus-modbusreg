@@ -157,6 +157,39 @@ func TestSunSpecPhaseOneParsesFixtureSemanticsFromRawModels(t *testing.T) {
 	}
 }
 
+func TestSunSpecPhaseOneAcceptsOfficialCommonLengthWithPad(t *testing.T) {
+	decoder, _ := reviewDecoder(t)
+	raw65 := reviewRawChain(101)
+	const commonEnd = 4 + 65
+	raw66 := make([]uint16, 0, len(raw65)+1)
+	raw66 = append(raw66, raw65[:commonEnd]...)
+	raw66 = append(raw66, 0xa55a) // Official Pad at Common payload offset 65.
+	raw66 = append(raw66, raw65[commonEnd:]...)
+	raw66[3] = 66
+
+	chain, err := decoder.Parse(raw66)
+	if err != nil {
+		t.Fatalf("Parse(Common L=66): %v", err)
+	}
+	models := chain.Models()
+	if len(models) != 2 || models[0].ID() != 1 || models[0].Length() != 66 ||
+		models[1].ID() != 101 || models[1].Offset() != 70 {
+		t.Fatalf("model traversal after Common L=66 = %#v", models)
+	}
+	common, ok := chain.Common()
+	if !ok || common.Manufacturer() != "FixtureCo" || common.Model() != "Fixture-1" ||
+		common.Options() != "A" || common.Version() != "VERSION123456789" ||
+		common.SerialNumber() != "PLACEHOLDER" || common.DeviceAddress() != 42 {
+		t.Fatalf("Common L=66 semantics = %#v, present=%t", common, ok)
+	}
+	inverter, ok := chain.Inverter(101)
+	if !ok || inverter.Power().Raw() != -123 || inverter.Power().ScaleFactor() != -1 ||
+		inverter.Power().Value() != -12.3 || inverter.Energy().Raw() != 120000 ||
+		inverter.Energy().ScaleFactor() != 0 || inverter.Energy().Value() != 120000 {
+		t.Fatalf("model 101 after Common L=66 = %#v, present=%t", inverter, ok)
+	}
+}
+
 func TestSunSpecPhaseOneUsesExactNormalizationLengthsAndDeferredSet(t *testing.T) {
 	decoder, profile := reviewDecoder(t)
 	dependency := profile.Dependencies().Dependencies()[0]
@@ -169,7 +202,7 @@ func TestSunSpecPhaseOneUsesExactNormalizationLengthsAndDeferredSet(t *testing.T
 		t.Fatal("runtime normalization differs from documentary record")
 	}
 	for _, test := range []struct{ id, length uint16 }{
-		{1, 64}, {1, 66}, {101, 49}, {101, 51}, {102, 49}, {102, 51}, {103, 49}, {103, 51},
+		{1, 64}, {1, 67}, {101, 49}, {101, 51}, {102, 49}, {102, 51}, {103, 49}, {103, 51},
 	} {
 		if _, err := decoder.Parse(reviewRawChainWithLength(test.id, test.length)); err == nil {
 			t.Fatalf("model %d length %d was accepted", test.id, test.length)
