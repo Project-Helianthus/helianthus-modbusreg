@@ -1,8 +1,8 @@
 # M2-02 Deterministic Profile Detection
 
-Status: RED-phase contract skeleton. The API and behavior described here are
-acceptance targets exercised by compile-failing tests. No detector is
-implemented yet.
+Status: implemented registry contract. This package supplies deterministic
+detection declarations, execution, decisions, and strict decision
+serialization. It does not supply a profile corpus or perform qualification.
 
 ## Boundary
 
@@ -24,15 +24,23 @@ an address, and a positive bounded word count. It cannot represent an endpoint,
 connection, write operation, retry policy, or framing choice. Declarations run
 once, serially, and in immutable plan order.
 
-## Proposed Contract
+## Contract
 
-The RED tests target these constructor-owned values:
+The implementation exposes these constructor-owned immutable values:
 
 - `ProbePlan` from `ProbePlanSpec` and ordered `ProbeDeclarationSpec` values;
 - `ProbeReadResult` from `ProbeReadResultSpec`;
 - `DetectionCandidate` from `DetectionCandidateSpec`;
 - `ProfileDetector` from `ProfileDetectorSpec`; and
-- `DetectionDecision` with bounded strict JSON marshal and unmarshal helpers.
+- `DetectionDecision`, serialized through `MarshalDetectionDecision` and
+  `UnmarshalDetectionDecision`.
+
+Constructors reject zero values and malformed or infeasible declarations.
+Slice inputs and outputs are defensively copied. A `ProfileDetector` retains an
+independent plan, exact catalog profiles, exact candidate profile versions, and
+the detector and qualification contract versions carried by those profiles.
+One detector can be used concurrently because each `Detect` call owns its read
+and evaluation state.
 
 Probe declarations associate bounded ASCII register words with exactly one of
 manufacturer, model, or firmware identity. Duplicate declaration identities,
@@ -40,10 +48,16 @@ duplicate identity producers, unsupported functions, empty reads, and values
 outside configured limits are invalid.
 
 Each candidate binds one exact catalog profile ID and version to exact
-manufacturer/model gates, a semantic firmware range, a finite score, explicit
-runtime enablement, and an optional fixture-only disposition. Candidate and
-plan versions must agree with the profile's detector and qualification contract
-versions.
+case-sensitive manufacturer/model gates, a half-open semantic firmware range,
+a positive score, explicit runtime enablement, and an optional fixture-only
+disposition. The plan version and detector version must equal every bound
+profile's detector contract version. Decision evidence retains each bound
+profile's exact detector and qualification versions.
+
+Firmware comparison uses numeric semantic-version components without integer
+conversion, so component size cannot overflow a machine integer. Aliases,
+pre-release forms, leading-zero aliases, and non-numeric components are not
+accepted.
 
 ## Decisions
 
@@ -59,22 +73,29 @@ may appear in bounded decision evidence with their rejection reason, but cannot
 win regardless of score.
 
 Read errors, Modbus exceptions, incomplete word counts, invalid encodings,
-missing results, malformed firmware, and duplicate or contradictory identity
-sources fail closed without selecting a profile. Context cancellation stops the
-remaining plan.
+missing results, malformed firmware, duplicate evidence identities, and
+duplicate or contradictory identity declarations fail closed without selecting
+a profile. Context cancellation is checked before and after every caller read;
+it stops the remaining plan and returns a bounded no-match decision together
+with the context error.
 
 Decision evidence is immutable and includes exact profile ID/version, score,
 reason, matched gates, ordered probe evidence IDs, detector version, and
 qualification version. Accessors return independent copies. Strict JSON rejects
-unknown, missing, malformed, and oversized input.
+unknown, missing, duplicate, case-folded, malformed, non-canonical-key,
+unreachable, and oversized input. Marshal output is deterministic and bounded;
+unmarshal reconstructs an immutable decision and validates outcome, ranking,
+gate, and selected-profile consistency.
 
 ## Bounds
 
 `DetectionLimits` closes plan declarations, executed reads, words per read,
 aggregate words, decoded identity bytes, evidence-ID bytes, and serialized
-decision bytes. Every limit is finite and positive, and decision serialization
-cannot exceed `MaxSerializedContractBytes`.
+decision bytes. Every limit is finite and positive. Plan feasibility and a
+conservative worst-case decision size are checked before any read. Runtime
+results are checked before identity decoding, and decision serialization cannot
+exceed either its configured limit or `MaxSerializedContractBytes`.
 
-This document must not be read as implementation or qualification evidence.
-GREEN implementation, standard-family declarations, vendor overlays, and the
-M2-03 evidence corpus require their own scoped work.
+This implementation is not qualification evidence. Standard-family
+declarations, vendor overlays, and the M2-03 evidence corpus require separate
+scoped work backed by public evidence.

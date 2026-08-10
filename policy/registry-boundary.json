@@ -1,7 +1,7 @@
 {
-  "schema": "helianthus-modbusreg-boundary/v4",
+  "schema": "helianthus-modbusreg-boundary/v5",
   "repository_mode": "single_multi_vendor",
-  "implementation_scope": "m2_01_contracts_only",
+  "implementation_scope": "public_registry_semantics",
   "module_path": "github.com/Project-Helianthus/helianthus-modbusreg",
   "required_public_dependencies": [
     "github.com/Project-Helianthus/helianthus-modbus"
@@ -23,22 +23,15 @@
     "serial",
     "socket"
   ],
-  "forbidden_m2_01_directory_names": [
+  "forbidden_ownership_directory_names": [
     "binding",
     "bindings",
     "canonical",
-    "detector",
-    "detectors",
     "framing",
     "gateway",
     "gateways",
     "network",
     "private",
-    "probe",
-    "probes",
-    "profiles",
-    "qualification",
-    "qualifications",
     "semantic",
     "semantics",
     "serial",
@@ -47,15 +40,12 @@
     "transport",
     "transports"
   ],
-  "forbidden_m2_01_product_file_stems": [
+  "forbidden_product_file_stems": [
     "binding",
     "canonical",
-    "detector",
     "framing",
     "gateway",
     "network",
-    "probe",
-    "qualification",
     "semantic",
     "semantics",
     "serial",

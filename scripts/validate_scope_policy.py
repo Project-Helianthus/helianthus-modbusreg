@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the current registry tree against structural M2-01 boundaries."""
+"""Validate the public registry tree against stable ownership boundaries."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ from typing import Iterable
 from urllib.parse import urlparse
 
 
-SCHEMA = "helianthus-modbusreg-boundary/v4"
+SCHEMA = "helianthus-modbusreg-boundary/v5"
 REPOSITORY_MODE = "single_multi_vendor"
-IMPLEMENTATION_SCOPE = "m2_01_contracts_only"
+IMPLEMENTATION_SCOPE = "public_registry_semantics"
 MODULE_PATH = "github.com/Project-Helianthus/helianthus-modbusreg"
 PUBLIC_MODBUS = "github.com/Project-Helianthus/helianthus-modbus"
 POLICY_KEYS = {
@@ -29,8 +29,8 @@ POLICY_KEYS = {
     "allowed_non_io_net_imports",
     "forbidden_product_import_prefixes",
     "forbidden_product_import_tokens",
-    "forbidden_m2_01_directory_names",
-    "forbidden_m2_01_product_file_stems",
+    "forbidden_ownership_directory_names",
+    "forbidden_product_file_stems",
     "standard_root",
     "vendor_root",
     "vendor_evidence_file",
@@ -43,13 +43,9 @@ REQUIRED_FORBIDDEN_IMPORT_TOKENS = {"framing", "serial", "socket"}
 REQUIRED_SCOPE_DIRECTORIES = {
     "bindings",
     "canonical",
-    "detectors",
     "framing",
     "gateway",
     "private",
-    "probes",
-    "profiles",
-    "qualification",
     "semantics",
     "serial",
     "sockets",
@@ -58,11 +54,8 @@ REQUIRED_SCOPE_DIRECTORIES = {
 REQUIRED_SCOPE_FILE_STEMS = {
     "binding",
     "canonical",
-    "detector",
     "framing",
     "gateway",
-    "probe",
-    "qualification",
     "semantic",
     "serial",
     "socket",
@@ -144,16 +137,19 @@ def load_policy(root: Path) -> dict[str, object]:
     ):
         raise PolicyError("product import boundary omits a required token")
     if not REQUIRED_SCOPE_DIRECTORIES.issubset(
-        {item.casefold() for item in string_list(policy, "forbidden_m2_01_directory_names")}
+        {
+            item.casefold()
+            for item in string_list(policy, "forbidden_ownership_directory_names")
+        }
     ):
-        raise PolicyError("M2-01 directory boundary is incomplete")
+        raise PolicyError("registry ownership directory boundary is incomplete")
     if not REQUIRED_SCOPE_FILE_STEMS.issubset(
         {
             item.casefold()
-            for item in string_list(policy, "forbidden_m2_01_product_file_stems")
+            for item in string_list(policy, "forbidden_product_file_stems")
         }
     ):
-        raise PolicyError("M2-01 product filename boundary is incomplete")
+        raise PolicyError("registry ownership filename boundary is incomplete")
     safe_relative_path(policy["standard_root"], "profiles/standard", "standard_root")
     safe_relative_path(policy["vendor_root"], "profiles/vendor", "vendor_root")
     safe_relative_path(
@@ -217,16 +213,16 @@ def current_files(root: Path) -> list[Path]:
     return sorted(files)
 
 
-def validate_m2_01_scope(root: Path, policy: dict[str, object]) -> None:
+def validate_registry_scope(root: Path, policy: dict[str, object]) -> None:
     if policy["implementation_scope"] != IMPLEMENTATION_SCOPE:
-        raise PolicyError("implementation scope must remain M2-01 contracts-only")
+        raise PolicyError("implementation scope must remain public registry semantics")
     forbidden_directories = {
         item.casefold()
-        for item in string_list(policy, "forbidden_m2_01_directory_names")
+        for item in string_list(policy, "forbidden_ownership_directory_names")
     }
     forbidden_stems = {
         item.casefold()
-        for item in string_list(policy, "forbidden_m2_01_product_file_stems")
+        for item in string_list(policy, "forbidden_product_file_stems")
     }
     for path in current_files(root):
         relative = path.relative_to(root)
@@ -234,7 +230,7 @@ def validate_m2_01_scope(root: Path, policy: dict[str, object]) -> None:
         leaked_directories = directory_names & forbidden_directories
         if leaked_directories:
             raise PolicyError(
-                f"M2-01 forbids ownership directory in {relative.as_posix()}: "
+                f"registry boundary forbids ownership directory in {relative.as_posix()}: "
                 f"{sorted(leaked_directories)}"
             )
         if path.suffix == ".go" and not path.name.endswith("_test.go"):
@@ -244,7 +240,7 @@ def validate_m2_01_scope(root: Path, policy: dict[str, object]) -> None:
             leaked_stems = stem_tokens & forbidden_stems
             if leaked_stems:
                 raise PolicyError(
-                    f"M2-01 forbids product ownership in {relative.as_posix()}: "
+                    f"registry boundary forbids product ownership in {relative.as_posix()}: "
                     f"{sorted(leaked_stems)}"
                 )
 
@@ -456,7 +452,7 @@ def go_imports(root: Path) -> list[str]:
 def validate(root: Path) -> None:
     policy = load_policy(root)
     validate_module(root, policy)
-    validate_m2_01_scope(root, policy)
+    validate_registry_scope(root, policy)
     validate_non_go_code(root)
     validate_imports(go_imports(root), policy)
     validate_standard_sources(root, policy)

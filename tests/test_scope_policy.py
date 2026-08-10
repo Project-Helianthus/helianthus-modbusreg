@@ -143,9 +143,9 @@ class ScopePolicyTests(unittest.TestCase):
                 "package modbusreg\n\ntype IdentityContract struct{}\n",
                 encoding="utf-8",
             )
-            validator.validate_m2_01_scope(root, self.policy())
+            validator.validate_registry_scope(root, self.policy())
 
-    def test_detector_probe_qualification_and_profile_scope_leakage_fails(self) -> None:
+    def test_detector_probe_qualification_and_profile_ownership_is_allowed(self) -> None:
         policy = self.policy()
         for relative in (
             "detectors/example/detector.go",
@@ -159,15 +159,13 @@ class ScopePolicyTests(unittest.TestCase):
                 target = root / relative
                 target.parent.mkdir(parents=True)
                 target.write_text("package example\n", encoding="utf-8")
-                with self.assertRaises(validator.PolicyError):
-                    validator.validate_m2_01_scope(root, policy)
+                validator.validate_registry_scope(root, policy)
 
         for name in ("detector.go", "probe.go", "qualification.go"):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
                 (root / name).write_text("package modbusreg\n", encoding="utf-8")
-                with self.assertRaises(validator.PolicyError):
-                    validator.validate_m2_01_scope(root, policy)
+                validator.validate_registry_scope(root, policy)
 
     def test_gateway_private_binding_and_canonical_semantic_ownership_fails(self) -> None:
         policy = self.policy()
@@ -184,7 +182,7 @@ class ScopePolicyTests(unittest.TestCase):
                 target.parent.mkdir(parents=True)
                 target.write_text("package forbidden\n", encoding="utf-8")
                 with self.assertRaises(validator.PolicyError):
-                    validator.validate_m2_01_scope(root, policy)
+                    validator.validate_registry_scope(root, policy)
 
     def test_standard_family_vendor_leak_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

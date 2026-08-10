@@ -339,6 +339,62 @@ func TestDetectorUsesStrictIdentityAndSemanticFirmwareGates(t *testing.T) {
 	}
 }
 
+func TestDetectorFirmwareComparisonDoesNotUseMachineIntegers(t *testing.T) {
+	profile := detectionProfile(
+		t,
+		"example.standard.large-firmware",
+		"1.0.0",
+		reg.MaturityQualified,
+		reg.ProfileActive,
+		true,
+	)
+	catalog, _ := reg.NewCatalog(profile)
+	minimum := strings.Repeat("8", 120) + ".0.0"
+	actual := strings.Repeat("9", 120) + ".0.0"
+	maximum := "1" + strings.Repeat("0", 120) + ".0.0"
+	candidate, err := reg.NewDetectionCandidate(reg.DetectionCandidateSpec{
+		ProfileID:      profile.ID(),
+		ProfileVersion: profile.Version(),
+		Score:          1,
+		Enabled:        true,
+		Manufacturer:   reg.IdentityStringGateSpec{Expected: "manufacturer-alpha"},
+		Model:          reg.IdentityStringGateSpec{Expected: "model-series-a"},
+		Firmware: reg.FirmwareGateSpec{
+			MinimumInclusive: version(t, minimum),
+			MaximumExclusive: version(t, maximum),
+		},
+	}, detectionLimits())
+	if err != nil {
+		t.Fatalf("NewDetectionCandidate: %v", err)
+	}
+	planSpec := detectionPlan(t).Spec()
+	planSpec.Declarations[2].WordCount = uint16(len(detectionWords(actual)))
+	plan, err := reg.NewProbePlan(planSpec, detectionLimits())
+	if err != nil {
+		t.Fatalf("NewProbePlan: %v", err)
+	}
+	detector, err := reg.NewProfileDetector(reg.ProfileDetectorSpec{
+		DetectorVersion: version(t, "1.0.0"),
+		Plan:            plan,
+		Catalog:         catalog,
+		Candidates:      []reg.DetectionCandidate{candidate},
+		Limits:          detectionLimits(),
+	})
+	if err != nil {
+		t.Fatalf("NewProfileDetector: %v", err)
+	}
+	reader := detectionReader(t)
+	reader.results["firmware-identity"] = mustProbeResult(
+		t,
+		actual,
+		"probe-evidence-large-firmware",
+	)
+	decision, err := detector.Detect(context.Background(), reader, reg.DetectionOptions{})
+	if err != nil || decision.Outcome() != reg.DetectionMatched {
+		t.Fatalf("large numeric firmware decision=(%+v,%v)", decision, err)
+	}
+}
+
 func TestDetectorRankingIsCatalogOrderIndependentAndTiesAreAmbiguous(t *testing.T) {
 	first := detectionProfile(t, "example.standard.alpha", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	second := detectionProfile(t, "example.standard.beta", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
@@ -373,6 +429,19 @@ func TestDetectorRankingIsCatalogOrderIndependentAndTiesAreAmbiguous(t *testing.
 	evidence := decision.Evidence()
 	if len(evidence) != 2 || evidence[0].ProfileID != first.ID() || evidence[1].ProfileID != second.ID() {
 		t.Fatalf("ambiguity evidence is not identity-sorted: %+v", evidence)
+	}
+	encoded, err := reg.MarshalDetectionDecision(decision)
+	if err != nil {
+		t.Fatalf("MarshalDetectionDecision: %v", err)
+	}
+	var contradictory map[string]any
+	if err := json.Unmarshal(encoded, &contradictory); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	contradictory["evidence"].([]any)[1].(map[string]any)["detector_version"] = "2.0.0"
+	malformed, _ := json.Marshal(contradictory)
+	if _, err := reg.UnmarshalDetectionDecision(malformed); err == nil {
+		t.Fatal("contradictory detector contract versions were accepted")
 	}
 }
 
@@ -681,9 +750,91 @@ func TestDetectionBoundsAndImmutableSerializableEvidence(t *testing.T) {
 	if _, err := reg.UnmarshalDetectionDecision(unknown); err == nil {
 		t.Fatal("unknown decision field was accepted")
 	}
+	missingObject := make(map[string]any)
+	if err := json.Unmarshal(encoded, &missingObject); err != nil {
+		t.Fatalf("json.Unmarshal(missing fixture): %v", err)
+	}
+	delete(missingObject, "reason")
+	missing, _ := json.Marshal(missingObject)
+	if _, err := reg.UnmarshalDetectionDecision(missing); err == nil {
+		t.Fatal("decision with a missing field was accepted")
+	}
+	caseFolded := strings.Replace(
+		string(encoded),
+		`"outcome"`,
+		`"Outcome"`,
+		1,
+	)
+	if _, err := reg.UnmarshalDetectionDecision([]byte(caseFolded)); err == nil {
+		t.Fatal("case-folded decision field was accepted")
+	}
+	duplicate := strings.Replace(
+		string(encoded),
+		`"outcome":"matched"`,
+		`"outcome":"matched","outcome":"matched"`,
+		1,
+	)
+	if _, err := reg.UnmarshalDetectionDecision([]byte(duplicate)); err == nil {
+		t.Fatal("duplicate decision field was accepted")
+	}
+	impossibleObject := make(map[string]any)
+	if err := json.Unmarshal(encoded, &impossibleObject); err != nil {
+		t.Fatalf("json.Unmarshal(impossible fixture): %v", err)
+	}
+	impossibleEvidence := impossibleObject["evidence"].([]any)[0].(map[string]any)
+	impossibleEvidence["matched_gates"] = []any{}
+	impossibleEvidence["probe_evidence_ids"] = []any{}
+	impossible, _ := json.Marshal(impossibleObject)
+	if _, err := reg.UnmarshalDetectionDecision(impossible); err == nil {
+		t.Fatal("selected evidence without matched gates was accepted")
+	}
 	if _, err := reg.UnmarshalDetectionDecision(
 		[]byte(strings.Repeat("x", reg.MaxSerializedContractBytes+1)),
 	); err == nil {
 		t.Fatal("oversized decision was accepted")
+	}
+}
+
+func TestDetectorRejectsDuplicateAndInexactCatalogBindingsBeforeReads(t *testing.T) {
+	profile := detectionProfile(t, "example.standard.bound", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
+	catalog, _ := reg.NewCatalog(profile)
+	candidate := detectionCandidate(t, profile, 1, true, false)
+	base := reg.ProfileDetectorSpec{
+		DetectorVersion: version(t, "1.0.0"),
+		Plan:            detectionPlan(t),
+		Catalog:         catalog,
+		Candidates:      []reg.DetectionCandidate{candidate, candidate},
+		Limits:          detectionLimits(),
+	}
+	if _, err := reg.NewProfileDetector(base); err == nil {
+		t.Fatal("duplicate candidate profile binding was accepted")
+	}
+
+	otherProfile := detectionProfile(t, "example.standard.bound", "2.0.0", reg.MaturityQualified, reg.ProfileActive, true)
+	inexact := detectionCandidate(t, otherProfile, 1, true, false)
+	base.Candidates = []reg.DetectionCandidate{inexact}
+	if _, err := reg.NewProfileDetector(base); err == nil {
+		t.Fatal("candidate with an inexact catalog version was accepted")
+	}
+
+	wrongContractSpec := profile.Spec()
+	wrongContractSpec.ID = "example.standard.wrong-contract"
+	wrongContractSpec.DetectorVersion = version(t, "2.0.0")
+	wrongContract, err := reg.NewProfileDescriptor(wrongContractSpec)
+	if err != nil {
+		t.Fatalf("NewProfileDescriptor(wrong contract): %v", err)
+	}
+	wrongCatalog, _ := reg.NewCatalog(wrongContract)
+	base.Catalog = wrongCatalog
+	base.Candidates = []reg.DetectionCandidate{detectionCandidate(t, wrongContract, 1, true, false)}
+	if _, err := reg.NewProfileDetector(base); err == nil {
+		t.Fatal("profile with an inexact detector contract was accepted")
+	}
+
+	base.Catalog = catalog
+	base.Candidates = []reg.DetectionCandidate{candidate}
+	base.Limits.MaxDecisionBytes = 100
+	if _, err := reg.NewProfileDetector(base); err == nil {
+		t.Fatal("detector with an infeasible decision bound was accepted")
 	}
 }

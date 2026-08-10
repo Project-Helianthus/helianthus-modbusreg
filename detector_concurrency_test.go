@@ -127,6 +127,48 @@ func TestDetectionCancellationStopsTheBoundedPlan(t *testing.T) {
 	}
 }
 
+type cancelAfterSuccessfulRead struct {
+	cancel  context.CancelFunc
+	results map[string]reg.ProbeReadResult
+	reads   int
+}
+
+func (reader *cancelAfterSuccessfulRead) ReadProbe(
+	_ context.Context,
+	request reg.ProbeReadRequest,
+) (reg.ProbeReadResult, error) {
+	reader.reads++
+	if reader.reads == 3 {
+		reader.cancel()
+	}
+	return reader.results[request.DeclarationID()], nil
+}
+
+func TestDetectionCancellationAfterSuccessfulReadStillFailsClosed(t *testing.T) {
+	profile := detectionProfile(
+		t,
+		"example.standard.cancel-after-read",
+		"1.0.0",
+		reg.MaturityQualified,
+		reg.ProfileActive,
+		true,
+	)
+	catalog, _ := reg.NewCatalog(profile)
+	detector := newDetector(t, catalog, detectionCandidate(t, profile, 10, true, false))
+	ctx, cancel := context.WithCancel(context.Background())
+	reader := &cancelAfterSuccessfulRead{
+		cancel:  cancel,
+		results: detectionReader(t).results,
+	}
+	decision, err := detector.Detect(ctx, reader, reg.DetectionOptions{})
+	if !errors.Is(err, context.Canceled) ||
+		decision.Outcome() != reg.DetectionNoMatch ||
+		decision.Reason() != reg.DetectionReasonContextCancelled ||
+		reader.reads != 3 {
+		t.Fatalf("cancel-after-read detection=(%+v,%v), reads=%d", decision, err, reader.reads)
+	}
+}
+
 type orderedBlockingReader struct {
 	mu      sync.Mutex
 	results map[string]reg.ProbeReadResult
