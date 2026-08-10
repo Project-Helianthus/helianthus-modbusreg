@@ -207,16 +207,42 @@ func TestM203ConstructorRejectsSchemaProbeAndExpectationContradictions(t *testin
 	}
 }
 
-func TestM203StrictDecodeRejectsUnknownRecordField(t *testing.T) {
+func TestM203StrictDecodeClassifiesRecordAndNestedFixtureFields(t *testing.T) {
 	encoded := m203MarshalCorpusSpec(t)
-	mutated := bytes.Replace(
-		encoded,
-		[]byte(`"record_id"`),
-		[]byte(`"unexpected":true,"record_id"`),
-		1,
-	)
-	if _, err := reg.UnmarshalFixtureConformanceCorpus(mutated); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonMalformed) {
-		t.Fatalf("unknown record field error=%v", err)
+	tests := []struct {
+		name   string
+		mutate func([]byte) []byte
+		reason reg.FixtureMutationReason
+	}{
+		{"record unknown", func(data []byte) []byte {
+			return bytes.Replace(data, []byte(`"record_id"`), []byte(`"unexpected":true,"record_id"`), 1)
+		}, reg.FixtureMutationReasonUnknown},
+		{"record duplicate", func(data []byte) []byte {
+			return bytes.Replace(data, []byte(`"record_id"`), []byte(`"record_id":"duplicate","record_id"`), 1)
+		}, reg.FixtureMutationReasonDuplicate},
+		{"record case folded", func(data []byte) []byte { return bytes.Replace(data, []byte(`"record_id"`), []byte(`"Record_ID"`), 1) }, reg.FixtureMutationReasonCaseFolded},
+		{"record missing", func(data []byte) []byte {
+			return bytes.Replace(data, []byte(`"record_id":"synthetic-fc04-alpha",`), nil, 1)
+		}, reg.FixtureMutationReasonMissing},
+		{"nested unknown", func(data []byte) []byte {
+			return bytes.Replace(data, []byte(`"qualification":{"expected"`), []byte(`"qualification":{"unexpected":true,"expected"`), 1)
+		}, reg.FixtureMutationReasonUnknown},
+		{"nested duplicate", func(data []byte) []byte {
+			return bytes.Replace(data, []byte(`"qualification":{"expected"`), []byte(`"qualification":{"expected":"qualified","expected"`), 1)
+		}, reg.FixtureMutationReasonDuplicate},
+		{"nested case folded", func(data []byte) []byte {
+			return bytes.Replace(data, []byte(`"qualification":{"expected"`), []byte(`"qualification":{"Expected"`), 1)
+		}, reg.FixtureMutationReasonCaseFolded},
+		{"nested missing", func(data []byte) []byte {
+			return bytes.Replace(data, []byte(`"qualification":{"expected":"qualified"}`), []byte(`"qualification":{}`), 1)
+		}, reg.FixtureMutationReasonMissing},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := reg.UnmarshalFixtureConformanceCorpus(test.mutate(encoded)); !reg.IsFixtureMutationReason(err, test.reason) {
+				t.Fatalf("error=%v, want stable reason %q", err, test.reason)
+			}
+		})
 	}
 }
 

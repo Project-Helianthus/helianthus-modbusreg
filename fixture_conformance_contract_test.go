@@ -2,6 +2,7 @@ package modbusreg_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -178,6 +179,132 @@ func TestM203CompatibleUnequalOverlapsRetainExactLogicalSlices(t *testing.T) {
 	slices := report.Records()[1].LogicalSlices()
 	if len(slices) != 2 || !bytes.Equal(slices[0].CanonicalBytes(), []byte{1, 2, 3, 4}) || !bytes.Equal(slices[1].CanonicalBytes(), []byte{3, 4, 5, 6}) {
 		t.Fatalf("unequal compatible overlap lost exact logical slices: %#v", slices)
+	}
+}
+
+func TestM203BoundedMultiReportRetainsEveryFC03FC04DependencyFact(t *testing.T) {
+	base, observation := boundedFixture(t, reg.AcquisitionOrderDependencyDeclaration)
+	dependencies := base.Dependencies().Dependencies()
+	second := dependencies[1].Spec()
+	second.Table = reg.HoldingRegisters
+	second.Normalization.DocumentaryNotation = "one-based holding register"
+	second.Normalization.AddressSpaceLabel = string(reg.HoldingRegisters)
+	converted, err := reg.NewDependency(second)
+	if err != nil {
+		t.Fatalf("NewDependency(mixed holding): %v", err)
+	}
+	dependencies[1] = converted
+	set, err := reg.NewDependencySet(base.Dependencies().Version(), dependencies)
+	if err != nil {
+		t.Fatalf("NewDependencySet(mixed): %v", err)
+	}
+	profileSpec := base.Spec()
+	profileSpec.Dependencies = set
+	profileSpec.Maturity = reg.MaturityQualified
+	profileSpec.DefaultEnabled = true
+	profile, err := reg.NewProfileDescriptor(profileSpec)
+	if err != nil {
+		t.Fatalf("NewProfileDescriptor(mixed): %v", err)
+	}
+	observation.DependencySetID = profile.Dependencies().ID()
+	observation.DependencySetVersion = profile.Dependencies().Version()
+	for index := range observation.Dependencies {
+		declaration := profile.Dependencies().Dependencies()[index]
+		observation.Dependencies[index].DependencyID = declaration.ID()
+		observation.Dependencies[index].DependencyVersion = declaration.Version()
+		observation.Dependencies[index].CodecID = declaration.CodecID()
+		observation.Dependencies[index].CodecVersion = declaration.CodecVersion()
+		observation.Dependencies[index].NormalizationVersion = declaration.Normalization().Spec().Version
+		view := observation.Dependencies[index].View.Record()
+		view.Endpoint, view.UnitID, view.PollGeneration = "fixture-mixed-fc03-fc04", 31, 701
+		if index == 1 {
+			view.RequestedFunction = reg.FunctionReadHoldingRegisters
+			view.ReceivedFunction = reg.FunctionReadHoldingRegisters
+			view.Table = reg.HoldingRegisters
+			view.WireResponseBytes = append([]byte(nil), view.WireResponseBytes...)
+			view.WireResponseBytes[1] = byte(reg.FunctionReadHoldingRegisters)
+		}
+		observation.Dependencies[index].View = snapshotFromRecord(t, view)
+	}
+	observation.Endpoint, observation.UnitID, observation.PollGenerationID = "fixture-mixed-fc03-fc04", 31, 701
+	record := m203Record(t, "fixture-mixed-fc03-fc04", profile, 31, 701)
+	record.Observation = observation
+	record.ExpectedReplay.ExpectedRawWords = make([][]uint16, len(observation.Dependencies))
+	for index, dependency := range observation.Dependencies {
+		record.ExpectedReplay.ExpectedRawWords[index] = dependency.View.Record().Words
+	}
+	spec := reg.FixtureConformanceCorpusSpec{SchemaVersion: version(t, "1.0.0"), Metadata: reg.SanitizedFixtureMetadata{CorpusID: "fixture-mixed-fc03-fc04", LicenseExpression: "CC0-1.0", Provenance: "public synthetic fixture"}, Profiles: []reg.ProfileDescriptor{profile}, Records: []reg.FixtureConformanceRecordSpec{record}}
+	corpus, err := reg.NewFixtureConformanceCorpus(spec)
+	if err != nil {
+		t.Fatalf("NewFixtureConformanceCorpus: %v", err)
+	}
+	report, err := corpus.Replay()
+	if err != nil {
+		t.Fatalf("Replay: %v", err)
+	}
+	facts := report.Records()[0].DependencyFacts()
+	if len(facts) != 2 {
+		t.Fatalf("dependency facts = %d, want 2", len(facts))
+	}
+	for index, want := range []struct {
+		function reg.FunctionCode
+		table    reg.LogicalTable
+	}{{reg.FunctionReadInputRegisters, reg.InputRegisters}, {reg.FunctionReadHoldingRegisters, reg.HoldingRegisters}} {
+		fact := facts[index]
+		if fact.Ordinal() != uint32(index) || fact.FunctionCode() != want.function || fact.Table() != want.table || fact.UnitID() != 31 || fact.NormalizedAddress() == 0 || len(fact.RawWords()) == 0 || len(fact.LogicalSlice().CanonicalBytes()) == 0 || fact.SourceTime().State != reg.SourceTimeObservedState || fact.WireProvenance().WireResponseID == 0 || fact.LogicalProvenance().LogicalViewID == 0 || fact.SampleProvenance().PollGenerationID != 701 {
+			t.Fatalf("dependency %d lost FC03/FC04 association: %#v", index, fact)
+		}
+	}
+	facts[0].RawWords()[0] = 0xffff
+	if report.Records()[0].DependencyFacts()[0].RawWords()[0] == 0xffff {
+		t.Fatal("dependency facts accessor leaked mutation")
+	}
+	encoded, err := corpus.MarshalBoundedReport()
+	if err != nil {
+		t.Fatalf("MarshalBoundedReport: %v", err)
+	}
+	var serialized struct {
+		SchemaVersion string `json:"schema_version"`
+		Records       []struct {
+			Dependencies []struct {
+				Ordinal  uint32   `json:"ordinal"`
+				Function uint8    `json:"function"`
+				Table    string   `json:"table"`
+				Words    []uint16 `json:"raw_words"`
+				Logical  []uint16 `json:"logical_slice"`
+				Wire     struct {
+					ID uint64 `json:"WireResponseID"`
+				} `json:"wire"`
+				View struct {
+					ID uint64 `json:"LogicalViewID"`
+				} `json:"logical"`
+			} `json:"dependencies"`
+		} `json:"records"`
+	}
+	if err := json.Unmarshal(encoded, &serialized); err != nil {
+		t.Fatalf("report JSON: %v", err)
+	}
+	if serialized.SchemaVersion != "1.0.0" || len(serialized.Records) != 1 || len(serialized.Records[0].Dependencies) != 2 {
+		t.Fatalf("serialized dependency report lost version or facts: %#v", serialized)
+	}
+	for index, want := range []struct {
+		function uint8
+		table    string
+	}{{uint8(reg.FunctionReadInputRegisters), string(reg.InputRegisters)}, {uint8(reg.FunctionReadHoldingRegisters), string(reg.HoldingRegisters)}} {
+		fact := serialized.Records[0].Dependencies[index]
+		if fact.Ordinal != uint32(index) || fact.Function != want.function || fact.Table != want.table || len(fact.Words) == 0 || len(fact.Logical) == 0 || fact.Wire.ID == 0 || fact.View.ID == 0 {
+			t.Fatalf("serialized dependency %d lost association: %#v", index, fact)
+		}
+	}
+	if repeat, marshalErr := corpus.MarshalBoundedReport(); marshalErr != nil || !bytes.Equal(encoded, repeat) {
+		t.Fatalf("report serialization is nondeterministic: %q, %v", repeat, marshalErr)
+	}
+	limited, err := reg.NewFixtureConformanceCorpusWithLimits(spec, reg.FixtureConformanceLimits{MaxRecords: 1, MaxReportBytes: len(encoded) - 1})
+	if err != nil {
+		t.Fatalf("NewFixtureConformanceCorpusWithLimits: %v", err)
+	}
+	if _, err := limited.MarshalBoundedReport(); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonOversized) {
+		t.Fatalf("one-byte-short report limit error = %v", err)
 	}
 }
 

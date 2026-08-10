@@ -31,7 +31,11 @@ versioned provenance extension and the public evidence work assigned to M3-01.
   outcome/reason/profile/version/evidence, qualification disposition, and an
   expected replay outcome/reason;
 - `Replay`, immutable report/result accessors, exact logical slices/provenance,
-  and deterministic `MarshalBoundedReport`;
+  deterministic versioned `MarshalBoundedReport`, and immutable per-dependency
+  facts (`DependencyFacts`) retaining FC03/FC04 function/table, normalized
+  address, raw words, logical slice, source time, and wire/logical/sample
+  identities. The existing record-level accessors remain compatibility views of
+  the first dependency;
 - closed `FixtureMutationReason` values and `IsFixtureMutationReason`.
 
 Construction validates schema, bounds, sanitization, immutable declarations,
@@ -49,8 +53,10 @@ accepted is contradictory and rejected at construction.
    malformed, oversized, and contradictory input with stable reason codes.
 2. Construction rejects credential-like endpoints and non-fixture/live source
    identities. Corpus specs and report accessors are defensively copied.
-3. FC03/FC04 evidence retains table, unit, normalized address, raw words, wire
-   and logical identities, sample/generation identity, and source time.
+3. Every FC03/FC04 dependency fact retains function/table, unit, normalized
+   address, raw words, logical slice, wire and logical identities,
+   sample/generation identity, and source time; mixed bounded-multi records do
+   not collapse provenance to their first dependency.
 4. Compatible unequal overlaps preserve exact logical slices. Negative records
    for unit, table/access, generation, source, normalization, deadline, and
    coherence mismatches replay to exact closed reasons without contaminating
@@ -64,7 +70,8 @@ accepted is contradictory and rejected at construction.
 
 ## Validation
 
-The M2-03 tests cover strict decode mutation reasons, construction-time
+The M2-03 tests cover strict decode mutation reasons at record and nested
+M2-03-owned object boundaries, construction-time
 sanitization and contradiction rejection, exact FC03/FC04 provenance and
 slices, deterministic sorted/concurrent replay, executable marshal/unmarshal
 round trips, detector evidence, and expected negative replay reasons. The
