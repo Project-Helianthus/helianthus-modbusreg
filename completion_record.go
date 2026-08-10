@@ -2,6 +2,7 @@ package modbusreg
 
 import (
 	"fmt"
+	"slices"
 )
 
 const (
@@ -12,6 +13,27 @@ const (
 
 	fmv3M303StandardProfileID      = "sunspec.phase1"
 	fmv3M303StandardProfileVersion = "1.0.0"
+	fmv3M303DocsEvidenceSHA        = "59218d21163acb868687ed3d8196f0aa1496aab7"
+	fmv3M303M302MergeSHA           = "867c8275c090d3c703a9638548b48ea6846e8c56"
+	fmv3M303OfficialModelsSHA      = "7abdf8982d5364f8ae916deee18aac86c11be36d"
+)
+
+var (
+	fmv3M303CanonicalApplicability = []string{
+		"qualified documentary GEN24 Primo/Symo ROW int+SF boundary requires runtime chain discovery",
+	}
+	fmv3M303CanonicalLimitations = []string{
+		"Verto: UNKNOWN",
+		"Tauro: UNKNOWN",
+		"older Datamanager: UNKNOWN",
+		"SnapINverter: UNKNOWN",
+		"live installations: UNKNOWN",
+	}
+	fmv3M303CanonicalInvalidationRollback = []string{
+		"evidence change invalidates decision",
+		"retain standard SunSpec/raw access",
+		"no automatic side effect",
+	}
 )
 
 // CompletionDisposition is the closed decision set for a completion record.
@@ -72,9 +94,9 @@ func NewCurrentFMV3M303CompletionRecord() (CompletionRecord, error) {
 		SchemaVersion: FMV3M303CompletionSchemaVersion,
 		Disposition:   CompletionDispositionStandardOnly,
 		Evidence: CompletionEvidenceRefs{
-			DocsEvidenceSHA:   "59218d21163acb868687ed3d8196f0aa1496aab7",
-			M302MergeSHA:      "867c8275c090d3c703a9638548b48ea6846e8c56",
-			OfficialModelsSHA: "7abdf8982d5364f8ae916deee18aac86c11be36d",
+			DocsEvidenceSHA:   fmv3M303DocsEvidenceSHA,
+			M302MergeSHA:      fmv3M303M302MergeSHA,
+			OfficialModelsSHA: fmv3M303OfficialModelsSHA,
 		},
 		ReadOnly:                      true,
 		TransportNeutral:              true,
@@ -83,21 +105,9 @@ func NewCurrentFMV3M303CompletionRecord() (CompletionRecord, error) {
 		AutomaticProductQualification: false,
 		StandardProfileID:             fmv3M303StandardProfileID,
 		StandardProfileVersion:        fmv3M303StandardProfileVersion,
-		Applicability: []string{
-			"qualified documentary GEN24 Primo/Symo ROW int+SF boundary requires runtime chain discovery",
-		},
-		Limitations: []string{
-			"Verto: UNKNOWN",
-			"Tauro: UNKNOWN",
-			"older Datamanager: UNKNOWN",
-			"SnapINverter: UNKNOWN",
-			"live installations: UNKNOWN",
-		},
-		InvalidationRollback: []string{
-			"evidence change invalidates decision",
-			"retain standard SunSpec/raw access",
-			"no automatic side effect",
-		},
+		Applicability:                 cloneStrings(fmv3M303CanonicalApplicability),
+		Limitations:                   cloneStrings(fmv3M303CanonicalLimitations),
+		InvalidationRollback:          cloneStrings(fmv3M303CanonicalInvalidationRollback),
 	})
 }
 
@@ -124,26 +134,17 @@ func validateFMV3M303CompletionRecord(spec CompletionRecordSpec) error {
 		spec.StandardProfileVersion != fmv3M303StandardProfileVersion {
 		return fmt.Errorf("completion record standard profile identity is incompatible")
 	}
-	if !completionSHA(spec.Evidence.DocsEvidenceSHA) ||
-		!completionSHA(spec.Evidence.M302MergeSHA) ||
-		!completionSHA(spec.Evidence.OfficialModelsSHA) ||
-		!stringsComplete(spec.Applicability) || !stringsComplete(spec.Limitations) ||
-		!stringsComplete(spec.InvalidationRollback) {
-		return fmt.Errorf("completion record evidence or guidance is invalid")
+	if spec.Evidence.DocsEvidenceSHA != fmv3M303DocsEvidenceSHA ||
+		spec.Evidence.M302MergeSHA != fmv3M303M302MergeSHA ||
+		spec.Evidence.OfficialModelsSHA != fmv3M303OfficialModelsSHA {
+		return fmt.Errorf("completion record evidence is not canonical")
+	}
+	if !slices.Equal(spec.Applicability, fmv3M303CanonicalApplicability) ||
+		!slices.Equal(spec.Limitations, fmv3M303CanonicalLimitations) ||
+		!slices.Equal(spec.InvalidationRollback, fmv3M303CanonicalInvalidationRollback) {
+		return fmt.Errorf("completion record conclusion content is not canonical")
 	}
 	return nil
-}
-
-func completionSHA(value string) bool {
-	if len(value) != 40 {
-		return false
-	}
-	for _, character := range value {
-		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
-			return false
-		}
-	}
-	return true
 }
 
 // Spec returns a defensive-copy construction view of the record.

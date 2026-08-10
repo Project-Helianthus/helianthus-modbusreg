@@ -12,6 +12,12 @@ The record binds the M3-01 documentary evidence SHA
 `867c8275c090d3c703a9638548b48ea6846e8c56`, and the official SunSpec-model
 SHA `7abdf8982d5364f8ae916deee18aac86c11be36d`.
 
+The current v2 constructor and JSON decoder accept only this exact evidence
+triple, the exact standard profile identity, and the complete ordered
+applicability, `UNKNOWN` limitation, and invalidation/rollback lists in the
+golden record. Any missing, additional, changed, or reordered content is an
+incompatible conclusion and is rejected.
+
 Those sources support the existing vendor-neutral `sunspec.phase1` profile at
 version `1.0.0`. They do not prove a Fronius-specific behavioral delta or a
 safe product detector. Accordingly, the canonical record is read-only and
