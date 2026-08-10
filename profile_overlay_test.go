@@ -593,7 +593,17 @@ func TestSampleLedgerStateRestartValidationIsBounded(t *testing.T) {
 	if _, err := reg.NewSampleLedger(decoded, count+1); err == nil {
 		t.Fatal("stale ledger restore ignored trusted minimum revision")
 	}
-	restarted, err := reg.NewSampleLedger(decoded, count)
+	restart := reg.LedgerRestartState{
+		SchemaVersion:            1,
+		NextTerminalSequence:     count*2 + 1,
+		TruncatedThroughSequence: count * 2,
+	}
+	restarted, err := reg.NewSampleLedgerFromRestart(
+		decoded,
+		count,
+		reg.DefaultLedgerLimits(),
+		restart,
+	)
 	if err != nil {
 		t.Fatalf("trusted ledger restore rejected: %v", err)
 	}
@@ -603,12 +613,22 @@ func TestSampleLedgerStateRestartValidationIsBounded(t *testing.T) {
 
 	badState := decoded
 	badState.DependencySetID = "not-a-content-id"
-	if _, err := reg.NewSampleLedger(badState, 0); err == nil {
+	if _, err := reg.NewSampleLedgerFromRestart(
+		badState,
+		0,
+		reg.DefaultLedgerLimits(),
+		restart,
+	); err == nil {
 		t.Fatal("malformed dependency-set identity was restored")
 	}
 	badState.DependencySetID =
 		"sha256:" + strings.Repeat("A", 64)
-	if _, err := reg.NewSampleLedger(badState, 0); err == nil {
+	if _, err := reg.NewSampleLedgerFromRestart(
+		badState,
+		0,
+		reg.DefaultLedgerLimits(),
+		restart,
+	); err == nil {
 		t.Fatal("uppercase dependency-set identity was restored")
 	}
 }

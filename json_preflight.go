@@ -11,6 +11,7 @@ import (
 )
 
 var versionValueType = reflect.TypeOf(Version{})
+var byteSliceType = reflect.TypeOf([]byte(nil))
 
 type jsonField struct {
 	valueType reflect.Type
@@ -156,8 +157,14 @@ func scanJSONValue(
 			return fmt.Errorf("serialized contract has an unexpected delimiter")
 		}
 	case string:
-		if err := validateBoundedString("serialized string", value, false); err != nil {
-			return err
+		if expected == byteSliceType {
+			if len(value) > MaxSerializedContractBytes {
+				return fmt.Errorf("serialized binary field exceeds the byte boundary")
+			}
+		} else {
+			if err := validateBoundedString("serialized string", value, false); err != nil {
+				return err
+			}
 		}
 	case json.Number:
 		if len(value.String()) > MaxContractStringBytes {

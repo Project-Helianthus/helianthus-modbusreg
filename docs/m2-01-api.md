@@ -222,6 +222,18 @@ the sequence immediately before `next_terminal_sequence`. Concurrent live gaps
 are conservatively represented by advancing this truncation watermark rather
 than inventing terminal records.
 
+Any leading retained claims whose attempt record is below the truncation
+watermark must be one contiguous ordinal suffix of one truncated attempt. Once
+a retained attempt record appears, only complete retained attempt intervals may
+follow; claims from another truncated attempt cannot overlap that suffix.
+
+A nonzero sample revision/high-water cannot be restored without
+`LedgerRestartState`. In the absence of exact historical profile cardinality,
+the restart watermark must conservatively prove at least two consumed terminal
+sequences per committed publication: one attempt plus at least one claim. An
+exhausted terminal watermark satisfies this relationship only when that minimum
+history itself fits the terminal sequence space.
+
 `ExportRestartState` succeeds only when no live attempt remains and every
 reserved terminal watermark has crossed a durable committer boundary. Live
 attempts and capabilities are intentionally nonserializable.
@@ -279,6 +291,11 @@ bounded JSON. Recursive preflight rejects oversized input, excessive nesting or
 collections, duplicate and case-folded keys, invalid UTF-8, unpaired surrogate
 escapes, `null`, missing required members, unknown fields, and incompatible
 schemas before activation.
+
+JSON strings representing `[]byte` fields are bounded by the aggregate contract
+ceiling rather than the ordinary 4096-byte text-scalar ceiling. This accounts
+for base64 expansion while preserving exact producer normalization bytes;
+ordinary textual fields retain their existing scalar bound.
 
 Required timestamp presence is structural. UTC year one is valid when
 explicitly present; absent, unmarked, or out-of-range values fail closed.

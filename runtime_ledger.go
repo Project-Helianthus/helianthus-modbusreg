@@ -397,6 +397,9 @@ func newSampleLedger(
 	if err := validateSampleLedgerState(state, trustedMinimumRevision); err != nil {
 		return nil, err
 	}
+	if state.Revision != 0 && restart == nil {
+		return nil, fmt.Errorf("committed sample state requires terminal restart metadata")
+	}
 	nextSequence := uint64(1)
 	durableNextSequence := uint64(1)
 	var tombstones []LedgerAuditTombstone
@@ -405,6 +408,9 @@ func newSampleLedger(
 	var truncatedThrough uint64
 	if restart != nil {
 		if err := validateLedgerRestartState(*restart, limits); err != nil {
+			return nil, err
+		}
+		if err := validateSampleRestartRelationship(state, *restart); err != nil {
 			return nil, err
 		}
 		nextSequence = restart.NextTerminalSequence
@@ -434,6 +440,29 @@ func newSampleLedger(
 	}
 	ledger.commitSerial <- struct{}{}
 	return ledger, nil
+}
+
+func validateSampleRestartRelationship(
+	state SampleLedgerState,
+	restart LedgerRestartState,
+) error {
+	if state.Revision == 0 {
+		return nil
+	}
+	// Every committed publication consumes one attempt sequence and at least
+	// one claim sequence. Exact claim cardinality is profile-specific and is
+	// intentionally not reconstructed from SampleLedgerState.
+	if state.Revision > math.MaxUint64/2 {
+		return fmt.Errorf("committed sample history exceeds terminal sequence capacity")
+	}
+	if restart.SequenceExhausted {
+		return nil
+	}
+	minimumConsumed := state.Revision * 2
+	if restart.NextTerminalSequence-1 < minimumConsumed {
+		return fmt.Errorf("terminal restart watermark predates committed publications")
+	}
+	return nil
 }
 
 func validateSampleLedgerState(
@@ -516,6 +545,33 @@ func validateLedgerRestartState(
 	}
 	if previous != endSequence {
 		return fmt.Errorf("ledger restart history does not end at the watermark")
+	}
+	var leadingAttemptSequence uint64
+	var leadingClaimOrdinal uint64
+	retainedAttemptSeen := false
+	for _, tombstone := range restart.AuditTombstones {
+		if tombstone.ObjectKind == LedgerAuditAttempt {
+			retainedAttemptSeen = true
+			continue
+		}
+		if tombstone.ObjectKind != LedgerAuditClaim ||
+			tombstone.AttemptTerminalSequence > restart.TruncatedThroughSequence {
+			continue
+		}
+		if retainedAttemptSeen {
+			return fmt.Errorf("ledger restart truncated claim follows retained attempts")
+		}
+		if leadingAttemptSequence == 0 {
+			leadingAttemptSequence = tombstone.AttemptTerminalSequence
+			leadingClaimOrdinal = tombstone.ClaimOrdinal
+			continue
+		}
+		if tombstone.AttemptTerminalSequence != leadingAttemptSequence ||
+			leadingClaimOrdinal == math.MaxUint64 ||
+			tombstone.ClaimOrdinal != leadingClaimOrdinal+1 {
+			return fmt.Errorf("ledger restart truncated claim suffix is incoherent")
+		}
+		leadingClaimOrdinal = tombstone.ClaimOrdinal
 	}
 	lastClaimOrdinal := make(map[uint64]uint64)
 	for index, tombstone := range restart.AuditTombstones {

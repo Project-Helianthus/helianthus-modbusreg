@@ -122,7 +122,16 @@ func TestPersistedAttemptMustMatchProfileMode(t *testing.T) {
 			state.Revision = 1
 			state.HighWater = 1
 			state.LastCommittedAttempt = test.attempt
-			ledger, err := reg.NewSampleLedger(state, 1)
+			ledger, err := reg.NewSampleLedgerFromRestart(
+				state,
+				1,
+				reg.DefaultLedgerLimits(),
+				reg.LedgerRestartState{
+					SchemaVersion:            1,
+					NextTerminalSequence:     3,
+					TruncatedThroughSequence: 2,
+				},
+			)
 			if err != nil {
 				t.Fatalf("NewSampleLedger: %v", err)
 			}

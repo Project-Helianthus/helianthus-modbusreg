@@ -292,6 +292,37 @@ func runtimeNormalizations(
 	return normalizations, normalizationBytes
 }
 
+func largeRuntimeNormalizations(
+	t *testing.T,
+	source *modbus.RuntimeAcquisitionSource,
+	views []modbus.LogicalReadView,
+) ([]modbus.RuntimeNormalizationRecord, [][]byte) {
+	t.Helper()
+	padding := strings.Repeat("x", 780)
+	normalizations := make([]modbus.RuntimeNormalizationRecord, len(views))
+	encoded := make([][]byte, len(views))
+	for index := range views {
+		encoded[index] = []byte(fmt.Sprintf(
+			`{"schema_version":1,"source_kind":"runtime","source_evidence_id":"urn:helianthus:evidence:example-register-map","documentary_notation":"one-based input register","documentary_address":%d,"documentary_address_base":"one_based_register","function_code":4,"logical_table":"input_registers","normalized_zero_based_pdu_offset":%d,"word_count":2,"padding_1":"%s","padding_2":"%s","padding_3":"%s","padding_4":"%s"}`,
+			101+index,
+			100+index,
+			padding,
+			padding,
+			padding,
+			padding,
+		))
+		if len(encoded[index]) <= 3072 {
+			t.Fatalf("normalization %d is only %d bytes", index, len(encoded[index]))
+		}
+		var err error
+		normalizations[index], err = source.ParseNormalizationRecord(encoded[index])
+		if err != nil {
+			t.Fatalf("ParseNormalizationRecord(%d): %v", index, err)
+		}
+	}
+	return normalizations, encoded
+}
+
 func issueRuntimeDependencies(
 	t *testing.T,
 	source *modbus.RuntimeAcquisitionSource,
@@ -744,6 +775,154 @@ func TestPublicationCommitCarriesExactFinalObservationAndRestartState(t *testing
 	}
 	if got := restartCommitter.terminal[0].Attempt.AttemptTerminalSequence; got != publishedRestartState.NextTerminalSequence {
 		t.Fatalf("post-crash terminal sequence=%d reused committed history", got)
+	}
+}
+
+func TestDurableObservationRoundTripsLargeProducerNormalization(t *testing.T) {
+	profile := profileFixture(t)
+	source, views := runtimeSourceAndViews(t)
+	initial, ledger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
+	committer := &memoryPublicationCommitter{state: initial}
+	factory, err := reg.NewObservationFactory(profile, ledger, committer)
+	if err != nil {
+		t.Fatalf("NewObservationFactory: %v", err)
+	}
+	attempt, err := factory.BeginRuntimeAttempt(runtimeAttemptRequestForTest(
+		source,
+		"large-durable-normalization",
+		41,
+		len(views),
+	))
+	if err != nil {
+		t.Fatalf("BeginRuntimeAttempt: %v", err)
+	}
+	normalizations, normalizationBytes := largeRuntimeNormalizations(t, source, views)
+	for index := range views {
+		if err := attempt.Issue(uint32(index), views[index], normalizations[index]); err != nil {
+			t.Fatalf("Issue(%d): %v", index, err)
+		}
+	}
+	if err := attempt.Admit(); err != nil {
+		t.Fatalf("Admit: %v", err)
+	}
+	for index := range views {
+		if outcome, err := attempt.Claim(uint64(index)); err != nil ||
+			outcome != reg.ClaimSucceeded {
+			t.Fatalf("Claim(%d)=(%q, %v)", index, outcome, err)
+		}
+	}
+	if err := attempt.Seal(); err != nil {
+		t.Fatalf("Seal: %v", err)
+	}
+	if _, err := attempt.Publish(context.Background()); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	committer.mu.Lock()
+	durable := append([]byte(nil), committer.requests[0].ObservationBytes...)
+	committer.mu.Unlock()
+	restored, err := reg.UnmarshalObservation(profile, durable)
+	if err != nil {
+		t.Fatalf("UnmarshalObservation: %v", err)
+	}
+	for index, dependency := range restored.Replay() {
+		if !bytes.Equal(dependency.RuntimeNormalizationBytes(), normalizationBytes[index]) {
+			t.Fatalf("normalization %d changed after durable reload", index)
+		}
+	}
+
+	var envelope map[string]any
+	if err := json.Unmarshal(durable, &envelope); err != nil {
+		t.Fatalf("json.Unmarshal(durable): %v", err)
+	}
+	values := envelope["runtime_normalizations"].([]any)
+	values[0] = "not-base64!"
+	malformed, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("json.Marshal(malformed): %v", err)
+	}
+	if _, err := reg.UnmarshalObservation(profile, malformed); err == nil {
+		t.Fatal("malformed binary normalization was accepted")
+	}
+	values[0] = strings.Repeat("A", reg.MaxSerializedContractBytes)
+	oversized, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("json.Marshal(oversized): %v", err)
+	}
+	if _, err := reg.UnmarshalObservation(profile, oversized); err == nil {
+		t.Fatal("oversized durable normalization envelope was accepted")
+	}
+}
+
+func TestCommittedSampleStateRequiresConsumedTerminalWatermark(t *testing.T) {
+	profile := profileFixture(t)
+	state := emptyLedgerState(t, profile)
+	state.Revision = 1
+	state.HighWater = 1
+	state.LastCommittedAttempt = reg.AttemptIdentity{PollGenerationID: 41}
+	limits := reg.DefaultLedgerLimits()
+	if ledger, err := reg.NewSampleLedger(state, 1, limits); err == nil || ledger != nil {
+		t.Fatal("committed sample state without restart metadata was accepted")
+	}
+	initialRestart := reg.LedgerRestartState{
+		SchemaVersion:        1,
+		NextTerminalSequence: 1,
+	}
+	if ledger, err := reg.NewSampleLedgerFromRestart(
+		state,
+		1,
+		limits,
+		initialRestart,
+	); err == nil || ledger != nil {
+		t.Fatal("committed sample state with an initial terminal watermark was accepted")
+	}
+	minimumRestart := reg.LedgerRestartState{
+		SchemaVersion:            1,
+		NextTerminalSequence:     3,
+		TruncatedThroughSequence: 2,
+	}
+	ledger, err := reg.NewSampleLedgerFromRestart(state, 1, limits, minimumRestart)
+	if err != nil {
+		t.Fatalf("NewSampleLedgerFromRestart(minimum): %v", err)
+	}
+	committer := &memoryPublicationCommitter{state: state, restart: minimumRestart}
+	factory, err := reg.NewObservationFactory(profile, ledger, committer)
+	if err != nil {
+		t.Fatalf("NewObservationFactory: %v", err)
+	}
+	source, _ := runtimeSourceAndViews(t)
+	attempt, err := factory.BeginRuntimeAttempt(runtimeAttemptRequestForTest(
+		source,
+		"post-commit-terminal-reservation",
+		42,
+		2,
+	))
+	if err != nil {
+		t.Fatalf("BeginRuntimeAttempt: %v", err)
+	}
+	if result, err := attempt.Cancel(); err != nil || result != reg.CancellationCompleted {
+		t.Fatalf("Cancel=(%q, %v)", result, err)
+	}
+	committer.mu.Lock()
+	terminalSequence := committer.terminal[0].Attempt.AttemptTerminalSequence
+	committer.mu.Unlock()
+	if terminalSequence != 3 {
+		t.Fatalf("next attempt terminal sequence=%d, want 3", terminalSequence)
+	}
+	impossible := state
+	impossible.Revision = math.MaxUint64/2 + 1
+	impossible.HighWater = impossible.Revision
+	exhausted := reg.LedgerRestartState{
+		SchemaVersion:            1,
+		SequenceExhausted:        true,
+		TruncatedThroughSequence: math.MaxUint64,
+	}
+	if ledger, err := reg.NewSampleLedgerFromRestart(
+		impossible,
+		impossible.Revision,
+		limits,
+		exhausted,
+	); err == nil || ledger != nil {
+		t.Fatal("sample history exceeding terminal sequence capacity was accepted")
 	}
 }
 
@@ -1544,6 +1723,67 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 				t.Fatal("malformed restart claim reservation was accepted")
 			}
 		})
+	}
+}
+
+func TestLedgerRestartLeadingTruncatedClaimSuffixIsCoherent(t *testing.T) {
+	profile := profileFixture(t)
+	state := emptyLedgerState(t, profile)
+	limits := reg.DefaultLedgerLimits()
+	claim := func(sequence, attemptSequence, ordinal uint64) reg.LedgerAuditTombstone {
+		return reg.LedgerAuditTombstone{
+			SchemaVersion:           1,
+			ObjectKind:              reg.LedgerAuditClaim,
+			TerminalSequence:        sequence,
+			AttemptTerminalSequence: attemptSequence,
+			ClaimOrdinal:            ordinal,
+			TerminalOutcome:         string(reg.ClaimAttemptCancelled),
+		}
+	}
+	reviewerExample := reg.LedgerRestartState{
+		SchemaVersion:            1,
+		NextTerminalSequence:     8,
+		TruncatedThroughSequence: 5,
+		AuditTombstones: []reg.LedgerAuditTombstone{
+			claim(6, 1, 4),
+			claim(7, 3, 3),
+		},
+	}
+	if ledger, err := reg.NewSampleLedgerFromRestart(
+		state,
+		0,
+		limits,
+		reviewerExample,
+	); err == nil || ledger != nil {
+		t.Fatal("overlapping truncated attempt suffixes were accepted")
+	}
+	valid := reg.LedgerRestartState{
+		SchemaVersion:            1,
+		NextTerminalSequence:     10,
+		TruncatedThroughSequence: 5,
+		AuditTombstones: []reg.LedgerAuditTombstone{
+			claim(6, 1, 4),
+			claim(7, 1, 5),
+			{
+				SchemaVersion:    1,
+				ObjectKind:       reg.LedgerAuditAttempt,
+				TerminalSequence: 8,
+				ClaimCount:       1,
+				TerminalOutcome:  string(reg.AttemptCancelled),
+			},
+			claim(9, 8, 0),
+		},
+	}
+	ledger, err := reg.NewSampleLedgerFromRestart(state, 0, limits, valid)
+	if err != nil {
+		t.Fatalf("single truncated attempt suffix was rejected: %v", err)
+	}
+	roundTrip, err := ledger.ExportRestartState()
+	if err != nil {
+		t.Fatalf("ExportRestartState: %v", err)
+	}
+	if !reflect.DeepEqual(roundTrip, valid) {
+		t.Fatalf("truncated suffix changed: got %+v want %+v", roundTrip, valid)
 	}
 }
 
