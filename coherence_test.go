@@ -5,35 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
-type round3MemoryCAS struct {
-	mu      sync.Mutex
-	state   reg.SampleLedgerState
-	reject  bool
-	commits int
-}
-
-func (store *round3MemoryCAS) CompareAndSwap(
-	expected reg.SampleLedgerState,
-	next reg.SampleLedgerState,
-) (bool, error) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	if store.reject || store.state != expected {
-		return false, nil
-	}
-	store.state = next
-	store.commits++
-	return true, nil
-}
-
-func round3State(
+func fixtureLedgerState(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	issuer string,
@@ -46,11 +24,10 @@ func round3State(
 	return state
 }
 
-func round3Factory(
+func fixtureFactoryFromState(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	state reg.SampleLedgerState,
-	store any,
 ) *fixtureValidationFactory {
 	t.Helper()
 	ledger, err := reg.NewSampleLedger(state, state.Revision)
@@ -58,26 +35,25 @@ func round3Factory(
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
 	_ = ledger
-	_ = store
 	return newFixtureValidationFactory(t, profile)
 }
 
-func round3Attempt(
+func decodeFixtureAttempt(
 	t *testing.T,
 	factory *fixtureValidationFactory,
 	spec reg.ObservationSpec,
-) (*fixtureValidationAttempt, reg.ObservationSpec) {
+) (*fixtureReplaySession, reg.ObservationSpec) {
 	t.Helper()
 	encoded, err := reg.MarshalFixtureSpec(spec)
 	if err != nil {
 		t.Fatalf("MarshalFixtureSpec: %v", err)
 	}
-	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+	attempt, err := factory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: spec.PollGenerationID,
 		RetryOrdinal:     spec.RetryOrdinal,
 	})
 	if err != nil {
-		t.Fatalf("BeginObservationAttempt: %v", err)
+		t.Fatalf("BeginFixtureReplay: %v", err)
 	}
 	decoded, err := attempt.DecodeSpec(encoded)
 	if err != nil {
@@ -86,19 +62,18 @@ func round3Attempt(
 	return attempt, decoded
 }
 
-func round3Publish(
+func validateFixtureReplay(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	spec reg.ObservationSpec,
 ) (reg.FixtureReplay, error) {
 	t.Helper()
-	state := round3State(t, profile, "round3-issuer")
-	store := &round3MemoryCAS{state: state}
-	factory := round3Factory(t, profile, state, store)
-	return publishWithFactory(factory, spec)
+	state := fixtureLedgerState(t, profile, "fixture-issuer")
+	factory := fixtureFactoryFromState(t, profile, state)
+	return replayWithFactory(factory, spec)
 }
 
-func TestRound3LogicalViewIDIsUniqueOnlyWithinPhysicalGroup(t *testing.T) {
+func TestLogicalViewIDIsUniqueOnlyWithinPhysicalGroup(t *testing.T) {
 	profile, spec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
@@ -107,7 +82,7 @@ func TestRound3LogicalViewIDIsUniqueOnlyWithinPhysicalGroup(t *testing.T) {
 	second := spec.Dependencies[1].View.Record()
 	second.LogicalViewID = first.LogicalViewID
 	spec.Dependencies[1].View = snapshotFromRecord(t, second)
-	if _, err := round3Publish(t, profile, spec); err != nil {
+	if _, err := validateFixtureReplay(t, profile, spec); err != nil {
 		t.Fatalf("distinct physical responses reused a legal logical ID: %v", err)
 	}
 
@@ -120,12 +95,12 @@ func TestRound3LogicalViewIDIsUniqueOnlyWithinPhysicalGroup(t *testing.T) {
 	second = samePhysical.Dependencies[1].View.Record()
 	second.LogicalViewID = first.LogicalViewID
 	samePhysical.Dependencies[1].View = snapshotFromRecord(t, second)
-	if _, err := round3Publish(t, profile, samePhysical); err == nil {
+	if _, err := validateFixtureReplay(t, profile, samePhysical); err == nil {
 		t.Fatal("one physical response accepted a duplicate logical-view ID")
 	}
 }
 
-func TestRound3PhysicalAndWireIdentityIsBidirectional(t *testing.T) {
+func TestPhysicalAndWireIdentityIsBidirectional(t *testing.T) {
 	profile, aliasedPhysical := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
@@ -138,7 +113,7 @@ func TestRound3PhysicalAndWireIdentityIsBidirectional(t *testing.T) {
 	}
 	second.WireResponseID = originalWire
 	aliasedPhysical.Dependencies[1].View = snapshotFromRecord(t, second)
-	if _, err := round3Publish(t, profile, aliasedPhysical); err == nil {
+	if _, err := validateFixtureReplay(t, profile, aliasedPhysical); err == nil {
 		t.Fatal("one physical identity mapped to two wire-response IDs")
 	}
 
@@ -150,7 +125,7 @@ func TestRound3PhysicalAndWireIdentityIsBidirectional(t *testing.T) {
 	second = aliasedWire.Dependencies[1].View.Record()
 	second.WireResponseID = first.WireResponseID
 	aliasedWire.Dependencies[1].View = snapshotFromRecord(t, second)
-	if _, err := round3Publish(t, profile, aliasedWire); err == nil {
+	if _, err := validateFixtureReplay(t, profile, aliasedWire); err == nil {
 		t.Fatal("one wire-response ID mapped to two physical identities")
 	}
 
@@ -162,23 +137,22 @@ func TestRound3PhysicalAndWireIdentityIsBidirectional(t *testing.T) {
 	second = conflictingWords.Dependencies[1].View.Record()
 	second.Words[0] ^= 0xffff
 	conflictingWords.Dependencies[1].View = snapshotFromRecord(t, second)
-	if _, err := round3Publish(t, profile, conflictingWords); err == nil {
+	if _, err := validateFixtureReplay(t, profile, conflictingWords); err == nil {
 		t.Fatal("one physical group accepted contradictory overlapping words")
 	}
 }
 
-func TestRound3RetryAttemptBindingIsOwnedAndDeterministicallyReplayable(
+func TestRetryAttemptBindingIsOwnedAndDeterministicallyReplayable(
 	t *testing.T,
 ) {
 	profile, firstSpec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
-	state := round3State(t, profile, "retry-binding")
-	store := &round3MemoryCAS{state: state}
-	factory := round3Factory(t, profile, state, store)
+	state := fixtureLedgerState(t, profile, "retry-binding")
+	factory := fixtureFactoryFromState(t, profile, state)
 
-	firstAttempt, firstBound := round3Attempt(t, factory, firstSpec)
+	firstAttempt, firstBound := decodeFixtureAttempt(t, factory, firstSpec)
 	_, secondSpec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
@@ -187,7 +161,7 @@ func TestRound3RetryAttemptBindingIsOwnedAndDeterministicallyReplayable(
 	for index := range secondSpec.Dependencies {
 		secondSpec.Dependencies[index].RetryOrdinal = secondSpec.RetryOrdinal
 	}
-	_, secondBound := round3Attempt(t, factory, secondSpec)
+	_, secondBound := decodeFixtureAttempt(t, factory, secondSpec)
 
 	mixed := firstBound
 	mixed.Dependencies = append(
@@ -195,7 +169,7 @@ func TestRound3RetryAttemptBindingIsOwnedAndDeterministicallyReplayable(
 		firstBound.Dependencies...,
 	)
 	mixed.Dependencies[1] = secondBound.Dependencies[1]
-	if _, err := firstAttempt.Publish(mixed); err == nil {
+	if _, err := firstAttempt.Replay(mixed); err == nil {
 		t.Fatal("retained-old and new-attempt dependencies were mixed")
 	}
 
@@ -203,7 +177,7 @@ func TestRound3RetryAttemptBindingIsOwnedAndDeterministicallyReplayable(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
-	serialAttempt, serialBound := round3Attempt(t, factory, serialSpec)
+	serialAttempt, serialBound := decodeFixtureAttempt(t, factory, serialSpec)
 	encoded, err := serialAttempt.MarshalSpec(serialBound)
 	if err != nil {
 		t.Fatalf("MarshalSpec: %v", err)
@@ -212,12 +186,12 @@ func TestRound3RetryAttemptBindingIsOwnedAndDeterministicallyReplayable(
 		!bytes.Contains(encoded, []byte(`"retry_ordinal":1`)) {
 		t.Fatal("serialized retry identity is not deterministic")
 	}
-	replayAttempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+	replayAttempt, err := factory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: serialSpec.PollGenerationID,
 		RetryOrdinal:     serialSpec.RetryOrdinal,
 	})
 	if err != nil {
-		t.Fatalf("BeginObservationAttempt(replay): %v", err)
+		t.Fatalf("BeginFixtureReplay(replay): %v", err)
 	}
 	replayed, err := replayAttempt.DecodeSpec(encoded)
 	if err != nil {
@@ -230,12 +204,12 @@ func TestRound3RetryAttemptBindingIsOwnedAndDeterministicallyReplayable(
 	if !bytes.Equal(encoded, reencoded) {
 		t.Fatal("deterministic replay changed serialized bytes")
 	}
-	if _, err := replayAttempt.Publish(replayed); err != nil {
+	if _, err := replayAttempt.Replay(replayed); err != nil {
 		t.Fatalf("fresh-attempt serialized input was rejected: %v", err)
 	}
 }
 
-func TestRound3RuntimeContractVersionIsPinned(t *testing.T) {
+func TestRuntimeContractVersionIsPinned(t *testing.T) {
 	if reg.PinnedRuntimeContractVersion().String() != "1.0.0" {
 		t.Fatalf(
 			"pinned runtime version = %q",
@@ -297,7 +271,7 @@ func overlayDependencyDelta(
 	}
 }
 
-func TestRound3OverlayMaterializesAndValidatesEffectiveGraph(t *testing.T) {
+func TestOverlayMaterializesAndValidatesEffectiveGraph(t *testing.T) {
 	base := qualifiedBaseProfile(t)
 
 	sameVersionCodec := numericCodecSpec(t)
@@ -404,7 +378,7 @@ func TestRound3OverlayMaterializesAndValidatesEffectiveGraph(t *testing.T) {
 	}
 }
 
-func TestRound3BoundedSkewUsesCheckedArithmetic(t *testing.T) {
+func TestBoundedSkewUsesCheckedArithmetic(t *testing.T) {
 	profile, observation := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
@@ -431,12 +405,12 @@ func TestRound3BoundedSkewUsesCheckedArithmetic(t *testing.T) {
 	observation.Dependencies[1].LocalReceiptTime = late
 	observation.SourceTime = reg.SourceTimeObserved(late)
 	observation.LocalReceiptTime = late
-	if _, err := round3Publish(t, profile, observation); err == nil {
+	if _, err := validateFixtureReplay(t, profile, observation); err == nil {
 		t.Fatal("year 1..9999 skew passed through time.Duration saturation")
 	}
 }
 
-func TestRound3JSONRequiresExactKeysAndUnicode(t *testing.T) {
+func TestJSONRequiresExactKeysAndUnicode(t *testing.T) {
 	encoded, err := reg.MarshalProfileDescriptor(profileFixture(t))
 	if err != nil {
 		t.Fatalf("MarshalProfileDescriptor: %v", err)
@@ -500,7 +474,7 @@ func TestRound3JSONRequiresExactKeysAndUnicode(t *testing.T) {
 	}
 }
 
-func TestRound3ConstructorsUseOneCumulativeBudget(t *testing.T) {
+func TestConstructorsUseOneCumulativeBudget(t *testing.T) {
 	dependency := dependencySpec(t, "aggregate-budget", 0)
 	dependency.EvidenceReferences = make(
 		[]string,
@@ -550,12 +524,11 @@ func TestRound3ConstructorsUseOneCumulativeBudget(t *testing.T) {
 	}
 }
 
-func TestRound3DependencySetDigestShapeIsValidatedEverywhere(t *testing.T) {
+func TestDependencySetDigestShapeIsValidatedEverywhere(t *testing.T) {
 	profile := profileFixture(t)
-	state := round3State(t, profile, "digest-shape")
-	store := &round3MemoryCAS{state: state}
-	factory := round3Factory(t, profile, state, store)
-	attempt, spec := round3Attempt(
+	state := fixtureLedgerState(t, profile, "digest-shape")
+	factory := fixtureFactoryFromState(t, profile, state)
+	attempt, spec := decodeFixtureAttempt(
 		t,
 		factory,
 		successfulObservationSpec(t, profile),

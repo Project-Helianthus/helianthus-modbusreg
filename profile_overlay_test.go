@@ -12,7 +12,7 @@ import (
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
-func round2Factory(
+func fixtureFactoryWithLedger(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	state reg.SampleLedgerState,
@@ -26,7 +26,7 @@ func round2Factory(
 	return newFixtureValidationFactory(t, profile), ledger
 }
 
-func round2EmptyLedgerState(
+func emptyFixtureLedgerState(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 ) reg.SampleLedgerState {
@@ -41,27 +41,27 @@ func round2EmptyLedgerState(
 	return state
 }
 
-func admitRound2(
+func validateFixtureSpec(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	spec reg.ObservationSpec,
 ) (reg.FixtureReplay, error) {
 	t.Helper()
-	factory, _ := round2Factory(
+	factory, _ := fixtureFactoryWithLedger(
 		t,
 		profile,
-		round2EmptyLedgerState(t, profile),
+		emptyFixtureLedgerState(t, profile),
 		0,
 	)
-	return publishWithFactory(factory, spec)
+	return replayWithFactory(factory, spec)
 }
 
-func TestRound2RetrySetIdentityRejectsMixedAttempts(t *testing.T) {
+func TestRetrySetIdentityRejectsMixedAttempts(t *testing.T) {
 	profile, validSpec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
-	if _, err := admitRound2(t, profile, validSpec); err != nil {
+	if _, err := validateFixtureSpec(t, profile, validSpec); err != nil {
 		t.Fatalf("valid whole-set retry identity rejected: %v", err)
 	}
 	_, firstSpec := boundedFixture(t, reg.AcquisitionOrderDependencyDeclaration)
@@ -71,21 +71,21 @@ func TestRound2RetrySetIdentityRejectsMixedAttempts(t *testing.T) {
 		secondSpec.Dependencies[index].RetryOrdinal = secondSpec.RetryOrdinal
 	}
 
-	state := round2EmptyLedgerState(t, profile)
-	factory, _ := round2Factory(t, profile, state, 0)
-	first, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+	state := emptyFixtureLedgerState(t, profile)
+	factory, _ := fixtureFactoryWithLedger(t, profile, state, 0)
+	first, err := factory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: firstSpec.PollGenerationID,
 		RetryOrdinal:     firstSpec.RetryOrdinal,
 	})
 	if err != nil {
-		t.Fatalf("BeginObservationAttempt(first): %v", err)
+		t.Fatalf("BeginFixtureReplay(first): %v", err)
 	}
-	second, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+	second, err := factory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: secondSpec.PollGenerationID,
 		RetryOrdinal:     secondSpec.RetryOrdinal,
 	})
 	if err != nil {
-		t.Fatalf("BeginObservationAttempt(second): %v", err)
+		t.Fatalf("BeginFixtureReplay(second): %v", err)
 	}
 	firstBytes, err := reg.MarshalFixtureSpec(firstSpec)
 	if err != nil {
@@ -105,7 +105,7 @@ func TestRound2RetrySetIdentityRejectsMixedAttempts(t *testing.T) {
 	}
 	mixed := firstSpec
 	mixed.Dependencies[1] = secondSpec.Dependencies[1]
-	if _, err := first.Publish(mixed); err == nil {
+	if _, err := first.Replay(mixed); err == nil {
 		t.Fatal("mixed retry-set observation was accepted")
 	}
 
@@ -159,13 +159,13 @@ func makeRepeatedWireGroup(
 	spec.LocalReceiptTime = spec.Dependencies[0].LocalReceiptTime
 }
 
-func TestRound2WireGroupingAppliesToEveryCoherenceMode(t *testing.T) {
+func TestWireGroupingAppliesToEveryCoherenceMode(t *testing.T) {
 	profile, valid := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
 	makeRepeatedWireGroup(t, &valid)
-	if _, err := admitRound2(t, profile, valid); err != nil {
+	if _, err := validateFixtureSpec(t, profile, valid); err != nil {
 		t.Fatalf("compatible repeated wire group rejected: %v", err)
 	}
 
@@ -232,7 +232,7 @@ func TestRound2WireGroupingAppliesToEveryCoherenceMode(t *testing.T) {
 			record := candidate.Dependencies[1].View.Record()
 			test.mutate(&record)
 			candidate.Dependencies[1].View = snapshotFromRecord(t, record)
-			if _, err := admitRound2(t, profile, candidate); err == nil {
+			if _, err := validateFixtureSpec(t, profile, candidate); err == nil {
 				t.Fatal("incompatible WireResponseID reuse was accepted")
 			}
 		})
@@ -284,7 +284,7 @@ func modelDelta(t *testing.T, value string) reg.VendorOverlayDeltaSpec {
 	}
 }
 
-func TestRound2VendorOverlayIsOnlyEvidenceBackedDelta(t *testing.T) {
+func TestVendorOverlayIsOnlyEvidenceBackedDelta(t *testing.T) {
 	base := qualifiedBaseProfile(t)
 	clone := base.Spec()
 	clone.ID = "example.vendor.clone"
@@ -357,7 +357,7 @@ func TestRound2VendorOverlayIsOnlyEvidenceBackedDelta(t *testing.T) {
 	}
 }
 
-func TestRound2ConstructorsAndSerializationAreBounded(t *testing.T) {
+func TestConstructorsAndSerializationAreBounded(t *testing.T) {
 	if reg.MaxProfileDependencies != reg.PinnedMaxCoalescedDependents ||
 		reg.PinnedMaxCoalescedDependents != 4096 {
 		t.Fatal("dependency cap is not the pinned runtime absolute cap")
@@ -484,7 +484,7 @@ func TestRound2ConstructorsAndSerializationAreBounded(t *testing.T) {
 	}
 }
 
-func TestRound2JSONPreflightRejectsDuplicateAndCaseFoldedKeys(t *testing.T) {
+func TestJSONPreflightRejectsDuplicateAndCaseFoldedKeys(t *testing.T) {
 	profileBytes, err := reg.MarshalProfileDescriptor(profileFixture(t))
 	if err != nil {
 		t.Fatalf("MarshalProfileDescriptor: %v", err)
@@ -520,10 +520,10 @@ func TestRound2JSONPreflightRejectsDuplicateAndCaseFoldedKeys(t *testing.T) {
 	}
 }
 
-func TestRound2AdmissionCanonicalizesTimestamps(t *testing.T) {
+func TestAdmissionCanonicalizesTimestamps(t *testing.T) {
 	profile := profileFixture(t)
-	state := round2EmptyLedgerState(t, profile)
-	factory, ledger := round2Factory(t, profile, state, 0)
+	state := emptyFixtureLedgerState(t, profile)
+	factory, ledger := fixtureFactoryWithLedger(t, profile, state, 0)
 	spec := successfulObservationSpec(t, profile)
 	spec.LocalReceiptTime = time.Date(
 		10000,
@@ -535,7 +535,7 @@ func TestRound2AdmissionCanonicalizesTimestamps(t *testing.T) {
 		0,
 		time.UTC,
 	)
-	if _, err := publishWithFactory(factory, spec); err == nil {
+	if _, err := replayWithFactory(factory, spec); err == nil {
 		t.Fatal("RFC3339-inexpressible year was admitted")
 	}
 	if ledger.ExportState().HighWater != 0 {
@@ -556,7 +556,7 @@ func TestRound2AdmissionCanonicalizesTimestamps(t *testing.T) {
 		123,
 		location,
 	)
-	observation, err := publishWithFactory(factory, spec)
+	observation, err := replayWithFactory(factory, spec)
 	if err != nil {
 		t.Fatalf("canonicalizable timestamp rejected: %v", err)
 	}
@@ -577,7 +577,7 @@ func TestRound2AdmissionCanonicalizesTimestamps(t *testing.T) {
 
 func TestSampleLedgerStateRestartValidationIsBounded(t *testing.T) {
 	profile := profileFixture(t)
-	state := round2EmptyLedgerState(t, profile)
+	state := emptyFixtureLedgerState(t, profile)
 	const count = 512
 	state.Revision = count
 	state.HighWater = count
@@ -613,7 +613,7 @@ func TestSampleLedgerStateRestartValidationIsBounded(t *testing.T) {
 	}
 }
 
-func TestRound2RevokedProfileRejectsSuccessorFields(t *testing.T) {
+func TestRevokedProfileRejectsSuccessorFields(t *testing.T) {
 	base := profileFixture(t)
 	spec := base.Spec()
 	spec.State = reg.ProfileRevoked
@@ -625,23 +625,23 @@ func TestRound2RevokedProfileRejectsSuccessorFields(t *testing.T) {
 	}
 }
 
-func TestRound2SerializationRoundTripsNewFields(t *testing.T) {
+func TestSerializationRoundTripsNewFields(t *testing.T) {
 	profile, spec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
-	state := round2EmptyLedgerState(t, profile)
-	factory, ledger := round2Factory(t, profile, state, 0)
+	state := emptyFixtureLedgerState(t, profile)
+	factory, ledger := fixtureFactoryWithLedger(t, profile, state, 0)
 	encoded, err := reg.MarshalFixtureSpec(spec)
 	if err != nil {
 		t.Fatalf("MarshalFixtureSpec: %v", err)
 	}
-	replayAttempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+	replayAttempt, err := factory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: spec.PollGenerationID,
 		RetryOrdinal:     spec.RetryOrdinal,
 	})
 	if err != nil {
-		t.Fatalf("BeginObservationAttempt(replay): %v", err)
+		t.Fatalf("BeginFixtureReplay(replay): %v", err)
 	}
 	decodedSpec, err := replayAttempt.DecodeSpec(encoded)
 	if err != nil {
@@ -662,8 +662,8 @@ func TestRound2SerializationRoundTripsNewFields(t *testing.T) {
 		bytes.Contains(encoded, []byte(`"retry_attempt_token"`)) {
 		t.Fatal("deterministic retry-attempt identity was not preserved")
 	}
-	if _, err := replayAttempt.Publish(decodedSpec); err != nil {
-		t.Fatalf("Publish(decoded): %v", err)
+	if _, err := replayAttempt.Replay(decodedSpec); err != nil {
+		t.Fatalf("Replay(decoded): %v", err)
 	}
 
 	ledgerBytes, err := reg.MarshalSampleLedgerState(
@@ -693,7 +693,7 @@ func TestRound2SerializationRoundTripsNewFields(t *testing.T) {
 	}
 }
 
-func TestRound2LimitErrorsRemainDeterministic(t *testing.T) {
+func TestLimitErrorsRemainDeterministic(t *testing.T) {
 	tooLong := strings.Repeat("z", reg.MaxContractStringBytes+1)
 	first := fmt.Sprintf(`{"schema_version":"%s"}`, tooLong)
 	second := fmt.Sprintf(`{"schema_version":"%s"}`, tooLong)

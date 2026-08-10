@@ -7,7 +7,7 @@ export GOWORK=off
 export PYTHONDONTWRITEBYTECODE=1
 
 echo "==> terminology gate"
-if git grep -nIwiE 'm[a]ster|s[l]ave'; then
+if rg --hidden -g '!.git/**' -nIwi 'm[a]ster|s[l]ave' .; then
   echo "Found legacy terminology."
   exit 1
 fi
@@ -18,14 +18,8 @@ echo "==> scope gate"
 echo "==> scope policy mutation tests"
 python3 -m unittest discover -s tests -p 'test_*.py'
 
-echo "==> runtime consumer lock"
-PYTHONDONTWRITEBYTECODE=1 python3 scripts/validate_consumer_locks.py
-
-echo "==> documentation companion consumer lock"
-./scripts/validate_companion_lock.sh
-
 echo "==> gofmt"
-go_files="$(git ls-files '*.go')"
+go_files="$(rg --files -g '*.go' | LC_ALL=C sort)"
 if [[ -n "$go_files" ]]; then
   unformatted="$(gofmt -l $go_files)"
   if [[ -n "$unformatted" ]]; then

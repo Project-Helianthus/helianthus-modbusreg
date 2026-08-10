@@ -1,26 +1,29 @@
 # helianthus-modbusreg
 
-`helianthus-modbusreg` is the single public multi-vendor Modbus profile registry
-for Helianthus.
+`helianthus-modbusreg` is the single public multi-vendor Modbus profile
+registry for Helianthus.
 
 ## Status
 
-M2-01 provides the vendor-neutral profile and source-observation contract. The
-repository still contains no detector, qualification record, standard-family
-profile, vendor overlay, or vendor fixture. Those surfaces remain locked to
-later authorized issues.
+M2-01 defines immutable profile and observation contracts and consumes the
+public M1-06 opaque runtime-acquisition API. Production observations use a
+bounded attempt ledger and a caller-supplied transactional publication
+boundary. Offline fixture replay is a separate nonpublishable result.
+
+The repository contains no concrete detector, probe plan, qualification
+record, standard-family profile, vendor overlay, or vendor fixture. Those
+surfaces belong to later M2 milestones and require a separate operator request.
 
 ## One Registry, Multiple Vendors
 
 Helianthus does not create one repository per inverter vendor. This repository
-owns one versioned catalog for SunSpec standard families and evidence-backed
-Fronius, Growatt, Huawei, and future vendor overlays.
+owns one versioned catalog for standard families and evidence-backed Fronius,
+Growatt, Huawei, and future vendor overlays.
 
-A standard family contains only behavior established by the applicable public
-standard. A vendor overlay contains only evidence-backed detection,
-applicability, address-normalization, or behavior differences that cannot be
-represented by the standard family. Vendor names alone do not justify an
-overlay.
+A standard family contains only vendor-neutral behavior established by its
+public standard. A vendor overlay contains only proven applicability,
+normalization, or behavior differences that cannot be represented by the
+standard family. Vendor names alone do not justify an overlay.
 
 SmartLogger, EMMA, S-Dongle, model, and firmware distinctions are profile
 applicability and qualification dimensions, not separate repositories.
@@ -29,90 +32,86 @@ applicability and qualification dimensions, not separate repositories.
 
 This repository owns:
 
-- versioned profile declarations and catalog lookup;
-- complete, versioned codec declarations without silent coercion;
-- exact ordered dependency-set and documentary address normalization records;
-- attempt-owned runtime captures, fixture-gated synthetic snapshots, and exact
-  raw-word replay;
-- fail-closed coherence, deterministic retry-attempt, and complete physical
-  and wire-group validation;
-- O(1) factory-issued samples with persisted monotonic attempt identity,
-  published only after a consumer-supplied CAS;
-- bounded deterministic profile/observation serialization.
-
-The following ownership is planned but is not implemented by M2-01:
-
-- bounded detection plans and fail-closed qualification;
-- sanitized fixtures, mutation, and cross-profile conformance;
-- standard-family definitions and minimal vendor overlays.
+- versioned profile, codec, dependency-set, normalization, and coherence
+  contracts;
+- exact replayable source facts and wire-order provenance;
+- production ingestion from one exact M1-06 runtime attempt;
+- bounded retained attempts, claim entries, diagnostics, terminal sequences,
+  and non-reconstructing audit tombstones;
+- deterministic restart state for terminal sequences and audit records;
+- a transactional publication interface joining the irreversible external
+  effect and terminal publication decision;
+- strict bounded serialization for contracts, observations, and ledger state;
+  and
+- evidence-gated vendor overlay declarations for future milestones.
 
 This repository does not own:
 
-- sockets, serial ports, endpoint scheduling, retries, or recovery;
+- sockets, serial ports, endpoint scheduling, retries, or transport recovery;
 - Modbus TCP/RTU framing or arbitrary protocol operations;
+- concrete detection, probe execution, or hardware qualification;
 - canonical energy/PV publication policy;
 - gateway composition or private output bindings.
 
-Protocol/runtime operations are supplied by
+Transport and runtime authority come from the public
 [`helianthus-modbus`](https://github.com/Project-Helianthus/helianthus-modbus)
-through its public read interface. M2-01 pins commit
-`4f81cbeb6321e64fa51676ed6e375ce36b60d16d` as an immutable Go pseudo-version
-and copies successful `LogicalReadView` facts through
-`CaptureLogicalView`. The registry never retains a transport owner and cannot
-frame its own PDU.
+module, pinned as
+`v0.0.0-20260810083147-eab30aed9eb6`. `ObservationFactory` begins and retains
+the exact producer attempt from the supplied source and attempt key.
+`ObservationAttempt.Issue` passes a successful `LogicalReadView` and its exact
+`RuntimeNormalizationRecord` into that retained attempt. `Admit` closes the
+private ordered acquisition set; no M1 attempt, instance, acquisition, or
+capability is exposed by the registry API. Claims use the retained exact
+instance, and cancellation drains it through the retained source.
 
-The normative cross-repository boundary is
-[`modbus-multivendor-boundaries.md`](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/docs/platform/modbus-multivendor-boundaries.md).
-The M2-01 API contract and examples are documented in
-[`docs/m2-01-api.md`](docs/m2-01-api.md).
+Fixture bytes use `FixtureReplayer.Replay`. `FixtureReplay` has a fixture
+content identity and immutable replay facts, but no runtime capability,
+production sample ID, seal, or publish method.
+
+The detailed API contract is in [`docs/m2-01-api.md`](docs/m2-01-api.md). The
+cross-repository architecture remains documented in the public Helianthus
+protocol documentation repository.
 
 ## Development
 
 Prerequisites:
 
 - Go 1.22 or newer;
-- `golangci-lint` available on `PATH`.
+- Python 3; and
+- `golangci-lint` v2.11.4 on `PATH` for the complete local gate.
 
-Run the complete local gate:
+Run:
 
 ```bash
 ./scripts/ci_local.sh
 ```
 
-The gate validates the exact machine-readable
-[`policy/registry-boundary.json`](policy/registry-boundary.json), rejects
-unauthorized project/transport dependencies, prevents named vendor leakage into
-standard-family source, requires an evidence manifest for future vendor artifacts,
-and runs mutation tests for those boundaries. The M2-01 policy checks the Git
-index for regular tracked files, inventories every admitted repository file,
-anchors and scans code-bearing non-Go files, and separately hashes all product
-Go files. Go import inspection includes product, internal-test, and
-external-test imports. This hash gate is an enforced scope/change detector, not
-a malicious-committer security boundary. Exact-head adversarial status and
-protected-branch enforcement are the external trust boundary. Detector,
-qualification, standard/vendor profile, non-Go probe, socket artifact, and
-fixture source remain rejected.
+The offline gate validates
+[`policy/registry-boundary.json`](policy/registry-boundary.json) against the
+current tree. It enforces the one-registry and M2-01 contracts-only boundary,
+the public Modbus dependency, product import restrictions, forbidden ownership
+directories, vendor neutrality for future standard-family source, and public
+evidence for future vendor overlays. Python mutation tests prove that forbidden
+imports and scope leakage fail while ordinary new domain files require no
+inventory or hash update.
 
-The same gate verifies
-[`modbus-runtime-consumer-lock-v1.json`](policy/modbus-runtime-consumer-lock-v1.json)
-against the downloaded module's VCS origin and validates
-[`modbus-companion-consumer-lock-v1.json`](policy/modbus-companion-consumer-lock-v1.json)
-against the exact documentation commit
-`711a556fee344c6fe7f1ecf3253fcdb3f5f22d06` and manifest digest.
+The policy does not inventory repository files, hash product code, lock a
+documentation commit, inspect Git history, call GitHub, or access the network.
+Local CI also runs terminology, formatting, vet, build, race tests, and lint.
 
-The repository follows one issue and one pull request at a time, squash merge,
-strict test-first implementation, and applicable documentation/evidence gates.
-GitHub protects `main` with required `checks` and `lint` jobs, linear history,
-conversation resolution, and disabled merge/rebase commit methods. A separate
-required `adversarial-review` status is emitted only for an exact head that has
-a fresh OpenAI-only `NO_FINDINGS` verdict. All protections apply to
-administrators.
+Work remains one issue and one pull request at a time, with squash merge,
+proportionate test-first evidence, applicable public documentation/evidence,
+and blocker-driven review of the current head.
+
+Completion of M2-01 is a hard stop. Gateway work or another milestone starts
+only after a separate operator request.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 
 ## License
 
 Implementation code and repository documentation are licensed under
-[AGPL-3.0](LICENSE). Implementation-neutral register maps and value semantics
-belong in the Helianthus public `CC0-1.0` protocol-documentation lane, not in
-private fixtures or bindings. See the
+[AGPL-3.0](LICENSE). Independently authored implementation-neutral protocol
+facts belong in the public CC0-1.0 documentation lane, not in private fixtures
+or bindings. See the
 [Helianthus licensing model](https://github.com/Project-Helianthus/.github/blob/main/LICENSING.md).

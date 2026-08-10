@@ -7,7 +7,7 @@ import (
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
-func round5SingleDependencyProfile(
+func singleDependencyProfile(
 	t *testing.T,
 ) reg.ProfileDescriptor {
 	t.Helper()
@@ -29,7 +29,7 @@ func round5SingleDependencyProfile(
 	return profile
 }
 
-func TestRound5UTCRangeValidationPrecedesCAS(t *testing.T) {
+func TestUTCRangeValidationPrecedesCAS(t *testing.T) {
 	profile := profileFixture(t)
 	cases := []struct {
 		name   string
@@ -38,7 +38,7 @@ func TestRound5UTCRangeValidationPrecedesCAS(t *testing.T) {
 	}{
 		{
 			name:   "lower bound crosses into UTC year zero",
-			issuer: "round5-time-lower",
+			issuer: "fixture-time-lower",
 			mutate: func(spec *reg.ObservationSpec) {
 				location := time.FixedZone("UTC+14", 14*60*60)
 				spec.SourceTime = reg.SourceTimeObserved(
@@ -48,7 +48,7 @@ func TestRound5UTCRangeValidationPrecedesCAS(t *testing.T) {
 		},
 		{
 			name:   "upper bound crosses into UTC year 10000",
-			issuer: "round5-time-upper",
+			issuer: "fixture-time-upper",
 			mutate: func(spec *reg.ObservationSpec) {
 				location := time.FixedZone("UTC-14", -14*60*60)
 				spec.LocalReceiptTime = time.Date(
@@ -68,15 +68,15 @@ func TestRound5UTCRangeValidationPrecedesCAS(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			spec := successfulObservationSpec(t, profile)
 			test.mutate(&spec)
-			initial := round3State(t, profile, test.issuer)
-			factory := round3Factory(t, profile, initial, nil)
+			initial := fixtureLedgerState(t, profile, test.issuer)
+			factory := fixtureFactoryFromState(t, profile, initial)
 			if _, err := reg.MarshalFixtureSpec(spec); err == nil {
 				t.Fatal("out-of-range UTC timestamp serialized")
 			}
 
 			publishSpec := successfulObservationSpec(t, profile)
 			test.mutate(&publishSpec)
-			observation, err := publishWithFactory(factory, publishSpec)
+			observation, err := replayWithFactory(factory, publishSpec)
 			if err == nil || observation.FixtureID() != "" {
 				t.Fatal("out-of-range UTC timestamp published")
 			}
@@ -84,7 +84,7 @@ func TestRound5UTCRangeValidationPrecedesCAS(t *testing.T) {
 	}
 }
 
-func TestRound5RTUPhysicalResponseHasOneLogicalViewInBoundedMode(
+func TestRTUPhysicalResponseHasOneLogicalViewInBoundedMode(
 	t *testing.T,
 ) {
 	base := profileFixture(t)
@@ -147,12 +147,12 @@ func TestRound5RTUPhysicalResponseHasOneLogicalViewInBoundedMode(
 	}
 	spec.SourceTime = reg.SourceTimeObserved(source.Add(time.Second))
 	spec.LocalReceiptTime = source.Add(2 * time.Second)
-	if _, err := round3Publish(t, profile, spec); err == nil {
+	if _, err := validateFixtureReplay(t, profile, spec); err == nil {
 		t.Fatal("bounded coherence admitted two RTU views from one response")
 	}
 }
 
-func TestRound5TCPDisjointProfileIsRejectedByM1(t *testing.T) {
+func TestTCPDisjointProfileIsRejectedByM1(t *testing.T) {
 	base := profileFixture(t)
 	dependencies := base.Dependencies().Dependencies()
 	secondSpec := dependencies[1].Spec()

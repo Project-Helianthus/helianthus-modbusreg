@@ -22,7 +22,7 @@ func snapshotFromRecord(
 	return snapshot
 }
 
-func TestRound1SharedWireRejectsForgeryAndContradictoryWords(t *testing.T) {
+func TestSharedWireRejectsForgeryAndContradictoryWords(t *testing.T) {
 	profile := profileFixture(t)
 	tests := []struct {
 		name   string
@@ -73,7 +73,7 @@ func TestRound1SharedWireRejectsForgeryAndContradictoryWords(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			spec := successfulObservationSpec(t, profile)
 			test.mutate(&spec)
-			if _, err := buildObservation(t, profile, spec); err == nil {
+			if _, err := replayFixture(t, profile, spec); err == nil {
 				t.Fatal("forged shared-wire observation was accepted")
 			}
 		})
@@ -87,12 +87,12 @@ func TestRound1SharedWireRejectsForgeryAndContradictoryWords(t *testing.T) {
 		record.SliceOffset++
 		spec.Dependencies[index].View = snapshotFromRecord(t, record)
 	}
-	if _, err := buildObservation(t, profile, spec); err != nil {
+	if _, err := replayFixture(t, profile, spec); err != nil {
 		t.Fatalf("legitimate wider coalesced response was rejected: %v", err)
 	}
 }
 
-func TestRound1RTUAndTCPLogicalViewInvariants(t *testing.T) {
+func TestRTUAndTCPLogicalViewInvariants(t *testing.T) {
 	rtu := logicalViewRecord(2001, 100, 0, []uint16{1, 2})
 	rtu.Transport = reg.TransportRTU
 	rtu.ConnectionID = 0
@@ -166,7 +166,7 @@ func TestRound1RTUAndTCPLogicalViewInvariants(t *testing.T) {
 		record.SliceOffset = 0
 		observationSpec.Dependencies[index].View = snapshotFromRecord(t, record)
 	}
-	if _, err := buildObservation(t, profile, observationSpec); err == nil {
+	if _, err := replayFixture(t, profile, observationSpec); err == nil {
 		t.Fatal("one RTU response produced multiple logical views")
 	}
 }
@@ -216,7 +216,7 @@ func boundedFixture(
 	return profile, spec
 }
 
-func TestRound1CoherenceDeclarationIsExplicit(t *testing.T) {
+func TestCoherenceDeclarationIsExplicit(t *testing.T) {
 	base := profileFixture(t)
 	spec := base.Spec()
 	spec.Coherence.RetrySetBehavior = ""
@@ -249,7 +249,7 @@ func TestRound1CoherenceDeclarationIsExplicit(t *testing.T) {
 	}
 }
 
-func TestRound1BoundedMultiResponseRejectsMixedSourcesAndOrder(t *testing.T) {
+func TestBoundedMultiResponseRejectsMixedSourcesAndOrder(t *testing.T) {
 	tests := []struct {
 		name   string
 		mutate func(*reg.ObservationSpec)
@@ -305,7 +305,7 @@ func TestRound1BoundedMultiResponseRejectsMixedSourcesAndOrder(t *testing.T) {
 				reg.AcquisitionOrderDependencyDeclaration,
 			)
 			test.mutate(&spec)
-			if _, err := buildObservation(t, profile, spec); err == nil {
+			if _, err := replayFixture(t, profile, spec); err == nil {
 				t.Fatal("incoherent bounded response was accepted")
 			}
 		})
@@ -317,7 +317,7 @@ func TestRound1BoundedMultiResponseRejectsMixedSourcesAndOrder(t *testing.T) {
 		spec.Dependencies[1].SourceTime.Time.Add(time.Second),
 	)
 	spec.SourceTime = spec.Dependencies[0].SourceTime
-	if _, err := buildObservation(t, profile, spec); err == nil {
+	if _, err := replayFixture(t, profile, spec); err == nil {
 		t.Fatal("reversed source-time acquisition order was accepted")
 	}
 	spec.Dependencies[0].SourceTime = reg.SourceTimeObserved(firstTime)
@@ -326,12 +326,12 @@ func TestRound1BoundedMultiResponseRejectsMixedSourcesAndOrder(t *testing.T) {
 	spec.Dependencies[0].LocalReceiptTime =
 		spec.Dependencies[1].LocalReceiptTime.Add(time.Second)
 	spec.LocalReceiptTime = spec.Dependencies[0].LocalReceiptTime
-	if _, err := buildObservation(t, profile, spec); err == nil {
+	if _, err := replayFixture(t, profile, spec); err == nil {
 		t.Fatal("reversed receipt-time acquisition order was accepted")
 	}
 }
 
-func TestRound1CodecAndDependencyBounds(t *testing.T) {
+func TestCodecAndDependencyBounds(t *testing.T) {
 	for _, rawWords := range []uint16{126, 32768} {
 		spec := numericCodecSpec(t)
 		spec.RawWordCount = rawWords
@@ -427,7 +427,7 @@ func overlayProfile(
 	return profile
 }
 
-func TestRound1CatalogValidatesOverlayAndSupersessionGraph(t *testing.T) {
+func TestCatalogValidatesOverlayAndSupersessionGraph(t *testing.T) {
 	base := qualifiedBaseProfile(t)
 	overlay := overlayProfile(t, base, base.Version())
 	if _, err := reg.NewCatalog(overlay); err == nil {
@@ -515,7 +515,7 @@ func TestRound1CatalogValidatesOverlayAndSupersessionGraph(t *testing.T) {
 	}
 }
 
-func TestRound1SingleWireRejectsImpossibleDependencySets(t *testing.T) {
+func TestSingleWireRejectsImpossibleDependencySets(t *testing.T) {
 	base := profileFixture(t)
 	dependencies := base.Dependencies().Dependencies()
 
@@ -558,7 +558,7 @@ func TestRound1SingleWireRejectsImpossibleDependencySets(t *testing.T) {
 	}
 }
 
-func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
+func TestProfileAndObservationSerializationIsLossless(t *testing.T) {
 	profile := profileFixture(t)
 	profileBytes, err := reg.MarshalProfileDescriptor(profile)
 	if err != nil {
@@ -608,7 +608,7 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 	}
 
 	factory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	observation, err := publishWithFactory(
+	observation, err := replayWithFactory(
 		factory,
 		successfulObservationSpec(t, profile),
 	)
@@ -621,12 +621,12 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 	}
 	replayRecord := observation.Replay()[0].LogicalViewRecord()
 	freshFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	freshAttempt, err := freshFactory.BeginObservationAttempt(reg.AttemptIdentity{
+	freshAttempt, err := freshFactory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: observation.Spec().PollGenerationID,
 		RetryOrdinal:     observation.Spec().RetryOrdinal,
 	})
 	if err != nil {
-		t.Fatalf("BeginObservationAttempt: %v", err)
+		t.Fatalf("BeginFixtureReplay: %v", err)
 	}
 	decodedObservationSpec, err := freshAttempt.DecodeSpec(observationBytes)
 	if err != nil {
@@ -655,7 +655,7 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 	}
 	JSONDecodedObservationSpec.SampleID = ""
 	specFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	if _, err := publishWithFactory(
+	if _, err := replayWithFactory(
 		specFactory,
 		JSONDecodedObservationSpec,
 	); err != nil {
@@ -674,7 +674,7 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 		1,
 	)
 	thirdFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	thirdAttempt, _ := thirdFactory.BeginObservationAttempt(reg.AttemptIdentity{
+	thirdAttempt, _ := thirdFactory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: observation.Spec().PollGenerationID,
 		RetryOrdinal:     observation.Spec().RetryOrdinal,
 	})
@@ -686,7 +686,7 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 		[]byte(`,"unknown_contract_field":true}`)...,
 	)
 	fourthFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	fourthAttempt, _ := fourthFactory.BeginObservationAttempt(reg.AttemptIdentity{
+	fourthAttempt, _ := fourthFactory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: observation.Spec().PollGenerationID,
 		RetryOrdinal:     observation.Spec().RetryOrdinal,
 	})
@@ -697,7 +697,7 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 	}
 }
 
-func TestRound1SchemaAuthoritiesAreReadOnlyValues(t *testing.T) {
+func TestSchemaAuthoritiesAreReadOnlyValues(t *testing.T) {
 	if reg.CurrentSchemaVersion().String() != "1.0.0" ||
 		reg.CurrentCodecContractVersion().String() != "1.0.0" {
 		t.Fatal("schema authority accessor returned the wrong value")
@@ -712,7 +712,7 @@ func TestRound1SchemaAuthoritiesAreReadOnlyValues(t *testing.T) {
 func TestFixtureReplayDoesNotAdvanceProductionLedger(t *testing.T) {
 	profile := profileFixture(t)
 	factory, ledger := newFactory(t, profile, emptyLedgerState(t, profile))
-	replay, err := publishWithFactory(factory, successfulObservationSpec(t, profile))
+	replay, err := replayWithFactory(factory, successfulObservationSpec(t, profile))
 	if err != nil {
 		t.Fatalf("fixture replay: %v", err)
 	}
@@ -722,10 +722,10 @@ func TestFixtureReplayDoesNotAdvanceProductionLedger(t *testing.T) {
 	}
 }
 
-func TestRound1ReplayExposesFullImmutableProvenance(t *testing.T) {
+func TestReplayExposesFullImmutableProvenance(t *testing.T) {
 	profile := profileFixture(t)
 	spec := successfulObservationSpec(t, profile)
-	observation, err := buildObservation(t, profile, spec)
+	observation, err := replayFixture(t, profile, spec)
 	if err != nil {
 		t.Fatalf("NewObservation: %v", err)
 	}

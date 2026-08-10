@@ -9,11 +9,12 @@ cruise-control skills referenced there.
 1. Work one issue at a time and keep at most one open pull request.
 2. Use `issue/<id>-<slug>` branches and squash merge only.
 3. Run `./scripts/ci_local.sh` before pushing.
-4. Product implementation requires a test-only RED commit observed by CI before
-   the implementation commit.
+4. Add focused RED tests before behavioral repairs where TDD adds value, and
+   preserve the observed failure in normal Git or pull-request evidence.
 5. Profile, codec, detector, qualification, or exported behavior changes
    require their merged or companion public documentation and evidence gate.
-6. React and reply to every review comment; resolve findings with evidence.
+6. Resolve valid blockers against the current head under the workspace review
+   policy.
 
 ## Ownership Invariants
 
@@ -25,5 +26,5 @@ cruise-control skills referenced there.
 - Profile detection is bounded, read-only, version-aware, and fail-closed.
 - Public builds, tests, fixtures, and docs must never require private
   repositories or artifacts.
-- Stop before gateway work unless a later execution authorization explicitly
-  permits it.
+- Stop after the requested repository or milestone boundary. Gateway work
+  waits for a separate operator request.

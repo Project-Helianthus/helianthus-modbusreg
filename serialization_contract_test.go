@@ -9,25 +9,25 @@ import (
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
-func round4Attempt(
+func beginFixtureReplay(
 	t *testing.T,
 	factory *fixtureValidationFactory,
 	spec reg.ObservationSpec,
-) *fixtureValidationAttempt {
+) *fixtureReplaySession {
 	t.Helper()
-	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+	attempt, err := factory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: spec.PollGenerationID,
 		RetryOrdinal:     spec.RetryOrdinal,
 	})
 	if err != nil {
-		t.Fatalf("BeginObservationAttempt: %v", err)
+		t.Fatalf("BeginFixtureReplay: %v", err)
 	}
 	return attempt
 }
 
-func round4Bind(
+func decodeFixtureSpec(
 	t *testing.T,
-	attempt *fixtureValidationAttempt,
+	attempt *fixtureReplaySession,
 	spec reg.ObservationSpec,
 ) reg.ObservationSpec {
 	t.Helper()
@@ -42,16 +42,15 @@ func round4Bind(
 	return decoded
 }
 
-func TestRound4DeterministicReplayAcrossFreshFactories(t *testing.T) {
+func TestDeterministicReplayAcrossFreshFactories(t *testing.T) {
 	profile, spec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
-	firstState := round3State(t, profile, "round4-replay-first")
-	firstStore := &round3MemoryCAS{state: firstState}
-	firstFactory := round3Factory(t, profile, firstState, firstStore)
-	firstAttempt := round4Attempt(t, firstFactory, spec)
-	bound := round4Bind(t, firstAttempt, spec)
+	firstState := fixtureLedgerState(t, profile, "fixture-replay-first")
+	firstFactory := fixtureFactoryFromState(t, profile, firstState)
+	firstAttempt := beginFixtureReplay(t, firstFactory, spec)
+	bound := decodeFixtureSpec(t, firstAttempt, spec)
 	encoded, err := firstAttempt.MarshalSpec(bound)
 	if err != nil {
 		t.Fatalf("MarshalSpec(first): %v", err)
@@ -64,10 +63,9 @@ func TestRound4DeterministicReplayAcrossFreshFactories(t *testing.T) {
 		t.Fatalf("offline fixture was not idempotently replayable: %v", err)
 	}
 
-	secondState := round3State(t, profile, "round4-replay-second")
-	secondStore := &round3MemoryCAS{state: secondState}
-	secondFactory := round3Factory(t, profile, secondState, secondStore)
-	secondAttempt := round4Attempt(t, secondFactory, spec)
+	secondState := fixtureLedgerState(t, profile, "fixture-replay-second")
+	secondFactory := fixtureFactoryFromState(t, profile, secondState)
+	secondAttempt := beginFixtureReplay(t, secondFactory, spec)
 	decoded, err := secondAttempt.DecodeSpec(encoded)
 	if err != nil {
 		t.Fatalf("DecodeSpec(fresh factory): %v", err)
@@ -88,12 +86,12 @@ func TestRound4DeterministicReplayAcrossFreshFactories(t *testing.T) {
 	if !bytes.Equal(encoded, reencoded) {
 		t.Fatal("fresh-process-equivalent replay is not byte deterministic")
 	}
-	if _, err := secondAttempt.Publish(decoded); err != nil {
-		t.Fatalf("Publish(fresh replay): %v", err)
+	if _, err := secondAttempt.Replay(decoded); err != nil {
+		t.Fatalf("Replay(fresh replay): %v", err)
 	}
 }
 
-func TestRound4PhysicalRequestIDHasOneCanonicalTuple(t *testing.T) {
+func TestPhysicalRequestIDHasOneCanonicalTuple(t *testing.T) {
 	profile, spec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
@@ -102,12 +100,12 @@ func TestRound4PhysicalRequestIDHasOneCanonicalTuple(t *testing.T) {
 	second := spec.Dependencies[1].View.Record()
 	second.PhysicalRequestID = first.PhysicalRequestID
 	spec.Dependencies[1].View = snapshotFromRecord(t, second)
-	if _, err := round3Publish(t, profile, spec); err == nil {
+	if _, err := validateFixtureReplay(t, profile, spec); err == nil {
 		t.Fatal("one physical request ID mapped to different ranges and wires")
 	}
 }
 
-func TestRound4JSONRejectsNullAndMissingRequiredMembers(t *testing.T) {
+func TestJSONRejectsNullAndMissingRequiredMembers(t *testing.T) {
 	profile := profileFixture(t)
 	profileBytes, err := reg.MarshalProfileDescriptor(profile)
 	if err != nil {
@@ -148,7 +146,7 @@ func TestRound4JSONRejectsNullAndMissingRequiredMembers(t *testing.T) {
 		}
 	}
 
-	state := round3State(t, profile, "round4-json-ledger")
+	state := fixtureLedgerState(t, profile, "fixture-json-ledger")
 	ledgerBytes, err := reg.MarshalSampleLedgerState(state)
 	if err != nil {
 		t.Fatalf("MarshalSampleLedgerState: %v", err)
@@ -175,20 +173,19 @@ func TestRound4JSONRejectsNullAndMissingRequiredMembers(t *testing.T) {
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
-	observationState := round3State(t, boundedProfile, "round4-json-observation")
-	observationFactory := round3Factory(
+	observationState := fixtureLedgerState(t, boundedProfile, "fixture-json-observation")
+	observationFactory := fixtureFactoryFromState(
 		t,
 		boundedProfile,
 		observationState,
-		&round3MemoryCAS{state: observationState},
 	)
-	observationAttempt := round4Attempt(
+	observationAttempt := beginFixtureReplay(
 		t,
 		observationFactory,
 		observationSpec,
 	)
 	observationBytes, err := observationAttempt.MarshalSpec(
-		round4Bind(t, observationAttempt, observationSpec),
+		decodeFixtureSpec(t, observationAttempt, observationSpec),
 	)
 	if err != nil {
 		t.Fatalf("MarshalSpec: %v", err)
@@ -217,39 +214,37 @@ func TestRound4JSONRejectsNullAndMissingRequiredMembers(t *testing.T) {
 		if bytes.Equal(candidate, observationBytes) {
 			t.Fatalf("observation mutation %d did not apply", index)
 		}
-		freshState := round3State(
+		freshState := fixtureLedgerState(
 			t,
 			boundedProfile,
-			"round4-json-observation-decode",
+			"fixture-json-observation-decode",
 		)
-		freshFactory := round3Factory(
+		freshFactory := fixtureFactoryFromState(
 			t,
 			boundedProfile,
 			freshState,
-			&round3MemoryCAS{state: freshState},
 		)
-		freshAttempt := round4Attempt(t, freshFactory, observationSpec)
+		freshAttempt := beginFixtureReplay(t, freshFactory, observationSpec)
 		if _, err := freshAttempt.DecodeSpec(candidate); err == nil {
 			t.Fatalf("observation null/missing case %d was accepted", index)
 		}
 	}
 }
 
-func TestRound4SerializationNeverMutatesObservationInput(t *testing.T) {
+func TestSerializationNeverMutatesObservationInput(t *testing.T) {
 	profile, spec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
-	state := round3State(t, profile, "round4-immutable")
-	factory := round3Factory(
+	state := fixtureLedgerState(t, profile, "fixture-immutable")
+	factory := fixtureFactoryFromState(
 		t,
 		profile,
 		state,
-		&round3MemoryCAS{state: state},
 	)
-	attempt := round4Attempt(t, factory, spec)
-	bound := round4Bind(t, attempt, spec)
-	location := time.FixedZone("round4-offset", 2*60*60)
+	attempt := beginFixtureReplay(t, factory, spec)
+	bound := decodeFixtureSpec(t, attempt, spec)
+	location := time.FixedZone("fixture-offset", 2*60*60)
 	source := time.Date(2026, time.July, 29, 21, 0, 0, 123, location)
 	bound.SourceTime = reg.SourceTimeObserved(source.Add(time.Second))
 	bound.LocalReceiptTime = source.Add(2 * time.Second)
@@ -275,16 +270,16 @@ func TestRound4SerializationNeverMutatesObservationInput(t *testing.T) {
 	}
 }
 
-func TestRound4SingleWireDependencyTimeStateIsExplicit(t *testing.T) {
+func TestSingleWireDependencyTimeStateIsExplicit(t *testing.T) {
 	profile := profileFixture(t)
 	invalid := successfulObservationSpec(t, profile)
 	invalid.Dependencies[0].SourceTime = reg.SourceTimeSpec{}
-	if _, err := round3Publish(t, profile, invalid); err == nil {
+	if _, err := validateFixtureReplay(t, profile, invalid); err == nil {
 		t.Fatal("single-wire dependency accepted an implicit time state")
 	}
 
 	valid := successfulObservationSpec(t, profile)
-	observation, err := round3Publish(t, profile, valid)
+	observation, err := validateFixtureReplay(t, profile, valid)
 	if err != nil {
 		t.Fatalf("valid single-wire observation rejected: %v", err)
 	}
@@ -293,7 +288,7 @@ func TestRound4SingleWireDependencyTimeStateIsExplicit(t *testing.T) {
 	}
 }
 
-func TestRound4NormalizationSourceLocatorRequiresIdentifier(t *testing.T) {
+func TestNormalizationSourceLocatorRequiresIdentifier(t *testing.T) {
 	for _, locator := range []string{
 		"https://",
 		"https://example.com",

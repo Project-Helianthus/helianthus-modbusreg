@@ -10,9 +10,9 @@ import (
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
-func round6BoundedSingleProfile(t *testing.T) reg.ProfileDescriptor {
+func boundedSingleDependencyProfile(t *testing.T) reg.ProfileDescriptor {
 	t.Helper()
-	base := round5SingleDependencyProfile(t)
+	base := singleDependencyProfile(t)
 	spec := base.Spec()
 	spec.Coherence = reg.CoherencePolicySpec{
 		Version:                      base.CoherenceVersion(),
@@ -22,7 +22,7 @@ func round6BoundedSingleProfile(t *testing.T) reg.ProfileDescriptor {
 		RequireGenerationEquality:    true,
 		AcquisitionOrder:             reg.AcquisitionOrderDependencyDeclaration,
 		RetrySetBehavior:             reg.RetryWholeSet,
-		DocumentaryConsistencyMarker: "round6-sequence",
+		DocumentaryConsistencyMarker: "fixture-sequence",
 	}
 	profile, err := reg.NewProfileDescriptor(spec)
 	if err != nil {
@@ -31,7 +31,7 @@ func round6BoundedSingleProfile(t *testing.T) reg.ProfileDescriptor {
 	return profile
 }
 
-func TestRound6M1CommonIntersectionParity(t *testing.T) {
+func TestM1CommonIntersectionParity(t *testing.T) {
 	base := profileFixture(t)
 	if _, err := reg.NewProfileDescriptor(base.Spec()); err != nil {
 		t.Fatalf("overlapping M1 profile rejected: %v", err)
@@ -65,7 +65,7 @@ func TestRound6M1CommonIntersectionParity(t *testing.T) {
 		RequireGenerationEquality:    true,
 		AcquisitionOrder:             reg.AcquisitionOrderDependencyDeclaration,
 		RetrySetBehavior:             reg.RetryWholeSet,
-		DocumentaryConsistencyMarker: "round6-intersection",
+		DocumentaryConsistencyMarker: "fixture-intersection",
 	}
 	bounded, err := reg.NewProfileDescriptor(profileSpec)
 	if err != nil {
@@ -88,18 +88,18 @@ func TestRound6M1CommonIntersectionParity(t *testing.T) {
 			reg.SourceTimeObserved(source)
 		observation.Dependencies[index].LocalReceiptTime = source
 		observation.Dependencies[index].DocumentaryConsistencyMarker =
-			"round6-intersection"
+			"fixture-intersection"
 		observation.Dependencies[index].AcquisitionOrdinal = uint32(index + 1)
 		observation.Dependencies[index].RetryOrdinal = 1
 	}
 	observation.SourceTime = reg.SourceTimeObserved(source)
 	observation.LocalReceiptTime = source
-	if _, err := round3Publish(t, bounded, observation); err == nil {
+	if _, err := validateFixtureReplay(t, bounded, observation); err == nil {
 		t.Fatal("one TCP physical response accepted views without common intersection")
 	}
 }
 
-func TestRound6PersistedAttemptMustMatchProfileMode(t *testing.T) {
+func TestPersistedAttemptMustMatchProfileMode(t *testing.T) {
 	tests := []struct {
 		name    string
 		profile reg.ProfileDescriptor
@@ -112,13 +112,13 @@ func TestRound6PersistedAttemptMustMatchProfileMode(t *testing.T) {
 		},
 		{
 			name:    "bounded mode requires retry ordinal",
-			profile: round6BoundedSingleProfile(t),
+			profile: boundedSingleDependencyProfile(t),
 			attempt: reg.AttemptIdentity{PollGenerationID: 41},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			state := round3State(t, test.profile, "round6-mode-state")
+			state := fixtureLedgerState(t, test.profile, "fixture-mode-state")
 			state.Revision = 1
 			state.HighWater = 1
 			state.LastCommittedAttempt = test.attempt
@@ -137,7 +137,7 @@ func TestRound6PersistedAttemptMustMatchProfileMode(t *testing.T) {
 	}
 }
 
-func TestRound6CoherenceMarkerIsBoundedBeforeConstruction(t *testing.T) {
+func TestCoherenceMarkerIsBoundedBeforeConstruction(t *testing.T) {
 	base, _ := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
@@ -177,7 +177,7 @@ func TestRound6CoherenceMarkerIsBoundedBeforeConstruction(t *testing.T) {
 	}
 }
 
-func TestRound6ExplicitObservedUTCYearOneRoundTrips(t *testing.T) {
+func TestExplicitObservedUTCYearOneRoundTrips(t *testing.T) {
 	profile := profileFixture(t)
 	spec := successfulObservationSpec(t, profile)
 	spec.SourceTime = reg.SourceTimeObserved(time.Time{})
@@ -185,26 +185,25 @@ func TestRound6ExplicitObservedUTCYearOneRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarshalFixtureSpec(year one): %v", err)
 	}
-	state := round3State(t, profile, "round6-year-one")
-	factory := round3Factory(
+	state := fixtureLedgerState(t, profile, "fixture-year-one")
+	factory := fixtureFactoryFromState(
 		t,
 		profile,
 		state,
-		&round3MemoryCAS{state: state},
 	)
-	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+	attempt, err := factory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: spec.PollGenerationID,
 	})
 	if err != nil {
-		t.Fatalf("BeginObservationAttempt: %v", err)
+		t.Fatalf("BeginFixtureReplay: %v", err)
 	}
 	decoded, err := attempt.DecodeSpec(encoded)
 	if err != nil {
 		t.Fatalf("DecodeSpec(year one): %v", err)
 	}
-	observation, err := attempt.Publish(decoded)
+	observation, err := attempt.Replay(decoded)
 	if err != nil {
-		t.Fatalf("Publish(year one): %v", err)
+		t.Fatalf("Replay(year one): %v", err)
 	}
 	if got := observation.Spec().SourceTime; got.State != reg.SourceTimeObservedState ||
 		!got.Time.Equal(time.Time{}) {
@@ -219,7 +218,7 @@ func TestRound6ExplicitObservedUTCYearOneRoundTrips(t *testing.T) {
 	}
 }
 
-func TestRound6MissingJSONFieldErrorIsDeterministic(t *testing.T) {
+func TestMissingJSONFieldErrorIsDeterministic(t *testing.T) {
 	const expected = `serialized object is missing required key "schema_version"`
 	for iteration := 0; iteration < 100; iteration++ {
 		_, err := reg.UnmarshalSampleLedgerState([]byte(`{}`))
@@ -229,7 +228,7 @@ func TestRound6MissingJSONFieldErrorIsDeterministic(t *testing.T) {
 	}
 }
 
-func TestRound7FixturePublishUsesDecodedImmutableSnapshot(t *testing.T) {
+func TestFixtureReplayUsesDecodedImmutableSnapshot(t *testing.T) {
 	profile, spec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
@@ -260,7 +259,7 @@ func TestRound7FixturePublishUsesDecodedImmutableSnapshot(t *testing.T) {
 	}
 }
 
-func TestRound7DistinctFixtureViewsWithEqualWordsRemainAdmissible(t *testing.T) {
+func TestDistinctFixtureViewsWithEqualWordsRemainAdmissible(t *testing.T) {
 	profile, spec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
@@ -269,9 +268,9 @@ func TestRound7DistinctFixtureViewsWithEqualWordsRemainAdmissible(t *testing.T) 
 	second := spec.Dependencies[1].View.Record()
 	second.Words = append([]uint16(nil), firstWords...)
 	spec.Dependencies[1].View = snapshotFromRecord(t, second)
-	state := round3State(t, profile, "round7-fixture-equal-words")
-	factory := round3Factory(t, profile, state, &round3MemoryCAS{state: state})
-	if _, decoded := round3Attempt(t, factory, spec); !reflect.DeepEqual(
+	state := fixtureLedgerState(t, profile, "fixture-fixture-equal-words")
+	factory := fixtureFactoryFromState(t, profile, state)
+	if _, decoded := decodeFixtureAttempt(t, factory, spec); !reflect.DeepEqual(
 		decoded.Dependencies[0].View.Record().Words,
 		decoded.Dependencies[1].View.Record().Words,
 	) {
@@ -279,7 +278,7 @@ func TestRound7DistinctFixtureViewsWithEqualWordsRemainAdmissible(t *testing.T) 
 	}
 }
 
-func TestRound7FixturePhysicalResponseOwnsChronologyFacts(t *testing.T) {
+func TestFixturePhysicalResponseOwnsChronologyFacts(t *testing.T) {
 	profile, valid := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
@@ -294,7 +293,7 @@ func TestRound7FixturePhysicalResponseOwnsChronologyFacts(t *testing.T) {
 	}
 	valid.SourceTime = reg.SourceTimeObserved(observed)
 	valid.LocalReceiptTime = receipt
-	if _, err := round3Publish(t, profile, valid); err != nil {
+	if _, err := validateFixtureReplay(t, profile, valid); err != nil {
 		t.Fatalf("fixture shared physical chronology rejected: %v", err)
 	}
 
@@ -309,12 +308,12 @@ func TestRound7FixturePhysicalResponseOwnsChronologyFacts(t *testing.T) {
 	contradictory.Dependencies[1].LocalReceiptTime =
 		contradictory.Dependencies[0].LocalReceiptTime.Add(time.Second)
 	contradictory.Dependencies[1].AcquisitionOrdinal = 2
-	if _, err := round3Publish(t, profile, contradictory); err == nil {
+	if _, err := validateFixtureReplay(t, profile, contradictory); err == nil {
 		t.Fatal("fixture physical response accepted contradictory chronology facts")
 	}
 }
 
-func TestRound7FixtureBoundedSourceTimeStatesUseReceiptSkew(t *testing.T) {
+func TestFixtureBoundedSourceTimeStatesUseReceiptSkew(t *testing.T) {
 	t.Run("explicit unavailable", func(t *testing.T) {
 		profile, spec := boundedFixture(
 			t,
@@ -324,7 +323,7 @@ func TestRound7FixtureBoundedSourceTimeStatesUseReceiptSkew(t *testing.T) {
 			spec.Dependencies[index].SourceTime = reg.SourceTimeUnavailable()
 		}
 		spec.SourceTime = reg.SourceTimeUnavailable()
-		if _, err := round3Publish(t, profile, spec); err != nil {
+		if _, err := validateFixtureReplay(t, profile, spec); err != nil {
 			t.Fatalf("fixture unavailable source time rejected: %v", err)
 		}
 	})
@@ -341,7 +340,7 @@ func TestRound7FixtureBoundedSourceTimeStatesUseReceiptSkew(t *testing.T) {
 			spec.Dependencies[0].LocalReceiptTime.Add(4 * time.Second)
 		spec.SourceTime = reg.SourceTimeUnavailable()
 		spec.LocalReceiptTime = spec.Dependencies[1].LocalReceiptTime
-		if _, err := round3Publish(t, profile, spec); err == nil {
+		if _, err := validateFixtureReplay(t, profile, spec); err == nil {
 			t.Fatal("fixture unavailable source time bypassed receipt skew")
 		}
 	})
@@ -356,7 +355,7 @@ func TestRound7FixtureBoundedSourceTimeStatesUseReceiptSkew(t *testing.T) {
 				reg.SourceTimeObserved(time.Time{})
 		}
 		spec.SourceTime = reg.SourceTimeObserved(time.Time{})
-		observation, err := round3Publish(t, profile, spec)
+		observation, err := validateFixtureReplay(t, profile, spec)
 		if err != nil {
 			t.Fatalf("fixture year-one source time rejected: %v", err)
 		}
@@ -367,7 +366,7 @@ func TestRound7FixtureBoundedSourceTimeStatesUseReceiptSkew(t *testing.T) {
 	})
 }
 
-func round7FixtureJSONWithReceipts(
+func fixtureJSONWithReceipts(
 	t *testing.T,
 	spec reg.ObservationSpec,
 	value any,
@@ -400,29 +399,29 @@ func round7FixtureJSONWithReceipts(
 	return mutated
 }
 
-func TestRound7FixtureJSONRetainsRequiredYearOneReceiptPresence(t *testing.T) {
+func TestFixtureJSONRetainsRequiredYearOneReceiptPresence(t *testing.T) {
 	profile, spec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
 	const yearOne = "0001-01-01T00:00:00Z"
-	encoded := round7FixtureJSONWithReceipts(t, spec, yearOne)
-	state := round3State(t, profile, "round7-json-year-one")
-	factory := round3Factory(t, profile, state, &round3MemoryCAS{state: state})
-	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+	encoded := fixtureJSONWithReceipts(t, spec, yearOne)
+	state := fixtureLedgerState(t, profile, "fixture-json-year-one")
+	factory := fixtureFactoryFromState(t, profile, state)
+	attempt, err := factory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: spec.PollGenerationID,
 		RetryOrdinal:     spec.RetryOrdinal,
 	})
 	if err != nil {
-		t.Fatalf("BeginObservationAttempt: %v", err)
+		t.Fatalf("BeginFixtureReplay: %v", err)
 	}
 	decoded, err := attempt.DecodeSpec(encoded)
 	if err != nil {
 		t.Fatalf("DecodeSpec(year one receipt): %v", err)
 	}
-	observation, err := attempt.Publish(decoded)
+	observation, err := attempt.Replay(decoded)
 	if err != nil {
-		t.Fatalf("Publish(year one receipt): %v", err)
+		t.Fatalf("Replay(year one receipt): %v", err)
 	}
 	if !observation.Spec().LocalReceiptTime.Equal(time.Time{}) {
 		t.Fatalf(
@@ -468,25 +467,24 @@ func TestRound7FixtureJSONRetainsRequiredYearOneReceiptPresence(t *testing.T) {
 			if err != nil {
 				t.Fatalf("json.Marshal: %v", err)
 			}
-			candidateState := round3State(
+			candidateState := fixtureLedgerState(
 				t,
 				profile,
-				"round7-json-"+test.name,
+				"fixture-json-"+test.name,
 			)
-			candidateFactory := round3Factory(
+			candidateFactory := fixtureFactoryFromState(
 				t,
 				profile,
 				candidateState,
-				&round3MemoryCAS{state: candidateState},
 			)
-			candidateAttempt, err := candidateFactory.BeginObservationAttempt(
+			candidateAttempt, err := candidateFactory.BeginFixtureReplay(
 				reg.AttemptIdentity{
 					PollGenerationID: spec.PollGenerationID,
 					RetryOrdinal:     spec.RetryOrdinal,
 				},
 			)
 			if err != nil {
-				t.Fatalf("BeginObservationAttempt: %v", err)
+				t.Fatalf("BeginFixtureReplay: %v", err)
 			}
 			_, err = candidateAttempt.DecodeSpec(candidate)
 			if err == nil || err.Error() != test.expected {
@@ -496,7 +494,7 @@ func TestRound7FixtureJSONRetainsRequiredYearOneReceiptPresence(t *testing.T) {
 	}
 }
 
-func TestRound7BoundedCoherenceRejectsMixedTCPConnections(t *testing.T) {
+func TestBoundedCoherenceRejectsMixedTCPConnections(t *testing.T) {
 	profile, spec := boundedFixture(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
@@ -504,7 +502,7 @@ func TestRound7BoundedCoherenceRejectsMixedTCPConnections(t *testing.T) {
 	second := spec.Dependencies[1].View.Record()
 	second.ConnectionID++
 	spec.Dependencies[1].View = snapshotFromRecord(t, second)
-	if _, err := round3Publish(t, profile, spec); err == nil {
+	if _, err := validateFixtureReplay(t, profile, spec); err == nil {
 		t.Fatal("bounded sample mixed TCP connection identities in one generation")
 	}
 }

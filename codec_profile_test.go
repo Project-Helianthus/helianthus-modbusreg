@@ -11,24 +11,18 @@ import (
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
-type memorySampleCAS struct {
-	mu    sync.Mutex
-	state reg.SampleLedgerState
-}
-
 type fixtureValidationFactory struct {
 	replayer *reg.FixtureReplayer
 }
 
-type fixtureValidationAttemptState struct {
+type fixtureReplaySessionState struct {
 	mu       sync.Mutex
 	factory  *fixtureValidationFactory
 	identity reg.AttemptIdentity
-	closed   bool
 }
 
-type fixtureValidationAttempt struct {
-	state *fixtureValidationAttemptState
+type fixtureReplaySession struct {
+	state *fixtureReplaySessionState
 }
 
 func newFixtureValidationFactory(
@@ -43,19 +37,19 @@ func newFixtureValidationFactory(
 	return &fixtureValidationFactory{replayer: replayer}
 }
 
-func (factory *fixtureValidationFactory) BeginObservationAttempt(
+func (factory *fixtureValidationFactory) BeginFixtureReplay(
 	identity reg.AttemptIdentity,
-) (*fixtureValidationAttempt, error) {
+) (*fixtureReplaySession, error) {
 	if factory == nil || factory.replayer == nil || identity.PollGenerationID == 0 {
 		return nil, fmt.Errorf("fixture validation attempt is invalid")
 	}
-	return &fixtureValidationAttempt{state: &fixtureValidationAttemptState{
+	return &fixtureReplaySession{state: &fixtureReplaySessionState{
 		factory:  factory,
 		identity: identity,
 	}}, nil
 }
 
-func (attempt *fixtureValidationAttempt) DecodeSpec(
+func (attempt *fixtureReplaySession) DecodeSpec(
 	data []byte,
 ) (reg.ObservationSpec, error) {
 	if attempt == nil || attempt.state == nil {
@@ -63,9 +57,6 @@ func (attempt *fixtureValidationAttempt) DecodeSpec(
 	}
 	attempt.state.mu.Lock()
 	defer attempt.state.mu.Unlock()
-	if attempt.state.closed {
-		return reg.ObservationSpec{}, fmt.Errorf("fixture validation attempt is closed")
-	}
 	replay, err := attempt.state.factory.replayer.Replay(data)
 	if err != nil {
 		return reg.ObservationSpec{}, err
@@ -78,7 +69,7 @@ func (attempt *fixtureValidationAttempt) DecodeSpec(
 	return spec, nil
 }
 
-func (attempt *fixtureValidationAttempt) MarshalSpec(
+func (attempt *fixtureReplaySession) MarshalSpec(
 	spec reg.ObservationSpec,
 ) ([]byte, error) {
 	if attempt == nil || attempt.state == nil {
@@ -86,10 +77,9 @@ func (attempt *fixtureValidationAttempt) MarshalSpec(
 	}
 	attempt.state.mu.Lock()
 	defer attempt.state.mu.Unlock()
-	if attempt.state.closed ||
-		spec.PollGenerationID != attempt.state.identity.PollGenerationID ||
+	if spec.PollGenerationID != attempt.state.identity.PollGenerationID ||
 		spec.RetryOrdinal != attempt.state.identity.RetryOrdinal {
-		return nil, fmt.Errorf("fixture validation attempt is closed or mismatched")
+		return nil, fmt.Errorf("fixture replay identity is mismatched")
 	}
 	encoded, err := reg.MarshalFixtureSpec(spec)
 	if err != nil {
@@ -101,7 +91,7 @@ func (attempt *fixtureValidationAttempt) MarshalSpec(
 	return encoded, nil
 }
 
-func (attempt *fixtureValidationAttempt) Publish(
+func (attempt *fixtureReplaySession) Replay(
 	spec reg.ObservationSpec,
 ) (reg.FixtureReplay, error) {
 	if attempt == nil || attempt.state == nil {
@@ -109,10 +99,9 @@ func (attempt *fixtureValidationAttempt) Publish(
 	}
 	attempt.state.mu.Lock()
 	defer attempt.state.mu.Unlock()
-	if attempt.state.closed ||
-		spec.PollGenerationID != attempt.state.identity.PollGenerationID ||
+	if spec.PollGenerationID != attempt.state.identity.PollGenerationID ||
 		spec.RetryOrdinal != attempt.state.identity.RetryOrdinal {
-		return reg.FixtureReplay{}, fmt.Errorf("fixture validation attempt is closed or mismatched")
+		return reg.FixtureReplay{}, fmt.Errorf("fixture replay identity is mismatched")
 	}
 	encoded, err := reg.MarshalFixtureSpec(spec)
 	if err != nil {
@@ -122,27 +111,13 @@ func (attempt *fixtureValidationAttempt) Publish(
 	if err != nil {
 		return reg.FixtureReplay{}, err
 	}
-	attempt.state.closed = true
 	return replay, nil
 }
 
-func (*fixtureValidationAttempt) BindDependency(
+func (*fixtureReplaySession) BindDependency(
 	reg.DependencyResult,
 ) (reg.DependencyResult, error) {
 	return reg.DependencyResult{}, fmt.Errorf("fixture DTOs require replay decoding")
-}
-
-func (store *memorySampleCAS) CompareAndSwap(
-	expected reg.SampleLedgerState,
-	next reg.SampleLedgerState,
-) (bool, error) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	if store.state != expected {
-		return false, nil
-	}
-	store.state = next
-	return true, nil
 }
 
 func version(t *testing.T, value string) reg.Version {
@@ -297,7 +272,7 @@ func emptyLedgerState(
 	return state
 }
 
-func publishWithFactory(
+func replayWithFactory(
 	factory *fixtureValidationFactory,
 	spec reg.ObservationSpec,
 ) (reg.FixtureReplay, error) {
@@ -305,7 +280,7 @@ func publishWithFactory(
 	if err != nil {
 		return reg.FixtureReplay{}, err
 	}
-	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
+	attempt, err := factory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: spec.PollGenerationID,
 		RetryOrdinal:     spec.RetryOrdinal,
 	})
@@ -316,17 +291,17 @@ func publishWithFactory(
 	if err != nil {
 		return reg.FixtureReplay{}, err
 	}
-	return attempt.Publish(decoded)
+	return attempt.Replay(decoded)
 }
 
-func buildObservation(
+func replayFixture(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	spec reg.ObservationSpec,
 ) (reg.FixtureReplay, error) {
 	t.Helper()
 	factory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
-	return publishWithFactory(factory, spec)
+	return replayWithFactory(factory, spec)
 }
 
 func logicalViewRecord(
@@ -703,7 +678,7 @@ func TestObservationReplaysUnequalOverlappingViewsExactly(t *testing.T) {
 	profile := profileFixture(t)
 	spec := successfulObservationSpec(t, profile)
 	originalWords := spec.Dependencies[0].View.Record().Words
-	observation, err := buildObservation(t, profile, spec)
+	observation, err := replayFixture(t, profile, spec)
 	if err != nil {
 		t.Fatalf("NewObservation: %v", err)
 	}
@@ -863,7 +838,7 @@ func TestObservationRejectsIncompleteOrIncoherentInputs(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			spec := successfulObservationSpec(t, profile)
 			test.mutate(&spec)
-			if _, err := buildObservation(t, profile, spec); err == nil {
+			if _, err := replayFixture(t, profile, spec); err == nil {
 				t.Fatal("incomplete or incoherent observation was accepted")
 			}
 		})
@@ -911,16 +886,16 @@ func TestBoundedMultiResponseEnforcesDeclaredSkewAndMarker(t *testing.T) {
 	}
 	spec.SourceTime = reg.SourceTimeObserved(source.Add(time.Second))
 	spec.LocalReceiptTime = receipt.Add(time.Second)
-	if _, err := buildObservation(t, profile, spec); err != nil {
+	if _, err := replayFixture(t, profile, spec); err != nil {
 		t.Fatalf("bounded coherent observation rejected: %v", err)
 	}
 	spec.Dependencies[1].LocalReceiptTime = receipt.Add(4 * time.Second)
-	if _, err := buildObservation(t, profile, spec); err == nil {
+	if _, err := replayFixture(t, profile, spec); err == nil {
 		t.Fatal("receipt skew beyond the declared bound was accepted")
 	}
 	spec.Dependencies[1].LocalReceiptTime = receipt.Add(time.Second)
 	spec.Dependencies[1].DocumentaryConsistencyMarker = "sequence-8"
-	if _, err := buildObservation(t, profile, spec); err == nil {
+	if _, err := replayFixture(t, profile, spec); err == nil {
 		t.Fatal("documentary consistency marker mismatch was accepted")
 	}
 }
@@ -929,18 +904,18 @@ func TestSourceTimeStateIsExplicit(t *testing.T) {
 	profile := profileFixture(t)
 	spec := successfulObservationSpec(t, profile)
 	spec.SourceTime = reg.SourceTimeObserved(time.Unix(1_699_999_999, 0).UTC())
-	if _, err := buildObservation(t, profile, spec); err != nil {
+	if _, err := replayFixture(t, profile, spec); err != nil {
 		t.Fatalf("explicit observed source time rejected: %v", err)
 	}
 	spec.SourceTime = reg.SourceTimeSpec{State: reg.SourceTimeObservedState}
-	if _, err := buildObservation(t, profile, spec); err != nil {
+	if _, err := replayFixture(t, profile, spec); err != nil {
 		t.Fatal("explicit observed UTC year-one was rejected:", err)
 	}
 	spec.SourceTime = reg.SourceTimeSpec{
 		State: reg.SourceTimeUnavailableState,
 		Time:  time.Unix(1_699_999_999, 0).UTC(),
 	}
-	if _, err := buildObservation(t, profile, spec); err == nil {
+	if _, err := replayFixture(t, profile, spec); err == nil {
 		t.Fatal("unavailable source-time state with a guessed time was accepted")
 	}
 }
@@ -949,11 +924,11 @@ func TestFixtureReplayDoesNotIssueProductionSampleIDs(t *testing.T) {
 	profile := profileFixture(t)
 	factory, ledger := newFactory(t, profile, emptyLedgerState(t, profile))
 	spec := successfulObservationSpec(t, profile)
-	first, err := publishWithFactory(factory, spec)
+	first, err := replayWithFactory(factory, spec)
 	if err != nil {
 		t.Fatalf("first NewObservation: %v", err)
 	}
-	second, err := publishWithFactory(
+	second, err := replayWithFactory(
 		factory,
 		func() reg.ObservationSpec {
 			next := successfulObservationSpec(t, profile)

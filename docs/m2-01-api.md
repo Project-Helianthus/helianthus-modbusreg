@@ -1,258 +1,241 @@
 # M2-01 Profile And Observation API
 
-M2-01 is an offline contract layer. It records source facts from successful
-`helianthus-modbus` logical views and does not perform I/O, detection,
-qualification, vendor matching, canonical projection, or gateway composition.
+M2-01 is a contracts and observation-ingestion layer. It consumes successful
+opaque runtime values from `helianthus-modbus` M1-06 and does not perform I/O,
+detection, qualification, vendor selection, canonical projection, or gateway
+composition.
 
 ## Construction Order
 
 1. Parse strict `major.minor.patch` contract versions.
 2. Construct complete immutable codecs with `NewCodec`.
-3. Normalize each documentary register address with
-   `NewAddressNormalization`.
+3. Normalize documentary register addresses with `NewAddressNormalization`.
 4. Construct dependencies and an ordered `DependencySet`.
-5. Construct a `ProfileDescriptor` and deterministic `Catalog`.
-6. Convert a successful runtime `LogicalReadView` into an opaque single-use
-   token with `CaptureLogicalView`. Synthetic `LogicalViewRecord` values belong
-   only to the fixture/replay lane.
-7. Create or restore issuer/profile/dependency-set-bound `SampleLedgerState`
-   with a trusted minimum revision.
-8. Bind an `ObservationFactory` to the ledger and a consumer-supplied
-   `SampleStateCAS`.
-9. Start an `ObservationAttempt` with the declared poll generation and retry
-   ordinal. For runtime input, call `CaptureDependency` with the declared
-   dependency ID, opaque runtime token, and non-view source facts. For fixture
-   input, emit deterministic bytes with `MarshalFixtureSpec` and bind them only
-   through `DecodeSpec`. Call `Publish`; it returns an `Observation` only after
-   the exact ledger-state compare-and-swap succeeds.
-10. Use `Replay` and `LogicalViewRecord` for complete immutable raw words and
-   transport provenance.
+5. Construct a standard-family `ProfileDescriptor` and deterministic `Catalog`.
+6. Create or restore profile-bound `SampleLedgerState` and bounded
+   `LedgerRestartState`.
+7. Create `SampleLedger` with finite `LedgerLimits`.
+8. Implement `PublicationCommitter` so durable state, irreversible external
+   effect, and terminal decision share one transaction.
+9. Construct `ObservationFactory` from the profile, ledger, and committer.
+10. Begin, issue, admit, claim, seal, and publish one runtime attempt, or cancel
+    it. Fixture replay uses the separate offline path described below.
 
-## Codec Contract
+## Production Runtime API
+
+```go
+factory, err := modbusreg.NewObservationFactory(profile, ledger, committer)
+
+attempt, err := factory.BeginRuntimeAttempt(modbusreg.RuntimeAttemptRequest{
+    Source:       source,
+    AttemptKey:   attemptKey,
+    Identity:     identity,
+    Observation:  observationFacts,
+    Dependencies: dependencyFacts,
+    Diagnostics:  diagnostics,
+})
+
+err = attempt.Issue(ordinal, logicalView, normalizationRecord)
+err = attempt.Admit()
+outcome, err := attempt.Claim(ordinal)
+err = attempt.Seal()
+observation, err := attempt.Publish(ctx)
+
+// Any open, admitted, sealed, or publishing attempt can be cancelled.
+result, err := attempt.Cancel()
+```
+
+`BeginRuntimeAttempt` calls `Source.BeginAttempt(AttemptKey)` itself and keeps
+both the exact source and `*modbus.RuntimeAttempt` private in one shared attempt
+state. It reserves the attempt and claim terminal sequences as one batch,
+rejects duplicate retained attempt keys, and checks every configured bound
+before producer authority is retained.
+
+`Issue` accepts only an ordinal, one successful M1 `LogicalReadView`, and its
+producer-parsed `RuntimeNormalizationRecord`. It calls
+`Source.Issue(retainedAttempt, ...)` internally and stores the returned
+`RuntimeAcquisition` privately at that ordinal. A copied attempt shares the same
+state, so the same ordinal or source view cannot be issued twice.
+
+`Admit` accepts no caller-supplied source, attempt, instance, or acquisition.
+It requires every dependency ordinal exactly once, closes the retained producer
+attempt over the private ordered set, and stores the exact returned
+`RuntimeAttemptInstance`. Acquisitions from another source or attempt cannot be
+injected into admission.
+
+`Claim` performs exactly one producer
+`acquisition.Capability().Claim(retainedInstance)` operation. Later calls see
+the immutable terminal claim outcome and cannot publish the acquisition again
+through copied attempt values or another factory view.
+
+`Seal` succeeds only when every dependency claim terminally succeeded. It
+freezes the successful runtime set before publication arbitration.
+
+No exported method returns an M1 attempt, attempt instance, runtime
+acquisition, or capability.
+
+## Normalization And Provenance
+
+The registry retains the exact bytes returned by
+`RuntimeNormalizationRecord.Bytes()`, including unknown producer extensions.
+It reads `RuntimeNormalizationRecord.Fields()` only to match the declared
+dependency identity, table, documentary address, function, normalized offset,
+and word count. Replay returns an independent byte-identical copy.
+
+Each admitted dependency also retains exact M1 provenance: logical, wire, and
+physical identities; endpoint and connection facts; transport generation;
+unit and function; physical and logical ranges; authorization scope; poll and
+deadline identities; raw words; and exact wire-response bytes.
+
+The publication dependency-set digest does not hash a profile JSON document or
+`DependencySet.ID`. Its normative v1 encoding is:
+
+1. `helianthus.modbusreg.runtime-dependent-identities/v1\x00`;
+2. a big-endian `uint64` dependency count; and
+3. each ordered dependency ID and version as a big-endian `uint64` byte length
+   followed by the exact UTF-8 bytes.
+
+Changing dependency order or identity changes the digest. Metadata-only profile
+changes do not.
+
+## Attempt Lifecycle
+
+The closed lifecycle is:
+
+```text
+open -> sealed -> publishing -> published
+  |        |           `-----> publish_failed
+  `--------+-> cancelling ----> cancelled
+                         `----> cancel_failed
+```
+
+Claims linearize against sealing and cancellation. Cancellation waits for an
+in-progress producer claim, terminalizes unresolved M2 claims, and drains the
+exact producer instance through the retained source.
+
+`modbus.ErrRuntimeAttemptClosed` during drain is the known benign disposition
+when producer restart export already retired an otherwise terminal exact
+instance. Any unknown drain error still reaches an immutable terminal state,
+wakes waiters, emits an audit tombstone, and reclaims retained resources. It
+never leaves an attempt in `cancelling`.
+
+Publication and cancellation share one arbitration. A publishing attempt has a
+private cancel signal and derived context. Commit-slot acquisition selects on
+the slot, the caller context, and that signal, then rechecks cancellation before
+committer admission. A queued publication therefore cannot wait indefinitely
+behind another blocked committer after its own cancellation wins.
+
+## Transactional Publication
+
+```go
+type PublicationCommitter interface {
+    CommitPublication(
+        context.Context,
+        PublicationCommitRequest,
+    ) (PublicationCommitDecision, error)
+}
+```
+
+`PublicationCommitRequest` contains the complete expected ledger state, the
+next published state, and the only externally publishable attempt projection.
+The committer must atomically commit the published state, irreversible external
+effect, and `committed` decision. An error or `cancelled` decision guarantees
+that no irreversible effect occurred.
+
+The ledger serializes committer admission locally without holding its mutex
+during the callback. A committed decision advances revision/high-water and
+produces the production sample ID. Any other decision produces no observation
+and terminalizes the attempt as `publish_failed`.
+
+## Bounded Ledger And Restart
+
+`LedgerLimits` requires finite positive limits for:
+
+- retained attempts;
+- claim entries per attempt and in aggregate;
+- canonical dependency bytes;
+- attempt-key UTF-8 bytes;
+- normalization record bytes;
+- retained diagnostic count and bytes; and
+- audit tombstone count and encoded bytes.
+
+Terminal sequence reservation is all-or-nothing for one attempt and all of its
+claims. Sequence exhaustion is explicit. Terminal attempts are reclaimed
+synchronously, freeing attempt and claim capacity for deterministic reuse.
+
+`LedgerAuditTombstone` is a strict bounded snake_case JSON variant. Attempt and
+claim records contain only terminal sequence links, ordinal where applicable,
+and closed outcomes. They do not reconstruct attempt keys, capabilities,
+normalization bytes, diagnostics, or producer authority.
+
+`ExportRestartState` succeeds only when no live attempt remains. Restart state
+contains bounded tombstones plus terminal-sequence state; live attempts and
+capabilities are intentionally nonserializable.
+
+## Offline Fixture Replay
+
+Fixture replay is not a production attempt:
+
+```go
+replayer, err := modbusreg.NewFixtureReplayer(profile)
+fixture, err := replayer.Replay(encodedFixture)
+```
+
+`FixtureReplay` exposes only `FixtureID`, `Spec`, and immutable dependency
+`Replay`. It has no runtime capability, claim, seal, publish, committer, ledger
+transition, or production `SampleID`. Empty, mixed, malformed, or
+production-identified fixture bytes fail closed.
+
+Fixture identity is a domain-separated content digest. Replaying fixture bytes
+does not advance production revision or high-water state.
+
+## Codec, Dependency, And Coherence Contracts
 
 Every codec declares raw width, word permutation, intra-word byte order,
-representation, scale source and application order, raw sentinels, string
-applicability and packing dimensions, output profile type, and validity
-behavior. Inapplicable dimensions are explicit. Constructors reject missing,
-contradictory, or width-mismatched declarations; no value is guessed, clamped,
-trimmed, replaced, or reinterpreted.
+representation, scale source and order, sentinels, string dimensions, output
+type, and validity behavior. Inapplicable dimensions are explicit. Constructors
+reject missing, contradictory, or width-mismatched declarations; no value is
+guessed, clamped, trimmed, replaced, or reinterpreted.
 
-## Dependency Identity
+`NewDependencySet` preserves declaration order and derives its documentary set
+identity from complete ordered dependency records. Documentary notation is
+never treated as a PDU offset. Normalization retains source locator, notation,
+base, address-space label, transformation, documentary address, and resolved
+zero-based offset.
 
-`NewDependencySet` preserves declaration order and derives
-`dependency_set_id` from the exact set version and complete ordered dependency
-records. Reordering, changing a dependency version, codec, normalization, or
-word range produces a different identity.
+Every repeated wire-response identity binds one exact physical request,
+endpoint, connection, transport generation, unit, function/table, range,
+authorization scope, poll generation, and deadline identity. Overlapping words
+must agree exactly.
 
-Documentary notation is never treated as a PDU offset. Each normalization
-record retains its source locator, notation, base, address-space label,
-transformation, documentary address, and resolved zero-based PDU offset. The
-constructor recomputes the offset and rejects ambiguity, inconsistency, and
-overflow. HTTPS locators require a parsed host and non-root identifier path;
-`urn:helianthus:evidence:` locators require a nonempty valid identity suffix.
-
-## Logical View Snapshot
-
-`CaptureLogicalView` consumes `helianthus-modbus.LogicalReadView` and emits an
-opaque token whose value copies share one private single-use claim. The token
-retains:
-
-- logical, wire-response, and physical-request identities;
-- endpoint, unit, transport, connection, and transport generation;
-- requested and received function, table, physical offset, and physical count;
-- authorization scope, poll generation, and deadline identity;
-- logical offset/count and physical slice offset/count; and
-- an independent copy of exact wire-order words.
-
-`ObservationAttempt.CaptureDependency` consumes that claim, derives
-`poll_generation_id` from immutable provenance, derives `retry_ordinal` from
-the attempt, and derives dependency/codec/normalization versions from the
-profile declaration. A retained token copy cannot be relabelled into another
-retry or attempt. The factory also retains each stable logical-view source
-identity for the current poll generation. Calling `CaptureLogicalView` again
-cannot remint the same M1 source into a later retry after a failed attempt.
-Distinct logical views remain distinct even when their raw words are equal.
-
-`NewLogicalViewSnapshot` validates operation identity and checked range/slice
-arithmetic for synthetic fixture/replay records. `NewDependencyResult` likewise
-constructs fixture records only; `BindDependency` rejects them on the direct
-runtime lane. Synthetic records become attempt-owned only after
-`MarshalFixtureSpec` and `DecodeSpec` validate the complete serialized attempt
-identity. A malformed or exceptional wire response cannot provide a successful
-runtime logical view. TCP snapshots require connection identity. RTU snapshots
-require `ConnectionID=0`, equal physical/logical ranges, and `SliceOffset=0`,
-matching the pinned runtime contract.
-
-## Observation And Replay
-
-`ObservationAttempt.Publish` requires every contract version, one
-`poll_generation_id`, the exact `dependency_set_id`, explicit source validity,
-either a real source time or the explicit unavailable state, local receipt
-time, endpoint, and unit. Caller-selected `sample_id` values are rejected. The
-factory derives them from the ledger's immutable issuer domain and monotonic
-high-water only after the external state transition succeeds.
-
-Dependencies must appear in declaration order and every result must be
-successful, complete, version-matched, and provenance-consistent. Missing,
-torn, malformed, exceptional, mixed-generation, mixed-endpoint, or incomplete
-inputs fail closed and produce no observation.
-
-Runtime capture and `DecodeSpec` retain a private complete snapshot for every
-attempt-owned dependency. The returned `DependencyResult` is a caller-facing
-handle, not mutable publication storage. Replacing its view or changing its
-source facts after admission cannot change validation, replay, or serialized
-observation output; publication uses the retained snapshot.
-
-Every repeated `wire_response_id`, in either coherence mode, binds one exact
-physical request, endpoint, TCP connection, transport/generation, unit,
-function/table, physical range, authorization scope, poll generation, and
-deadline identity. Shared physical positions are reconstructed and overlapping
-words must agree exactly. The mapping is bidirectional: one physical identity
-maps to one wire-response ID and one wire-response ID maps back to one physical
-identity. The exact deadline equality matches `helianthus-modbus` V1
-`sameCoalescingIdentity`.
-
-`single_wire_response` requires one such physical/wire group. Logical-view IDs
-are unique inside that physical group, acquisition ordinals are absent, and
-retry ordinal, dependency source times, local dependency receipt times, and
-acquisition ordinals use their explicit not-applicable representation. Numeric
-logical-view IDs may be reused by distinct physical response groups because the
-pinned runtime scopes them to one coalesced read.
-
-An RTU physical response produces exactly one logical view in every coherence
-mode. TCP may retain multiple views from one physical response only when their
-declared logical ranges have one nonempty common intersection:
-`max(logical_start) < min(logical_end)`. The same M1 invariant is enforced when
-constructing a `single_wire_response` profile. Equal boundaries and disjoint
-ranges fail closed even when their physical union fits within the runtime
-register limit.
-
-`bounded_multi_response` requires explicit acquisition ordering, declared
-source/receipt skew, transport-generation equality, same transport family,
-endpoint, TCP connection and unit, whole-set retry behavior, and any documentary
-consistency marker. Acquisition ordinals identify unique physical responses,
-not dependency views. Multiple logical views from one physical response must
-carry the same ordinal, source-time state/value, local receipt time, and marker;
-contradictory chronology fails closed. Physical ordinals remain contiguous and
-ordered under the declared policy.
-
-An `ObservationAttempt` owns one deterministic identity formed by the declared
-`poll_generation_id` and nonzero `retry_ordinal`. Every dependency carries the
-same pair. Serialization retains those fixture-stable facts, so an equivalent
-fresh-process attempt can validate and rebind exactly one serialized capture
-without random state. `DependencyResult` capture handles have a private
-single-use claim and an attempt-owned pointer; copied DTOs cannot be rebound or
-mixed across attempts. Value copies of `ObservationAttempt` share one private
-lifecycle and cannot publish twice.
-
-When every physical acquisition has an observed source time, source skew and
-the declared source-time order are checked and the envelope carries the latest
-source time. If any acquisition explicitly reports `SourceTimeUnavailable`,
-the whole envelope reports unavailable and coherence falls back to the required
-local receipt times and receipt skew. Source-time ordering cannot be claimed
-when a source time is unavailable. `SourceTimeObserved(time.Time{})` remains an
-explicit observed UTC year-one value because presence is determined by
-`SourceTime.State`, never `time.Time.IsZero`. Declared skew is
-capped by `MaxDeclaredCoherenceSkew`; checked seconds/nanoseconds comparison
-avoids `time.Duration` saturation across years 1 through 9999.
-
-`SampleLedger` is O(1): state contains schema, issuer domain, exact profile
-ID/version, exact `dependency_set_id`, monotonic revision, high-water, and the
-last committed `(poll_generation_id, retry_ordinal)`, with no per-sample map or
-record list. Retries within one poll may be attempted only before a successful
-commit. After success, that poll is terminal: every attempt whose
-`poll_generation_id` is equal to or below the committed poll is rejected,
-regardless of retry ordinal. Because the committed attempt is part of the
-serialized `expected` and `next` states, restart cannot replay the same
-serialized attempt under a new sample ID. At factory construction, committed
-single-wire state requires retry ordinal zero, while committed bounded state
-requires a nonzero retry ordinal. Restore requires a trusted minimum revision.
-`SampleStateCAS.CompareAndSwap(expected, next)` is called without holding the
-ledger or attempt-state mutex. A separate local commit serializer snapshots the
-expected and next states, releases internal locks, invokes the consumer, and
-then finalizes local state. Reentrant callbacks may call `ExportState` without
-deadlock. Only a true result advances local state and permits the observation to
-escape; false or error returns a zero observation and terminally closes that
-attempt. Two processes restored from the same state therefore publish at most
-one sample when the consumer implements exact atomic compare-and-swap.
-
-The external store must key transitions by issuer domain, compare the complete
-profile/dependency-set-bound state, perform the replacement atomically, and
-make a true result durable before returning.
-`EmptySampleLedgerState` is only for a newly allocated issuer/profile domain;
-external persistence must never recreate an old domain at high-water zero.
-M2-01 owns no file, database, socket, or durable store and cannot prove external
-durability beyond the `SampleStateCAS` result.
-
-All admitted times are first normalized to UTC, then checked for the supported
-year range, stripped of monotonic/location metadata, and checked for exact
-RFC3339Nano round-trip. The explicit `observed` source-time state can represent
-`0001-01-01T00:00:00Z`. A decoded required `local_receipt_time` key can also
-represent that instant: decode retains key presence separately from the Go zero
-value. An absent key, JSON `null`, an empty timestamp, or an unmarked zero value
-constructed directly in Go remains invalid. Offset-bearing year-boundary
-values that cross into UTC year 0 or 10000 fail before sample issuance and
-before CAS.
-
-## Vendor Overlay Delta
-
-A `vendor_overlay` descriptor carries no copied standard applicability, codec
-catalog, dependency set, or coherence policy. It references one exact active,
-qualified standard-family base and contains only typed
-`VendorOverlayDeltaSpec` records. Each delta has its own version and nonempty
-overlay-evidence references. The catalog rejects copied base evidence,
-duplicate targets, absent targets, and add/remove/replace operations that are
-no-ops against the base. Every semantic codec, dependency, or coherence
-replacement must advance that declaration's version. The catalog materializes
-the complete base-plus-delta graph and applies the same codec, dependency,
-coherence, evidence, and cycle validation as a standard profile. Runtime
-selection and canonical M3 registry resolution remain out of scope.
+`single_wire_response` requires one physical/wire group. The bounded mode
+requires explicit acquisition order, source/receipt skew, generation equality,
+same transport family/endpoint/connection/unit, whole-set retry behavior, and a
+documentary consistency marker. RTU and TCP logical-view invariants remain those
+enforced by the pinned M1 runtime contract.
 
 ## Serialization
 
-`ProfileDescriptorSpec`, `ProfileDescriptor`, `ObservationSpec`, and admitted
-`Observation` use validated deterministic JSON contracts. Profile and
-observation round trips retain exact versions, dependency order, raw words, and
-the complete `LogicalViewRecord`, retry attempt, overlay delta, and O(1) ledger
-state. A recursive bounded token preflight rejects oversized bytes, excessive
-depth/collections/strings, duplicate keys, non-exact field aliases, invalid
-UTF-8, unpaired UTF-16 surrogate escapes, explicit JSON `null`, and every
-missing required member before strict decoding. Unknown fields and incompatible
-schemas fail closed. Optional relationship versions remain absent; zero values
-are never rewritten as current schema versions.
+Profile, observation, ledger, restart, and audit records use deterministic
+bounded JSON. Recursive preflight rejects oversized input, excessive nesting or
+collections, duplicate and case-folded keys, invalid UTF-8, unpaired surrogate
+escapes, `null`, missing required members, unknown fields, and incompatible
+schemas before activation.
 
-Required timestamp presence is structural. In particular,
-`local_receipt_time:"0001-01-01T00:00:00Z"` is present and valid, while an
-absent or `null` `local_receipt_time` remains a deterministic decode error.
+Required timestamp presence is structural. UTC year one is valid when
+explicitly present; absent, unmarked, or out-of-range values fail closed.
 
-Missing required JSON members are reported in DTO declaration order, so the
-same malformed bytes produce the same error across runs. The fixture lane is a
-deterministic replay trust boundary, not a runtime capture substitute:
-serialized attempt identity is validated now, and M2-03 will additionally bind
-fixture bytes to public evidence hashes.
+## Repository Boundary
 
-Direct constructors apply one cumulative aggregate budget before cloning caller
-slices. Serialization uses a conservative size preflight and bounded writer, so
-encoding cannot first allocate an unbounded result.
-`MaxProfileDependencies` equals the pinned V1 runtime absolute coalesced
-dependent cap, `4096`, from runtime commit
-`4f81cbeb6321e64fa51676ed6e375ce36b60d16d`; it is not inferred from mutable
-scheduler configuration.
+This is one multi-vendor registry. M2-01 contains contracts and producer-backed
+observation ingestion only. Concrete detector, probe, qualification, standard
+profile, vendor profile, gateway, private binding, and canonical semantic
+ownership are out of scope.
 
-`PinnedRuntimeContractVersion()` is the immutable `1.0.0` M1-04 authority.
-Profiles carrying another syntactically valid runtime version are rejected.
+The offline structural policy scans the current tree and product imports. It
+does not maintain file inventories, source hashes, documentation locks, Git
+history checks, GitHub calls, or network checks. Review follows the workspace
+blocker-driven process against the current head.
 
-`Catalog` validates relationship graphs. Superseded profiles require a distinct
-active, version-matched, kind-compatible replacement. Revoked profiles cannot
-carry successor fields.
-
-## Ownership Boundary
-
-Source validity and source time remain source facts. This package does not
-define downstream units, freshness, availability, publication, aggregation, or
-device semantics. Those belong to later composition layers.
-
-The repository scope hash is a change detector enforced by CI. It is not a
-malicious-committer security mechanism. Trust in an accepted change comes from
-the exact-head adversarial review status and protected-branch policy outside
-this package.
+M2-01 completion is a hard stop. Another milestone or gateway work begins only
+after a separate operator request.

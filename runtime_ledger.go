@@ -169,14 +169,7 @@ func (tombstone *LedgerAuditTombstone) UnmarshalJSON(data []byte) error {
 		if err := decodeStrict(data, &record); err != nil {
 			return err
 		}
-		decoded = LedgerAuditTombstone{
-			SchemaVersion:           record.SchemaVersion,
-			ObjectKind:              record.ObjectKind,
-			TerminalSequence:        record.TerminalSequence,
-			AttemptTerminalSequence: record.AttemptTerminalSequence,
-			ClaimOrdinal:            record.ClaimOrdinal,
-			TerminalOutcome:         record.TerminalOutcome,
-		}
+		decoded = LedgerAuditTombstone(record)
 	default:
 		return fmt.Errorf("ledger audit tombstone kind is invalid")
 	}
