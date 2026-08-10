@@ -1,8 +1,11 @@
 package modbusreg
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"reflect"
+	"sync"
 )
 
 const (
@@ -25,7 +28,7 @@ func NewSunSpecPhaseOneProfile(versions SunSpecPhaseOneVersions) (ProfileDescrip
 	if err != nil {
 		return ProfileDescriptor{}, err
 	}
-	normalization := AddressNormalizationSpec{Version: versions.Profile, SourceLocator: "urn:helianthus:evidence:sunspec-phase-one-v1", DocumentaryNotation: "40001-to-40000", DocumentaryBase: AddressBaseZeroBased, AddressSpaceLabel: string(HoldingRegisters), DocumentaryAddress: 40000, Transformation: TransformIdentity, ResolvedPDUOffset: 40000}
+	normalization := AddressNormalizationSpec{Version: versions.Profile, SourceLocator: "urn:helianthus:evidence:sunspec-phase-one-v1", DocumentaryNotation: "40001", DocumentaryBase: AddressBaseOneBased, AddressSpaceLabel: string(HoldingRegisters), DocumentaryAddress: 40001, Transformation: TransformSubtractOne, ResolvedPDUOffset: 40000}
 	dependency, err := NewDependency(DependencySpec{ID: "sunspec-chain-base", Version: versions.Profile, Table: HoldingRegisters, Normalization: normalization, WordCount: 1, CodecID: codec.ID(), CodecVersion: codec.Version(), CoherenceGroup: "sunspec-chain", EvidenceReferences: []string{"sunspec-phase-one-v1"}, ApplicabilityRefs: []string{"sunspec-standard-v1"}})
 	if err != nil {
 		return ProfileDescriptor{}, err
@@ -46,7 +49,15 @@ func (SunSpecDiscoveryRequest) Offset() uint16         { return 40000 }
 func (SunSpecDiscoveryRequest) ReadOnly() bool         { return true }
 
 // SunSpecPhaseOneDecoder validates and decodes the v1 standard family only.
-type SunSpecPhaseOneDecoder struct{ profile ProfileDescriptor }
+type SunSpecPhaseOneDecoder struct {
+	profile  ProfileDescriptor
+	bindings *sunSpecBindingStore
+}
+
+type sunSpecBindingStore struct {
+	mu     sync.Mutex
+	values map[[32]byte][]byte
+}
 
 func NewSunSpecPhaseOneDecoder(profile ProfileDescriptor) (SunSpecPhaseOneDecoder, error) {
 	if profile.ID() != sunSpecPhaseOneProfileID || profile.Kind() != ProfileStandardFamily || profile.Version() != CurrentSchemaVersion() || profile.CodecContractVersion() != CurrentCodecContractVersion() {
@@ -59,7 +70,7 @@ func NewSunSpecPhaseOneDecoder(profile ProfileDescriptor) (SunSpecPhaseOneDecode
 	if err != nil || !reflect.DeepEqual(profile.Spec(), expected.Spec()) {
 		return SunSpecPhaseOneDecoder{}, fmt.Errorf("SunSpec phase-one profile is not exact")
 	}
-	return SunSpecPhaseOneDecoder{profile: profile}, nil
+	return SunSpecPhaseOneDecoder{profile: profile, bindings: &sunSpecBindingStore{values: make(map[[32]byte][]byte)}}, nil
 }
 func (SunSpecPhaseOneDecoder) DiscoveryRequest() SunSpecDiscoveryRequest {
 	return SunSpecDiscoveryRequest{}
@@ -75,6 +86,9 @@ func (model SunSpecPhaseOneModel) Length() uint16 { return model.length }
 // SunSpecPhaseOneChain retains semantic and structurally skipped models.
 type SunSpecPhaseOneChain struct {
 	models, skipped []SunSpecPhaseOneModel
+	raw             []uint16
+	common          *SunSpecCommonModel
+	inverters       map[uint16]SunSpecInverterModel
 	valid           bool
 }
 
@@ -85,12 +99,50 @@ func (chain SunSpecPhaseOneChain) SkippedModels() []SunSpecPhaseOneModel {
 	return append([]SunSpecPhaseOneModel(nil), chain.skipped...)
 }
 
+// RawWords returns the exact ordered discovery image.
+func (chain SunSpecPhaseOneChain) RawWords() []uint16 { return append([]uint16(nil), chain.raw...) }
+
+// SunSpecCommonModel exposes the admitted Common model fields.
+type SunSpecCommonModel struct{ manufacturer, model, serial, version string }
+
+func (model SunSpecCommonModel) Manufacturer() string { return model.manufacturer }
+func (model SunSpecCommonModel) Model() string        { return model.model }
+func (model SunSpecCommonModel) SerialNumber() string { return model.serial }
+func (model SunSpecCommonModel) Version() string      { return model.version }
+
+// SunSpecScaledValue preserves raw integer, scale factor, and scaled value.
+type SunSpecScaledValue struct {
+	raw   int64
+	scale int16
+	value float64
+}
+
+func (value SunSpecScaledValue) Raw() int64         { return value.raw }
+func (value SunSpecScaledValue) ScaleFactor() int16 { return value.scale }
+func (value SunSpecScaledValue) Value() float64     { return value.value }
+
+// SunSpecInverterModel exposes admitted int-plus-scale-factor values.
+type SunSpecInverterModel struct{ power, energy SunSpecScaledValue }
+
+func (model SunSpecInverterModel) Power() SunSpecScaledValue  { return model.power }
+func (model SunSpecInverterModel) Energy() SunSpecScaledValue { return model.energy }
+func (chain SunSpecPhaseOneChain) Common() (SunSpecCommonModel, bool) {
+	if chain.common == nil {
+		return SunSpecCommonModel{}, false
+	}
+	return *chain.common, true
+}
+func (chain SunSpecPhaseOneChain) Inverter(id uint16) (SunSpecInverterModel, bool) {
+	value, ok := chain.inverters[id]
+	return value, ok
+}
+
 // Parse validates a bounded raw chain and its required terminal marker.
 func (SunSpecPhaseOneDecoder) Parse(words []uint16) (SunSpecPhaseOneChain, error) {
 	if len(words) > MaxSunSpecPhaseOneChainWords || len(words) < 4 || words[0] != sunSpecSignatureFirst || words[1] != sunSpecSignatureSecond {
 		return SunSpecPhaseOneChain{}, fmt.Errorf("invalid SunSpec chain signature or bounds")
 	}
-	chain := SunSpecPhaseOneChain{}
+	chain := SunSpecPhaseOneChain{raw: append([]uint16(nil), words...), inverters: make(map[uint16]SunSpecInverterModel)}
 	for offset := 2; ; {
 		if offset+2 > len(words) {
 			return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec chain is missing end marker")
@@ -112,7 +164,25 @@ func (SunSpecPhaseOneDecoder) Parse(words []uint16) (SunSpecPhaseOneChain, error
 		}
 		model := SunSpecPhaseOneModel{id: id, offset: uint16(offset), length: length}
 		switch {
-		case id == 1 || id == 101 || id == 102 || id == 103:
+		case id == 1:
+			if length != 65 {
+				return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec Common model length is invalid")
+			}
+			common, err := decodeSunSpecCommon(words[offset+2 : end])
+			if err != nil {
+				return SunSpecPhaseOneChain{}, err
+			}
+			chain.common = &common
+			chain.models = append(chain.models, model)
+		case id == 101 || id == 102 || id == 103:
+			if length != 50 {
+				return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec inverter model length is invalid")
+			}
+			inverter, err := decodeSunSpecInverter(words[offset+2 : end])
+			if err != nil {
+				return SunSpecPhaseOneChain{}, err
+			}
+			chain.inverters[id] = inverter
 			chain.models = append(chain.models, model)
 		case deferredSunSpecModel(id):
 			return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec model is deferred")
@@ -123,7 +193,64 @@ func (SunSpecPhaseOneDecoder) Parse(words []uint16) (SunSpecPhaseOneChain, error
 	}
 }
 func deferredSunSpecModel(id uint16) bool {
-	return (id >= 111 && id <= 113) || (id >= 120 && id <= 124) || id == 160 || (id >= 200 && id <= 299) || (id >= 700 && id <= 799)
+	return (id >= 200 && id <= 219) || (id >= 700 && id <= 799)
+}
+
+func decodeSunSpecCommon(words []uint16) (SunSpecCommonModel, error) {
+	decode := func(offset, width int) (string, error) {
+		return SunSpecPhaseOneDecoder{}.String(words[offset : offset+width])
+	}
+	manufacturer, err := decode(0, 16)
+	if err != nil {
+		return SunSpecCommonModel{}, err
+	}
+	model, err := decode(16, 16)
+	if err != nil {
+		return SunSpecCommonModel{}, err
+	}
+	serial, err := decode(32, 16)
+	if err != nil {
+		return SunSpecCommonModel{}, err
+	}
+	version, err := decode(48, 8)
+	if err != nil {
+		return SunSpecCommonModel{}, err
+	}
+	return SunSpecCommonModel{manufacturer: manufacturer, model: model, serial: serial, version: version}, nil
+}
+
+func decodeSunSpecInverter(words []uint16) (SunSpecInverterModel, error) {
+	decoder := SunSpecPhaseOneDecoder{}
+	powerRaw, err := decoder.Int16(words[8])
+	if err != nil {
+		return SunSpecInverterModel{}, err
+	}
+	powerScale, err := decoder.ScaleFactor(words[9])
+	if err != nil {
+		return SunSpecInverterModel{}, err
+	}
+	energyRaw, err := decoder.Acc32(words[16], words[17])
+	if err != nil {
+		return SunSpecInverterModel{}, err
+	}
+	energyScale, err := decoder.ScaleFactor(words[18])
+	if err != nil {
+		return SunSpecInverterModel{}, err
+	}
+	return SunSpecInverterModel{power: SunSpecScaledValue{raw: int64(powerRaw), scale: powerScale, value: float64(powerRaw) * decimalScale(powerScale)}, energy: SunSpecScaledValue{raw: energyRaw, scale: energyScale, value: float64(energyRaw) * decimalScale(energyScale)}}, nil
+}
+
+func decimalScale(exponent int16) float64 {
+	value := 1.0
+	for exponent < 0 {
+		value /= 10
+		exponent++
+	}
+	for exponent > 0 {
+		value *= 10
+		exponent--
+	}
+	return value
 }
 func (SunSpecPhaseOneDecoder) Int16(word uint16) (int16, error) { return int16(word), nil }
 func (SunSpecPhaseOneDecoder) Acc32(high, low uint16) (int64, error) {
@@ -155,12 +282,56 @@ func (SunSpecPhaseOneDecoder) String(words []uint16) (string, error) {
 // SunSpecPhaseOneActivation joins a validated chain to the existing source envelope.
 type SunSpecPhaseOneActivation struct {
 	Chain       SunSpecPhaseOneChain
+	RawWords    []uint16
 	Observation ObservationSpec
 }
 
-func (decoder SunSpecPhaseOneDecoder) Activate(activation SunSpecPhaseOneActivation) (Observation, error) {
-	if !activation.Chain.valid {
-		return Observation{}, fmt.Errorf("SunSpec chain was not parsed")
+// SunSpecPhaseOneObservation retains one admitted observation with its raw chain.
+type SunSpecPhaseOneObservation struct {
+	observation Observation
+	raw         []uint16
+}
+
+func (observation SunSpecPhaseOneObservation) Spec() ObservationSpec {
+	return observation.observation.Spec()
+}
+func (observation SunSpecPhaseOneObservation) RawWords() []uint16 {
+	return append([]uint16(nil), observation.raw...)
+}
+
+func (decoder SunSpecPhaseOneDecoder) Activate(activation SunSpecPhaseOneActivation) (SunSpecPhaseOneObservation, error) {
+	raw := activation.RawWords
+	if raw == nil {
+		raw = activation.Chain.raw
 	}
-	return buildObservation(decoder.profile, activation.Observation)
+	if !activation.Chain.valid || !bytes.Equal(wordsToBytes(activation.Chain.raw), wordsToBytes(raw)) {
+		return SunSpecPhaseOneObservation{}, fmt.Errorf("SunSpec chain does not match raw words")
+	}
+	observation, err := buildObservation(decoder.profile, activation.Observation)
+	if err != nil {
+		return SunSpecPhaseOneObservation{}, err
+	}
+	encoded := []byte(fmt.Sprintf("%#v", observation.Spec()))
+	key := sha256.Sum256(wordsToBytes(raw))
+	decoder.bindings.mu.Lock()
+	defer decoder.bindings.mu.Unlock()
+	if prior, exists := decoder.bindings.values[key]; exists {
+		if !bytes.Equal(prior, encoded) {
+			return SunSpecPhaseOneObservation{}, fmt.Errorf("SunSpec raw chain provenance is mismatched")
+		}
+		return SunSpecPhaseOneObservation{observation: observation, raw: append([]uint16(nil), raw...)}, nil
+	}
+	if len(decoder.bindings.values) >= 64 {
+		return SunSpecPhaseOneObservation{}, fmt.Errorf("SunSpec retained binding limit reached")
+	}
+	decoder.bindings.values[key] = append([]byte(nil), encoded...)
+	return SunSpecPhaseOneObservation{observation: observation, raw: append([]uint16(nil), raw...)}, nil
+}
+
+func wordsToBytes(words []uint16) []byte {
+	result := make([]byte, len(words)*2)
+	for index, word := range words {
+		result[index*2], result[index*2+1] = byte(word>>8), byte(word)
+	}
+	return result
 }

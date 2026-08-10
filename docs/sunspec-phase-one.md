@@ -29,7 +29,7 @@ validated and retained exactly.
 
 The documentary source is the merged M3-01 evidence packet at
 `helianthus-docs-ebus` commit
-`54d9d178290be8e8cfaac99427e98c64c5ee5136`, specifically
+`59218d21163acb868687ed3d8196f0aa1496aab7`, specifically
 `docs/platform/fronius-sunspec-evidence-v1.md` and its phase-one manifest.
 This implementation contains only the standard contract from that packet; it
 does not imply qualification of any product or live installation.

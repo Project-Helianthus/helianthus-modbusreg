@@ -84,7 +84,7 @@ func TestSunSpecPhaseOneChainIsBoundedAndSupportsOnlyIntScaleModels(t *testing.T
 		append([]uint16{0x5375, 0x6e53, 1, 65}, make([]uint16, 64)...), // declared extent overruns
 		sunSpecWords(1, 65),                                            // missing end
 		sunSpecWords(1, 65, 0xffff, 1),                                 // nonzero end length
-		sunSpecWords(111, 50, 0xffff, 0),                               // deferred model
+		sunSpecWords(200, 50, 0xffff, 0),                               // deferred model
 		sunSpecWords(777, 3, 0xffff, 0),                                // deferred 7xx model
 	} {
 		if _, err := decoder.Parse(words); err == nil {
