@@ -93,12 +93,17 @@ func (chain SunSpecPhaseOneChain) SkippedModels() []SunSpecPhaseOneModel {
 func (chain SunSpecPhaseOneChain) RawWords() []uint16 { return append([]uint16(nil), chain.raw...) }
 
 // SunSpecCommonModel exposes the admitted Common model fields.
-type SunSpecCommonModel struct{ manufacturer, model, serial, version string }
+type SunSpecCommonModel struct {
+	manufacturer, model, options, version, serial string
+	deviceAddress                                 uint16
+}
 
-func (model SunSpecCommonModel) Manufacturer() string { return model.manufacturer }
-func (model SunSpecCommonModel) Model() string        { return model.model }
-func (model SunSpecCommonModel) SerialNumber() string { return model.serial }
-func (model SunSpecCommonModel) Version() string      { return model.version }
+func (model SunSpecCommonModel) Manufacturer() string  { return model.manufacturer }
+func (model SunSpecCommonModel) Model() string         { return model.model }
+func (model SunSpecCommonModel) Options() string       { return model.options }
+func (model SunSpecCommonModel) SerialNumber() string  { return model.serial }
+func (model SunSpecCommonModel) Version() string       { return model.version }
+func (model SunSpecCommonModel) DeviceAddress() uint16 { return model.deviceAddress }
 
 // SunSpecScaledValue preserves raw integer, scale factor, and scaled value.
 type SunSpecScaledValue struct {
@@ -211,32 +216,43 @@ func decodeSunSpecCommon(words []uint16) (SunSpecCommonModel, error) {
 	if err != nil {
 		return SunSpecCommonModel{}, err
 	}
-	serial, err := decode(32, 16)
+	options, err := decode(32, 8)
 	if err != nil {
 		return SunSpecCommonModel{}, err
 	}
-	version, err := decode(48, 8)
+	version, err := decode(40, 8)
 	if err != nil {
 		return SunSpecCommonModel{}, err
 	}
-	return SunSpecCommonModel{manufacturer: manufacturer, model: model, serial: serial, version: version}, nil
+	serial, err := decode(48, 16)
+	if err != nil {
+		return SunSpecCommonModel{}, err
+	}
+	return SunSpecCommonModel{
+		manufacturer:  manufacturer,
+		model:         model,
+		options:       options,
+		version:       version,
+		serial:        serial,
+		deviceAddress: words[64],
+	}, nil
 }
 
 func decodeSunSpecInverter(words []uint16) (SunSpecInverterModel, error) {
 	decoder := SunSpecPhaseOneDecoder{}
-	powerRaw, err := decoder.Int16(words[8])
+	powerRaw, err := decoder.Int16(words[12])
 	if err != nil {
 		return SunSpecInverterModel{}, err
 	}
-	powerScale, err := decoder.ScaleFactor(words[9])
+	powerScale, err := decoder.ScaleFactor(words[13])
 	if err != nil {
 		return SunSpecInverterModel{}, err
 	}
-	energyRaw, err := decoder.Acc32(words[16], words[17])
+	energyRaw, err := decoder.Acc32(words[22], words[23])
 	if err != nil {
 		return SunSpecInverterModel{}, err
 	}
-	energyScale, err := decoder.ScaleFactor(words[18])
+	energyScale, err := decoder.ScaleFactor(words[24])
 	if err != nil {
 		return SunSpecInverterModel{}, err
 	}
