@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	modbus "github.com/Project-Helianthus/helianthus-modbus"
 )
 
 func internalDigestDependency(
@@ -188,6 +190,53 @@ type retryJoinTerminalCommitter struct {
 	retryRelease chan struct{}
 }
 
+type terminalVisibilityLocker struct {
+	mu       *sync.Mutex
+	once     sync.Once
+	onLocked func()
+}
+
+func (locker *terminalVisibilityLocker) Lock() {
+	locker.mu.Lock()
+	locker.once.Do(locker.onLocked)
+}
+
+func (locker *terminalVisibilityLocker) Unlock() {
+	locker.mu.Unlock()
+}
+
+type internalRuntimeClock struct{}
+
+func (internalRuntimeClock) Now() time.Duration { return 0 }
+
+func internalRuntimeSource(t *testing.T) *modbus.RuntimeAcquisitionSource {
+	t.Helper()
+	source, err := modbus.NewRuntimeAcquisitionSource(modbus.RuntimeAcquisitionConfig{
+		Limits: modbus.RuntimeAcquisitionLimits{
+			MaxLiveCapabilities:                        2,
+			MaxAttempts:                                2,
+			MaxMembersPerAttempt:                       1,
+			AttemptKeyMaxUTF8Bytes:                     64,
+			SourceEvidenceIDMaxUTF8Bytes:               64,
+			NormalizationRecordMaxEncodedBytes:         256,
+			NormalizationRequiredStringMaxUTF8Bytes:    64,
+			NormalizationExtensionCountMax:             1,
+			NormalizationExtensionKeyMaxUTF8Bytes:      64,
+			NormalizationExtensionValueMaxEncodedBytes: 64,
+			RetainedDiagnosticCountPerObjectMax:        1,
+			RetainedDiagnosticMaxUTF8Bytes:             64,
+			CapabilityTombstoneLimit:                   4,
+			CapabilityTombstoneMaxEncodedBytes:         128,
+		},
+		ClaimLifetime: time.Minute,
+		Clock:         internalRuntimeClock{},
+	})
+	if err != nil {
+		t.Fatalf("NewRuntimeAcquisitionSource: %v", err)
+	}
+	return source
+}
+
 func (committer *retryJoinTerminalCommitter) CommitTerminalState(
 	ctx context.Context,
 	_ TerminalStateCommitRequest,
@@ -234,6 +283,12 @@ func TestConcurrentCancellationRetriesJoinTerminalPersistence(t *testing.T) {
 		retryRelease: make(chan struct{}),
 	}
 	factory := &ObservationFactory{
+		profile: ProfileDescriptor{spec: ProfileDescriptorSpec{
+			Coherence: CoherencePolicySpec{Mode: CoherenceSingleWireResponse},
+			Dependencies: internalDigestSet(t, []Dependency{
+				internalDigestDependency(t, "reuse", "1.0.0", 101, "reuse-evidence"),
+			}),
+		}},
 		ledger:                ledger,
 		committer:             committer,
 		terminalCommitTimeout: DefaultTerminalCommitTimeout,
@@ -257,6 +312,38 @@ func TestConcurrentCancellationRetriesJoinTerminalPersistence(t *testing.T) {
 	if result, err := attempt.Cancel(); err == nil || result != CancellationFailed {
 		t.Fatalf("initial Cancel=(%q, %v), want retryable persistence failure", result, err)
 	}
+	reuseSource := internalRuntimeSource(t)
+	type visibility struct {
+		restart LedgerRestartState
+		reused  *ObservationAttempt
+		err     error
+	}
+	visible := make(chan visibility, 1)
+	state.cond = sync.NewCond(&terminalVisibilityLocker{
+		mu: &state.mu,
+		onLocked: func() {
+			restart, restartErr := ledger.ExportRestartState()
+			if restartErr != nil {
+				visible <- visibility{err: restartErr}
+				return
+			}
+			reused, beginErr := factory.BeginRuntimeAttempt(RuntimeAttemptRequest{
+				Source:     reuseSource,
+				AttemptKey: "concurrent-terminal-retry",
+				Identity:   AttemptIdentity{PollGenerationID: 2},
+				Observation: RuntimeObservationFacts{
+					SourceValidity:          SourceValid,
+					SourceTime:              SourceTimeUnavailable(),
+					LocalReceiptTime:        time.Unix(1_700_000_000, 0).UTC(),
+					LocalReceiptTimePresent: true,
+				},
+				Dependencies: []RuntimeDependencyFacts{{
+					SourceTime: SourceTimeUnavailable(),
+				}},
+			})
+			visible <- visibility{restart: restart, reused: reused, err: beginErr}
+		},
+	})
 
 	type cancellation struct {
 		result CancellationResult
@@ -292,6 +379,7 @@ func TestConcurrentCancellationRetriesJoinTerminalPersistence(t *testing.T) {
 		}
 	}
 	close(committer.retryRelease)
+	visibilityResult := <-visible
 
 	for index := 0; index < 2; index++ {
 		got := <-results
@@ -301,6 +389,15 @@ func TestConcurrentCancellationRetriesJoinTerminalPersistence(t *testing.T) {
 	}
 	if calls := committer.callCount(); calls != 2 {
 		t.Fatalf("terminal persistence calls=%d, want initial failure plus one retry", calls)
+	}
+	if visibilityResult.err != nil {
+		t.Fatalf("joined retry observed incomplete reclamation: %v", visibilityResult.err)
+	}
+	if visibilityResult.restart.NextTerminalSequence != 3 {
+		t.Fatalf("joined retry restart state=%+v", visibilityResult.restart)
+	}
+	if visibilityResult.reused == nil {
+		t.Fatal("joined retry could not reuse the reclaimed attempt key")
 	}
 }
 

@@ -1918,6 +1918,143 @@ func TestLedgerRestartLeadingTruncatedClaimSuffixIsCoherent(t *testing.T) {
 	}
 }
 
+func TestSampleRevisionMatchesRetainedPublicationHistory(t *testing.T) {
+	profile := profileFixture(t)
+	limits := reg.DefaultLedgerLimits()
+	attempt := func(
+		sequence uint64,
+		outcome reg.AttemptPhase,
+	) reg.LedgerAuditTombstone {
+		return reg.LedgerAuditTombstone{
+			SchemaVersion:    1,
+			ObjectKind:       reg.LedgerAuditAttempt,
+			TerminalSequence: sequence,
+			ClaimCount:       1,
+			TerminalOutcome:  string(outcome),
+		}
+	}
+	claim := func(
+		sequence uint64,
+		attemptSequence uint64,
+		outcome reg.ClaimOutcome,
+	) reg.LedgerAuditTombstone {
+		return reg.LedgerAuditTombstone{
+			SchemaVersion:           1,
+			ObjectKind:              reg.LedgerAuditClaim,
+			TerminalSequence:        sequence,
+			AttemptTerminalSequence: attemptSequence,
+			ClaimOrdinal:            0,
+			TerminalOutcome:         string(outcome),
+		}
+	}
+	stateAtRevision := func(revision uint64) reg.SampleLedgerState {
+		state := emptyLedgerState(t, profile)
+		state.Revision = revision
+		state.HighWater = revision
+		if revision != 0 {
+			state.LastCommittedAttempt = reg.AttemptIdentity{
+				PollGenerationID: revision,
+			}
+		}
+		return state
+	}
+	tests := []struct {
+		name      string
+		revision  uint64
+		truncated uint64
+		history   []reg.LedgerAuditTombstone
+		wantError bool
+	}{
+		{
+			name: "complete revision zero contains a publication",
+			history: []reg.LedgerAuditTombstone{
+				attempt(1, reg.AttemptPublished),
+				claim(2, 1, reg.ClaimSucceeded),
+			},
+			wantError: true,
+		},
+		{
+			name:     "complete revision one contains only cancellation",
+			revision: 1,
+			history: []reg.LedgerAuditTombstone{
+				attempt(1, reg.AttemptCancelled),
+				claim(2, 1, reg.ClaimAttemptCancelled),
+			},
+			wantError: true,
+		},
+		{
+			name:     "complete mixed history has one publication",
+			revision: 1,
+			history: []reg.LedgerAuditTombstone{
+				attempt(1, reg.AttemptCancelled),
+				claim(2, 1, reg.ClaimAttemptCancelled),
+				attempt(3, reg.AttemptPublished),
+				claim(4, 3, reg.ClaimSucceeded),
+			},
+		},
+		{
+			name:      "truncated publication count is a valid lower bound",
+			revision:  2,
+			truncated: 2,
+			history: []reg.LedgerAuditTombstone{
+				attempt(3, reg.AttemptPublished),
+				claim(4, 3, reg.ClaimSucceeded),
+			},
+		},
+		{
+			name:      "truncated leading claim has unknown attempt outcome",
+			truncated: 2,
+			history: []reg.LedgerAuditTombstone{
+				{
+					SchemaVersion:           1,
+					ObjectKind:              reg.LedgerAuditClaim,
+					TerminalSequence:        3,
+					AttemptTerminalSequence: 1,
+					ClaimOrdinal:            1,
+					TerminalOutcome:         string(reg.ClaimSucceeded),
+				},
+			},
+		},
+		{
+			name:      "truncated suffix exceeds revision",
+			revision:  1,
+			truncated: 2,
+			history: []reg.LedgerAuditTombstone{
+				attempt(3, reg.AttemptPublished),
+				claim(4, 3, reg.ClaimSucceeded),
+				attempt(5, reg.AttemptPublished),
+				claim(6, 5, reg.ClaimSucceeded),
+			},
+			wantError: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			restart := reg.LedgerRestartState{
+				SchemaVersion:            1,
+				NextTerminalSequence:     uint64(len(test.history)) + test.truncated + 1,
+				TruncatedThroughSequence: test.truncated,
+				AuditTombstones:          test.history,
+			}
+			ledger, err := reg.NewSampleLedgerFromRestart(
+				stateAtRevision(test.revision),
+				0,
+				limits,
+				restart,
+			)
+			if test.wantError {
+				if err == nil || ledger != nil {
+					t.Fatal("contradictory publication history was accepted")
+				}
+				return
+			}
+			if err != nil || ledger == nil {
+				t.Fatalf("valid publication history was rejected: %v", err)
+			}
+		})
+	}
+}
+
 func TestLedgerRestartClaimSequenceReservationRoundTrip(t *testing.T) {
 	profile := profileFixture(t)
 	state := emptyLedgerState(t, profile)

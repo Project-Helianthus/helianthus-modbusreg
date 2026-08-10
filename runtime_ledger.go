@@ -446,6 +446,23 @@ func validateSampleRestartRelationship(
 	state SampleLedgerState,
 	restart LedgerRestartState,
 ) error {
+	var retainedPublications uint64
+	for _, tombstone := range restart.AuditTombstones {
+		if tombstone.ObjectKind == LedgerAuditAttempt &&
+			tombstone.TerminalOutcome == string(AttemptPublished) {
+			if retainedPublications == math.MaxUint64 {
+				return fmt.Errorf("retained publication history exceeds sample revision capacity")
+			}
+			retainedPublications++
+		}
+	}
+	if restart.TruncatedThroughSequence == 0 {
+		if retainedPublications != state.Revision {
+			return fmt.Errorf("complete terminal history disagrees with sample revision")
+		}
+	} else if retainedPublications > state.Revision {
+		return fmt.Errorf("retained publication history exceeds sample revision")
+	}
 	if state.Revision == 0 {
 		return nil
 	}
@@ -1977,25 +1994,24 @@ func (attempt *ObservationAttempt) persistTerminalOutcome(outcome AttemptPhase) 
 		commitErr = attempt.commitTerminalState(outcome)
 	}
 	state.mu.Lock()
-	state.terminalCommitInProgress = false
 	if commitErr != nil {
+		state.terminalCommitInProgress = false
 		state.terminalPersistenceErr = commitErr
 		state.cond.Broadcast()
 		state.mu.Unlock()
 		return commitErr
 	}
-	state.terminalPersistenceErr = nil
-	state.phase = outcome
 	factory := state.factory
-	state.publishCancel = nil
-	state.publishAbort = nil
-	state.publishAbortClosed = false
-	state.cond.Broadcast()
-	state.mu.Unlock()
-	if factory != nil {
-		factory.ledger.reclaimTerminalAttempt(state, outcome)
+	if factory == nil || factory.ledger == nil {
+		finalizeErr := fmt.Errorf("terminal persistence factory is unavailable")
+		state.terminalCommitInProgress = false
+		state.terminalPersistenceErr = finalizeErr
+		state.cond.Broadcast()
+		state.mu.Unlock()
+		return finalizeErr
 	}
-	return nil
+	state.mu.Unlock()
+	return factory.ledger.finalizeTerminalAttempt(state, outcome)
 }
 
 func (state *runtimeAttemptState) publishedProjection() PublishedAttemptV1 {
@@ -2197,33 +2213,43 @@ func (attempt *ObservationAttempt) commitTerminalState(outcome AttemptPhase) err
 	return nil
 }
 
-func (ledger *SampleLedger) reclaimTerminalAttempt(
+func (ledger *SampleLedger) finalizeTerminalAttempt(
 	state *runtimeAttemptState,
 	outcome AttemptPhase,
-) {
+) error {
 	if ledger == nil || state == nil || !validAttemptTerminalOutcome(outcome) {
-		return
+		return fmt.Errorf("terminal attempt finalization is invalid")
 	}
+	// Terminal visibility and bounded reclamation share one ledger-first
+	// critical section. Waiters cannot observe the terminal phase until the key
+	// and retained capacity are reusable.
+	ledger.mu.Lock()
 	state.mu.Lock()
-	if state.inProgressClaims != 0 || state.phase != outcome {
+	if state.inProgressClaims != 0 || !state.terminalCommitInProgress ||
+		state.terminalOutcome != outcome ||
+		(state.phase != AttemptCancelling && state.phase != AttemptPublishing) {
+		finalizeErr := fmt.Errorf("terminal attempt finalization is unavailable")
+		state.terminalCommitInProgress = false
+		state.terminalPersistenceErr = finalizeErr
+		state.cond.Broadcast()
 		state.mu.Unlock()
-		return
+		ledger.mu.Unlock()
+		return finalizeErr
 	}
 	key := state.key
-	entries := append([]runtimeClaimEntry(nil), state.entries...)
-	attemptSequence := state.terminalSequence
-	restartCommitted := state.restartCommitted
-	state.mu.Unlock()
-
-	ledger.mu.Lock()
 	if ledger.attempts[key] != state {
+		finalizeErr := fmt.Errorf("terminal attempt ledger ownership changed")
+		state.terminalCommitInProgress = false
+		state.terminalPersistenceErr = finalizeErr
+		state.cond.Broadcast()
+		state.mu.Unlock()
 		ledger.mu.Unlock()
-		return
+		return finalizeErr
 	}
 	delete(ledger.attempts, key)
-	ledger.retainedClaims -= len(entries)
-	for ordinal, entry := range entries {
-		if restartCommitted {
+	ledger.retainedClaims -= len(state.entries)
+	for ordinal, entry := range state.entries {
+		if state.restartCommitted {
 			break
 		}
 		if entry.phase != runtimeClaimTerminal || !validClaimOutcome(entry.outcome) {
@@ -2233,23 +2259,23 @@ func (ledger *SampleLedger) reclaimTerminalAttempt(
 			SchemaVersion:           1,
 			ObjectKind:              LedgerAuditClaim,
 			TerminalSequence:        entry.terminalSequence,
-			AttemptTerminalSequence: attemptSequence,
+			AttemptTerminalSequence: state.terminalSequence,
 			ClaimOrdinal:            uint64(ordinal),
 			TerminalOutcome:         string(entry.outcome),
 		})
 	}
-	if !restartCommitted {
+	if !state.restartCommitted {
 		ledger.insertAuditTombstoneLocked(LedgerAuditTombstone{
 			SchemaVersion:    1,
 			ObjectKind:       LedgerAuditAttempt,
-			TerminalSequence: attemptSequence,
-			ClaimCount:       uint64(len(entries)),
+			TerminalSequence: state.terminalSequence,
+			ClaimCount:       uint64(len(state.entries)),
 			TerminalOutcome:  string(outcome),
 		})
 	}
-	ledger.mu.Unlock()
-
-	state.mu.Lock()
+	state.phase = outcome
+	state.terminalCommitInProgress = false
+	state.terminalPersistenceErr = nil
 	state.factory = nil
 	state.key = ""
 	state.identity = AttemptIdentity{}
@@ -2271,7 +2297,10 @@ func (ledger *SampleLedger) reclaimTerminalAttempt(
 	state.sourceDrainComplete = false
 	state.sourceDrainErr = nil
 	state.cancelOpen = nil
+	state.cond.Broadcast()
 	state.mu.Unlock()
+	ledger.mu.Unlock()
+	return nil
 }
 
 func (ledger *SampleLedger) insertAuditTombstoneLocked(
