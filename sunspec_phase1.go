@@ -172,7 +172,7 @@ func (SunSpecPhaseOneDecoder) Parse(words []uint16) (SunSpecPhaseOneChain, error
 			if offset != 2 || chain.common != nil {
 				return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec Common model is duplicated or reordered")
 			}
-			if length != 65 {
+			if length != 65 && length != 66 {
 				return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec Common model length is invalid")
 			}
 			common, err := decodeSunSpecCommon(words[offset+2 : end])

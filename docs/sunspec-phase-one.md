@@ -24,7 +24,11 @@ first-NUL fixed-width string rules.
 The semantic coordinates are pinned to official SunSpec models revision
 `7abdf8982d5364f8ae916deee18aac86c11be36d`. Common model 1 uses payload
 coordinates `Mn 0:16`, `Md 16:32`, `Opt 32:40`, `Vr 40:48`, `SN 48:64`, and
-`DA 64`. Inverter models 101, 102, and 103 use `W 12`, `W_SF 13`, `WH 22:24`
+`DA 64`. The exact accepted Common length set is `{65,66}`: the qualified
+vendor package uses length 65, while the pinned official model uses length 66
+with a non-semantic Pad at payload offset 65. The Pad remains present in raw
+words and model extent but is not published as a typed value. Inverter models
+101, 102, and 103 use `W 12`, `W_SF 13`, `WH 22:24`
 with the high word first, and `WH_SF 24`. No legacy offset fallback is applied.
 
 `Activate` is stateless across polls. Each call takes a
