@@ -1,6 +1,7 @@
 package modbusreg_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -14,10 +15,11 @@ func TestSunSpecPhaseOneActivationBindsRawChainAndObservation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	observation := sunSpecObservation(t, profile)
+	capture, observation := reviewCapture(t, profile, raw, 77, 900, reg.TransportTCP)
 	activated, err := decoder.Activate(reg.SunSpecPhaseOneActivation{
 		Chain:       chain,
 		RawWords:    raw,
+		Capture:     capture,
 		Observation: observation,
 	})
 	if err != nil {
@@ -42,6 +44,11 @@ func TestSunSpecPhaseOneActivationBindsRawChainAndObservation(t *testing.T) {
 			record.WireResponseID++
 			a.Observation.Dependencies[0].View = snapshotFromRecord(t, record)
 		}},
+		{"physical identity", func(a *reg.SunSpecPhaseOneActivation) {
+			record := a.Observation.Dependencies[0].View.Record()
+			record.PhysicalRequestID++
+			a.Observation.Dependencies[0].View = snapshotFromRecord(t, record)
+		}},
 		{"logical identity", func(a *reg.SunSpecPhaseOneActivation) {
 			record := a.Observation.Dependencies[0].View.Record()
 			record.LogicalViewID++
@@ -52,13 +59,63 @@ func TestSunSpecPhaseOneActivationBindsRawChainAndObservation(t *testing.T) {
 			record.TransportGeneration++
 			a.Observation.Dependencies[0].View = snapshotFromRecord(t, record)
 		}},
+		{"reordered source views", func(a *reg.SunSpecPhaseOneActivation) {
+			a.Capture.SourceViews[0], a.Capture.SourceViews[1] = a.Capture.SourceViews[1], a.Capture.SourceViews[0]
+		}},
+		{"mixed acquisition generation", func(a *reg.SunSpecPhaseOneActivation) {
+			record := a.Capture.SourceViews[1].Record()
+			record.TransportGeneration++
+			a.Capture.SourceViews[1] = snapshotFromRecord(t, record)
+		}},
 	}
 	for _, test := range mutations {
 		t.Run(test.name, func(t *testing.T) {
-			activation := reg.SunSpecPhaseOneActivation{Chain: chain, RawWords: raw, Observation: observation}
+			activation := reg.SunSpecPhaseOneActivation{Chain: chain, RawWords: raw, Capture: capture, Observation: observation}
+			activation.Capture.SourceViews = append([]reg.LogicalViewSnapshot(nil), capture.SourceViews...)
 			test.mutate(&activation)
 			if _, err := decoder.Activate(activation); err == nil {
 				t.Fatal("Activate accepted a mismatched chain/observation binding")
+			}
+		})
+	}
+}
+
+func TestSunSpecPhaseOneFreshActivationRequiresExactSourceViews(t *testing.T) {
+	decoder, profile := reviewDecoder(t)
+	raw := reviewRawChain(101)
+	chain, err := decoder.Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	capture, _ := reviewCapture(t, profile, raw, 81, 1000, reg.TransportTCP)
+	_, unrelated := reviewCapture(t, profile, raw, 82, 2000, reg.TransportTCP)
+	if _, err := decoder.Activate(reg.SunSpecPhaseOneActivation{
+		Chain: chain, RawWords: raw, Capture: capture, Observation: unrelated,
+	}); err == nil {
+		t.Fatal("fresh decoder accepted an unrelated but internally valid observation")
+	}
+}
+
+func TestSunSpecPhaseOneIdenticalRawAllowsDistinctCoherentPolls(t *testing.T) {
+	for _, transport := range []reg.TransportFamily{reg.TransportTCP, reg.TransportRTU} {
+		t.Run(string(transport), func(t *testing.T) {
+			decoder, profile := reviewDecoder(t)
+			raw := reviewRawChain(101)
+			chain, err := decoder.Parse(raw)
+			if err != nil {
+				t.Fatalf("Parse: %v", err)
+			}
+			for index, poll := range []uint64{91, 92} {
+				capture, observation := reviewCapture(t, profile, raw, poll, uint64(3000+index*100), transport)
+				activated, err := decoder.Activate(reg.SunSpecPhaseOneActivation{
+					Chain: chain, RawWords: raw, Capture: capture, Observation: observation,
+				})
+				if err != nil {
+					t.Fatalf("Activate(poll %d): %v", poll, err)
+				}
+				if activated.Spec().PollGenerationID != poll || activated.Spec().SampleID != observation.SampleID {
+					t.Fatalf("poll %d provenance was not retained", poll)
+				}
 			}
 		})
 	}
@@ -108,7 +165,7 @@ func TestSunSpecPhaseOneUsesExactNormalizationLengthsAndDeferredSet(t *testing.T
 			t.Fatalf("model %d length %d was accepted", test.id, test.length)
 		}
 	}
-	for _, id := range []uint16{200, 219, 777} {
+	for _, id := range []uint16{111, 113, 120, 124, 160, 200, 219, 777} {
 		if _, err := decoder.Parse(reviewRawChainWithLength(id, 3)); err == nil {
 			t.Fatalf("deferred model %d was accepted", id)
 		}
@@ -116,6 +173,27 @@ func TestSunSpecPhaseOneUsesExactNormalizationLengthsAndDeferredSet(t *testing.T
 	chain, err := decoder.Parse(reviewRawChainWithLength(220, 3))
 	if err != nil || !reflect.DeepEqual(modelIDs(chain.SkippedModels()), []uint16{220}) {
 		t.Fatalf("model 220 was not structurally skipped: %#v, %v", chain, err)
+	}
+	chain, err = decoder.Parse(reviewRawChainWithLength(666, 3))
+	if err != nil || !reflect.DeepEqual(modelIDs(chain.SkippedModels()), []uint16{666}) {
+		t.Fatalf("model 666 was not structurally skipped: %#v, %v", chain, err)
+	}
+}
+
+func TestSunSpecPhaseOneRejectsTrailingWordsAndInvalidCommonOrder(t *testing.T) {
+	decoder, _ := reviewDecoder(t)
+	valid := reviewRawChain(101)
+	if _, err := decoder.Parse(append(append([]uint16(nil), valid...), 0)); err == nil {
+		t.Fatal("chain with words after the terminal marker was accepted")
+	}
+	for _, words := range [][]uint16{
+		reviewRawChainWithLength(101, 50),
+		sunSpecWords(1, 65, 1, 65, 0xffff, 0),
+		sunSpecWords(666, 3, 1, 65, 0xffff, 0),
+	} {
+		if _, err := decoder.Parse(words); err == nil {
+			t.Fatalf("invalid Common model ordering accepted: %v", modelIDsFromWords(words))
+		}
 	}
 }
 
@@ -163,4 +241,40 @@ func reviewStringWords(value string, width int) []uint16 {
 		words[index] = uint16(bytes[index*2])<<8 | uint16(bytes[index*2+1])
 	}
 	return words
+}
+
+func reviewCapture(t *testing.T, profile reg.ProfileDescriptor, raw []uint16, poll, base uint64, transport reg.TransportFamily) (reg.SunSpecPhaseOneCapture, reg.ObservationSpec) {
+	t.Helper()
+	makeView := func(id uint64, offset uint16, words []uint16) reg.LogicalViewSnapshot {
+		record := logicalViewRecord(id, offset, 0, words)
+		record.Endpoint, record.UnitID, record.PollGeneration = "fixture:source", 7, poll
+		record.Transport, record.TransportGeneration = transport, 19
+		record.ConnectionID = 23
+		if transport == reg.TransportRTU {
+			record.ConnectionID = 0
+		}
+		record.WireResponseID, record.PhysicalRequestID = base+id, base+id+10
+		record.PhysicalOffset, record.PhysicalWordCount = offset, uint16(len(words))
+		record.LogicalWordCount, record.SliceWordCount = uint16(len(words)), uint16(len(words))
+		return snapshotFromRecord(t, record)
+	}
+	first := makeView(base+1, 40000, raw[:1])
+	second := makeView(base+2, 40001, raw[1:])
+	observation := sunSpecObservation(t, profile)
+	observation.SampleID = fmt.Sprintf("sunspec-sample-%d", poll)
+	observation.PollGenerationID, observation.Endpoint, observation.UnitID = poll, "fixture:source", 7
+	observation.Dependencies[0].View = first
+	return reg.SunSpecPhaseOneCapture{SourceViews: []reg.LogicalViewSnapshot{first, second}}, observation
+}
+
+func modelIDsFromWords(words []uint16) []uint16 {
+	var ids []uint16
+	for offset := 2; offset+1 < len(words); {
+		ids = append(ids, words[offset])
+		if words[offset] == 0xffff {
+			break
+		}
+		offset += 2 + int(words[offset+1])
+	}
+	return ids
 }
