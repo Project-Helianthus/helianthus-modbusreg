@@ -2,8 +2,10 @@ package modbusreg_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
@@ -102,6 +104,7 @@ func TestM203IncompatibleInputsNeverCrossContaminate(t *testing.T) {
 			spec.Records[0].Observation.Dependencies[1].View = m203MutateView(t, spec, 0, 1, func(record *reg.LogicalViewRecord) { record.DeadlineIdentity++ })
 		}, reg.FixtureReplayReasonDeadlineMismatch},
 		{"coherence", func(spec *reg.FixtureConformanceCorpusSpec) {
+			m203RequireDocumentaryMarkerPolicy(t, spec)
 			spec.Records[0].Observation.Dependencies[1].DocumentaryConsistencyMarker = "other-coherence"
 		}, reg.FixtureReplayReasonCoherenceMismatch},
 	}
@@ -158,6 +161,7 @@ func TestM203AcceptedExpectationRejectsIncompatibleOrTornFactsAtConstruction(t *
 			spec.Records[0].Observation.Dependencies[1].View = m203MutateView(t, spec, 0, 1, func(record *reg.LogicalViewRecord) { record.DeadlineIdentity++ })
 		}},
 		{"coherence", func(spec *reg.FixtureConformanceCorpusSpec) {
+			m203RequireDocumentaryMarkerPolicy(t, spec)
 			spec.Records[0].Observation.Dependencies[1].DocumentaryConsistencyMarker = "other-coherence"
 		}},
 		{"torn", func(spec *reg.FixtureConformanceCorpusSpec) {
@@ -255,6 +259,143 @@ func TestM203CorpusPreflightsAbsoluteArrayCardinality(t *testing.T) {
 	if _, err := reg.UnmarshalFixtureConformanceCorpus(payload); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonOversized) {
 		t.Fatalf("cardinality preflight error = %v", err)
 	}
+}
+
+func TestM203RejectedCorpusRoundTripsWithoutExpectedRawWords(t *testing.T) {
+	spec := m203SyntheticCorpus(t)
+	spec.Records[0].Observation.Dependencies[0].Status = reg.DependencyReadTorn
+	spec.Records[0].ExpectedReplay = reg.FixtureReplayExpectation{
+		Outcome: reg.FixtureReplayRejected,
+		Reason:  reg.FixtureReplayReasonTornRead,
+	}
+	corpus, err := reg.NewFixtureConformanceCorpus(spec)
+	if err != nil {
+		t.Fatalf("NewFixtureConformanceCorpus: %v", err)
+	}
+	want, err := corpus.MarshalBoundedReport()
+	if err != nil {
+		t.Fatalf("MarshalBoundedReport: %v", err)
+	}
+	encoded, err := reg.MarshalFixtureConformanceCorpusSpec(spec)
+	if err != nil {
+		t.Fatalf("MarshalFixtureConformanceCorpusSpec: %v", err)
+	}
+	if bytes.Contains(encoded, []byte(`"expected_replay":{"outcome":"rejected","reason":"torn_read","expected_raw_words"`)) {
+		t.Fatalf("rejected corpus unexpectedly serialized raw words: %s", encoded)
+	}
+	restored, err := reg.UnmarshalFixtureConformanceCorpus(encoded)
+	if err != nil {
+		t.Fatalf("UnmarshalFixtureConformanceCorpus: %v", err)
+	}
+	if got, replayErr := restored.MarshalBoundedReport(); replayErr != nil || !bytes.Equal(got, want) {
+		t.Fatalf("rejected round-trip report = %q, %v; want deterministic replay", got, replayErr)
+	}
+}
+
+func TestM203BoundedMultiBlankPolicyAllowsDifferentDocumentaryMarkers(t *testing.T) {
+	spec := m203SyntheticCorpus(t)
+	profileSpec := spec.Profiles[0].Spec()
+	profileSpec.Coherence = reg.CoherencePolicySpec{
+		Version:                   profileSpec.Coherence.Version,
+		Mode:                      reg.CoherenceBoundedMultiResponse,
+		MaximumSourceSkew:         time.Second,
+		MaximumReceiptSkew:        time.Second,
+		RequireGenerationEquality: true,
+		AcquisitionOrder:          reg.AcquisitionOrderDependencyDeclaration,
+		RetrySetBehavior:          reg.RetryWholeSet,
+	}
+	profile, err := reg.NewProfileDescriptor(profileSpec)
+	if err != nil {
+		t.Fatalf("NewProfileDescriptor: %v", err)
+	}
+	record := m203Record(t, "fixture-blank-policy-markers", profile, 23, 503)
+	record.Observation.RetryOrdinal = 1
+	for index := range record.Observation.Dependencies {
+		dependency := &record.Observation.Dependencies[index]
+		view := dependency.View.Record()
+		view.WireResponseID += uint64(index)
+		view.PhysicalRequestID += uint64(index)
+		dependency.View = snapshotFromRecord(t, view)
+		dependency.AcquisitionOrdinal = uint32(index + 1)
+		dependency.RetryOrdinal = record.Observation.RetryOrdinal
+		dependency.DocumentaryConsistencyMarker = "marker-" + string(rune('a'+index))
+		dependency.SourceTime = reg.SourceTimeObserved(record.Observation.SourceTime.Time.Add(time.Duration(index) * time.Millisecond))
+		dependency.LocalReceiptTime = record.Observation.LocalReceiptTime.Add(time.Duration(index) * time.Millisecond)
+	}
+	record.Observation.LocalReceiptTime = record.Observation.Dependencies[len(record.Observation.Dependencies)-1].LocalReceiptTime
+	record.Observation.SourceTime = record.Observation.Dependencies[len(record.Observation.Dependencies)-1].SourceTime
+	spec.Profiles[0] = profile
+	spec.Records = []reg.FixtureConformanceRecordSpec{record}
+	corpus, err := reg.NewFixtureConformanceCorpus(spec)
+	if err != nil {
+		t.Fatalf("NewFixtureConformanceCorpus: %v", err)
+	}
+	report, err := corpus.Replay()
+	if err != nil {
+		t.Fatalf("Replay: %v", err)
+	}
+	if got := report.Records()[0].Replay().Actual(); got.Outcome() != reg.FixtureReplayAccepted || got.Reason() != reg.FixtureReplayReasonAccepted {
+		t.Fatalf("blank-policy markers replay = %#v", got)
+	}
+}
+
+func TestM203CorpusPreflightsNestedExpectedRawWordCardinality(t *testing.T) {
+	encoded := m203MarshalCorpusSpec(t)
+	wordSets := make([][]uint16, reg.MaxProfileDependencies+1)
+	for index := range wordSets {
+		wordSets[index] = []uint16{}
+	}
+	words, err := json.Marshal(wordSets)
+	if err != nil {
+		t.Fatalf("json.Marshal nested words: %v", err)
+	}
+	payload := bytes.Replace(encoded, []byte(`"expected_raw_words":[[258,772],[772,1286]]`), append([]byte(`"expected_raw_words":`), words...), 1)
+	if bytes.Equal(payload, encoded) {
+		t.Fatal("nested raw-word fixture did not mutate corpus")
+	}
+	if len(payload) >= reg.MaxSerializedContractBytes {
+		t.Fatalf("nested cardinality fixture exceeds byte limit: %d", len(payload))
+	}
+	if _, err := reg.UnmarshalFixtureConformanceCorpus(payload); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonOversized) {
+		t.Fatalf("nested cardinality preflight error = %v", err)
+	}
+}
+
+func m203RequireDocumentaryMarkerPolicy(t *testing.T, spec *reg.FixtureConformanceCorpusSpec) {
+	t.Helper()
+	profileSpec := spec.Profiles[0].Spec()
+	profileSpec.Coherence = reg.CoherencePolicySpec{
+		Version:                      profileSpec.Coherence.Version,
+		Mode:                         reg.CoherenceBoundedMultiResponse,
+		MaximumSourceSkew:            time.Second,
+		MaximumReceiptSkew:           time.Second,
+		RequireGenerationEquality:    true,
+		AcquisitionOrder:             reg.AcquisitionOrderDependencyDeclaration,
+		RetrySetBehavior:             reg.RetryWholeSet,
+		DocumentaryConsistencyMarker: "required-marker",
+	}
+	profile, err := reg.NewProfileDescriptor(profileSpec)
+	if err != nil {
+		t.Fatalf("NewProfileDescriptor: %v", err)
+	}
+	spec.Profiles[0] = profile
+	observation := &spec.Records[0].Observation
+	observation.RetryOrdinal = 1
+	for index := range observation.Dependencies {
+		dependency := &observation.Dependencies[index]
+		view := dependency.View.Record()
+		view.WireResponseID += uint64(index)
+		view.PhysicalRequestID += uint64(index)
+		dependency.View = snapshotFromRecord(t, view)
+		dependency.AcquisitionOrdinal = uint32(index + 1)
+		dependency.RetryOrdinal = observation.RetryOrdinal
+		dependency.DocumentaryConsistencyMarker = "required-marker"
+		dependency.SourceTime = reg.SourceTimeObserved(observation.SourceTime.Time.Add(time.Duration(index) * time.Millisecond))
+		dependency.LocalReceiptTime = observation.LocalReceiptTime.Add(time.Duration(index) * time.Millisecond)
+	}
+	last := observation.Dependencies[len(observation.Dependencies)-1]
+	observation.SourceTime = last.SourceTime
+	observation.LocalReceiptTime = last.LocalReceiptTime
 }
 
 func m203MutateView(t *testing.T, spec *reg.FixtureConformanceCorpusSpec, recordIndex, dependencyIndex int, mutate func(*reg.LogicalViewRecord)) reg.LogicalViewSnapshot {

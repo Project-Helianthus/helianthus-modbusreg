@@ -29,7 +29,8 @@ versioned provenance extension and the public evidence work assigned to M3-01.
 - records bind an existing profile and observation to a serializable detector
   declaration (plan, candidates, limits) plus recorded probe results, exact expected detector
   outcome/reason/profile/version/evidence, qualification disposition, and an
-  expected replay outcome/reason;
+  expected replay outcome/reason. Accepted replay expectations also carry exact
+  raw words; rejected expectations may omit raw words;
 - `Replay`, immutable report/result accessors, exact logical slices/provenance,
   deterministic versioned `MarshalBoundedReport`, and immutable per-dependency
   facts (`DependencyFacts`) retaining FC03/FC04 function/table, normalized
@@ -44,7 +45,8 @@ whose `ExpectedReplay` is rejected is admissible. Replay composes
 `FixtureReplayer` and a `ProfileDetector` reconstructed from the serializable
 declaration and corpus catalog. It may adapt recorded probe results to
 `ProbeReader`, but cannot introduce a parallel codec, detector, qualification,
-or observation-validation engine. An incompatible or torn record declared
+or observation-validation engine: canonical `FixtureReplayer` admission is
+authoritative, including bounded-multi coherence. An incompatible or torn record declared
 accepted is contradictory and rejected at construction.
 
 ## Acceptance criteria
@@ -66,7 +68,8 @@ accepted is contradictory and rejected at construction.
 6. Two distinct generic profiles and two records, reversed independently, and
    concurrent repeated runs produce byte-identical bounded sorted reports. A
    valid marshal/unmarshal round trip reconstructs replayable detector state
-   and produces the same bytes.
+   and produces the same bytes, including rejected records without expected raw
+   words.
 
 ## Validation
 
@@ -74,5 +77,6 @@ The M2-03 tests cover strict decode mutation reasons at record and nested
 M2-03-owned object boundaries, construction-time
 sanitization and contradiction rejection, exact FC03/FC04 provenance and
 slices, deterministic sorted/concurrent replay, executable marshal/unmarshal
-round trips, detector evidence, and expected negative replay reasons. The
+round trips, detector evidence, canonical bounded-multi coherence, nested
+raw-word cardinality limits, and expected negative replay reasons. The
 corpus never opens an endpoint or creates a production sample path.

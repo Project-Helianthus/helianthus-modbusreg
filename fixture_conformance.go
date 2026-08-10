@@ -400,6 +400,9 @@ func validateFixtureProbeSet(input FixtureDetectorInput, plan ProbePlanSpec) err
 }
 
 func classifyFixtureObservation(profile ProfileDescriptor, spec ObservationSpec) FixtureReplayReason {
+	if fixtureObservationAdmitted(profile, spec) {
+		return FixtureReplayReasonAccepted
+	}
 	declarations := profile.Dependencies().Dependencies()
 	if len(spec.Dependencies) != len(declarations) {
 		return FixtureReplayReasonObservationRejected
@@ -438,22 +441,26 @@ func classifyFixtureObservation(profile ProfileDescriptor, spec ObservationSpec)
 				return FixtureReplayReasonSourceMismatch
 			}
 		}
-		if dependency.DocumentaryConsistencyMarker != spec.Dependencies[0].DocumentaryConsistencyMarker {
+		if policy.Mode == CoherenceBoundedMultiResponse &&
+			policy.DocumentaryConsistencyMarker != "" &&
+			dependency.DocumentaryConsistencyMarker != policy.DocumentaryConsistencyMarker {
 			return FixtureReplayReasonCoherenceMismatch
 		}
 	}
+	return FixtureReplayReasonObservationRejected
+}
+
+func fixtureObservationAdmitted(profile ProfileDescriptor, spec ObservationSpec) bool {
 	encoded, err := MarshalFixtureSpec(spec)
 	if err != nil {
-		return FixtureReplayReasonObservationRejected
+		return false
 	}
 	replayer, err := NewFixtureReplayer(profile)
 	if err != nil {
-		return FixtureReplayReasonObservationRejected
+		return false
 	}
-	if _, err := replayer.Replay(encoded); err != nil {
-		return FixtureReplayReasonObservationRejected
-	}
-	return FixtureReplayReasonAccepted
+	_, err = replayer.Replay(encoded)
+	return err == nil
 }
 
 func actualFixtureReplay(
@@ -857,6 +864,10 @@ func preflightFixtureCorpusJSON(data []byte) error {
 // and canonical construction; this pass only preserves the closed mutation
 // reason contract without retaining unbounded object graphs.
 func preflightFixtureObjectJSON(data []byte, keys ...string) (map[string]json.RawMessage, error) {
+	return preflightFixtureObjectJSONOptional(data, nil, keys...)
+}
+
+func preflightFixtureObjectJSONOptional(data []byte, optional []string, keys ...string) (map[string]json.RawMessage, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	token, err := decoder.Token()
 	if err != nil || token != json.Delim('{') {
@@ -896,7 +907,14 @@ func preflightFixtureObjectJSON(data []byte, keys ...string) (map[string]json.Ra
 	if err != nil || closing != json.Delim('}') {
 		return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 	}
+	optionalKeys := make(map[string]struct{}, len(optional))
+	for _, key := range optional {
+		optionalKeys[key] = struct{}{}
+	}
 	for key := range expected {
+		if _, isOptional := optionalKeys[key]; isOptional {
+			continue
+		}
 		if _, present := fields[key]; !present {
 			return nil, fixtureMutationError{FixtureMutationReasonMissing}
 		}
@@ -905,6 +923,10 @@ func preflightFixtureObjectJSON(data []byte, keys ...string) (map[string]json.Ra
 }
 
 func preflightFixtureArrayJSON(data []byte, element func([]byte) error) error {
+	return preflightFixtureArrayJSONWithLimit(data, MaxProfileDependencies, element)
+}
+
+func preflightFixtureArrayJSONWithLimit(data []byte, limit int, element func([]byte) error) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	token, err := decoder.Token()
 	if err != nil || token != json.Delim('[') {
@@ -912,7 +934,7 @@ func preflightFixtureArrayJSON(data []byte, element func([]byte) error) error {
 	}
 	count := 0
 	for decoder.More() {
-		if count == MaxProfileDependencies {
+		if count == limit {
 			return fixtureMutationError{FixtureMutationReasonOversized}
 		}
 		var value json.RawMessage
@@ -1006,8 +1028,21 @@ func preflightFixtureRecordJSON(data []byte) error {
 	if _, err := preflightFixtureObjectJSON(fields["qualification"], "expected"); err != nil {
 		return err
 	}
-	_, err = preflightFixtureObjectJSON(fields["expected_replay"], "outcome", "reason", "expected_raw_words")
-	return err
+	return preflightFixtureExpectedReplayJSON(fields["expected_replay"])
+}
+
+func preflightFixtureExpectedReplayJSON(data []byte) error {
+	fields, err := preflightFixtureObjectJSONOptional(data, []string{"expected_raw_words"}, "outcome", "reason", "expected_raw_words")
+	if err != nil {
+		return err
+	}
+	rawWords, present := fields["expected_raw_words"]
+	if !present {
+		return nil
+	}
+	return preflightFixtureArrayJSON(rawWords, func(words []byte) error {
+		return preflightFixtureArrayJSONWithLimit(words, MaxRawWords, nil)
+	})
 }
 
 func preflightFixtureDetectionJSON(data []byte) error {
