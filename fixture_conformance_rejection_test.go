@@ -93,7 +93,7 @@ func TestM203IncompatibleInputsNeverCrossContaminate(t *testing.T) {
 			spec.Records[0].Observation.Dependencies[1].View = m203MutateView(t, spec, 0, 1, func(record *reg.LogicalViewRecord) { record.PollGeneration++ })
 		}, reg.FixtureReplayReasonGenerationMismatch},
 		{"source", func(spec *reg.FixtureConformanceCorpusSpec) {
-			spec.Records[0].Observation.Dependencies[1].SourceTime = reg.SourceTimeUnavailable()
+			spec.Records[0].Observation.Dependencies[1].SourceTime = reg.SourceTimeObserved(spec.Records[0].Observation.SourceTime.Time)
 		}, reg.FixtureReplayReasonSourceMismatch},
 		{"normalization", func(spec *reg.FixtureConformanceCorpusSpec) {
 			spec.Records[0].Observation.Dependencies[1].NormalizationVersion = version(t, "2.0.0")
@@ -118,7 +118,7 @@ func TestM203IncompatibleInputsNeverCrossContaminate(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Replay(%s): %v", test.name, err)
 			}
-			negative, unaffected := report.Records()[0], report.Records()[1]
+			negative, unaffected := report.Records()[1], report.Records()[0]
 			actual := negative.Replay().Actual()
 			if !negative.Replay().MatchesExpected() || actual.Outcome() != reg.FixtureReplayRejected || actual.Reason() != test.reason {
 				t.Fatalf("%s actual=%#v expected=%#v", test.name, actual, negative.Replay().Expected())
@@ -149,7 +149,7 @@ func TestM203AcceptedExpectationRejectsIncompatibleOrTornFactsAtConstruction(t *
 			spec.Records[0].Observation.Dependencies[1].View = m203MutateView(t, spec, 0, 1, func(record *reg.LogicalViewRecord) { record.PollGeneration++ })
 		}},
 		{"source", func(spec *reg.FixtureConformanceCorpusSpec) {
-			spec.Records[0].Observation.Dependencies[1].SourceTime = reg.SourceTimeUnavailable()
+			spec.Records[0].Observation.Dependencies[1].SourceTime = reg.SourceTimeObserved(spec.Records[0].Observation.SourceTime.Time)
 		}},
 		{"normalization", func(spec *reg.FixtureConformanceCorpusSpec) {
 			spec.Records[0].Observation.Dependencies[1].NormalizationVersion = version(t, "2.0.0")
@@ -172,6 +172,51 @@ func TestM203AcceptedExpectationRejectsIncompatibleOrTornFactsAtConstruction(t *
 				t.Fatalf("accepted %s error = %v, want contradictory", test.name, err)
 			}
 		})
+	}
+}
+
+func TestM203ConstructorRejectsSchemaProbeAndExpectationContradictions(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*reg.FixtureConformanceCorpusSpec)
+		reason reg.FixtureMutationReason
+	}{
+		{"schema", func(spec *reg.FixtureConformanceCorpusSpec) { spec.SchemaVersion = version(t, "2.0.0") }, reg.FixtureMutationReasonMalformed},
+		{"wrong rejection reason", func(spec *reg.FixtureConformanceCorpusSpec) {
+			spec.Records[0].Observation.Dependencies[0].Status = reg.DependencyReadTorn
+			spec.Records[0].ExpectedReplay = reg.FixtureReplayExpectation{Outcome: reg.FixtureReplayRejected, Reason: reg.FixtureReplayReasonGenerationMismatch}
+		}, reg.FixtureMutationReasonContradictory},
+		{"wrong accepted words", func(spec *reg.FixtureConformanceCorpusSpec) {
+			spec.Records[0].ExpectedReplay.ExpectedRawWords[0][0]++
+		}, reg.FixtureMutationReasonContradictory},
+		{"extra probe", func(spec *reg.FixtureConformanceCorpusSpec) {
+			spec.Records[0].Detection.Input.Probes = append(spec.Records[0].Detection.Input.Probes, reg.FixtureProbeInput{DeclarationID: "extra", Result: m203ProbeResultSpec("extra", "extra-evidence")})
+		}, reg.FixtureMutationReasonMalformed},
+		{"detector expectation", func(spec *reg.FixtureConformanceCorpusSpec) {
+			spec.Records[0].Detection.Expected.Outcome = reg.DetectionNoMatch
+		}, reg.FixtureMutationReasonContradictory},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			spec := m203SyntheticCorpus(t)
+			test.mutate(&spec)
+			if _, err := reg.NewFixtureConformanceCorpus(spec); !reg.IsFixtureMutationReason(err, test.reason) {
+				t.Fatalf("%s error=%v", test.name, err)
+			}
+		})
+	}
+}
+
+func TestM203StrictDecodeRejectsUnknownRecordField(t *testing.T) {
+	encoded := m203MarshalCorpusSpec(t)
+	mutated := bytes.Replace(
+		encoded,
+		[]byte(`"record_id"`),
+		[]byte(`"unexpected":true,"record_id"`),
+		1,
+	)
+	if _, err := reg.UnmarshalFixtureConformanceCorpus(mutated); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonMalformed) {
+		t.Fatalf("unknown record field error=%v", err)
 	}
 }
 

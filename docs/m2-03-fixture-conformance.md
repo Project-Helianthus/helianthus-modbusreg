@@ -1,4 +1,7 @@
-# FMV3-M2-03 fixture conformance (RED acceptance skeleton)
+# FMV3-M2-03 fixture conformance
+
+Status: implemented as an immutable, transport-neutral offline corpus and
+replay harness.
 
 ## Scope
 
@@ -11,7 +14,7 @@ samples, or reimplement M2-01/M2-02 behavior.
 Fixtures are generic and synthetic. Metadata is exactly a corpus identity,
 `CC0-1.0` public license expression, and public synthetic provenance.
 
-## Proposed bounded API
+## Implemented bounded API
 
 - `FixtureConformanceCorpusSpec`, `SanitizedFixtureMetadata`, immutable
   `FixtureConformanceCorpus`, `Spec`, and bounded corpus limits;
@@ -53,8 +56,10 @@ accepted is contradictory and rejected at construction.
    valid marshal/unmarshal round trip reconstructs replayable detector state
    and produces the same bytes.
 
-## RED evidence expected
+## Validation
 
-The three M2-03 test files must be formatted and fail only at type-check because
-the proposed M2-03 corpus/harness API does not exist. Non-type-check gates must
-remain green.
+The M2-03 tests cover strict decode mutation reasons, construction-time
+sanitization and contradiction rejection, exact FC03/FC04 provenance and
+slices, deterministic sorted/concurrent replay, executable marshal/unmarshal
+round trips, detector evidence, and expected negative replay reasons. The
+corpus never opens an endpoint or creates a production sample path.

@@ -2,6 +2,7 @@ package modbusreg_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"sync"
 	"testing"
 
@@ -65,24 +66,65 @@ func TestM203CorpusReplayIsDeterministicAcrossRealPermutationsAndConcurrentRuns(
 	}
 }
 
+func TestM203BoundedReportCarriesConformanceEvidence(t *testing.T) {
+	corpus, err := reg.NewFixtureConformanceCorpus(m203SyntheticCorpus(t))
+	if err != nil {
+		t.Fatalf("NewFixtureConformanceCorpus: %v", err)
+	}
+	encoded, err := corpus.MarshalBoundedReport()
+	if err != nil {
+		t.Fatalf("MarshalBoundedReport: %v", err)
+	}
+	var report struct {
+		Records []struct {
+			ProfileVersion string          `json:"profile_version"`
+			Function       json.RawMessage `json:"function"`
+			Table          string          `json:"table"`
+			UnitID         byte            `json:"unit_id"`
+			Normalized     uint16          `json:"normalized_address"`
+			RawWords       [][]uint16      `json:"raw_words"`
+			LogicalSlices  [][]uint16      `json:"logical_slices"`
+			Wire           json.RawMessage `json:"wire"`
+			Logical        json.RawMessage `json:"logical"`
+			Sample         json.RawMessage `json:"sample"`
+			Source         json.RawMessage `json:"source_time"`
+			Qualification  string          `json:"qualification"`
+			Detection      json.RawMessage `json:"detection"`
+		} `json:"records"`
+	}
+	if err := json.Unmarshal(encoded, &report); err != nil {
+		t.Fatalf("report JSON: %v", err)
+	}
+	if len(report.Records) == 0 || report.Records[0].ProfileVersion == "" || len(report.Records[0].Function) == 0 || report.Records[0].Table == "" || report.Records[0].UnitID == 0 || report.Records[0].Normalized == 0 || len(report.Records[0].RawWords) == 0 || len(report.Records[0].LogicalSlices) == 0 || len(report.Records[0].Wire) == 0 || len(report.Records[0].Logical) == 0 || len(report.Records[0].Sample) == 0 || len(report.Records[0].Source) == 0 || report.Records[0].Qualification == "" || len(report.Records[0].Detection) == 0 {
+		t.Fatalf("report omitted conformance evidence: %#v", report.Records)
+	}
+	limited, err := reg.NewFixtureConformanceCorpusWithLimits(m203SyntheticCorpus(t), reg.FixtureConformanceLimits{MaxRecords: 2, MaxReportBytes: 1})
+	if err != nil {
+		t.Fatalf("NewFixtureConformanceCorpusWithLimits: %v", err)
+	}
+	if _, err := limited.MarshalBoundedReport(); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonOversized) {
+		t.Fatalf("small report limit error=%v", err)
+	}
+}
+
 func TestM203CorpusActuallyReplaysConcreteExpectedOutcomes(t *testing.T) {
 	spec := m203SyntheticCorpus(t)
-	valid := spec.Records[0]
-	codec := valid
+	codec := m203SyntheticCorpus(t).Records[0]
 	codec.RecordID = "replay-codec"
-	detector := valid
+	detector := m203SyntheticCorpus(t).Records[0]
 	detector.RecordID = "replay-detector"
-	qualification := valid
+	qualification := m203SyntheticCorpus(t).Records[0]
 	qualification.RecordID = "replay-qualification"
-	normalization := valid
+	normalization := m203SyntheticCorpus(t).Records[0]
 	normalization.RecordID = "replay-normalization"
 	normalization.Observation.Dependencies[0].NormalizationVersion = version(t, "2.0.0")
 	normalization.ExpectedReplay = reg.FixtureReplayExpectation{Outcome: reg.FixtureReplayRejected, Reason: reg.FixtureReplayReasonNormalizationMismatch}
-	generation := valid
+	generationSpec := m203SyntheticCorpus(t)
+	generation := generationSpec.Records[0]
 	generation.RecordID = "replay-generation"
-	generation.Observation.Dependencies[0].View = m203MutateView(t, &spec, 0, 0, func(record *reg.LogicalViewRecord) { record.PollGeneration++ })
+	generation.Observation.Dependencies[0].View = m203MutateView(t, &generationSpec, 0, 0, func(record *reg.LogicalViewRecord) { record.PollGeneration++ })
 	generation.ExpectedReplay = reg.FixtureReplayExpectation{Outcome: reg.FixtureReplayRejected, Reason: reg.FixtureReplayReasonGenerationMismatch}
-	torn := valid
+	torn := m203SyntheticCorpus(t).Records[0]
 	torn.RecordID = "replay-torn-read"
 	torn.Observation.Dependencies[0].Status = reg.DependencyReadTorn
 	torn.ExpectedReplay = reg.FixtureReplayExpectation{Outcome: reg.FixtureReplayRejected, Reason: reg.FixtureReplayReasonTornRead}

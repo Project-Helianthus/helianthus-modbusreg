@@ -69,7 +69,6 @@ func m203Record(t *testing.T, id string, profile reg.ProfileDescriptor, unit byt
 			record.Table = reg.HoldingRegisters
 		}
 		observation.Dependencies[index].View = snapshotFromRecord(t, record)
-		observation.Dependencies[index].SourceTime = observation.SourceTime
 	}
 	return reg.FixtureConformanceRecordSpec{
 		RecordID: id, ProfileID: profile.ID(), ProfileVersion: profile.Version(), Observation: observation,
@@ -90,18 +89,22 @@ func m203DetectionCase(t *testing.T, profile reg.ProfileDescriptor) reg.FixtureD
 			},
 			Limits: detectionLimits(),
 		},
-		Input: reg.FixtureDetectorInput{Manufacturer: "manufacturer-alpha", Model: "model-series-a", Firmware: "1.10.0", Probes: []reg.FixtureProbeInput{
-			{DeclarationID: "manufacturer-identity", Result: mustProbeResult(t, "manufacturer-alpha", "probe-evidence-manufacturer")},
-			{DeclarationID: "model-identity", Result: mustProbeResult(t, "model-series-a", "probe-evidence-model")},
-			{DeclarationID: "firmware-identity", Result: mustProbeResult(t, "1.10.0", "probe-evidence-firmware")},
+		Input: reg.FixtureDetectorInput{Probes: []reg.FixtureProbeInput{
+			{DeclarationID: "manufacturer-identity", Result: m203ProbeResultSpec("manufacturer-alpha", "probe-evidence-manufacturer")},
+			{DeclarationID: "model-identity", Result: m203ProbeResultSpec("model-series-a", "probe-evidence-model")},
+			{DeclarationID: "firmware-identity", Result: m203ProbeResultSpec("1.10.0", "probe-evidence-firmware")},
 		}},
 		Expected: reg.FixtureDetectionExpectation{Outcome: reg.DetectionMatched, Reason: reg.DetectionReasonSelected, SelectedProfileID: profile.ID(), SelectedProfileVersion: profile.Version(), Evidence: []reg.FixtureDetectionEvidenceExpectation{{
-			ProfileID: profile.ID(), ProfileVersion: profile.Version(), Reason: reg.DetectionReasonSelected,
+			ProfileID: profile.ID(), ProfileVersion: profile.Version(), Score: 100, Reason: reg.DetectionReasonSelected,
 			MatchedGates:     []reg.ProbeIdentityField{reg.ProbeIdentityManufacturer, reg.ProbeIdentityModel, reg.ProbeIdentityFirmware},
 			ProbeEvidenceIDs: []string{"probe-evidence-manufacturer", "probe-evidence-model", "probe-evidence-firmware"},
 			DetectorVersion:  profile.DetectorVersion(), QualificationVersion: profile.QualificationVersion(),
 		}}},
 	}
+}
+
+func m203ProbeResultSpec(value, evidenceID string) reg.ProbeReadResultSpec {
+	return reg.ProbeReadResultSpec{Status: reg.ProbeReadSucceeded, Words: detectionWords(value), EvidenceID: evidenceID}
 }
 
 func TestM203FixtureCorpusBindsSanitizedTransportNeutralEvidence(t *testing.T) {
@@ -164,10 +167,6 @@ func TestM203CorpusSpecAndResultAccessorsAreImmutableAndBounded(t *testing.T) {
 
 func TestM203CompatibleUnequalOverlapsRetainExactLogicalSlices(t *testing.T) {
 	spec := m203SyntheticCorpus(t)
-	first, second := spec.Records[0].Observation.Dependencies[0].View.Record(), spec.Records[0].Observation.Dependencies[1].View.Record()
-	first.PhysicalOffset, first.PhysicalWordCount, first.LogicalOffset, first.SliceOffset, first.LogicalWordCount, first.SliceWordCount, first.Words = 100, 6, 100, 0, 2, 2, []uint16{11, 12}
-	second.PhysicalOffset, second.PhysicalWordCount, second.LogicalOffset, second.SliceOffset, second.LogicalWordCount, second.SliceWordCount, second.Words = 100, 6, 102, 2, 2, 2, []uint16{13, 14}
-	spec.Records[0].Observation.Dependencies[0].View, spec.Records[0].Observation.Dependencies[1].View = snapshotFromRecord(t, first), snapshotFromRecord(t, second)
 	corpus, err := reg.NewFixtureConformanceCorpus(spec)
 	if err != nil {
 		t.Fatalf("NewFixtureConformanceCorpus: %v", err)
@@ -176,8 +175,8 @@ func TestM203CompatibleUnequalOverlapsRetainExactLogicalSlices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Replay: %v", err)
 	}
-	slices := report.Records()[0].LogicalSlices()
-	if len(slices) != 2 || !bytes.Equal(slices[0].CanonicalBytes(), []byte{0, 11, 0, 12}) || !bytes.Equal(slices[1].CanonicalBytes(), []byte{0, 13, 0, 14}) {
+	slices := report.Records()[1].LogicalSlices()
+	if len(slices) != 2 || !bytes.Equal(slices[0].CanonicalBytes(), []byte{1, 2, 3, 4}) || !bytes.Equal(slices[1].CanonicalBytes(), []byte{3, 4, 5, 6}) {
 		t.Fatalf("unequal compatible overlap lost exact logical slices: %#v", slices)
 	}
 }
