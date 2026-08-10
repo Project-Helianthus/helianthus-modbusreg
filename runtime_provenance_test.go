@@ -868,6 +868,138 @@ func TestRuntimeLedgerCapacityReclaimsReusesAndRestartsDeterministically(
 	}
 }
 
+func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
+	profile := profileFixture(t)
+	state := emptyLedgerState(t, profile)
+	limits := reg.DefaultLedgerLimits()
+	limits.MaxClaimEntriesPerAttempt = 2
+	limits.MaxRetainedClaimEntries = 2 * limits.MaxRetainedAttempts
+
+	attempt := func(sequence uint64) reg.LedgerAuditTombstone {
+		return reg.LedgerAuditTombstone{
+			SchemaVersion:    1,
+			ObjectKind:       reg.LedgerAuditAttempt,
+			TerminalSequence: sequence,
+			TerminalOutcome:  string(reg.AttemptCancelled),
+		}
+	}
+	claim := func(sequence, attemptSequence, ordinal uint64) reg.LedgerAuditTombstone {
+		return reg.LedgerAuditTombstone{
+			SchemaVersion:           1,
+			ObjectKind:              reg.LedgerAuditClaim,
+			TerminalSequence:        sequence,
+			AttemptTerminalSequence: attemptSequence,
+			ClaimOrdinal:            ordinal,
+			TerminalOutcome:         string(reg.ClaimAttemptCancelled),
+		}
+	}
+
+	tests := []struct {
+		name       string
+		tombstones []reg.LedgerAuditTombstone
+		next       uint64
+		exhausted  bool
+	}{
+		{
+			name:       "claim sequence does not match reservation",
+			tombstones: []reg.LedgerAuditTombstone{attempt(7), claim(9, 7, 0)},
+			next:       10,
+		},
+		{
+			name:       "claim ordinal reaches configured bound",
+			tombstones: []reg.LedgerAuditTombstone{attempt(7), claim(10, 7, 2)},
+			next:       11,
+		},
+		{
+			name:       "claim reservation addition overflows",
+			tombstones: []reg.LedgerAuditTombstone{claim(math.MaxUint64, math.MaxUint64, 0)},
+			exhausted:  true,
+		},
+		{
+			name: "claim reservation crosses future attempt",
+			tombstones: []reg.LedgerAuditTombstone{
+				attempt(7),
+				attempt(8),
+				claim(9, 7, 1),
+			},
+			next: 10,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			restart := reg.LedgerRestartState{
+				SchemaVersion:        1,
+				NextTerminalSequence: test.next,
+				SequenceExhausted:    test.exhausted,
+				AuditTombstones:      test.tombstones,
+			}
+			if _, err := reg.NewSampleLedgerFromRestart(
+				state,
+				0,
+				limits,
+				restart,
+			); err == nil {
+				t.Fatal("malformed restart claim reservation was accepted")
+			}
+		})
+	}
+}
+
+func TestLedgerRestartClaimSequenceReservationRoundTrip(t *testing.T) {
+	profile := profileFixture(t)
+	state := emptyLedgerState(t, profile)
+	limits := reg.DefaultLedgerLimits()
+	limits.MaxClaimEntriesPerAttempt = 2
+	limits.MaxRetainedClaimEntries = 2 * limits.MaxRetainedAttempts
+	restart := reg.LedgerRestartState{
+		SchemaVersion:        1,
+		NextTerminalSequence: 10,
+		AuditTombstones: []reg.LedgerAuditTombstone{
+			{
+				SchemaVersion:    1,
+				ObjectKind:       reg.LedgerAuditAttempt,
+				TerminalSequence: 7,
+				TerminalOutcome:  string(reg.AttemptCancelled),
+			},
+			{
+				SchemaVersion:           1,
+				ObjectKind:              reg.LedgerAuditClaim,
+				TerminalSequence:        8,
+				AttemptTerminalSequence: 7,
+				ClaimOrdinal:            0,
+				TerminalOutcome:         string(reg.ClaimAttemptCancelled),
+			},
+			{
+				SchemaVersion:           1,
+				ObjectKind:              reg.LedgerAuditClaim,
+				TerminalSequence:        9,
+				AttemptTerminalSequence: 7,
+				ClaimOrdinal:            1,
+				TerminalOutcome:         string(reg.ClaimAttemptCancelled),
+			},
+		},
+	}
+	ledger, err := reg.NewSampleLedgerFromRestart(state, 0, limits, restart)
+	if err != nil {
+		t.Fatalf("NewSampleLedgerFromRestart(valid): %v", err)
+	}
+	got, err := ledger.ExportRestartState()
+	if err != nil {
+		t.Fatalf("ExportRestartState: %v", err)
+	}
+	encodedWant, err := json.Marshal(restart)
+	if err != nil {
+		t.Fatalf("Marshal(want): %v", err)
+	}
+	encodedGot, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("Marshal(got): %v", err)
+	}
+	if !bytes.Equal(encodedGot, encodedWant) {
+		t.Fatalf("restart round trip = %s, want %s", encodedGot, encodedWant)
+	}
+}
+
 func TestRuntimeAttemptRejectsUnboundedFactsBeforeProducerRetention(t *testing.T) {
 	profile := profileFixture(t)
 	initial, ledger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())

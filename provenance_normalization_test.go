@@ -45,6 +45,15 @@ func TestSharedWireRejectsForgeryAndContradictoryWords(t *testing.T) {
 			},
 		},
 		{
+			name: "contradictory exact wire response bytes",
+			mutate: func(spec *reg.ObservationSpec) {
+				record := spec.Dependencies[1].View.Record()
+				record.WireResponseBytes = append([]byte(nil), record.WireResponseBytes...)
+				record.WireResponseBytes[len(record.WireResponseBytes)-1] ^= 0xff
+				spec.Dependencies[1].View = snapshotFromRecord(t, record)
+			},
+		},
+		{
 			name: "forged connection",
 			mutate: func(spec *reg.ObservationSpec) {
 				record := spec.Dependencies[1].View.Record()
@@ -89,6 +98,28 @@ func TestSharedWireRejectsForgeryAndContradictoryWords(t *testing.T) {
 	}
 	if _, err := replayFixture(t, profile, spec); err != nil {
 		t.Fatalf("legitimate wider coalesced response was rejected: %v", err)
+	}
+}
+
+func TestLogicalViewWireEvidenceIsRequiredAndBounded(t *testing.T) {
+	record := logicalViewRecord(2000, 100, 0, []uint16{1, 2})
+	record.WireResponseBytes = nil
+	if _, err := reg.NewLogicalViewSnapshot(record); err == nil {
+		t.Fatal("fixture logical view without exact wire evidence was accepted")
+	}
+
+	record.WireResponseBytes = make([]byte, reg.MaxWireResponseEvidenceBytes)
+	snapshot, err := reg.NewLogicalViewSnapshot(record)
+	if err != nil {
+		t.Fatalf("wire evidence at limit rejected: %v", err)
+	}
+	if got := len(snapshot.Record().WireResponseBytes); got != reg.MaxWireResponseEvidenceBytes {
+		t.Fatalf("retained wire evidence length = %d", got)
+	}
+
+	record.WireResponseBytes = make([]byte, reg.MaxWireResponseEvidenceBytes+1)
+	if _, err := reg.NewLogicalViewSnapshot(record); err == nil {
+		t.Fatal("wire evidence above limit was accepted")
 	}
 }
 

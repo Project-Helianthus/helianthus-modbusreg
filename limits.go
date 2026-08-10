@@ -23,6 +23,10 @@ const (
 	MaxContractStringBytes       = 4096
 	MaxContractJSONDepth         = 32
 	MaxSerializedContractBytes   = 4 * 1024 * 1024
+	// MaxWireResponseEvidenceBytes covers the largest pinned FC03/FC04 data
+	// payload plus a bounded transport envelope. It is independent of the
+	// serialized-contract aggregate budget.
+	MaxWireResponseEvidenceBytes = 2*MaxRawWords + 32
 	// MaxSampleIssuerDomainBytes reserves ':' plus the 20 decimal digits
 	// required by the largest uint64-issued sequence.
 	MaxSampleIssuerDomainBytes = MaxContractStringBytes - 21

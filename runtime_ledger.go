@@ -345,13 +345,38 @@ func validateLedgerRestartState(
 		return fmt.Errorf("ledger restart state is invalid")
 	}
 	var previous uint64
+	attemptSequences := make([]uint64, 0, len(restart.AuditTombstones))
 	for index, tombstone := range restart.AuditTombstones {
 		encoded, err := json.Marshal(tombstone)
 		if err != nil || len(encoded) > limits.AuditTombstoneMaxEncodedBytes ||
 			(index > 0 && tombstone.TerminalSequence <= previous) {
 			return fmt.Errorf("ledger restart tombstone is invalid")
 		}
+		if tombstone.ObjectKind == LedgerAuditAttempt {
+			attemptSequences = append(attemptSequences, tombstone.TerminalSequence)
+		}
 		previous = tombstone.TerminalSequence
+	}
+	for _, tombstone := range restart.AuditTombstones {
+		if tombstone.ObjectKind != LedgerAuditClaim {
+			continue
+		}
+		if tombstone.ClaimOrdinal >= uint64(limits.MaxClaimEntriesPerAttempt) ||
+			tombstone.ClaimOrdinal == math.MaxUint64 {
+			return fmt.Errorf("ledger restart claim ordinal is invalid")
+		}
+		offset := tombstone.ClaimOrdinal + 1
+		if tombstone.AttemptTerminalSequence > math.MaxUint64-offset ||
+			tombstone.TerminalSequence != tombstone.AttemptTerminalSequence+offset {
+			return fmt.Errorf("ledger restart claim sequence is invalid")
+		}
+		laterAttempt := sort.Search(len(attemptSequences), func(index int) bool {
+			return attemptSequences[index] > tombstone.AttemptTerminalSequence
+		})
+		if laterAttempt < len(attemptSequences) &&
+			attemptSequences[laterAttempt] <= tombstone.TerminalSequence {
+			return fmt.Errorf("ledger restart claim reservation overlaps a later attempt")
+		}
 	}
 	if !restart.SequenceExhausted && previous >= restart.NextTerminalSequence {
 		return fmt.Errorf("ledger restart sequence does not advance tombstones")

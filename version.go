@@ -90,7 +90,7 @@ func CurrentCodecContractVersion() Version {
 	return codecContractVersionV1
 }
 
-// PinnedRuntimeContractVersion returns the exact M1-04 runtime contract
+// PinnedRuntimeContractVersion returns the exact M1-06 runtime contract
 // consumed by this package.
 func PinnedRuntimeContractVersion() Version {
 	return runtimeContractVersionV1

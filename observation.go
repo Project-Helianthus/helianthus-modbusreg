@@ -1,6 +1,7 @@
 package modbusreg
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
 	"time"
@@ -64,6 +65,10 @@ type LogicalViewSnapshot struct {
 func NewLogicalViewSnapshot(
 	record LogicalViewRecord,
 ) (LogicalViewSnapshot, error) {
+	if len(record.WireResponseBytes) == 0 ||
+		len(record.WireResponseBytes) > MaxWireResponseEvidenceBytes {
+		return LogicalViewSnapshot{}, fmt.Errorf("logical-view wire evidence exceeds runtime maximum")
+	}
 	if len(record.Words) > MaxRawWords {
 		return LogicalViewSnapshot{}, fmt.Errorf("logical-view words exceed runtime maximum")
 	}
@@ -82,8 +87,6 @@ func NewLogicalViewSnapshot(
 			return LogicalViewSnapshot{}, err
 		}
 	}
-	record.Words = append([]uint16(nil), record.Words...)
-	record.WireResponseBytes = append([]byte(nil), record.WireResponseBytes...)
 	if record.LogicalViewID == 0 || record.WireResponseID == 0 ||
 		record.PhysicalRequestID == 0 || record.Endpoint == "" ||
 		record.TransportGeneration == 0 || record.UnitID == 0 ||
@@ -132,6 +135,8 @@ func NewLogicalViewSnapshot(
 			uint32(record.LogicalOffset) {
 		return LogicalViewSnapshot{}, fmt.Errorf("logical-view slice is inconsistent")
 	}
+	record.Words = append([]uint16(nil), record.Words...)
+	record.WireResponseBytes = append([]byte(nil), record.WireResponseBytes...)
 	return LogicalViewSnapshot{record: record, valid: true}, nil
 }
 
@@ -734,6 +739,7 @@ func validateWireResponseGroups(dependencies []ReplayedDependency) error {
 	}
 	type physicalGroup struct {
 		wireResponseID  uint64
+		responseBytes   []byte
 		words           []uint16
 		set             []bool
 		logicalViewIDs  map[uint64]struct{}
@@ -797,6 +803,7 @@ func validateWireResponseGroups(dependencies []ReplayedDependency) error {
 			logicalStart := uint32(record.LogicalOffset)
 			group = &physicalGroup{
 				wireResponseID:  record.WireResponseID,
+				responseBytes:   record.WireResponseBytes,
 				words:           make([]uint16, record.PhysicalWordCount),
 				set:             make([]bool, record.PhysicalWordCount),
 				logicalViewIDs:  make(map[uint64]struct{}),
@@ -805,8 +812,13 @@ func validateWireResponseGroups(dependencies []ReplayedDependency) error {
 					uint32(record.LogicalWordCount),
 			}
 			physicalGroups[identity] = group
-		} else if group.wireResponseID != record.WireResponseID {
-			return fmt.Errorf("physical identity maps to multiple wire responses")
+		} else {
+			if group.wireResponseID != record.WireResponseID {
+				return fmt.Errorf("physical identity maps to multiple wire responses")
+			}
+			if !bytes.Equal(group.responseBytes, record.WireResponseBytes) {
+				return fmt.Errorf("wire response identity maps to contradictory exact bytes")
+			}
 		}
 		logicalStart := uint32(record.LogicalOffset)
 		logicalEnd := logicalStart + uint32(record.LogicalWordCount)

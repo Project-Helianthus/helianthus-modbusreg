@@ -332,6 +332,7 @@ func logicalViewRecord(
 		SliceOffset:         sliceOffset,
 		SliceWordCount:      uint16(len(words)),
 		Words:               words,
+		WireResponseBytes:   []byte{0x01, 0x04, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06},
 	}
 }
 
