@@ -242,6 +242,12 @@ class ScopePolicyTests(unittest.TestCase):
             with self.assertRaises(validator.PolicyError):
                 validator.validate_module(root, self.policy())
 
+    def test_local_ci_uses_portable_git_inventory(self) -> None:
+        script = (ROOT / "scripts" / "ci_local.sh").read_text(encoding="utf-8")
+        self.assertIn("git grep", script)
+        self.assertIn("git ls-files", script)
+        self.assertNotIn("rg ", script)
+
 
 if __name__ == "__main__":
     unittest.main()

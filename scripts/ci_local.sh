@@ -7,7 +7,7 @@ export GOWORK=off
 export PYTHONDONTWRITEBYTECODE=1
 
 echo "==> terminology gate"
-if rg --hidden -g '!.git/**' -nIwi 'm[a]ster|s[l]ave' .; then
+if git grep -nIwiE 'm[a]ster|s[l]ave'; then
   echo "Found legacy terminology."
   exit 1
 fi
@@ -19,7 +19,7 @@ echo "==> scope policy mutation tests"
 python3 -m unittest discover -s tests -p 'test_*.py'
 
 echo "==> gofmt"
-go_files="$(rg --files -g '*.go' | LC_ALL=C sort)"
+go_files="$(git ls-files '*.go' | LC_ALL=C sort)"
 if [[ -n "$go_files" ]]; then
   unformatted="$(gofmt -l $go_files)"
   if [[ -n "$unformatted" ]]; then
