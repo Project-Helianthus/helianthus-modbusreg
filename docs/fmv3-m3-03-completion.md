@@ -17,8 +17,10 @@ version `1.0.0`. They do not prove a Fronius-specific behavioral delta or a
 safe product detector. Accordingly, the canonical record is read-only and
 transport-neutral, has no overlay, has no write capability, and cannot perform
 automatic product qualification. `OVERLAY_REQUIRED` is retained only as the
-other closed schema value for a future evidence-qualified record; it is not the
-current decision.
+second named value in the closed schema vocabulary. It is unrepresentable by
+the current v2 constructor and JSON decoder because this contract admits no
+overlay or overlay evidence. It remains reserved until a separately versioned,
+evidence-qualified overlay contract exists.
 
 ## Applicability and limits
 
@@ -33,7 +35,9 @@ authorization, transport selector, or product detector.
 An evidence change invalidates this decision. Rollback retains standard
 SunSpec/raw access and has no automatic side effect. A different disposition
 requires a separately evidence-qualified record and normal issue/PR review;
-this record itself creates no overlay or device action.
+this record itself creates no overlay or device action. Evidence SHAs are
+provenance references only; they do not authorize a transition or activate a
+hash-based workflow.
 
 ## Hard stop
 

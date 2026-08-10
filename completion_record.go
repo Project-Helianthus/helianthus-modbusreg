@@ -110,12 +110,14 @@ func validateFMV3M303CompletionRecord(spec CompletionRecordSpec) error {
 		spec.Disposition != CompletionDispositionOverlayRequired {
 		return fmt.Errorf("unknown completion disposition")
 	}
+	if spec.Disposition == CompletionDispositionOverlayRequired {
+		return fmt.Errorf("completion disposition is reserved by the current evidence contract")
+	}
 	if !spec.ReadOnly || !spec.TransportNeutral || spec.WriteCapable ||
 		spec.AutomaticProductQualification {
 		return fmt.Errorf("completion record exceeds read-only neutral boundary")
 	}
-	if (spec.Disposition == CompletionDispositionStandardOnly && spec.OverlayPresent) ||
-		(spec.Disposition == CompletionDispositionOverlayRequired && !spec.OverlayPresent) {
+	if spec.OverlayPresent {
 		return fmt.Errorf("completion disposition and overlay presence disagree")
 	}
 	if spec.StandardProfileID != fmv3M303StandardProfileID ||
