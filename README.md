@@ -7,9 +7,11 @@ registry for Helianthus.
 
 M2-01 defines immutable profile and observation contracts and consumes the
 public M1-06 opaque runtime-acquisition API. M2-02 adds bounded, deterministic,
-read-only profile detection over the immutable catalog. The repository still
-contains no standard-family profile, vendor overlay, qualification record, or
-vendor fixture; those belong to later milestones and require public evidence.
+read-only profile detection over the immutable catalog. M2-03 adds an immutable
+transport-neutral corpus for sanitized synthetic fixture replay and cross-profile
+conformance. The repository still contains no concrete standard-family profile,
+vendor overlay, qualification record, or vendor fixture; those belong to later
+milestones and require public evidence.
 
 ## One Registry, Multiple Vendors
 
@@ -40,7 +42,9 @@ This repository owns:
   effect and terminal publication decision;
 - strict bounded serialization for contracts, observations, and ledger state;
 - bounded read-only probe plans and deterministic qualification-aware profile
-  detection; and
+  detection;
+- strict bounded synthetic fixture corpus serialization, replay, mutation
+  classification, and deterministic conformance reports; and
 - evidence-gated vendor overlay declarations for future milestones.
 
 This repository does not own:
@@ -67,10 +71,11 @@ Fixture bytes use `FixtureReplayer.Replay`. `FixtureReplay` has a fixture
 content identity and immutable replay facts, but no runtime capability,
 production sample ID, seal, or publish method.
 
-The detailed contracts are in [`docs/m2-01-api.md`](docs/m2-01-api.md) and
-[`docs/m2-02-detection.md`](docs/m2-02-detection.md). The cross-repository
-architecture remains documented in the public Helianthus protocol
-documentation repository.
+The detailed contracts are in [`docs/m2-01-api.md`](docs/m2-01-api.md),
+[`docs/m2-02-detection.md`](docs/m2-02-detection.md), and
+[`docs/m2-03-fixture-conformance.md`](docs/m2-03-fixture-conformance.md). The
+cross-repository architecture remains documented in the public Helianthus
+protocol documentation repository.
 
 ## Development
 
