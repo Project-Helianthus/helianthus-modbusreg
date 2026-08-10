@@ -1,0 +1,342 @@
+package modbusreg_test
+
+import (
+	"fmt"
+	"reflect"
+	"testing"
+
+	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+)
+
+func TestSunSpecPhaseOneActivationBindsRawChainAndObservation(t *testing.T) {
+	decoder, profile := reviewDecoder(t)
+	raw := reviewRawChain(101)
+	chain, err := decoder.Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	capture, observation := reviewCapture(t, profile, raw, 77, 900, reg.TransportTCP)
+	activated, err := decoder.Activate(reg.SunSpecPhaseOneActivation{
+		Chain:       chain,
+		RawWords:    raw,
+		Capture:     capture,
+		Observation: observation,
+	})
+	if err != nil {
+		t.Fatalf("Activate(valid): %v", err)
+	}
+	if !reflect.DeepEqual(activated.RawWords(), raw) ||
+		!reflect.DeepEqual(activated.Spec(), observation) {
+		t.Fatal("activation did not preserve exact raw chain and observation facts")
+	}
+
+	mutations := []struct {
+		name   string
+		mutate func(*reg.SunSpecPhaseOneActivation)
+	}{
+		{"unrelated raw words", func(a *reg.SunSpecPhaseOneActivation) { a.RawWords = reviewRawChain(102) }},
+		{"endpoint", func(a *reg.SunSpecPhaseOneActivation) { a.Observation.Endpoint = "fixture:other" }},
+		{"unit", func(a *reg.SunSpecPhaseOneActivation) { a.Observation.UnitID++ }},
+		{"poll generation", func(a *reg.SunSpecPhaseOneActivation) { a.Observation.PollGenerationID++ }},
+		{"dependency identity", func(a *reg.SunSpecPhaseOneActivation) { a.Observation.Dependencies[0].DependencyID = "other" }},
+		{"wire identity", func(a *reg.SunSpecPhaseOneActivation) {
+			record := a.Observation.Dependencies[0].View.Record()
+			record.WireResponseID++
+			a.Observation.Dependencies[0].View = snapshotFromRecord(t, record)
+		}},
+		{"physical identity", func(a *reg.SunSpecPhaseOneActivation) {
+			record := a.Observation.Dependencies[0].View.Record()
+			record.PhysicalRequestID++
+			a.Observation.Dependencies[0].View = snapshotFromRecord(t, record)
+		}},
+		{"logical identity", func(a *reg.SunSpecPhaseOneActivation) {
+			record := a.Observation.Dependencies[0].View.Record()
+			record.LogicalViewID++
+			a.Observation.Dependencies[0].View = snapshotFromRecord(t, record)
+		}},
+		{"torn generation", func(a *reg.SunSpecPhaseOneActivation) {
+			record := a.Observation.Dependencies[0].View.Record()
+			record.TransportGeneration++
+			a.Observation.Dependencies[0].View = snapshotFromRecord(t, record)
+		}},
+		{"reordered source views", func(a *reg.SunSpecPhaseOneActivation) {
+			a.Capture.SourceViews[0], a.Capture.SourceViews[1] = a.Capture.SourceViews[1], a.Capture.SourceViews[0]
+		}},
+		{"mixed acquisition generation", func(a *reg.SunSpecPhaseOneActivation) {
+			record := a.Capture.SourceViews[1].Record()
+			record.TransportGeneration++
+			a.Capture.SourceViews[1] = snapshotFromRecord(t, record)
+		}},
+	}
+	for _, test := range mutations {
+		t.Run(test.name, func(t *testing.T) {
+			activation := reg.SunSpecPhaseOneActivation{Chain: chain, RawWords: raw, Capture: capture, Observation: observation}
+			activation.Capture.SourceViews = append([]reg.LogicalViewSnapshot(nil), capture.SourceViews...)
+			test.mutate(&activation)
+			if _, err := decoder.Activate(activation); err == nil {
+				t.Fatal("Activate accepted a mismatched chain/observation binding")
+			}
+		})
+	}
+}
+
+func TestSunSpecPhaseOneFreshActivationRequiresExactSourceViews(t *testing.T) {
+	decoder, profile := reviewDecoder(t)
+	raw := reviewRawChain(101)
+	chain, err := decoder.Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	capture, _ := reviewCapture(t, profile, raw, 81, 1000, reg.TransportTCP)
+	_, unrelated := reviewCapture(t, profile, raw, 82, 2000, reg.TransportTCP)
+	if _, err := decoder.Activate(reg.SunSpecPhaseOneActivation{
+		Chain: chain, RawWords: raw, Capture: capture, Observation: unrelated,
+	}); err == nil {
+		t.Fatal("fresh decoder accepted an unrelated but internally valid observation")
+	}
+}
+
+func TestSunSpecPhaseOneIdenticalRawAllowsDistinctCoherentPolls(t *testing.T) {
+	for _, transport := range []reg.TransportFamily{reg.TransportTCP, reg.TransportRTU} {
+		t.Run(string(transport), func(t *testing.T) {
+			decoder, profile := reviewDecoder(t)
+			raw := reviewRawChain(101)
+			chain, err := decoder.Parse(raw)
+			if err != nil {
+				t.Fatalf("Parse: %v", err)
+			}
+			for index, poll := range []uint64{91, 92} {
+				capture, observation := reviewCapture(t, profile, raw, poll, uint64(3000+index*100), transport)
+				activated, err := decoder.Activate(reg.SunSpecPhaseOneActivation{
+					Chain: chain, RawWords: raw, Capture: capture, Observation: observation,
+				})
+				if err != nil {
+					t.Fatalf("Activate(poll %d): %v", poll, err)
+				}
+				if activated.Spec().PollGenerationID != poll || activated.Spec().SampleID != observation.SampleID {
+					t.Fatalf("poll %d provenance was not retained", poll)
+				}
+			}
+		})
+	}
+}
+
+func TestSunSpecPhaseOneParsesFixtureSemanticsFromRawModels(t *testing.T) {
+	decoder, _ := reviewDecoder(t)
+	// Offsets follow official models commit 7abdf8982d5364f8ae916deee18aac86c11be36d.
+	chain, err := decoder.Parse(reviewRawChain(101, 102, 103))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	common, ok := chain.Common()
+	if !ok || common.Manufacturer() != "FixtureCo" || common.Model() != "Fixture-1" ||
+		common.Options() != "A" || common.Version() != "VERSION123456789" ||
+		common.SerialNumber() != "PLACEHOLDER" || common.DeviceAddress() != 42 {
+		t.Fatalf("Common model 1 = %#v, present=%t", common, ok)
+	}
+	expected := map[uint16]struct {
+		powerRaw, powerScale, energyRaw, energyScale int64
+		powerValue, energyValue                      float64
+	}{
+		101: {-123, -1, 120000, 0, -12.3, 120000},
+		102: {321, -1, 131072, 0, 32.1, 131072},
+		103: {-10, -2, 4660, 0, -0.1, 4660},
+	}
+	for _, id := range []uint16{101, 102, 103} {
+		inverter, ok := chain.Inverter(id)
+		if !ok {
+			t.Fatalf("model %d was not semantically exposed", id)
+		}
+		want := expected[id]
+		if power := inverter.Power(); power.Raw() != want.powerRaw || int64(power.ScaleFactor()) != want.powerScale || power.Value() != want.powerValue {
+			t.Fatalf("model %d power = %#v", id, power)
+		}
+		if energy := inverter.Energy(); energy.Raw() != want.energyRaw || int64(energy.ScaleFactor()) != want.energyScale || energy.Value() != want.energyValue {
+			t.Fatalf("model %d energy = %#v", id, energy)
+		}
+	}
+}
+
+func TestSunSpecPhaseOneAcceptsOfficialCommonLengthWithPad(t *testing.T) {
+	decoder, _ := reviewDecoder(t)
+	raw65 := reviewRawChain(101)
+	const commonEnd = 4 + 65
+	raw66 := make([]uint16, 0, len(raw65)+1)
+	raw66 = append(raw66, raw65[:commonEnd]...)
+	raw66 = append(raw66, 0xa55a) // Official Pad at Common payload offset 65.
+	raw66 = append(raw66, raw65[commonEnd:]...)
+	raw66[3] = 66
+
+	chain, err := decoder.Parse(raw66)
+	if err != nil {
+		t.Fatalf("Parse(Common L=66): %v", err)
+	}
+	models := chain.Models()
+	if len(models) != 2 || models[0].ID() != 1 || models[0].Length() != 66 ||
+		models[1].ID() != 101 || models[1].Offset() != 70 {
+		t.Fatalf("model traversal after Common L=66 = %#v", models)
+	}
+	common, ok := chain.Common()
+	if !ok || common.Manufacturer() != "FixtureCo" || common.Model() != "Fixture-1" ||
+		common.Options() != "A" || common.Version() != "VERSION123456789" ||
+		common.SerialNumber() != "PLACEHOLDER" || common.DeviceAddress() != 42 {
+		t.Fatalf("Common L=66 semantics = %#v, present=%t", common, ok)
+	}
+	inverter, ok := chain.Inverter(101)
+	if !ok || inverter.Power().Raw() != -123 || inverter.Power().ScaleFactor() != -1 ||
+		inverter.Power().Value() != -12.3 || inverter.Energy().Raw() != 120000 ||
+		inverter.Energy().ScaleFactor() != 0 || inverter.Energy().Value() != 120000 {
+		t.Fatalf("model 101 after Common L=66 = %#v, present=%t", inverter, ok)
+	}
+}
+
+func TestSunSpecPhaseOneUsesExactNormalizationLengthsAndDeferredSet(t *testing.T) {
+	decoder, profile := reviewDecoder(t)
+	dependency := profile.Dependencies().Dependencies()[0]
+	normalization := dependency.Normalization().Spec()
+	if normalization.DocumentaryAddress != 40001 || normalization.DocumentaryBase != reg.AddressBaseOneBased ||
+		normalization.Transformation != reg.TransformSubtractOne || normalization.ResolvedPDUOffset != 40000 {
+		t.Fatalf("SunSpec normalization = %#v", normalization)
+	}
+	if dependency.Normalization().ResolvedPDUOffset() != 40000 {
+		t.Fatal("runtime normalization differs from documentary record")
+	}
+	for _, test := range []struct{ id, length uint16 }{
+		{1, 64}, {1, 67}, {101, 49}, {101, 51}, {102, 49}, {102, 51}, {103, 49}, {103, 51},
+	} {
+		if _, err := decoder.Parse(reviewRawChainWithLength(test.id, test.length)); err == nil {
+			t.Fatalf("model %d length %d was accepted", test.id, test.length)
+		}
+	}
+	for _, id := range []uint16{111, 113, 120, 124, 160, 200, 219, 777} {
+		if _, err := decoder.Parse(reviewRawChainWithLength(id, 3)); err == nil {
+			t.Fatalf("deferred model %d was accepted", id)
+		}
+	}
+	chain, err := decoder.Parse(reviewRawChainWithLength(220, 3))
+	if err != nil || !reflect.DeepEqual(modelIDs(chain.SkippedModels()), []uint16{220}) {
+		t.Fatalf("model 220 was not structurally skipped: %#v, %v", chain, err)
+	}
+	chain, err = decoder.Parse(reviewRawChainWithLength(666, 3))
+	if err != nil || !reflect.DeepEqual(modelIDs(chain.SkippedModels()), []uint16{666}) {
+		t.Fatalf("model 666 was not structurally skipped: %#v, %v", chain, err)
+	}
+}
+
+func TestSunSpecPhaseOneRejectsTrailingWordsAndInvalidCommonOrder(t *testing.T) {
+	decoder, _ := reviewDecoder(t)
+	valid := reviewRawChain(101)
+	if _, err := decoder.Parse(append(append([]uint16(nil), valid...), 0)); err == nil {
+		t.Fatal("chain with words after the terminal marker was accepted")
+	}
+	for _, words := range [][]uint16{
+		append(append([]uint16{0x5375, 0x6e53, 101, 50}, make([]uint16, 50)...), 0xffff, 0),
+		sunSpecWords(1, 65, 1, 65, 0xffff, 0),
+		sunSpecWords(666, 3, 1, 65, 0xffff, 0),
+	} {
+		if _, err := decoder.Parse(words); err == nil {
+			t.Fatalf("invalid Common model ordering accepted: %v", modelIDsFromWords(words))
+		}
+	}
+}
+
+func reviewDecoder(t *testing.T) (reg.SunSpecPhaseOneDecoder, reg.ProfileDescriptor) {
+	t.Helper()
+	profile, err := reg.NewSunSpecPhaseOneProfile(reg.SunSpecPhaseOneVersions{Profile: version(t, "1.0.0"), Codec: version(t, "1.0.0")})
+	if err != nil {
+		t.Fatalf("NewSunSpecPhaseOneProfile: %v", err)
+	}
+	decoder, err := reg.NewSunSpecPhaseOneDecoder(profile)
+	if err != nil {
+		t.Fatalf("NewSunSpecPhaseOneDecoder: %v", err)
+	}
+	return decoder, profile
+}
+
+func reviewRawChain(ids ...uint16) []uint16 {
+	words := []uint16{0x5375, 0x6e53}
+	words = append(words, 1, 65)
+	common := make([]uint16, 65)
+	copy(common[0:], reviewStringWords("FixtureCo", 16))
+	copy(common[16:], reviewStringWords("Fixture-1", 16))
+	copy(common[32:], reviewStringWords("A", 8))
+	copy(common[40:], reviewStringWords("VERSION123456789", 8))
+	copy(common[48:], reviewStringWords("PLACEHOLDER", 16))
+	common[64] = 42
+	words = append(words, common...)
+	for _, id := range ids {
+		words = append(words, id, 50)
+		payload := make([]uint16, 50)
+		// Poison the old incorrect offsets with valid but unmistakably wrong values.
+		payload[8], payload[9] = 123, 1
+		payload[16], payload[17], payload[18] = 3, 4, 1
+		switch id {
+		case 101:
+			payload[12], payload[13] = 0xff85, 0xffff
+			payload[22], payload[23], payload[24] = 1, 0xd4c0, 0
+		case 102:
+			payload[12], payload[13] = 321, 0xffff
+			payload[22], payload[23], payload[24] = 2, 0, 0
+		case 103:
+			payload[12], payload[13] = 0xfff6, 0xfffe
+			payload[22], payload[23], payload[24] = 0, 0x1234, 0
+		}
+		words = append(words, payload...)
+	}
+	return append(words, 0xffff, 0)
+}
+
+func reviewRawChainWithLength(id, length uint16) []uint16 {
+	if id != 1 {
+		return sunSpecWords(1, 65, id, length, 0xffff, 0)
+	}
+	return append(append([]uint16{0x5375, 0x6e53, id, length}, make([]uint16, length)...), 0xffff, 0)
+}
+
+func reviewStringWords(value string, width int) []uint16 {
+	bytes := make([]byte, width*2)
+	copy(bytes, value)
+	words := make([]uint16, width)
+	for index := range words {
+		words[index] = uint16(bytes[index*2])<<8 | uint16(bytes[index*2+1])
+	}
+	return words
+}
+
+func reviewCapture(t *testing.T, profile reg.ProfileDescriptor, raw []uint16, poll, base uint64, transport reg.TransportFamily) (reg.SunSpecPhaseOneCapture, reg.ObservationSpec) {
+	t.Helper()
+	makeView := func(id uint64, offset uint16, words []uint16) reg.LogicalViewSnapshot {
+		record := logicalViewRecord(id, offset, 0, words)
+		record.Endpoint, record.UnitID, record.PollGeneration = "fixture:source", 7, poll
+		record.RequestedFunction, record.ReceivedFunction = reg.FunctionReadHoldingRegisters, reg.FunctionReadHoldingRegisters
+		record.Table = reg.HoldingRegisters
+		record.Transport, record.TransportGeneration = transport, 19
+		record.ConnectionID = 23
+		if transport == reg.TransportRTU {
+			record.ConnectionID = 0
+		}
+		record.WireResponseID, record.PhysicalRequestID = base+id, base+id+10
+		record.PhysicalOffset, record.PhysicalWordCount = offset, uint16(len(words))
+		record.LogicalWordCount, record.SliceWordCount = uint16(len(words)), uint16(len(words))
+		return snapshotFromRecord(t, record)
+	}
+	first := makeView(base+1, 40000, raw[:1])
+	second := makeView(base+2, 40001, raw[1:])
+	observation := sunSpecObservation(t, profile)
+	observation.SampleID = fmt.Sprintf("sunspec-sample-%d", poll)
+	observation.PollGenerationID, observation.Endpoint, observation.UnitID = poll, "fixture:source", 7
+	observation.Dependencies[0].View = first
+	return reg.SunSpecPhaseOneCapture{SourceViews: []reg.LogicalViewSnapshot{first, second}}, observation
+}
+
+func modelIDsFromWords(words []uint16) []uint16 {
+	var ids []uint16
+	for offset := 2; offset+1 < len(words); {
+		ids = append(ids, words[offset])
+		if words[offset] == 0xffff {
+			break
+		}
+		offset += 2 + int(words[offset+1])
+	}
+	return ids
+}
