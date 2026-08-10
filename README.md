@@ -10,8 +10,10 @@ public M1-06 opaque runtime-acquisition API. M2-02 adds bounded, deterministic,
 read-only profile detection over the immutable catalog. M2-03 adds an immutable
 transport-neutral corpus for sanitized synthetic fixture replay and cross-profile
 conformance. M3-02 adds the bounded, read-only SunSpec phase-one standard-family
-profile and parser. Vendor overlays, product qualification, and live access
-remain outside this milestone.
+profile and parser. M3-03 records the evidence-qualified `STANDARD_ONLY`
+disposition: it adds no vendor overlay, detector, product qualification, or
+live access. Vendor overlays, product qualification, and live access remain
+outside this milestone.
 
 ## One Registry, Multiple Vendors
 
@@ -76,6 +78,8 @@ The detailed contracts are in [`docs/m2-01-api.md`](docs/m2-01-api.md),
 [`docs/m2-03-fixture-conformance.md`](docs/m2-03-fixture-conformance.md). The
 phase-one API, evidence boundary, limits, compatibility gates, and rollback
 are documented in [`docs/sunspec-phase-one.md`](docs/sunspec-phase-one.md). The
+M3-03 completion decision, checked-in golden JSON, and hard stop are documented
+in [`docs/fmv3-m3-03-completion.md`](docs/fmv3-m3-03-completion.md). The
 cross-repository architecture remains documented in the public Helianthus
 protocol documentation repository.
 
