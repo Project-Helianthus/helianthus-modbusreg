@@ -14,6 +14,12 @@ samples, or reimplement M2-01/M2-02 behavior.
 Fixtures are generic and synthetic. Metadata is exactly a corpus identity,
 `CC0-1.0` public license expression, and public synthetic provenance.
 
+That restriction describes the corpus delivered by M2-03, not a permanent
+profile-kind allowlist. The harness remains profile-kind-neutral and relies on
+the existing catalog, evidence, and qualification gates. Schema v1 does not
+claim provenance for sanitized live captures; admitting those requires a
+versioned provenance extension and the public evidence work assigned to M3-01.
+
 ## Implemented bounded API
 
 - `FixtureConformanceCorpusSpec`, `SanitizedFixtureMetadata`, immutable

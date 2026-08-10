@@ -224,7 +224,11 @@ func validateFixtureSanitization(record FixtureConformanceRecordSpec) error {
 		return fixtureMutationError{FixtureMutationReasonUnsanitized}
 	}
 	for _, dependency := range record.Observation.Dependencies {
-		if !validFixtureIdentity(dependency.View.Record().Endpoint) || dependency.View.Record().Endpoint != record.Observation.Endpoint {
+		if !validFixtureIdentity(dependency.View.Record().Endpoint) {
+			return fixtureMutationError{FixtureMutationReasonUnsanitized}
+		}
+		if dependency.View.Record().Endpoint != record.Observation.Endpoint &&
+			(record.ExpectedReplay.Outcome != FixtureReplayRejected || record.ExpectedReplay.Reason != FixtureReplayReasonSourceMismatch) {
 			return fixtureMutationError{FixtureMutationReasonUnsanitized}
 		}
 	}
@@ -287,9 +291,6 @@ func NewFixtureConformanceCorpusWithLimits(spec FixtureConformanceCorpusSpec, li
 }
 
 func validateFixtureRecordDeclaration(catalog Catalog, profile ProfileDescriptor, record FixtureConformanceRecordSpec) error {
-	if record.Qualification.Expected != FixtureQualificationDispositionQualified || profile.Spec().Maturity != MaturityQualified {
-		return fixtureMutationError{FixtureMutationReasonContradictory}
-	}
 	detector, err := newFixtureDetector(catalog, record.Detection.Declaration)
 	if err != nil {
 		return fixtureMutationError{FixtureMutationReasonMalformed}
@@ -304,6 +305,18 @@ func validateFixtureRecordDeclaration(catalog Catalog, profile ProfileDescriptor
 	decision, err := detector.Detect(context.Background(), reader, DetectionOptions{})
 	if err != nil || !(FixtureDetectionResult{Actual: decision, expected: record.Detection.Expected}).MatchesExpected() {
 		return fixtureMutationError{FixtureMutationReasonContradictory}
+	}
+	switch record.Qualification.Expected {
+	case FixtureQualificationDispositionQualified:
+		if profile.Spec().Maturity != MaturityQualified || decision.Outcome() != DetectionMatched {
+			return fixtureMutationError{FixtureMutationReasonContradictory}
+		}
+	case FixtureQualificationDispositionRejected:
+		if profile.Spec().Maturity == MaturityQualified || decision.Outcome() != DetectionNoMatch || decision.Reason() != DetectionReasonProfileUnqualified {
+			return fixtureMutationError{FixtureMutationReasonContradictory}
+		}
+	default:
+		return fixtureMutationError{FixtureMutationReasonMalformed}
 	}
 	if record.ExpectedReplay.Outcome != FixtureReplayAccepted && record.ExpectedReplay.Outcome != FixtureReplayRejected {
 		return fixtureMutationError{FixtureMutationReasonMalformed}
@@ -391,6 +404,8 @@ func classifyFixtureObservation(profile ProfileDescriptor, spec ObservationSpec)
 	if len(spec.Dependencies) != len(declarations) {
 		return FixtureReplayReasonObservationRejected
 	}
+	policy := profile.Spec().Coherence
+	firstView := spec.Dependencies[0].View.Record()
 	for i, dependency := range spec.Dependencies {
 		view := dependency.View.Record()
 		if dependency.Status == DependencyReadTorn {
@@ -402,6 +417,13 @@ func classifyFixtureObservation(profile ProfileDescriptor, spec ObservationSpec)
 		if view.UnitID != spec.UnitID {
 			return FixtureReplayReasonUnitMismatch
 		}
+		if policy.Mode == CoherenceBoundedMultiResponse &&
+			(view.Endpoint != firstView.Endpoint ||
+				view.ConnectionID != firstView.ConnectionID ||
+				view.Transport != firstView.Transport ||
+				(policy.RequireGenerationEquality && view.TransportGeneration != firstView.TransportGeneration)) {
+			return FixtureReplayReasonSourceMismatch
+		}
 		if view.PollGeneration != spec.PollGenerationID {
 			return FixtureReplayReasonGenerationMismatch
 		}
@@ -411,12 +433,10 @@ func classifyFixtureObservation(profile ProfileDescriptor, spec ObservationSpec)
 		if view.Table != declarations[i].Table() || (view.Table == HoldingRegisters && view.RequestedFunction != FunctionReadHoldingRegisters) || (view.Table == InputRegisters && view.RequestedFunction != FunctionReadInputRegisters) || view.RequestedFunction != view.ReceivedFunction {
 			return FixtureReplayReasonTableAccessMismatch
 		}
-		if profile.Spec().Coherence.Mode == CoherenceSingleWireResponse {
+		if policy.Mode == CoherenceSingleWireResponse {
 			if dependency.SourceTime.State != SourceTimeUnavailableState || !dependency.SourceTime.Time.IsZero() {
 				return FixtureReplayReasonSourceMismatch
 			}
-		} else if !sourceTimesEqual(dependency.SourceTime, spec.SourceTime) {
-			return FixtureReplayReasonSourceMismatch
 		}
 		if dependency.DocumentaryConsistencyMarker != spec.Dependencies[0].DocumentaryConsistencyMarker {
 			return FixtureReplayReasonCoherenceMismatch
@@ -795,9 +815,15 @@ func preflightFixtureCorpusJSON(data []byte) error {
 			}
 			return fixtureMutationError{FixtureMutationReasonUnknown}
 		}
-		var discard json.RawMessage
-		if err := decoder.Decode(&discard); err != nil {
-			return fixtureMutationError{FixtureMutationReasonMalformed}
+		if key == "profiles" || key == "records" {
+			if err := preflightFixtureArrayCardinality(decoder); err != nil {
+				return err
+			}
+		} else {
+			var discard json.RawMessage
+			if err := decoder.Decode(&discard); err != nil {
+				return fixtureMutationError{FixtureMutationReasonMalformed}
+			}
 		}
 	}
 	if _, err := decoder.Token(); err != nil {
@@ -809,6 +835,29 @@ func preflightFixtureCorpusJSON(data []byte) error {
 		}
 	}
 	if decoder.More() {
+		return fixtureMutationError{FixtureMutationReasonMalformed}
+	}
+	return nil
+}
+
+func preflightFixtureArrayCardinality(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err != nil || token != json.Delim('[') {
+		return fixtureMutationError{FixtureMutationReasonMalformed}
+	}
+	count := 0
+	for decoder.More() {
+		if count == MaxProfileDependencies {
+			return fixtureMutationError{FixtureMutationReasonOversized}
+		}
+		var element json.RawMessage
+		if err := decoder.Decode(&element); err != nil {
+			return fixtureMutationError{FixtureMutationReasonMalformed}
+		}
+		count++
+	}
+	closing, err := decoder.Token()
+	if err != nil || closing != json.Delim(']') {
 		return fixtureMutationError{FixtureMutationReasonMalformed}
 	}
 	return nil

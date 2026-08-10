@@ -180,3 +180,78 @@ func TestM203CompatibleUnequalOverlapsRetainExactLogicalSlices(t *testing.T) {
 		t.Fatalf("unequal compatible overlap lost exact logical slices: %#v", slices)
 	}
 }
+
+func TestM203BoundedMultiPreservesCanonicalSourceSkew(t *testing.T) {
+	profile, observation := boundedFixture(t, reg.AcquisitionOrderDependencyDeclaration)
+	profileSpec := profile.Spec()
+	profileSpec.Maturity = reg.MaturityQualified
+	profileSpec.DefaultEnabled = true
+	profile, err := reg.NewProfileDescriptor(profileSpec)
+	if err != nil {
+		t.Fatalf("NewProfileDescriptor(qualified bounded): %v", err)
+	}
+	observation.Endpoint, observation.UnitID = "fixture-bounded-source", 19
+	for index := range observation.Dependencies {
+		view := observation.Dependencies[index].View.Record()
+		view.Endpoint, view.UnitID = observation.Endpoint, observation.UnitID
+		observation.Dependencies[index].View = snapshotFromRecord(t, view)
+	}
+	record := m203Record(t, "fixture-bounded-valid", profile, observation.UnitID, observation.PollGenerationID)
+	record.Observation = observation
+	corpusSpec := reg.FixtureConformanceCorpusSpec{SchemaVersion: version(t, "1.0.0"), Metadata: reg.SanitizedFixtureMetadata{CorpusID: "fixture-bounded-corpus", LicenseExpression: "CC0-1.0", Provenance: "public synthetic fixture"}, Profiles: []reg.ProfileDescriptor{profile}, Records: []reg.FixtureConformanceRecordSpec{record}}
+	if _, err := reg.NewFixtureConformanceCorpus(corpusSpec); err != nil {
+		t.Fatalf("canonical bounded source skew rejected: %v", err)
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*reg.LogicalViewRecord)
+	}{
+		{"endpoint", func(view *reg.LogicalViewRecord) { view.Endpoint = "fixture-bounded-other" }},
+		{"connection", func(view *reg.LogicalViewRecord) { view.ConnectionID++ }},
+		{"transport generation", func(view *reg.LogicalViewRecord) { view.TransportGeneration++ }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			negative := corpusSpec
+			negative.Records = append([]reg.FixtureConformanceRecordSpec(nil), corpusSpec.Records...)
+			negative.Records[0].Observation.Dependencies = append([]reg.DependencyResult(nil), corpusSpec.Records[0].Observation.Dependencies...)
+			view := negative.Records[0].Observation.Dependencies[1].View.Record()
+			test.mutate(&view)
+			negative.Records[0].Observation.Dependencies[1].View = snapshotFromRecord(t, view)
+			negative.Records[0].ExpectedReplay = reg.FixtureReplayExpectation{Outcome: reg.FixtureReplayRejected, Reason: reg.FixtureReplayReasonSourceMismatch}
+			if _, err := reg.NewFixtureConformanceCorpus(negative); err != nil {
+				t.Fatalf("bounded source mismatch rejected: %v", err)
+			}
+		})
+	}
+}
+
+func TestM203RejectedQualificationMatchesUnqualifiedDetection(t *testing.T) {
+	profile := detectionProfile(t, "synthetic.standard.unqualified", "1.0.0", reg.MaturityExperimental, reg.ProfileActive, false)
+	record := m203Record(t, "fixture-unqualified", profile, 20, 601)
+	record.Qualification.Expected = reg.FixtureQualificationDispositionRejected
+	record.Detection.Expected = reg.FixtureDetectionExpectation{Outcome: reg.DetectionNoMatch, Reason: reg.DetectionReasonProfileUnqualified, Evidence: []reg.FixtureDetectionEvidenceExpectation{{ProfileID: profile.ID(), ProfileVersion: profile.Version(), Score: 100, Reason: reg.DetectionReasonProfileUnqualified, DetectorVersion: profile.DetectorVersion(), QualificationVersion: profile.QualificationVersion()}}}
+	spec := reg.FixtureConformanceCorpusSpec{SchemaVersion: version(t, "1.0.0"), Metadata: reg.SanitizedFixtureMetadata{CorpusID: "fixture-unqualified-corpus", LicenseExpression: "CC0-1.0", Provenance: "public synthetic fixture"}, Profiles: []reg.ProfileDescriptor{profile}, Records: []reg.FixtureConformanceRecordSpec{record}}
+	corpus, err := reg.NewFixtureConformanceCorpus(spec)
+	if err != nil {
+		t.Fatalf("unqualified/rejected corpus: %v", err)
+	}
+	report, err := corpus.Replay()
+	if err != nil {
+		t.Fatalf("Replay: %v", err)
+	}
+	result := report.Records()[0]
+	if result.Qualification() != reg.FixtureQualificationDispositionRejected || result.Detection().Actual.Outcome() != reg.DetectionNoMatch || result.Detection().Actual.Reason() != reg.DetectionReasonProfileUnqualified || !result.Detection().MatchesExpected() {
+		t.Fatalf("unqualified result = %#v", result)
+	}
+	qualifiedRejected := m203SyntheticCorpus(t)
+	qualifiedRejected.Records[0].Qualification.Expected = reg.FixtureQualificationDispositionRejected
+	if _, err := reg.NewFixtureConformanceCorpus(qualifiedRejected); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonContradictory) {
+		t.Fatalf("qualified/rejected error = %v", err)
+	}
+	unqualifiedQualified := spec
+	unqualifiedQualified.Records = append([]reg.FixtureConformanceRecordSpec(nil), spec.Records...)
+	unqualifiedQualified.Records[0].Qualification.Expected = reg.FixtureQualificationDispositionQualified
+	if _, err := reg.NewFixtureConformanceCorpus(unqualifiedQualified); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonContradictory) {
+		t.Fatalf("unqualified/qualified error = %v", err)
+	}
+}

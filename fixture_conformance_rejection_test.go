@@ -220,6 +220,17 @@ func TestM203StrictDecodeRejectsUnknownRecordField(t *testing.T) {
 	}
 }
 
+func TestM203CorpusPreflightsAbsoluteArrayCardinality(t *testing.T) {
+	items := strings.Repeat("null,", reg.MaxProfileDependencies) + "null"
+	payload := []byte(`{"schema_version":"1.0.0","metadata":{"corpus_id":"fixture-bomb","license_expression":"CC0-1.0","provenance":"public synthetic fixture"},"profiles":[` + items + `],"records":[null]}`)
+	if len(payload) >= reg.MaxSerializedContractBytes {
+		t.Fatalf("cardinality fixture exceeds byte limit: %d", len(payload))
+	}
+	if _, err := reg.UnmarshalFixtureConformanceCorpus(payload); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonOversized) {
+		t.Fatalf("cardinality preflight error = %v", err)
+	}
+}
+
 func m203MutateView(t *testing.T, spec *reg.FixtureConformanceCorpusSpec, recordIndex, dependencyIndex int, mutate func(*reg.LogicalViewRecord)) reg.LogicalViewSnapshot {
 	t.Helper()
 	record := spec.Records[recordIndex].Observation.Dependencies[dependencyIndex].View.Record()
