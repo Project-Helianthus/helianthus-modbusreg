@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -402,9 +403,13 @@ func beginAdmittedRuntimeAttempt(
 }
 
 type memoryPublicationCommitter struct {
-	mu      sync.Mutex
-	state   reg.SampleLedgerState
-	effects []reg.PublishedAttemptV1
+	mu            sync.Mutex
+	state         reg.SampleLedgerState
+	effects       []reg.PublishedAttemptV1
+	requests      []reg.PublicationCommitRequest
+	terminalCalls int
+	restart       reg.LedgerRestartState
+	terminal      []reg.TerminalStateCommitRequest
 }
 
 type arbitrationPublicationCommitter struct {
@@ -414,6 +419,7 @@ type arbitrationPublicationCommitter struct {
 	release   chan struct{}
 	enterOnce sync.Once
 	effects   int
+	restart   reg.LedgerRestartState
 }
 
 func newArbitrationPublicationCommitter(
@@ -440,7 +446,17 @@ func (committer *arbitrationPublicationCommitter) CommitPublication(
 		if committer.state != request.ExpectedState {
 			return "", fmt.Errorf("publication state conflict")
 		}
+		if committer.restart.SchemaVersion == 0 {
+			committer.restart = request.ExpectedRestartState
+		}
+		if !reflect.DeepEqual(committer.restart, request.ExpectedRestartState) &&
+			!committer.restart.CoversTerminalWatermark(request.PublishedRestartState) {
+			return "", fmt.Errorf("publication restart state conflict")
+		}
 		committer.state = request.PublishedState
+		if !committer.restart.CoversTerminalWatermark(request.PublishedRestartState) {
+			committer.restart = request.PublishedRestartState
+		}
 		committer.effects++
 		return reg.PublicationCommitCommitted, nil
 	}
@@ -450,6 +466,28 @@ func (committer *arbitrationPublicationCommitter) effectCount() int {
 	committer.mu.Lock()
 	defer committer.mu.Unlock()
 	return committer.effects
+}
+
+func (committer *arbitrationPublicationCommitter) CommitTerminalState(
+	ctx context.Context,
+	request reg.TerminalStateCommitRequest,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	committer.mu.Lock()
+	defer committer.mu.Unlock()
+	if committer.restart.SchemaVersion == 0 {
+		committer.restart = request.ExpectedRestartState
+	}
+	if !reflect.DeepEqual(committer.restart, request.ExpectedRestartState) &&
+		!committer.restart.CoversTerminalWatermark(request.TerminalRestartState) {
+		return fmt.Errorf("terminal restart state conflict")
+	}
+	if !committer.restart.CoversTerminalWatermark(request.TerminalRestartState) {
+		committer.restart = request.TerminalRestartState
+	}
+	return nil
 }
 
 func (committer *memoryPublicationCommitter) CommitPublication(
@@ -464,12 +502,229 @@ func (committer *memoryPublicationCommitter) CommitPublication(
 	if committer.state != request.ExpectedState {
 		return "", fmt.Errorf("publication state conflict")
 	}
+	if committer.restart.SchemaVersion == 0 {
+		committer.restart = request.ExpectedRestartState
+	}
+	if !reflect.DeepEqual(committer.restart, request.ExpectedRestartState) &&
+		!committer.restart.CoversTerminalWatermark(request.PublishedRestartState) {
+		return "", fmt.Errorf("publication restart state conflict")
+	}
 	if err := ctx.Err(); err != nil {
 		return reg.PublicationCommitCancelled, nil
 	}
 	committer.state = request.PublishedState
 	committer.effects = append(committer.effects, request.Attempt)
+	committer.requests = append(committer.requests, request)
+	if !committer.restart.CoversTerminalWatermark(request.PublishedRestartState) {
+		committer.restart = request.PublishedRestartState
+	}
 	return reg.PublicationCommitCommitted, nil
+}
+
+func (committer *memoryPublicationCommitter) CommitTerminalState(
+	ctx context.Context,
+	request reg.TerminalStateCommitRequest,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	committer.mu.Lock()
+	defer committer.mu.Unlock()
+	if committer.restart.SchemaVersion == 0 {
+		committer.restart = request.ExpectedRestartState
+	}
+	if !reflect.DeepEqual(committer.restart, request.ExpectedRestartState) &&
+		!committer.restart.CoversTerminalWatermark(request.TerminalRestartState) {
+		return fmt.Errorf("terminal restart state conflict")
+	}
+	if !committer.restart.CoversTerminalWatermark(request.TerminalRestartState) {
+		committer.restart = request.TerminalRestartState
+	}
+	committer.terminalCalls++
+	committer.terminal = append(committer.terminal, request)
+	return nil
+}
+
+func TestPublicationCommitCarriesExactFinalObservationAndRestartState(t *testing.T) {
+	profile := profileFixture(t)
+	source, views := runtimeSourceAndViews(t)
+	initial, ledger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
+	committer := &memoryPublicationCommitter{state: initial}
+	factory, err := reg.NewObservationFactory(profile, ledger, committer)
+	if err != nil {
+		t.Fatalf("NewObservationFactory: %v", err)
+	}
+	attempt, err := factory.BeginRuntimeAttempt(runtimeAttemptRequestForTest(
+		source,
+		"publication-crash-boundary",
+		41,
+		len(views),
+	))
+	if err != nil {
+		t.Fatalf("BeginRuntimeAttempt: %v", err)
+	}
+	normalizationBytes := issueRuntimeDependencies(t, source, attempt, views)
+	if err := attempt.Admit(); err != nil {
+		t.Fatalf("Admit: %v", err)
+	}
+	for ordinal := range views {
+		if outcome, err := attempt.Claim(uint64(ordinal)); err != nil ||
+			outcome != reg.ClaimSucceeded {
+			t.Fatalf("Claim(%d)=(%q, %v)", ordinal, outcome, err)
+		}
+	}
+	if err := attempt.Seal(); err != nil {
+		t.Fatalf("Seal: %v", err)
+	}
+	published, err := attempt.Publish(context.Background())
+	if err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+
+	committer.mu.Lock()
+	if len(committer.requests) != 1 {
+		committer.mu.Unlock()
+		t.Fatalf("publication requests=%d", len(committer.requests))
+	}
+	request := committer.requests[0]
+	committer.mu.Unlock()
+	committedObservation := request.Observation
+	if committedObservation.SampleID() != published.SampleID() ||
+		!reflect.DeepEqual(committedObservation.Spec(), published.Spec()) {
+		t.Fatal("committed final observation envelope differs from the published result")
+	}
+	committedReplay := committedObservation.Replay()
+	publishedReplay := published.Replay()
+	if len(committedReplay) != len(publishedReplay) ||
+		len(committedReplay) != len(normalizationBytes) {
+		t.Fatal("committed observation dependency cardinality changed")
+	}
+	for index := range committedReplay {
+		if !reflect.DeepEqual(
+			committedReplay[index].LogicalViewRecord(),
+			publishedReplay[index].LogicalViewRecord(),
+		) || !bytes.Equal(
+			committedReplay[index].RuntimeNormalizationBytes(),
+			normalizationBytes[index],
+		) {
+			t.Fatalf("committed dependency %d lost exact provenance", index)
+		}
+	}
+	if request.PublishedRestartState.NextTerminalSequence == 0 {
+		t.Fatal("atomic publication request omits terminal restart state")
+	}
+	restored, err := reg.NewSampleLedgerFromRestart(
+		request.PublishedState,
+		request.PublishedState.Revision,
+		reg.DefaultLedgerLimits(),
+		request.PublishedRestartState,
+	)
+	if err != nil {
+		t.Fatalf("crash-boundary publication restart: %v", err)
+	}
+	if got := restored.Snapshot().NextTerminalSequence; got != request.PublishedRestartState.NextTerminalSequence {
+		t.Fatalf("restored terminal watermark=%d", got)
+	}
+	restartCommitter := &memoryPublicationCommitter{
+		state:   request.PublishedState,
+		restart: request.PublishedRestartState,
+	}
+	restoredFactory, err := reg.NewObservationFactory(profile, restored, restartCommitter)
+	if err != nil {
+		t.Fatalf("NewObservationFactory(restored): %v", err)
+	}
+	restartSource, restartViews := runtimeSourceAndViews(t)
+	restartedAttempt, err := restoredFactory.BeginRuntimeAttempt(
+		runtimeAttemptRequestForTest(
+			restartSource,
+			"post-publication-crash",
+			42,
+			len(restartViews),
+		),
+	)
+	if err != nil {
+		t.Fatalf("BeginRuntimeAttempt(restored): %v", err)
+	}
+	if result, err := restartedAttempt.Cancel(); err != nil ||
+		result != reg.CancellationCompleted {
+		t.Fatalf("Cancel(restored)=(%q, %v)", result, err)
+	}
+	if got := restartCommitter.terminal[0].Attempt.AttemptTerminalSequence; got != request.PublishedRestartState.NextTerminalSequence {
+		t.Fatalf("post-crash terminal sequence=%d reused committed history", got)
+	}
+}
+
+func TestCancellationCrossesDurableTerminalBoundary(t *testing.T) {
+	profile := profileFixture(t)
+	source, views := runtimeSourceAndViews(t)
+	initial, ledger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
+	committer := &memoryPublicationCommitter{state: initial}
+	factory, err := reg.NewObservationFactory(profile, ledger, committer)
+	if err != nil {
+		t.Fatalf("NewObservationFactory: %v", err)
+	}
+	attempt, err := factory.BeginRuntimeAttempt(runtimeAttemptRequestForTest(
+		source,
+		"cancellation-crash-boundary",
+		41,
+		len(views),
+	))
+	if err != nil {
+		t.Fatalf("BeginRuntimeAttempt: %v", err)
+	}
+	if result, err := attempt.Cancel(); err != nil || result != reg.CancellationCompleted {
+		t.Fatalf("Cancel=(%q, %v)", result, err)
+	}
+	committer.mu.Lock()
+	terminalCalls := committer.terminalCalls
+	terminalRequests := append([]reg.TerminalStateCommitRequest(nil), committer.terminal...)
+	committer.mu.Unlock()
+	if terminalCalls != 1 {
+		t.Fatalf("durable cancellation terminal commits=%d, want 1", terminalCalls)
+	}
+	terminal := terminalRequests[0]
+	if terminal.Outcome != reg.AttemptCancelled {
+		t.Fatalf("durable cancellation outcome=%q", terminal.Outcome)
+	}
+	restored, err := reg.NewSampleLedgerFromRestart(
+		initial,
+		0,
+		reg.DefaultLedgerLimits(),
+		terminal.TerminalRestartState,
+	)
+	if err != nil {
+		t.Fatalf("crash-boundary cancellation restart: %v", err)
+	}
+	if got := restored.Snapshot().NextTerminalSequence; got != terminal.TerminalRestartState.NextTerminalSequence {
+		t.Fatalf("restored cancellation watermark=%d", got)
+	}
+	restartCommitter := &memoryPublicationCommitter{
+		state:   initial,
+		restart: terminal.TerminalRestartState,
+	}
+	restoredFactory, err := reg.NewObservationFactory(profile, restored, restartCommitter)
+	if err != nil {
+		t.Fatalf("NewObservationFactory(restored): %v", err)
+	}
+	restartSource, restartViews := runtimeSourceAndViews(t)
+	restartedAttempt, err := restoredFactory.BeginRuntimeAttempt(
+		runtimeAttemptRequestForTest(
+			restartSource,
+			"post-cancellation-crash",
+			42,
+			len(restartViews),
+		),
+	)
+	if err != nil {
+		t.Fatalf("BeginRuntimeAttempt(restored): %v", err)
+	}
+	if result, err := restartedAttempt.Cancel(); err != nil ||
+		result != reg.CancellationCompleted {
+		t.Fatalf("Cancel(restored)=(%q, %v)", result, err)
+	}
+	if got := restartCommitter.terminal[0].Attempt.AttemptTerminalSequence; got != terminal.TerminalRestartState.NextTerminalSequence {
+		t.Fatalf("post-crash terminal sequence=%d reused cancelled history", got)
+	}
 }
 
 func TestRuntimeAttemptClaimsProducerCapabilitiesAndRetainsExactNormalization(
@@ -831,8 +1086,9 @@ func TestRuntimeLedgerCapacityReclaimsReusesAndRestartsDeterministically(
 	}
 
 	exhaustion := reg.LedgerRestartState{
-		SchemaVersion:        1,
-		NextTerminalSequence: math.MaxUint64 - 1,
+		SchemaVersion:            1,
+		NextTerminalSequence:     math.MaxUint64 - 1,
+		TruncatedThroughSequence: math.MaxUint64 - 2,
 	}
 	exhaustedLedger, err := reg.NewSampleLedgerFromRestart(
 		initial,
@@ -899,21 +1155,25 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 		tombstones []reg.LedgerAuditTombstone
 		next       uint64
 		exhausted  bool
+		truncated  uint64
 	}{
 		{
 			name:       "claim sequence does not match reservation",
 			tombstones: []reg.LedgerAuditTombstone{attempt(7), claim(9, 7, 0)},
 			next:       10,
+			truncated:  6,
 		},
 		{
 			name:       "claim ordinal reaches configured bound",
 			tombstones: []reg.LedgerAuditTombstone{attempt(7), claim(10, 7, 2)},
 			next:       11,
+			truncated:  6,
 		},
 		{
 			name:       "claim reservation addition overflows",
 			tombstones: []reg.LedgerAuditTombstone{claim(math.MaxUint64, math.MaxUint64, 0)},
 			exhausted:  true,
+			truncated:  math.MaxUint64 - 1,
 		},
 		{
 			name: "claim reservation crosses future attempt",
@@ -922,16 +1182,38 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 				attempt(8),
 				claim(9, 7, 1),
 			},
-			next: 10,
+			next:      10,
+			truncated: 6,
+		},
+		{
+			name:       "retained history has a sequence gap",
+			tombstones: []reg.LedgerAuditTombstone{attempt(7), claim(9, 7, 1)},
+			next:       10,
+			truncated:  6,
+		},
+		{
+			name: "claim links to a retained claim instead of an attempt",
+			tombstones: []reg.LedgerAuditTombstone{
+				claim(7, 6, 0),
+				claim(8, 7, 0),
+			},
+			next:      9,
+			truncated: 6,
+		},
+		{
+			name:       "empty history has an unexplained watermark",
+			tombstones: nil,
+			next:       7,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			restart := reg.LedgerRestartState{
-				SchemaVersion:        1,
-				NextTerminalSequence: test.next,
-				SequenceExhausted:    test.exhausted,
-				AuditTombstones:      test.tombstones,
+				SchemaVersion:            1,
+				NextTerminalSequence:     test.next,
+				SequenceExhausted:        test.exhausted,
+				TruncatedThroughSequence: test.truncated,
+				AuditTombstones:          test.tombstones,
 			}
 			if _, err := reg.NewSampleLedgerFromRestart(
 				state,
@@ -952,8 +1234,9 @@ func TestLedgerRestartClaimSequenceReservationRoundTrip(t *testing.T) {
 	limits.MaxClaimEntriesPerAttempt = 2
 	limits.MaxRetainedClaimEntries = 2 * limits.MaxRetainedAttempts
 	restart := reg.LedgerRestartState{
-		SchemaVersion:        1,
-		NextTerminalSequence: 10,
+		SchemaVersion:            1,
+		NextTerminalSequence:     10,
+		TruncatedThroughSequence: 6,
 		AuditTombstones: []reg.LedgerAuditTombstone{
 			{
 				SchemaVersion:    1,

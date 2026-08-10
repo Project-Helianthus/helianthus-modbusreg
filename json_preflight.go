@@ -331,6 +331,8 @@ func jsonArrayLimit(key string) int {
 		return MaxCodecSentinels
 	case "samples":
 		return MaxSampleLedgerRecords
+	case "audit_tombstones":
+		return maxLedgerRestartAuditTombstones
 	default:
 		return MaxProfileDependencies
 	}

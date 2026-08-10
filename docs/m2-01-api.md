@@ -133,14 +133,29 @@ type PublicationCommitter interface {
         context.Context,
         PublicationCommitRequest,
     ) (PublicationCommitDecision, error)
+    CommitTerminalState(
+        context.Context,
+        TerminalStateCommitRequest,
+    ) error
 }
 ```
 
-`PublicationCommitRequest` contains the complete expected ledger state, the
-next published state, and the only externally publishable attempt projection.
-The committer must atomically commit the published state, irreversible external
-effect, and `committed` decision. An error or `cancelled` decision guarantees
-that no irreversible effect occurred.
+`PublicationCommitRequest` contains the complete expected and next sample-ledger
+states, expected and next restart states, final immutable `Observation`, and the
+only externally publishable attempt projection. The observation is constructed
+and validated before the callback, including its production sample ID, exact
+words, wire-response bytes, and producer normalization bytes. The committer must
+atomically persist that exact observation, both durable states, irreversible
+external effect, and `committed` decision. An error or `cancelled` decision
+guarantees that no irreversible effect occurred.
+
+`CommitTerminalState` is the durable boundary for cancelled, cancel-failed, and
+publish-failed attempts. It persists no observation and creates no external
+sample. Its restart transition is an idempotent monotonic watermark join: the
+committer may accept either the expected state or an already-persisted identical
+terminal target or any state for which `CoversTerminalWatermark(target)` is
+true. This permits cancellation to drain without waiting behind a blocked
+publication callback while preventing terminal-sequence reuse.
 
 The ledger serializes committer admission locally without holding its mutex
 during the callback. A committed decision advances revision/high-water and
@@ -168,9 +183,21 @@ claim records contain only terminal sequence links, ordinal where applicable,
 and closed outcomes. They do not reconstruct attempt keys, capabilities,
 normalization bytes, diagnostics, or producer authority.
 
-`ExportRestartState` succeeds only when no live attempt remains. Restart state
-contains bounded tombstones plus terminal-sequence state; live attempts and
-capabilities are intentionally nonserializable.
+`LedgerRestartState` is also a strict snake_case JSON object. Its retained
+tombstones must be one contiguous suffix ending at `next_terminal_sequence - 1`
+(or `MaxUint64` after exhaustion). Claim records must link to the correct
+attempt-kind record when that target is retained, claim ordinals must match the
+reserved sequence interval, and attempt intervals cannot overlap.
+
+`truncated_through_sequence` explicitly accounts for every omitted prefix. An
+empty history beyond the initial state is valid only when this watermark reaches
+the sequence immediately before `next_terminal_sequence`. Concurrent live gaps
+are conservatively represented by advancing this truncation watermark rather
+than inventing terminal records.
+
+`ExportRestartState` succeeds only when no live attempt remains and every
+reserved terminal watermark has crossed a durable committer boundary. Live
+attempts and capabilities are intentionally nonserializable.
 
 ## Offline Fixture Replay
 

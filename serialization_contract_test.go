@@ -2,12 +2,47 @@ package modbusreg_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
+
+func TestLedgerRestartStateStrictTopLevelJSON(t *testing.T) {
+	profile := profileFixture(t)
+	initial := emptyLedgerState(t, profile)
+	limits := reg.DefaultLedgerLimits()
+	validTruncated := []byte(`{"schema_version":1,"next_terminal_sequence":7,"sequence_exhausted":false,"truncated_through_sequence":6,"audit_tombstones":[]}`)
+	var decoded reg.LedgerRestartState
+	if err := json.Unmarshal(validTruncated, &decoded); err != nil {
+		t.Fatalf("Unmarshal(valid truncated restart): %v", err)
+	}
+	if _, err := reg.NewSampleLedgerFromRestart(initial, 0, limits, decoded); err != nil {
+		t.Fatalf("NewSampleLedgerFromRestart(valid truncated restart): %v", err)
+	}
+	roundTrip, err := json.Marshal(decoded)
+	if err != nil {
+		t.Fatalf("Marshal(valid truncated restart): %v", err)
+	}
+	if !bytes.Equal(roundTrip, validTruncated) {
+		t.Fatalf("restart JSON round trip=%s", roundTrip)
+	}
+
+	invalid := [][]byte{
+		[]byte(`{"schema_version":1,"next_terminal_sequence":1,"sequence_exhausted":false,"truncated_through_sequence":0,"audit_tombstones":[],"unknown":true}`),
+		[]byte(`{"schema_version":1,"next_terminal_sequence":1,"sequence_exhausted":false,"audit_tombstones":[]}`),
+		[]byte(`{"SchemaVersion":1,"NextTerminalSequence":1,"SequenceExhausted":false,"TruncatedThroughSequence":0,"AuditTombstones":[]}`),
+		[]byte(`{"schema_version":1,"schema_version":1,"next_terminal_sequence":1,"sequence_exhausted":false,"truncated_through_sequence":0,"audit_tombstones":[]}`),
+	}
+	for index, encoded := range invalid {
+		var restart reg.LedgerRestartState
+		if err := json.Unmarshal(encoded, &restart); err == nil {
+			t.Fatalf("invalid top-level restart JSON %d was accepted", index)
+		}
+	}
+}
 
 func beginFixtureReplay(
 	t *testing.T,

@@ -36,6 +36,7 @@ type serialPublicationCommitter struct {
 	firstEntered  chan struct{}
 	secondEntered chan struct{}
 	releaseFirst  chan struct{}
+	restart       reg.LedgerRestartState
 }
 
 func newSerialPublicationCommitter(
@@ -77,9 +78,41 @@ func (committer *serialPublicationCommitter) CommitPublication(
 	if committer.state != request.ExpectedState {
 		return "", fmt.Errorf("publication state conflict")
 	}
+	if committer.restart.SchemaVersion == 0 {
+		committer.restart = request.ExpectedRestartState
+	}
+	if !reflect.DeepEqual(committer.restart, request.ExpectedRestartState) &&
+		!committer.restart.CoversTerminalWatermark(request.PublishedRestartState) {
+		return "", fmt.Errorf("publication restart state conflict")
+	}
 	committer.state = request.PublishedState
+	if !committer.restart.CoversTerminalWatermark(request.PublishedRestartState) {
+		committer.restart = request.PublishedRestartState
+	}
 	committer.effects++
 	return reg.PublicationCommitCommitted, nil
+}
+
+func (committer *serialPublicationCommitter) CommitTerminalState(
+	ctx context.Context,
+	request reg.TerminalStateCommitRequest,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	committer.mu.Lock()
+	defer committer.mu.Unlock()
+	if committer.restart.SchemaVersion == 0 {
+		committer.restart = request.ExpectedRestartState
+	}
+	if !reflect.DeepEqual(committer.restart, request.ExpectedRestartState) &&
+		!committer.restart.CoversTerminalWatermark(request.TerminalRestartState) {
+		return fmt.Errorf("terminal restart state conflict")
+	}
+	if !committer.restart.CoversTerminalWatermark(request.TerminalRestartState) {
+		committer.restart = request.TerminalRestartState
+	}
+	return nil
 }
 
 func (committer *serialPublicationCommitter) counts() (int, int) {
