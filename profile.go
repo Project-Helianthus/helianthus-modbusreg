@@ -1047,6 +1047,11 @@ func (profile ProfileDescriptor) Version() Version {
 	return profile.spec.Version
 }
 
+// Kind returns whether this immutable profile is a standard family or overlay.
+func (profile ProfileDescriptor) Kind() ProfileKind {
+	return profile.spec.Kind
+}
+
 // RuntimeContractVersion returns the required transport contract version.
 func (profile ProfileDescriptor) RuntimeContractVersion() Version {
 	return profile.spec.RuntimeContractVersion

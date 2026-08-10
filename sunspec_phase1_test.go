@@ -29,6 +29,15 @@ func TestSunSpecPhaseOneProfileIsVersionGatedAndReadOnly(t *testing.T) {
 			t.Fatalf("unsupported versions accepted: %#v", unsupported)
 		}
 	}
+	altered := profile.Spec()
+	altered.ModelApplicability = []string{"model-1"}
+	otherProfile, err := reg.NewProfileDescriptor(altered)
+	if err != nil {
+		t.Fatalf("NewProfileDescriptor(altered): %v", err)
+	}
+	if _, err := reg.NewSunSpecPhaseOneDecoder(otherProfile); err == nil {
+		t.Fatal("decoder accepted a same-ID profile with altered applicability")
+	}
 
 	decoder, err := reg.NewSunSpecPhaseOneDecoder(profile)
 	if err != nil {
@@ -58,7 +67,7 @@ func TestSunSpecPhaseOneChainIsBoundedAndSupportsOnlyIntScaleModels(t *testing.T
 	if err != nil {
 		t.Fatalf("NewSunSpecPhaseOneDecoder: %v", err)
 	}
-	valid := sunSpecWords(1, 65, 101, 50, 777, 3, 102, 50, 103, 50, 0xffff, 0)
+	valid := sunSpecWords(1, 65, 101, 50, 666, 3, 102, 50, 103, 50, 0xffff, 0)
 	chain, err := decoder.Parse(valid)
 	if err != nil {
 		t.Fatalf("Parse(valid chain): %v", err)
@@ -66,7 +75,7 @@ func TestSunSpecPhaseOneChainIsBoundedAndSupportsOnlyIntScaleModels(t *testing.T
 	if got := chain.Models(); !reflect.DeepEqual(modelIDs(got), []uint16{1, 101, 102, 103}) {
 		t.Fatalf("published models = %#v", got)
 	}
-	if skipped := chain.SkippedModels(); !reflect.DeepEqual(modelIDs(skipped), []uint16{777}) {
+	if skipped := chain.SkippedModels(); !reflect.DeepEqual(modelIDs(skipped), []uint16{666}) {
 		t.Fatalf("structurally skipped models = %#v", skipped)
 	}
 	for _, words := range [][]uint16{
@@ -76,6 +85,7 @@ func TestSunSpecPhaseOneChainIsBoundedAndSupportsOnlyIntScaleModels(t *testing.T
 		sunSpecWords(1, 65),                                            // missing end
 		sunSpecWords(1, 65, 0xffff, 1),                                 // nonzero end length
 		sunSpecWords(111, 50, 0xffff, 0),                               // deferred model
+		sunSpecWords(777, 3, 0xffff, 0),                                // deferred 7xx model
 	} {
 		if _, err := decoder.Parse(words); err == nil {
 			t.Fatalf("invalid or deferred chain accepted: %v", words)
@@ -161,6 +171,7 @@ func sunSpecObservation(t *testing.T, profile reg.ProfileDescriptor) reg.Observa
 		record := logicalViewRecord(uint64(900+index), dependency.Normalization().ResolvedPDUOffset(), 0, make([]uint16, dependency.WordCount()))
 		record.RequestedFunction, record.ReceivedFunction = reg.FunctionReadHoldingRegisters, reg.FunctionReadHoldingRegisters
 		record.Table, record.PhysicalOffset, record.PhysicalWordCount = reg.HoldingRegisters, record.LogicalOffset, record.LogicalWordCount
+		record.Endpoint, record.UnitID, record.PollGeneration = "fixture:transport-neutral", 7, 77
 		view := snapshotFromRecord(t, record)
 		result, err := reg.NewDependencyResult(reg.DependencyResult{DependencyID: dependency.ID(), DependencyVersion: dependency.Version(), CodecID: dependency.CodecID(), CodecVersion: dependency.CodecVersion(), NormalizationVersion: dependency.Normalization().Spec().Version, Status: reg.DependencyReadSuccessful, View: view, SourceTime: reg.SourceTimeUnavailable()})
 		if err != nil {
