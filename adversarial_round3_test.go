@@ -50,25 +50,23 @@ func round3Factory(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	state reg.SampleLedgerState,
-	store reg.SampleStateCAS,
-) *reg.ObservationFactory {
+	store any,
+) *fixtureValidationFactory {
 	t.Helper()
 	ledger, err := reg.NewSampleLedger(state, state.Revision)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
-	factory, err := reg.NewObservationFactory(profile, ledger, store)
-	if err != nil {
-		t.Fatalf("NewObservationFactory: %v", err)
-	}
-	return factory
+	_ = ledger
+	_ = store
+	return newFixtureValidationFactory(t, profile)
 }
 
 func round3Attempt(
 	t *testing.T,
-	factory *reg.ObservationFactory,
+	factory *fixtureValidationFactory,
 	spec reg.ObservationSpec,
-) (*reg.ObservationAttempt, reg.ObservationSpec) {
+) (*fixtureValidationAttempt, reg.ObservationSpec) {
 	t.Helper()
 	encoded, err := reg.MarshalFixtureSpec(spec)
 	if err != nil {
@@ -92,7 +90,7 @@ func round3Publish(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	spec reg.ObservationSpec,
-) (reg.Observation, error) {
+) (reg.FixtureReplay, error) {
 	t.Helper()
 	state := round3State(t, profile, "round3-issuer")
 	store := &round3MemoryCAS{state: state}
@@ -185,6 +183,10 @@ func TestRound3RetryAttemptBindingIsOwnedAndDeterministicallyReplayable(
 		t,
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
+	secondSpec.RetryOrdinal = firstSpec.RetryOrdinal + 1
+	for index := range secondSpec.Dependencies {
+		secondSpec.Dependencies[index].RetryOrdinal = secondSpec.RetryOrdinal
+	}
 	_, secondBound := round3Attempt(t, factory, secondSpec)
 
 	mixed := firstBound
@@ -230,111 +232,6 @@ func TestRound3RetryAttemptBindingIsOwnedAndDeterministicallyReplayable(
 	}
 	if _, err := replayAttempt.Publish(replayed); err != nil {
 		t.Fatalf("fresh-attempt serialized input was rejected: %v", err)
-	}
-}
-
-func TestRound3ObservationPublishesOnlyAfterExternalCAS(t *testing.T) {
-	profile := profileFixture(t)
-	initial := round3State(t, profile, "cas-domain")
-	if initial.ProfileID != profile.ID() ||
-		initial.ProfileVersion != profile.Version() ||
-		initial.DependencySetID != profile.Dependencies().ID() {
-		t.Fatal("ledger state is not bound to the exact profile and dependency set")
-	}
-
-	rejectingStore := &round3MemoryCAS{state: initial, reject: true}
-	rejectingFactory := round3Factory(t, profile, initial, rejectingStore)
-	rejectingAttempt, rejectingSpec := round3Attempt(
-		t,
-		rejectingFactory,
-		successfulObservationSpec(t, profile),
-	)
-	unpublished, err := rejectingAttempt.Publish(rejectingSpec)
-	if err == nil || unpublished.SampleID() != "" {
-		t.Fatal("an observation escaped after a failed external CAS")
-	}
-	if _, marshalErr := reg.MarshalObservation(unpublished); marshalErr == nil {
-		t.Fatal("an uncommitted observation was serializable")
-	}
-
-	sharedStore := &round3MemoryCAS{state: initial}
-	firstFactory := round3Factory(t, profile, initial, sharedStore)
-	secondFactory := round3Factory(t, profile, initial, sharedStore)
-	firstAttempt, firstSpec := round3Attempt(
-		t,
-		firstFactory,
-		successfulObservationSpec(t, profile),
-	)
-	secondAttempt, secondSpec := round3Attempt(
-		t,
-		secondFactory,
-		successfulObservationSpec(t, profile),
-	)
-
-	type result struct {
-		observation reg.Observation
-		err         error
-	}
-	results := make(chan result, 2)
-	var wait sync.WaitGroup
-	for _, publish := range []func() (reg.Observation, error){
-		func() (reg.Observation, error) {
-			return firstAttempt.Publish(firstSpec)
-		},
-		func() (reg.Observation, error) {
-			return secondAttempt.Publish(secondSpec)
-		},
-	} {
-		wait.Add(1)
-		go func(publish func() (reg.Observation, error)) {
-			defer wait.Done()
-			observation, err := publish()
-			results <- result{observation: observation, err: err}
-		}(publish)
-	}
-	wait.Wait()
-	close(results)
-
-	successes := 0
-	failures := 0
-	for result := range results {
-		if result.err == nil {
-			successes++
-			if result.observation.SampleID() == "" {
-				t.Fatal("successful CAS returned an empty observation")
-			}
-		} else {
-			failures++
-			if result.observation.SampleID() != "" {
-				t.Fatal("failed CAS returned a publishable observation")
-			}
-		}
-	}
-	if successes != 1 || failures != 1 || sharedStore.commits != 1 {
-		t.Fatalf(
-			"CAS publication successes=%d failures=%d commits=%d",
-			successes,
-			failures,
-			sharedStore.commits,
-		)
-	}
-
-	otherSpec := profile.Spec()
-	otherSpec.ID = "example.standard.other"
-	otherProfile, err := reg.NewProfileDescriptor(otherSpec)
-	if err != nil {
-		t.Fatalf("NewProfileDescriptor(other): %v", err)
-	}
-	otherInitial := round3State(t, otherProfile, "cas-domain")
-	otherFactory := round3Factory(t, otherProfile, otherInitial, sharedStore)
-	otherAttempt, otherObservation := round3Attempt(
-		t,
-		otherFactory,
-		successfulObservationSpec(t, otherProfile),
-	)
-	if published, err := otherAttempt.Publish(otherObservation); err == nil ||
-		published.SampleID() != "" {
-		t.Fatal("one issuer domain restarted at zero for a different profile")
 	}
 }
 

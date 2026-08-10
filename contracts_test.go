@@ -1,6 +1,7 @@
 package modbusreg_test
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -13,6 +14,122 @@ import (
 type memorySampleCAS struct {
 	mu    sync.Mutex
 	state reg.SampleLedgerState
+}
+
+type fixtureValidationFactory struct {
+	replayer *reg.FixtureReplayer
+}
+
+type fixtureValidationAttemptState struct {
+	mu       sync.Mutex
+	factory  *fixtureValidationFactory
+	identity reg.AttemptIdentity
+	closed   bool
+}
+
+type fixtureValidationAttempt struct {
+	state *fixtureValidationAttemptState
+}
+
+func newFixtureValidationFactory(
+	t *testing.T,
+	profile reg.ProfileDescriptor,
+) *fixtureValidationFactory {
+	t.Helper()
+	replayer, err := reg.NewFixtureReplayer(profile)
+	if err != nil {
+		t.Fatalf("NewFixtureReplayer: %v", err)
+	}
+	return &fixtureValidationFactory{replayer: replayer}
+}
+
+func (factory *fixtureValidationFactory) BeginObservationAttempt(
+	identity reg.AttemptIdentity,
+) (*fixtureValidationAttempt, error) {
+	if factory == nil || factory.replayer == nil || identity.PollGenerationID == 0 {
+		return nil, fmt.Errorf("fixture validation attempt is invalid")
+	}
+	return &fixtureValidationAttempt{state: &fixtureValidationAttemptState{
+		factory:  factory,
+		identity: identity,
+	}}, nil
+}
+
+func (attempt *fixtureValidationAttempt) DecodeSpec(
+	data []byte,
+) (reg.ObservationSpec, error) {
+	if attempt == nil || attempt.state == nil {
+		return reg.ObservationSpec{}, fmt.Errorf("fixture validation attempt is invalid")
+	}
+	attempt.state.mu.Lock()
+	defer attempt.state.mu.Unlock()
+	if attempt.state.closed {
+		return reg.ObservationSpec{}, fmt.Errorf("fixture validation attempt is closed")
+	}
+	replay, err := attempt.state.factory.replayer.Replay(data)
+	if err != nil {
+		return reg.ObservationSpec{}, err
+	}
+	spec := replay.Spec()
+	if spec.PollGenerationID != attempt.state.identity.PollGenerationID ||
+		spec.RetryOrdinal != attempt.state.identity.RetryOrdinal {
+		return reg.ObservationSpec{}, fmt.Errorf("serialized attempt identity disagrees")
+	}
+	return spec, nil
+}
+
+func (attempt *fixtureValidationAttempt) MarshalSpec(
+	spec reg.ObservationSpec,
+) ([]byte, error) {
+	if attempt == nil || attempt.state == nil {
+		return nil, fmt.Errorf("fixture validation attempt is invalid")
+	}
+	attempt.state.mu.Lock()
+	defer attempt.state.mu.Unlock()
+	if attempt.state.closed ||
+		spec.PollGenerationID != attempt.state.identity.PollGenerationID ||
+		spec.RetryOrdinal != attempt.state.identity.RetryOrdinal {
+		return nil, fmt.Errorf("fixture validation attempt is closed or mismatched")
+	}
+	encoded, err := reg.MarshalFixtureSpec(spec)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := attempt.state.factory.replayer.Replay(encoded); err != nil {
+		return nil, err
+	}
+	return encoded, nil
+}
+
+func (attempt *fixtureValidationAttempt) Publish(
+	spec reg.ObservationSpec,
+) (reg.FixtureReplay, error) {
+	if attempt == nil || attempt.state == nil {
+		return reg.FixtureReplay{}, fmt.Errorf("fixture validation attempt is invalid")
+	}
+	attempt.state.mu.Lock()
+	defer attempt.state.mu.Unlock()
+	if attempt.state.closed ||
+		spec.PollGenerationID != attempt.state.identity.PollGenerationID ||
+		spec.RetryOrdinal != attempt.state.identity.RetryOrdinal {
+		return reg.FixtureReplay{}, fmt.Errorf("fixture validation attempt is closed or mismatched")
+	}
+	encoded, err := reg.MarshalFixtureSpec(spec)
+	if err != nil {
+		return reg.FixtureReplay{}, err
+	}
+	replay, err := attempt.state.factory.replayer.Replay(encoded)
+	if err != nil {
+		return reg.FixtureReplay{}, err
+	}
+	attempt.state.closed = true
+	return replay, nil
+}
+
+func (*fixtureValidationAttempt) BindDependency(
+	reg.DependencyResult,
+) (reg.DependencyResult, error) {
+	return reg.DependencyResult{}, fmt.Errorf("fixture DTOs require replay decoding")
 }
 
 func (store *memorySampleCAS) CompareAndSwap(
@@ -156,21 +273,13 @@ func newFactory(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	state reg.SampleLedgerState,
-) (*reg.ObservationFactory, *reg.SampleLedger) {
+) (*fixtureValidationFactory, *reg.SampleLedger) {
 	t.Helper()
 	ledger, err := reg.NewSampleLedger(state, 0)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
-	factory, err := reg.NewObservationFactory(
-		profile,
-		ledger,
-		&memorySampleCAS{state: state},
-	)
-	if err != nil {
-		t.Fatalf("NewObservationFactory: %v", err)
-	}
-	return factory, ledger
+	return newFixtureValidationFactory(t, profile), ledger
 }
 
 func emptyLedgerState(
@@ -189,23 +298,23 @@ func emptyLedgerState(
 }
 
 func publishWithFactory(
-	factory *reg.ObservationFactory,
+	factory *fixtureValidationFactory,
 	spec reg.ObservationSpec,
-) (reg.Observation, error) {
+) (reg.FixtureReplay, error) {
 	encoded, err := reg.MarshalFixtureSpec(spec)
 	if err != nil {
-		return reg.Observation{}, err
+		return reg.FixtureReplay{}, err
 	}
 	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
 		PollGenerationID: spec.PollGenerationID,
 		RetryOrdinal:     spec.RetryOrdinal,
 	})
 	if err != nil {
-		return reg.Observation{}, err
+		return reg.FixtureReplay{}, err
 	}
 	decoded, err := attempt.DecodeSpec(encoded)
 	if err != nil {
-		return reg.Observation{}, err
+		return reg.FixtureReplay{}, err
 	}
 	return attempt.Publish(decoded)
 }
@@ -214,7 +323,7 @@ func buildObservation(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	spec reg.ObservationSpec,
-) (reg.Observation, error) {
+) (reg.FixtureReplay, error) {
 	t.Helper()
 	factory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
 	return publishWithFactory(factory, spec)
@@ -836,7 +945,7 @@ func TestSourceTimeStateIsExplicit(t *testing.T) {
 	}
 }
 
-func TestSampleLedgerRejectsEverySampleIDReuse(t *testing.T) {
+func TestFixtureReplayDoesNotIssueProductionSampleIDs(t *testing.T) {
 	profile := profileFixture(t)
 	factory, ledger := newFactory(t, profile, emptyLedgerState(t, profile))
 	spec := successfulObservationSpec(t, profile)
@@ -855,9 +964,11 @@ func TestSampleLedgerRejectsEverySampleIDReuse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second NewObservation: %v", err)
 	}
-	if first.SampleID() == second.SampleID() ||
-		ledger.ExportState().HighWater != 2 {
-		t.Fatal("factory reused a sample ID")
+	if first.FixtureID() == second.FixtureID() {
+		t.Fatal("different fixture payloads reused a fixture identity")
+	}
+	if ledger.ExportState().HighWater != 0 {
+		t.Fatal("fixture replay advanced the production ledger")
 	}
 }
 

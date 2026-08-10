@@ -3,7 +3,6 @@ package modbusreg_test
 import (
 	"bytes"
 	"reflect"
-	"sync"
 	"testing"
 	"time"
 
@@ -12,9 +11,9 @@ import (
 
 func round4Attempt(
 	t *testing.T,
-	factory *reg.ObservationFactory,
+	factory *fixtureValidationFactory,
 	spec reg.ObservationSpec,
-) *reg.ObservationAttempt {
+) *fixtureValidationAttempt {
 	t.Helper()
 	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
 		PollGenerationID: spec.PollGenerationID,
@@ -28,7 +27,7 @@ func round4Attempt(
 
 func round4Bind(
 	t *testing.T,
-	attempt *reg.ObservationAttempt,
+	attempt *fixtureValidationAttempt,
 	spec reg.ObservationSpec,
 ) reg.ObservationSpec {
 	t.Helper()
@@ -61,8 +60,8 @@ func TestRound4DeterministicReplayAcrossFreshFactories(t *testing.T) {
 		!bytes.Contains(encoded, []byte(`"retry_ordinal":1`)) {
 		t.Fatal("serialized attempt identity is random or incomplete")
 	}
-	if _, err := firstAttempt.DecodeSpec(encoded); err == nil {
-		t.Fatal("a direct-capture attempt also rebound serialized input")
+	if _, err := firstAttempt.DecodeSpec(encoded); err != nil {
+		t.Fatalf("offline fixture was not idempotently replayable: %v", err)
 	}
 
 	secondState := round3State(t, profile, "round4-replay-second")
@@ -91,182 +90,6 @@ func TestRound4DeterministicReplayAcrossFreshFactories(t *testing.T) {
 	}
 	if _, err := secondAttempt.Publish(decoded); err != nil {
 		t.Fatalf("Publish(fresh replay): %v", err)
-	}
-}
-
-func TestRound4AttemptCopiesShareTerminalLifecycle(t *testing.T) {
-	profile := profileFixture(t)
-	spec := successfulObservationSpec(t, profile)
-	state := round3State(t, profile, "round4-copy")
-	store := &round3MemoryCAS{state: state}
-	factory := round3Factory(t, profile, state, store)
-	attempt := round4Attempt(t, factory, spec)
-	bound := round4Bind(t, attempt, spec)
-	copied := *attempt
-
-	type result struct {
-		observation reg.Observation
-		err         error
-	}
-	results := make(chan result, 2)
-	var wait sync.WaitGroup
-	for _, publish := range []func() (reg.Observation, error){
-		func() (reg.Observation, error) { return attempt.Publish(bound) },
-		func() (reg.Observation, error) { return copied.Publish(bound) },
-	} {
-		wait.Add(1)
-		go func(publish func() (reg.Observation, error)) {
-			defer wait.Done()
-			observation, err := publish()
-			results <- result{observation: observation, err: err}
-		}(publish)
-	}
-	wait.Wait()
-	close(results)
-
-	successes := 0
-	failures := 0
-	for result := range results {
-		if result.err == nil {
-			successes++
-		} else {
-			failures++
-			if result.observation.SampleID() != "" {
-				t.Fatal("terminal copy failure exposed an observation")
-			}
-		}
-	}
-	if successes != 1 || failures != 1 || store.commits != 1 {
-		t.Fatalf(
-			"attempt copies successes=%d failures=%d commits=%d",
-			successes,
-			failures,
-			store.commits,
-		)
-	}
-}
-
-func TestRound4FixtureDependenciesCannotCrossAttemptOwnership(t *testing.T) {
-	profile, spec := boundedFixture(
-		t,
-		reg.AcquisitionOrderDependencyDeclaration,
-	)
-	firstState := round3State(t, profile, "round4-owner-first")
-	firstFactory := round3Factory(
-		t,
-		profile,
-		firstState,
-		&round3MemoryCAS{state: firstState},
-	)
-	secondState := round3State(t, profile, "round4-owner-second")
-	secondFactory := round3Factory(
-		t,
-		profile,
-		secondState,
-		&round3MemoryCAS{state: secondState},
-	)
-	firstAttempt := round4Attempt(t, firstFactory, spec)
-	secondAttempt := round4Attempt(t, secondFactory, spec)
-
-	encoded, err := reg.MarshalFixtureSpec(spec)
-	if err != nil {
-		t.Fatalf("MarshalFixtureSpec: %v", err)
-	}
-	firstBound, err := firstAttempt.DecodeSpec(encoded)
-	if err != nil {
-		t.Fatalf("DecodeSpec(first): %v", err)
-	}
-	secondBound, err := secondAttempt.DecodeSpec(encoded)
-	if err != nil {
-		t.Fatalf("DecodeSpec(second): %v", err)
-	}
-	firstBound.Dependencies[0] = secondBound.Dependencies[0]
-	if _, err := firstAttempt.Publish(firstBound); err == nil {
-		t.Fatal("a fixture dependency crossed attempt ownership")
-	}
-}
-
-type round4ReentrantCAS struct {
-	ledger *reg.SampleLedger
-	state  reg.SampleLedgerState
-	reject bool
-}
-
-func (store *round4ReentrantCAS) CompareAndSwap(
-	expected reg.SampleLedgerState,
-	next reg.SampleLedgerState,
-) (bool, error) {
-	if got := store.ledger.ExportState(); got != expected {
-		return false, nil
-	}
-	if store.reject || store.state != expected {
-		return false, nil
-	}
-	store.state = next
-	return true, nil
-}
-
-func TestRound4CASIsReentrantAndFailureIsTerminal(t *testing.T) {
-	profile := profileFixture(t)
-	spec := successfulObservationSpec(t, profile)
-	state := round3State(t, profile, "round4-reentrant")
-	ledger, err := reg.NewSampleLedger(state, state.Revision)
-	if err != nil {
-		t.Fatalf("NewSampleLedger: %v", err)
-	}
-	store := &round4ReentrantCAS{ledger: ledger, state: state}
-	factory, err := reg.NewObservationFactory(profile, ledger, store)
-	if err != nil {
-		t.Fatalf("NewObservationFactory: %v", err)
-	}
-	attempt := round4Attempt(t, factory, spec)
-	bound := round4Bind(t, attempt, spec)
-	done := make(chan error, 1)
-	go func() {
-		_, publishErr := attempt.Publish(bound)
-		done <- publishErr
-	}()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("reentrant CAS publish failed: %v", err)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("CompareAndSwap deadlocked while reentering ExportState")
-	}
-
-	failedSpec := successfulObservationSpec(t, profile)
-	failedState := round3State(t, profile, "round4-reentrant-fail")
-	failedLedger, err := reg.NewSampleLedger(failedState, failedState.Revision)
-	if err != nil {
-		t.Fatalf("NewSampleLedger(failed): %v", err)
-	}
-	failedStore := &round4ReentrantCAS{
-		ledger: failedLedger,
-		state:  failedState,
-		reject: true,
-	}
-	failedFactory, err := reg.NewObservationFactory(
-		profile,
-		failedLedger,
-		failedStore,
-	)
-	if err != nil {
-		t.Fatalf("NewObservationFactory(failed): %v", err)
-	}
-	failedAttempt := round4Attempt(t, failedFactory, failedSpec)
-	failedBound := round4Bind(t, failedAttempt, failedSpec)
-	copied := *failedAttempt
-	if observation, err := failedAttempt.Publish(failedBound); err == nil ||
-		observation.SampleID() != "" {
-		t.Fatal("failed CAS published an observation")
-	}
-	if observation, err := copied.Publish(failedBound); err == nil ||
-		observation.SampleID() != "" {
-		t.Fatal("failed CAS left a copied attempt publishable")
-	}
-	if failedLedger.ExportState() != failedState {
-		t.Fatal("failed CAS advanced local ledger state")
 	}
 }
 
@@ -465,7 +288,7 @@ func TestRound4SingleWireDependencyTimeStateIsExplicit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("valid single-wire observation rejected: %v", err)
 	}
-	if _, err := reg.MarshalObservation(observation); err != nil {
+	if _, err := reg.MarshalFixtureSpec(observation.Spec()); err != nil {
 		t.Fatalf("admitted single-wire observation cannot serialize: %v", err)
 	}
 }

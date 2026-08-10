@@ -783,13 +783,8 @@ func (spec ObservationSpec) MarshalJSON() ([]byte, error) {
 // MarshalFixtureSpec emits deterministic synthetic fixture bytes. Such bytes
 // become attempt-owned only after DecodeSpec validates their attempt identity.
 func MarshalFixtureSpec(spec ObservationSpec) ([]byte, error) {
-	for index, dependency := range spec.Dependencies {
-		if dependency.owner != nil || dependency.claim == nil {
-			return nil, fmt.Errorf(
-				"fixture dependency %d is not an unbound synthetic record",
-				index,
-			)
-		}
+	if spec.SampleID != "" {
+		return nil, fmt.Errorf("fixture cannot contain a production sample ID")
 	}
 	record, err := observationSpecToDTO(spec)
 	if err != nil {
@@ -827,100 +822,6 @@ func MarshalObservation(observation Observation) ([]byte, error) {
 // MarshalJSON serializes an immutable admitted observation.
 func (observation Observation) MarshalJSON() ([]byte, error) {
 	return MarshalObservation(observation)
-}
-
-// MarshalSpec serializes an attempt-bound input without publishing it.
-func (attempt *ObservationAttempt) MarshalSpec(
-	spec ObservationSpec,
-) ([]byte, error) {
-	prepared, err := attempt.prepareSpec(spec)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := buildObservation(attempt.state.factory.profile, prepared); err != nil {
-		return nil, err
-	}
-	record, err := observationSpecToDTO(prepared)
-	if err != nil {
-		return nil, err
-	}
-	return marshalBounded(record)
-}
-
-// DecodeSpec validates serialized input and rebinds it to this exact attempt.
-func (attempt *ObservationAttempt) DecodeSpec(
-	data []byte,
-) (ObservationSpec, error) {
-	state, err := attempt.openState()
-	if err != nil {
-		return ObservationSpec{}, fmt.Errorf("observation attempt is invalid")
-	}
-	var record observationDTO
-	if err := decodeStrict(data, &record); err != nil {
-		return ObservationSpec{}, err
-	}
-	if record.PollGenerationID != state.identity.PollGenerationID ||
-		record.RetryOrdinal != state.identity.RetryOrdinal {
-		return ObservationSpec{}, fmt.Errorf("serialized attempt identity disagrees")
-	}
-	for _, dependency := range record.Dependencies {
-		if dependency.RetryOrdinal != record.RetryOrdinal ||
-			dependency.View.PollGeneration != record.PollGenerationID {
-			return ObservationSpec{}, fmt.Errorf(
-				"serialized dependency attempt identity disagrees",
-			)
-		}
-	}
-	switch state.factory.profile.spec.Coherence.Mode {
-	case CoherenceSingleWireResponse:
-		if record.RetryOrdinal != 0 {
-			return ObservationSpec{}, fmt.Errorf("single-wire retry identity is not applicable")
-		}
-	case CoherenceBoundedMultiResponse:
-		if record.RetryOrdinal == 0 {
-			return ObservationSpec{}, fmt.Errorf("bounded retry identity is absent")
-		}
-	default:
-		return ObservationSpec{}, fmt.Errorf("observation coherence mode is invalid")
-	}
-	spec, err := observationSpecFromDTO(record)
-	if err != nil {
-		return ObservationSpec{}, err
-	}
-	for index := range spec.Dependencies {
-		spec.Dependencies[index] = bindDependencyResult(
-			spec.Dependencies[index],
-			state,
-		)
-	}
-	prepared, err := attempt.prepareSpec(spec)
-	if err != nil {
-		return ObservationSpec{}, err
-	}
-	if _, err := buildObservation(state.factory.profile, prepared); err != nil {
-		return ObservationSpec{}, err
-	}
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if state.phase != attemptOpen {
-		return ObservationSpec{}, fmt.Errorf("observation attempt is closed")
-	}
-	if state.capture != captureUnset {
-		return ObservationSpec{}, fmt.Errorf("attempt already owns a capture")
-	}
-	records := make([]LogicalViewRecord, len(prepared.Dependencies))
-	for index, dependency := range prepared.Dependencies {
-		records[index] = dependency.View.Record()
-	}
-	if err := state.factory.claimSources(
-		state.identity,
-		captureSerialized,
-		records,
-	); err != nil {
-		return ObservationSpec{}, err
-	}
-	state.capture = captureSerialized
-	return prepared, nil
 }
 
 type attemptIdentityDTO struct {

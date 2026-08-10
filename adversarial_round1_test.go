@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"reflect"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -617,9 +615,9 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewObservation: %v", err)
 	}
-	observationBytes, err := reg.MarshalObservation(observation)
+	observationBytes, err := reg.MarshalFixtureSpec(observation.Spec())
 	if err != nil {
-		t.Fatalf("MarshalObservation: %v", err)
+		t.Fatalf("MarshalFixtureSpec: %v", err)
 	}
 	replayRecord := observation.Replay()[0].LogicalViewRecord()
 	freshFactory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
@@ -660,8 +658,8 @@ func TestRound1ProfileAndObservationSerializationIsLossless(t *testing.T) {
 	if _, err := publishWithFactory(
 		specFactory,
 		JSONDecodedObservationSpec,
-	); err == nil {
-		t.Fatal("plain JSON DTO bypassed attempt-owned capture rebinding")
+	); err != nil {
+		t.Fatalf("strict fixture JSON replay failed: %v", err)
 	}
 	if !reflect.DeepEqual(
 		replayRecord,
@@ -711,56 +709,16 @@ func TestRound1SchemaAuthoritiesAreReadOnlyValues(t *testing.T) {
 	}
 }
 
-func TestRound1ObservationFactoryMakesCASPublicationMandatory(t *testing.T) {
+func TestFixtureReplayDoesNotAdvanceProductionLedger(t *testing.T) {
 	profile := profileFixture(t)
 	factory, ledger := newFactory(t, profile, emptyLedgerState(t, profile))
-	var successes atomic.Int32
-	var failures atomic.Int32
-	var wait sync.WaitGroup
-	for range 16 {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
-			if _, err := publishWithFactory(
-				factory,
-				successfulObservationSpec(t, profile),
-			); err != nil {
-				failures.Add(1)
-				return
-			}
-			successes.Add(1)
-		}()
-	}
-	wait.Wait()
-	if successes.Load() != 1 || failures.Load() != 15 {
-		t.Fatalf(
-			"atomic admission results success=%d failure=%d",
-			successes.Load(),
-			failures.Load(),
-		)
-	}
-
-	state := ledger.ExportState()
-	stateBytes, err := reg.MarshalSampleLedgerState(state)
+	replay, err := publishWithFactory(factory, successfulObservationSpec(t, profile))
 	if err != nil {
-		t.Fatalf("MarshalSampleLedgerState: %v", err)
+		t.Fatalf("fixture replay: %v", err)
 	}
-	restartedState, err := reg.UnmarshalSampleLedgerState(stateBytes)
-	if err != nil {
-		t.Fatalf("UnmarshalSampleLedgerState: %v", err)
-	}
-	restartedFactory, restartedLedger := newFactory(t, profile, restartedState)
-	nextSpec := successfulObservationSpec(t, profile)
-	setObservationPollGeneration(t, &nextSpec, 42)
-	next, err := publishWithFactory(
-		restartedFactory,
-		nextSpec,
-	)
-	if err != nil {
-		t.Fatal("imported restart state did not continue issuance:", err)
-	}
-	if next.SampleID() == "" || restartedLedger.ExportState().Revision != 2 {
-		t.Fatal("imported restart state reset the issuance revision")
+	if replay.FixtureID() == "" || replay.Spec().SampleID != "" ||
+		ledger.ExportState().Revision != 0 {
+		t.Fatal("fixture replay acquired production identity or advanced the ledger")
 	}
 }
 

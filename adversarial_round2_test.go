@@ -17,21 +17,13 @@ func round2Factory(
 	profile reg.ProfileDescriptor,
 	state reg.SampleLedgerState,
 	trustedMinimumRevision uint64,
-) (*reg.ObservationFactory, *reg.SampleLedger) {
+) (*fixtureValidationFactory, *reg.SampleLedger) {
 	t.Helper()
 	ledger, err := reg.NewSampleLedger(state, trustedMinimumRevision)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
-	factory, err := reg.NewObservationFactory(
-		profile,
-		ledger,
-		&memorySampleCAS{state: state},
-	)
-	if err != nil {
-		t.Fatalf("NewObservationFactory: %v", err)
-	}
-	return factory, ledger
+	return newFixtureValidationFactory(t, profile), ledger
 }
 
 func round2EmptyLedgerState(
@@ -53,7 +45,7 @@ func admitRound2(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	spec reg.ObservationSpec,
-) (reg.Observation, error) {
+) (reg.FixtureReplay, error) {
 	t.Helper()
 	factory, _ := round2Factory(
 		t,
@@ -74,6 +66,10 @@ func TestRound2RetrySetIdentityRejectsMixedAttempts(t *testing.T) {
 	}
 	_, firstSpec := boundedFixture(t, reg.AcquisitionOrderDependencyDeclaration)
 	_, secondSpec := boundedFixture(t, reg.AcquisitionOrderDependencyDeclaration)
+	secondSpec.RetryOrdinal = firstSpec.RetryOrdinal + 1
+	for index := range secondSpec.Dependencies {
+		secondSpec.Dependencies[index].RetryOrdinal = secondSpec.RetryOrdinal
+	}
 
 	state := round2EmptyLedgerState(t, profile)
 	factory, _ := round2Factory(t, profile, state, 0)
@@ -579,39 +575,14 @@ func TestRound2AdmissionCanonicalizesTimestamps(t *testing.T) {
 	}
 }
 
-func TestRound2LedgerIsBoundedIssuerHighWaterWithCASAnchor(t *testing.T) {
+func TestSampleLedgerStateRestartValidationIsBounded(t *testing.T) {
 	profile := profileFixture(t)
 	state := round2EmptyLedgerState(t, profile)
-	factory, ledger := round2Factory(t, profile, state, 0)
-	spec := successfulObservationSpec(t, profile)
-	spec.SampleID = "caller-selected"
-	if _, err := publishWithFactory(factory, spec); err == nil {
-		t.Fatal("factory trusted a caller-selected sample ID")
-	}
 	const count = 512
-	ids := make([]string, 0, count)
-	for index := range count {
-		next := successfulObservationSpec(t, profile)
-		setObservationPollGeneration(t, &next, uint64(41+index))
-		observation, err := publishWithFactory(factory, next)
-		if err != nil {
-			t.Fatalf("ordered issuance %d failed: %v", index, err)
-		}
-		ids = append(ids, observation.SampleID())
-	}
-	if len(ids) != count {
-		t.Fatalf("issued %d IDs", len(ids))
-	}
-	for index := 1; index < len(ids); index++ {
-		if ids[index] == ids[index-1] {
-			t.Fatal("factory reused an issued sample ID")
-		}
-	}
-	exported := ledger.ExportState()
-	if exported.Revision != count || exported.HighWater != count {
-		t.Fatalf("ledger state = %#v", exported)
-	}
-	encoded, err := reg.MarshalSampleLedgerState(exported)
+	state.Revision = count
+	state.HighWater = count
+	state.LastCommittedAttempt = reg.AttemptIdentity{PollGenerationID: count}
+	encoded, err := reg.MarshalSampleLedgerState(state)
 	if err != nil {
 		t.Fatalf("MarshalSampleLedgerState: %v", err)
 	}
@@ -626,23 +597,8 @@ func TestRound2LedgerIsBoundedIssuerHighWaterWithCASAnchor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("trusted ledger restore rejected: %v", err)
 	}
-	restartedStore := &memorySampleCAS{state: decoded}
-	restartedFactory, err := reg.NewObservationFactory(
-		profile,
-		restarted,
-		restartedStore,
-	)
-	if err != nil {
-		t.Fatalf("NewObservationFactory(restarted): %v", err)
-	}
-	nextSpec := successfulObservationSpec(t, profile)
-	setObservationPollGeneration(t, &nextSpec, 41+count)
-	next, err := publishWithFactory(restartedFactory, nextSpec)
-	if err != nil {
-		t.Fatalf("post-restart issuance failed: %v", err)
-	}
-	if next.SampleID() == "" || restarted.ExportState().Revision != count+1 {
-		t.Fatal("post-restart issuance did not advance the persisted revision")
+	if restarted.ExportState() != decoded {
+		t.Fatal("trusted restart changed persisted sample state")
 	}
 
 	badState := decoded

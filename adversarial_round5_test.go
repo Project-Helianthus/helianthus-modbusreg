@@ -1,21 +1,11 @@
 package modbusreg_test
 
 import (
-	"bytes"
-	"context"
-	"reflect"
 	"testing"
 	"time"
 
-	modbus "github.com/Project-Helianthus/helianthus-modbus"
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
-
-func round5StoreState(store *round3MemoryCAS) reg.SampleLedgerState {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	return store.state
-}
 
 func round5SingleDependencyProfile(
 	t *testing.T,
@@ -37,126 +27,6 @@ func round5SingleDependencyProfile(
 		t.Fatalf("NewProfileDescriptor(single): %v", err)
 	}
 	return profile
-}
-
-func round5ObservationSpec(
-	t *testing.T,
-	profile reg.ProfileDescriptor,
-	result reg.DependencyResult,
-	pollGeneration uint64,
-	endpoint string,
-	unitID byte,
-) reg.ObservationSpec {
-	t.Helper()
-	return reg.ObservationSpec{
-		SchemaVersion:          reg.CurrentSchemaVersion(),
-		RuntimeContractVersion: profile.RuntimeContractVersion(),
-		ProfileID:              profile.ID(),
-		ProfileVersion:         profile.Version(),
-		CodecContractVersion:   profile.CodecContractVersion(),
-		DetectorVersion:        profile.DetectorVersion(),
-		NormalizationVersion:   profile.NormalizationVersion(),
-		CoherenceVersion:       profile.CoherenceVersion(),
-		QualificationVersion:   profile.QualificationVersion(),
-		PollGenerationID:       pollGeneration,
-		DependencySetID:        profile.Dependencies().ID(),
-		DependencySetVersion:   profile.Dependencies().Version(),
-		SourceValidity:         reg.SourceValid,
-		SourceTime:             reg.SourceTimeUnavailable(),
-		LocalReceiptTime:       time.Unix(1_700_000_000, 0).UTC(),
-		Endpoint:               endpoint,
-		UnitID:                 unitID,
-		Dependencies:           []reg.DependencyResult{result},
-	}
-}
-
-func TestRound5LedgerRejectsRestartReplayAndTerminalPollReuse(
-	t *testing.T,
-) {
-	profile, firstSpec := boundedFixture(
-		t,
-		reg.AcquisitionOrderDependencyDeclaration,
-	)
-	initial := round3State(t, profile, "round5-attempt-order")
-	firstStore := &round3MemoryCAS{state: initial}
-	firstFactory := round3Factory(t, profile, initial, firstStore)
-	firstAttempt := round4Attempt(t, firstFactory, firstSpec)
-	firstBound := round4Bind(t, firstAttempt, firstSpec)
-	serializedAttempt, err := firstAttempt.MarshalSpec(firstBound)
-	if err != nil {
-		t.Fatalf("MarshalSpec(first): %v", err)
-	}
-	if len(serializedAttempt) == 0 {
-		t.Fatal("serialized attempt is empty")
-	}
-	if _, err := firstAttempt.Publish(firstBound); err != nil {
-		t.Fatalf("Publish(first): %v", err)
-	}
-	committed := round5StoreState(firstStore)
-	if committed.LastCommittedAttempt != (reg.AttemptIdentity{
-		PollGenerationID: firstSpec.PollGenerationID,
-		RetryOrdinal:     firstSpec.RetryOrdinal,
-	}) {
-		t.Fatalf("last committed attempt = %#v", committed.LastCommittedAttempt)
-	}
-	encodedState, err := reg.MarshalSampleLedgerState(committed)
-	if err != nil {
-		t.Fatalf("MarshalSampleLedgerState: %v", err)
-	}
-	if !bytes.Contains(encodedState, []byte(`"last_committed_attempt"`)) {
-		t.Fatal("serialized ledger omitted the committed attempt identity")
-	}
-	restored, err := reg.UnmarshalSampleLedgerState(encodedState)
-	if err != nil {
-		t.Fatalf("UnmarshalSampleLedgerState: %v", err)
-	}
-	restartStore := &round3MemoryCAS{state: restored}
-	restartFactory := round3Factory(t, profile, restored, restartStore)
-	if attempt, err := restartFactory.BeginObservationAttempt(
-		reg.AttemptIdentity{
-			PollGenerationID: firstSpec.PollGenerationID,
-			RetryOrdinal:     firstSpec.RetryOrdinal,
-		},
-	); err == nil || attempt != nil {
-		t.Fatal("restart replay issued sample :2")
-	}
-	if got := round5StoreState(restartStore); got != restored {
-		t.Fatal("restart replay advanced persisted state")
-	}
-
-	_, higherRetry := boundedFixture(
-		t,
-		reg.AcquisitionOrderDependencyDeclaration,
-	)
-	higherRetry.RetryOrdinal = 2
-	for index := range higherRetry.Dependencies {
-		higherRetry.Dependencies[index].RetryOrdinal = 2
-	}
-	if attempt, err := restartFactory.BeginObservationAttempt(
-		reg.AttemptIdentity{
-			PollGenerationID: higherRetry.PollGenerationID,
-			RetryOrdinal:     higherRetry.RetryOrdinal,
-		},
-	); err == nil || attempt != nil {
-		t.Fatal("successful poll accepted a higher retry ordinal")
-	}
-
-	_, higherPoll := boundedFixture(
-		t,
-		reg.AcquisitionOrderDependencyDeclaration,
-	)
-	higherPoll.PollGenerationID++
-	for index := range higherPoll.Dependencies {
-		record := higherPoll.Dependencies[index].View.Record()
-		record.PollGeneration = higherPoll.PollGenerationID
-		higherPoll.Dependencies[index].View = snapshotFromRecord(t, record)
-	}
-	higherPollAttempt := round4Attempt(t, restartFactory, higherPoll)
-	if _, err := higherPollAttempt.Publish(
-		round4Bind(t, higherPollAttempt, higherPoll),
-	); err != nil {
-		t.Fatalf("higher poll generation rejected: %v", err)
-	}
 }
 
 func TestRound5UTCRangeValidationPrecedesCAS(t *testing.T) {
@@ -199,8 +69,7 @@ func TestRound5UTCRangeValidationPrecedesCAS(t *testing.T) {
 			spec := successfulObservationSpec(t, profile)
 			test.mutate(&spec)
 			initial := round3State(t, profile, test.issuer)
-			store := &round3MemoryCAS{state: initial}
-			factory := round3Factory(t, profile, initial, store)
+			factory := round3Factory(t, profile, initial, nil)
 			if _, err := reg.MarshalFixtureSpec(spec); err == nil {
 				t.Fatal("out-of-range UTC timestamp serialized")
 			}
@@ -208,11 +77,8 @@ func TestRound5UTCRangeValidationPrecedesCAS(t *testing.T) {
 			publishSpec := successfulObservationSpec(t, profile)
 			test.mutate(&publishSpec)
 			observation, err := publishWithFactory(factory, publishSpec)
-			if err == nil || observation.SampleID() != "" {
+			if err == nil || observation.FixtureID() != "" {
 				t.Fatal("out-of-range UTC timestamp published")
-			}
-			if store.commits != 0 || round5StoreState(store) != initial {
-				t.Fatal("timestamp failure consumed CAS state")
 			}
 		})
 	}
@@ -283,144 +149,6 @@ func TestRound5RTUPhysicalResponseHasOneLogicalViewInBoundedMode(
 	spec.LocalReceiptTime = source.Add(2 * time.Second)
 	if _, err := round3Publish(t, profile, spec); err == nil {
 		t.Fatal("bounded coherence admitted two RTU views from one response")
-	}
-}
-
-type round5RTUClock struct {
-	now time.Duration
-}
-
-func (clock *round5RTUClock) ContractVersion() string {
-	return "round5-fixture-clock/v1"
-}
-
-func (clock *round5RTUClock) Now() time.Duration {
-	return clock.now
-}
-
-func TestRound5RuntimeRTUFixtureViewAdmitsAndReplaysExactly(t *testing.T) {
-	timing, err := modbus.NewRTUTiming(modbus.RTUTimingConfig{
-		Baud:               9600,
-		DataBits:           8,
-		Parity:             modbus.RTUParityEven,
-		StopBits:           1,
-		MaxResponseLatency: 20 * time.Millisecond,
-		MaxQuiescence:      50 * time.Millisecond,
-	})
-	if err != nil {
-		t.Fatalf("NewRTUTiming: %v", err)
-	}
-	line, err := modbus.NewRTUFixtureLine("round5-memory-line")
-	if err != nil {
-		t.Fatalf("NewRTUFixtureLine: %v", err)
-	}
-	clock := &round5RTUClock{}
-	endpoint, err := modbus.NewRTUFixtureEndpoint(
-		modbus.RTUFixtureEndpointConfig{
-			Endpoint:           "round5-memory-endpoint",
-			Line:               line,
-			Timing:             timing,
-			Clock:              clock,
-			FixtureOptIn:       true,
-			MaxDiscardedFrames: 4,
-		},
-	)
-	if err != nil {
-		t.Fatalf("NewRTUFixtureEndpoint: %v", err)
-	}
-	defer func() { _ = endpoint.Close() }()
-	request, err := modbus.NewReadRegistersRequest(
-		modbus.FunctionReadInputRegisters,
-		100,
-		2,
-	)
-	if err != nil {
-		t.Fatalf("NewReadRegistersRequest: %v", err)
-	}
-	handle, _, err := endpoint.BeginRead(
-		context.Background(),
-		modbus.RTUReadPlan{
-			UnitID:             1,
-			AuthorizationScope: "round5-read-only",
-			PollGeneration:     41,
-			DeadlineIdentity:   12,
-			LogicalViewID:      1001,
-			Timeout:            20 * time.Millisecond,
-			Request:            request,
-		},
-	)
-	if err != nil {
-		t.Fatalf("BeginRead: %v", err)
-	}
-	if err := endpoint.CompleteTransmit(
-		handle,
-		modbus.TransmitComplete,
-	); err != nil {
-		t.Fatalf("CompleteTransmit: %v", err)
-	}
-	responseFrame := []byte{0x01, 0x04, 0x04, 0x01, 0x02, 0x03, 0x04, 0x5a, 0x8b}
-	for index, value := range responseFrame {
-		if index != 0 {
-			clock.now += timing.CharacterTime()
-		}
-		if err := endpoint.FeedByte(value); err != nil {
-			t.Fatalf("FeedByte(%d): %v", index, err)
-		}
-	}
-	clock.now += timing.InterFrame()
-	result, err := endpoint.EndFrame()
-	if err != nil {
-		t.Fatalf("EndFrame: %v", err)
-	}
-	runtimeView, ok := result.LogicalView()
-	if !ok || !result.Deliverable() {
-		t.Fatal("runtime fixture did not produce a logical view")
-	}
-	capture, err := reg.CaptureLogicalView(runtimeView)
-	if err != nil {
-		t.Fatalf("CaptureLogicalView: %v", err)
-	}
-	profile := round5SingleDependencyProfile(t)
-	state := round3State(t, profile, "round5-runtime")
-	factory := round3Factory(
-		t,
-		profile,
-		state,
-		&round3MemoryCAS{state: state},
-	)
-	attempt, err := factory.BeginObservationAttempt(reg.AttemptIdentity{
-		PollGenerationID: 41,
-	})
-	if err != nil {
-		t.Fatalf("BeginObservationAttempt: %v", err)
-	}
-	dependency, err := attempt.CaptureDependency(
-		"energy-a",
-		capture,
-		reg.RuntimeDependencyFacts{
-			SourceTime: reg.SourceTimeUnavailable(),
-		},
-	)
-	if err != nil {
-		t.Fatalf("CaptureDependency: %v", err)
-	}
-	spec := round5ObservationSpec(
-		t,
-		profile,
-		dependency,
-		41,
-		"round5-memory-endpoint",
-		1,
-	)
-	observation, err := attempt.Publish(spec)
-	if err != nil {
-		t.Fatalf("Publish(runtime fixture): %v", err)
-	}
-	replay := observation.Replay()
-	if len(replay) != 1 ||
-		replay[0].LogicalViewRecord().Endpoint != "round5-memory-endpoint" ||
-		!reflect.DeepEqual(replay[0].RawWords(), []uint16{0x0102, 0x0304}) {
-		t.Fatalf("runtime fixture replay = %#v", replay)
 	}
 }
 

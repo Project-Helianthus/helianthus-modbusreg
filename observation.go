@@ -3,7 +3,6 @@ package modbusreg
 import (
 	"fmt"
 	"sort"
-	"sync"
 	"time"
 
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
@@ -50,6 +49,7 @@ type LogicalViewRecord struct {
 	SliceOffset         uint16
 	SliceWordCount      uint16
 	Words               []uint16
+	WireResponseBytes   []byte `json:",omitempty"`
 }
 
 // LogicalViewSnapshot is an immutable validated fixture/replay snapshot.
@@ -57,79 +57,6 @@ type LogicalViewRecord struct {
 type LogicalViewSnapshot struct {
 	record LogicalViewRecord
 	valid  bool
-}
-
-type logicalViewCaptureClaim struct {
-	mu       sync.Mutex
-	consumed bool
-}
-
-// LogicalViewCapture is an opaque single-use runtime capture. Value copies
-// share one source claim.
-type LogicalViewCapture struct {
-	snapshot LogicalViewSnapshot
-	claim    *logicalViewCaptureClaim
-}
-
-type logicalSourceIdentity struct {
-	logicalViewID       uint64
-	wireResponseID      uint64
-	physicalRequestID   uint64
-	endpoint            string
-	connectionID        uint64
-	transport           TransportFamily
-	transportGeneration uint64
-	pollGeneration      uint64
-}
-
-func sourceIdentityOf(record LogicalViewRecord) logicalSourceIdentity {
-	return logicalSourceIdentity{
-		logicalViewID:       record.LogicalViewID,
-		wireResponseID:      record.WireResponseID,
-		physicalRequestID:   record.PhysicalRequestID,
-		endpoint:            record.Endpoint,
-		connectionID:        record.ConnectionID,
-		transport:           record.Transport,
-		transportGeneration: record.TransportGeneration,
-		pollGeneration:      record.PollGeneration,
-	}
-}
-
-// CaptureLogicalView consumes the exact exported helianthus-modbus view and
-// emits an opaque single-use token for attempt-owned admission.
-func CaptureLogicalView(view modbus.LogicalReadView) (LogicalViewCapture, error) {
-	provenance := view.Provenance()
-	wire := provenance.Wire
-	snapshot, err := NewLogicalViewSnapshot(LogicalViewRecord{
-		LogicalViewID:       view.LogicalViewID(),
-		WireResponseID:      view.WireResponseID(),
-		PhysicalRequestID:   provenance.PhysicalRequestID,
-		Endpoint:            wire.Endpoint,
-		ConnectionID:        wire.ConnectionID,
-		Transport:           wire.Transport,
-		TransportGeneration: wire.TransportGeneration,
-		UnitID:              wire.UnitID,
-		RequestedFunction:   wire.RequestedFunction,
-		ReceivedFunction:    wire.ReceivedFunction,
-		Table:               wire.Table,
-		PhysicalOffset:      wire.Offset,
-		PhysicalWordCount:   wire.Quantity,
-		AuthorizationScope:  provenance.AuthorizationScope,
-		PollGeneration:      provenance.PollGeneration,
-		DeadlineIdentity:    provenance.DeadlineIdentity,
-		LogicalOffset:       view.LogicalOffset(),
-		LogicalWordCount:    view.LogicalWordCount(),
-		SliceOffset:         view.SliceOffset(),
-		SliceWordCount:      view.SliceWordCount(),
-		Words:               view.Words(),
-	})
-	if err != nil {
-		return LogicalViewCapture{}, err
-	}
-	return LogicalViewCapture{
-		snapshot: snapshot,
-		claim:    &logicalViewCaptureClaim{},
-	}, nil
 }
 
 // NewLogicalViewSnapshot validates a synthetic fixture/replay record. The
@@ -156,6 +83,7 @@ func NewLogicalViewSnapshot(
 		}
 	}
 	record.Words = append([]uint16(nil), record.Words...)
+	record.WireResponseBytes = append([]byte(nil), record.WireResponseBytes...)
 	if record.LogicalViewID == 0 || record.WireResponseID == 0 ||
 		record.PhysicalRequestID == 0 || record.Endpoint == "" ||
 		record.TransportGeneration == 0 || record.UnitID == 0 ||
@@ -211,6 +139,7 @@ func NewLogicalViewSnapshot(
 func (snapshot LogicalViewSnapshot) Record() LogicalViewRecord {
 	record := snapshot.record
 	record.Words = append([]uint16(nil), record.Words...)
+	record.WireResponseBytes = append([]byte(nil), record.WireResponseBytes...)
 	return record
 }
 
@@ -313,8 +242,6 @@ type DependencyResult struct {
 	AcquisitionOrdinal           uint32
 	RetryOrdinal                 uint32
 	localReceiptTimePresent      bool
-	claim                        *dependencyResultClaim
-	owner                        *observationAttemptState
 }
 
 // RuntimeDependencyFacts are source facts that are not part of the runtime
@@ -322,26 +249,18 @@ type DependencyResult struct {
 type RuntimeDependencyFacts struct {
 	SourceTime                   SourceTimeSpec
 	LocalReceiptTime             time.Time
+	LocalReceiptTimePresent      bool
 	DocumentaryConsistencyMarker string
 	AcquisitionOrdinal           uint32
-}
-
-type dependencyResultClaim struct {
-	snapshot DependencyResult
-	bound    bool
 }
 
 // NewDependencyResult validates a synthetic fixture dependency. It can enter
 // admission only after deterministic serialization and DecodeSpec.
 func NewDependencyResult(spec DependencyResult) (DependencyResult, error) {
-	if spec.claim != nil || spec.owner != nil {
-		return DependencyResult{}, fmt.Errorf("dependency result is already owned")
-	}
 	if err := preflightDependencyResult(spec); err != nil {
 		return DependencyResult{}, err
 	}
 	spec = cloneDependencyResult(spec)
-	spec.claim = &dependencyResultClaim{}
 	return spec, nil
 }
 
@@ -936,43 +855,16 @@ func cloneDependencyResult(result DependencyResult) DependencyResult {
 	return result
 }
 
-func bindDependencyResult(
-	result DependencyResult,
-	owner *observationAttemptState,
-) DependencyResult {
-	snapshot := cloneDependencyResult(result)
-	snapshot.claim = nil
-	snapshot.owner = nil
-	result = cloneDependencyResult(snapshot)
-	result.claim = &dependencyResultClaim{
-		snapshot: snapshot,
-		bound:    true,
-	}
-	result.owner = owner
-	return result
-}
-
-func admittedDependencyResult(
-	result DependencyResult,
-	owner *observationAttemptState,
-) (DependencyResult, error) {
-	if result.owner != owner || result.claim == nil || !result.claim.bound {
-		return DependencyResult{}, fmt.Errorf("dependency result is not attempt-owned")
-	}
-	admitted := cloneDependencyResult(result.claim.snapshot)
-	admitted.claim = result.claim
-	admitted.owner = owner
-	return admitted, nil
-}
-
 // ReplayedDependency is one exact raw dependency and its retained provenance.
 type ReplayedDependency struct {
-	dependencyID      string
-	dependencyVersion Version
-	codecID           string
-	codecVersion      Version
-	normalization     AddressNormalization
-	view              LogicalViewSnapshot
+	dependencyID               string
+	dependencyVersion          Version
+	codecID                    string
+	codecVersion               Version
+	normalization              AddressNormalization
+	view                       LogicalViewSnapshot
+	runtimeNormalizationBytes  []byte
+	runtimeNormalizationFields modbus.RuntimeNormalizationFields
 }
 
 // RawWords returns an independent exact wire-order word copy.
@@ -1040,6 +932,18 @@ func (dependency ReplayedDependency) LogicalViewRecord() LogicalViewRecord {
 	return dependency.view.Record()
 }
 
+// RuntimeNormalizationBytes returns the exact producer-admitted JSON bytes.
+// Offline fixture dependencies return nil.
+func (dependency ReplayedDependency) RuntimeNormalizationBytes() []byte {
+	return append([]byte(nil), dependency.runtimeNormalizationBytes...)
+}
+
+// RuntimeNormalizationFields returns the producer-parsed required fields used
+// for dependency matching. Unknown extensions remain only in the exact bytes.
+func (dependency ReplayedDependency) RuntimeNormalizationFields() modbus.RuntimeNormalizationFields {
+	return dependency.runtimeNormalizationFields
+}
+
 // Replay returns independent exact dependency observations in declaration order.
 func (observation Observation) Replay() []ReplayedDependency {
 	result := make([]ReplayedDependency, len(observation.replayed))
@@ -1088,560 +992,6 @@ func EmptySampleLedgerState(
 		return SampleLedgerState{}, err
 	}
 	return state, nil
-}
-
-// SampleLedger issues monotonic sample identities in one immutable domain.
-type SampleLedger struct {
-	mu                   sync.Mutex
-	commitSerial         chan struct{}
-	issuerDomain         string
-	profileID            string
-	profileVersion       Version
-	dependencySetID      string
-	revision             uint64
-	highWater            uint64
-	lastCommittedAttempt AttemptIdentity
-}
-
-// NewSampleLedger restores state only at or above a trusted external revision.
-func NewSampleLedger(
-	state SampleLedgerState,
-	trustedMinimumRevision uint64,
-) (*SampleLedger, error) {
-	if err := validateSampleLedgerState(
-		state,
-		trustedMinimumRevision,
-	); err != nil {
-		return nil, err
-	}
-	ledger := &SampleLedger{
-		commitSerial:         make(chan struct{}, 1),
-		issuerDomain:         state.IssuerDomain,
-		profileID:            state.ProfileID,
-		profileVersion:       state.ProfileVersion,
-		dependencySetID:      state.DependencySetID,
-		revision:             state.Revision,
-		highWater:            state.HighWater,
-		lastCommittedAttempt: state.LastCommittedAttempt,
-	}
-	ledger.commitSerial <- struct{}{}
-	return ledger, nil
-}
-
-func validateSampleLedgerState(
-	state SampleLedgerState,
-	trustedMinimumRevision uint64,
-) error {
-	initialAttemptState := state.LastCommittedAttempt == (AttemptIdentity{})
-	if state.SchemaVersion != schemaVersionV1 ||
-		!validIssuerDomain(state.IssuerDomain) ||
-		!validIdentity(state.ProfileID) ||
-		!state.ProfileVersion.valid() ||
-		!validDependencySetID(state.DependencySetID) ||
-		state.Revision != state.HighWater ||
-		state.Revision < trustedMinimumRevision ||
-		(state.Revision == 0 && !initialAttemptState) ||
-		(state.Revision != 0 &&
-			state.LastCommittedAttempt.PollGenerationID == 0) ||
-		(state.LastCommittedAttempt.PollGenerationID == 0 &&
-			state.LastCommittedAttempt.RetryOrdinal != 0) {
-		return fmt.Errorf("sample ledger state is incomplete, stale, or incompatible")
-	}
-	return nil
-}
-
-func validIssuerDomain(value string) bool {
-	if len(value) > MaxSampleIssuerDomainBytes || !validIdentity(value) {
-		return false
-	}
-	for _, character := range value {
-		if character == ':' {
-			return false
-		}
-	}
-	return true
-}
-
-// SampleStateCAS is the consumer-owned atomic persistence boundary. A true
-// result means the exact expected state was durably replaced by next.
-type SampleStateCAS interface {
-	CompareAndSwap(expected, next SampleLedgerState) (bool, error)
-}
-
-func (ledger *SampleLedger) commit(
-	store SampleStateCAS,
-	attempt AttemptIdentity,
-) (string, error) {
-	if ledger == nil {
-		return "", fmt.Errorf("sample ledger is invalid")
-	}
-	if store == nil {
-		return "", fmt.Errorf("sample state CAS is invalid")
-	}
-	<-ledger.commitSerial
-	defer func() {
-		ledger.commitSerial <- struct{}{}
-	}()
-	ledger.mu.Lock()
-	if ledger.revision == ^uint64(0) || ledger.highWater == ^uint64(0) {
-		ledger.mu.Unlock()
-		return "", fmt.Errorf("sample ledger is exhausted")
-	}
-	if !attemptIdentityAdvances(ledger.lastCommittedAttempt, attempt) {
-		ledger.mu.Unlock()
-		return "", fmt.Errorf("observation attempt does not advance the ledger")
-	}
-	expected := ledger.stateLocked()
-	next := expected
-	next.Revision++
-	next.HighWater++
-	next.LastCommittedAttempt = attempt
-	ledger.mu.Unlock()
-	sampleID := fmt.Sprintf(
-		"%s:%d",
-		ledger.issuerDomain,
-		next.HighWater,
-	)
-	swapped, err := store.CompareAndSwap(expected, next)
-	if err != nil {
-		return "", fmt.Errorf("persist sample ledger state: %w", err)
-	}
-	if !swapped {
-		return "", fmt.Errorf("sample ledger compare-and-swap conflict")
-	}
-	ledger.mu.Lock()
-	defer ledger.mu.Unlock()
-	if ledger.stateLocked() != expected {
-		return "", fmt.Errorf("sample ledger changed during compare-and-swap")
-	}
-	ledger.revision = next.Revision
-	ledger.highWater = next.HighWater
-	ledger.lastCommittedAttempt = next.LastCommittedAttempt
-	return sampleID, nil
-}
-
-func attemptIdentityAdvances(previous, next AttemptIdentity) bool {
-	if next.PollGenerationID == 0 {
-		return false
-	}
-	if previous.PollGenerationID == 0 {
-		return true
-	}
-	return next.PollGenerationID > previous.PollGenerationID
-}
-
-func (ledger *SampleLedger) stateLocked() SampleLedgerState {
-	return SampleLedgerState{
-		SchemaVersion:        schemaVersionV1,
-		IssuerDomain:         ledger.issuerDomain,
-		ProfileID:            ledger.profileID,
-		ProfileVersion:       ledger.profileVersion,
-		DependencySetID:      ledger.dependencySetID,
-		Revision:             ledger.revision,
-		HighWater:            ledger.highWater,
-		LastCommittedAttempt: ledger.lastCommittedAttempt,
-	}
-}
-
-// ExportState returns deterministic explicit restart state.
-func (ledger *SampleLedger) ExportState() SampleLedgerState {
-	if ledger == nil {
-		return SampleLedgerState{}
-	}
-	ledger.mu.Lock()
-	defer ledger.mu.Unlock()
-	return ledger.stateLocked()
-}
-
-// ObservationFactory binds attempts to one profile and persistence domain.
-type ObservationFactory struct {
-	profile              ProfileDescriptor
-	ledger               *SampleLedger
-	store                SampleStateCAS
-	sourceMu             sync.Mutex
-	sourcePollGeneration uint64
-	sourceClaims         map[logicalSourceIdentity]logicalSourceClaim
-}
-
-// NewObservationFactory requires the consumer's atomic persistence boundary.
-func NewObservationFactory(
-	profile ProfileDescriptor,
-	ledger *SampleLedger,
-	store SampleStateCAS,
-) (*ObservationFactory, error) {
-	if ledger == nil || store == nil {
-		return nil, fmt.Errorf("observation factory requires a ledger and state CAS")
-	}
-	copy, err := NewProfileDescriptor(profile.Spec())
-	if err != nil {
-		return nil, fmt.Errorf("observation factory profile: %w", err)
-	}
-	if copy.spec.Kind != ProfileStandardFamily {
-		return nil, fmt.Errorf("vendor overlay requires M3 resolution")
-	}
-	state := ledger.ExportState()
-	if state.ProfileID != copy.ID() ||
-		state.ProfileVersion != copy.Version() ||
-		state.DependencySetID != copy.Dependencies().ID() {
-		return nil, fmt.Errorf("observation factory persistence domain disagrees")
-	}
-	if state.Revision > 0 {
-		switch copy.spec.Coherence.Mode {
-		case CoherenceSingleWireResponse:
-			if state.LastCommittedAttempt.RetryOrdinal != 0 {
-				return nil, fmt.Errorf("persisted attempt disagrees with profile mode")
-			}
-		case CoherenceBoundedMultiResponse:
-			if state.LastCommittedAttempt.RetryOrdinal == 0 {
-				return nil, fmt.Errorf("persisted attempt disagrees with profile mode")
-			}
-		default:
-			return nil, fmt.Errorf("observation coherence mode is invalid")
-		}
-	}
-	return &ObservationFactory{
-		profile:      copy,
-		ledger:       ledger,
-		store:        store,
-		sourceClaims: make(map[logicalSourceIdentity]logicalSourceClaim),
-	}, nil
-}
-
-type observationAttemptPhase uint8
-
-const (
-	attemptOpen observationAttemptPhase = iota + 1
-	attemptPublishing
-	attemptPublished
-	attemptFailed
-)
-
-type observationCaptureMode uint8
-
-const (
-	captureUnset observationCaptureMode = iota
-	captureDirect
-	captureSerialized
-)
-
-type logicalSourceClaim struct {
-	attempt AttemptIdentity
-	mode    observationCaptureMode
-}
-
-func (factory *ObservationFactory) beginSourcePoll(pollGeneration uint64) error {
-	factory.sourceMu.Lock()
-	defer factory.sourceMu.Unlock()
-	if factory.sourcePollGeneration > pollGeneration {
-		return fmt.Errorf("attempt poll generation is superseded")
-	}
-	if factory.sourcePollGeneration < pollGeneration {
-		factory.sourcePollGeneration = pollGeneration
-		clear(factory.sourceClaims)
-	}
-	return nil
-}
-
-func (factory *ObservationFactory) claimSources(
-	identity AttemptIdentity,
-	mode observationCaptureMode,
-	records []LogicalViewRecord,
-) error {
-	factory.sourceMu.Lock()
-	defer factory.sourceMu.Unlock()
-	if factory.sourcePollGeneration != identity.PollGenerationID {
-		return fmt.Errorf("attempt poll generation is superseded")
-	}
-	pending := make(map[logicalSourceIdentity]struct{}, len(records))
-	for _, record := range records {
-		source := sourceIdentityOf(record)
-		if _, exists := pending[source]; exists {
-			return fmt.Errorf("logical-view source identity is duplicated")
-		}
-		pending[source] = struct{}{}
-		if existing, exists := factory.sourceClaims[source]; exists &&
-			(mode != captureSerialized ||
-				existing.mode != captureSerialized ||
-				existing.attempt != identity) {
-			return fmt.Errorf("logical-view source identity was already claimed")
-		}
-	}
-	for source := range pending {
-		if _, exists := factory.sourceClaims[source]; !exists {
-			factory.sourceClaims[source] = logicalSourceClaim{
-				attempt: identity,
-				mode:    mode,
-			}
-		}
-	}
-	return nil
-}
-
-func (factory *ObservationFactory) sourcePollCurrent(
-	pollGeneration uint64,
-) bool {
-	factory.sourceMu.Lock()
-	defer factory.sourceMu.Unlock()
-	return factory.sourcePollGeneration == pollGeneration
-}
-
-type observationAttemptState struct {
-	mu       sync.Mutex
-	factory  *ObservationFactory
-	identity AttemptIdentity
-	phase    observationAttemptPhase
-	capture  observationCaptureMode
-}
-
-// ObservationAttempt owns the deterministic retry binding for one captured
-// set. Value copies retain the same private lifecycle state.
-type ObservationAttempt struct {
-	state *observationAttemptState
-}
-
-// BeginObservationAttempt starts one isolated capture/admission transaction.
-func (factory *ObservationFactory) BeginObservationAttempt(
-	identity AttemptIdentity,
-) (*ObservationAttempt, error) {
-	if factory == nil || factory.ledger == nil || factory.store == nil {
-		return nil, fmt.Errorf("observation factory is invalid")
-	}
-	if identity.PollGenerationID == 0 {
-		return nil, fmt.Errorf("attempt poll generation is absent")
-	}
-	switch factory.profile.spec.Coherence.Mode {
-	case CoherenceSingleWireResponse:
-		if identity.RetryOrdinal != 0 {
-			return nil, fmt.Errorf("single-wire retry identity is not applicable")
-		}
-	case CoherenceBoundedMultiResponse:
-		if identity.RetryOrdinal == 0 {
-			return nil, fmt.Errorf("bounded retry identity is absent")
-		}
-	default:
-		return nil, fmt.Errorf("observation coherence mode is invalid")
-	}
-	committed := factory.ledger.ExportState().LastCommittedAttempt
-	if committed.PollGenerationID != 0 &&
-		identity.PollGenerationID <= committed.PollGenerationID {
-		return nil, fmt.Errorf("attempt poll generation is already terminal")
-	}
-	if err := factory.beginSourcePoll(identity.PollGenerationID); err != nil {
-		return nil, err
-	}
-	return &ObservationAttempt{
-		state: &observationAttemptState{
-			factory:  factory,
-			identity: identity,
-			phase:    attemptOpen,
-		},
-	}, nil
-}
-
-// CaptureDependency consumes one runtime capture into this exact attempt.
-func (attempt *ObservationAttempt) CaptureDependency(
-	dependencyID string,
-	capture LogicalViewCapture,
-	facts RuntimeDependencyFacts,
-) (DependencyResult, error) {
-	if attempt == nil || attempt.state == nil {
-		return DependencyResult{}, fmt.Errorf("observation attempt is invalid")
-	}
-	state := attempt.state
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if state.factory == nil || state.phase != attemptOpen {
-		return DependencyResult{}, fmt.Errorf("observation attempt is closed")
-	}
-	if state.capture == captureSerialized {
-		return DependencyResult{}, fmt.Errorf("serialized capture cannot accept runtime views")
-	}
-	if capture.claim == nil || !capture.snapshot.valid {
-		return DependencyResult{}, fmt.Errorf("runtime logical-view capture is invalid")
-	}
-	record := capture.snapshot.record
-	if record.PollGeneration != state.identity.PollGenerationID {
-		return DependencyResult{}, fmt.Errorf("runtime poll generation disagrees")
-	}
-	var declaration Dependency
-	for _, candidate := range state.factory.profile.Dependencies().Dependencies() {
-		if candidate.ID() == dependencyID {
-			declaration = candidate
-			break
-		}
-	}
-	if declaration.ID() == "" {
-		return DependencyResult{}, fmt.Errorf("runtime dependency is not declared")
-	}
-	result := DependencyResult{
-		DependencyID:                 declaration.ID(),
-		DependencyVersion:            declaration.Version(),
-		CodecID:                      declaration.CodecID(),
-		CodecVersion:                 declaration.CodecVersion(),
-		NormalizationVersion:         declaration.Normalization().Spec().Version,
-		Status:                       DependencyReadSuccessful,
-		View:                         capture.snapshot,
-		SourceTime:                   facts.SourceTime,
-		LocalReceiptTime:             facts.LocalReceiptTime,
-		DocumentaryConsistencyMarker: facts.DocumentaryConsistencyMarker,
-		AcquisitionOrdinal:           facts.AcquisitionOrdinal,
-		RetryOrdinal:                 state.identity.RetryOrdinal,
-	}
-	if err := preflightDependencyResult(result); err != nil {
-		return DependencyResult{}, err
-	}
-	capture.claim.mu.Lock()
-	defer capture.claim.mu.Unlock()
-	if capture.claim.consumed {
-		return DependencyResult{}, fmt.Errorf("runtime logical-view capture was already consumed")
-	}
-	if err := state.factory.claimSources(
-		state.identity,
-		captureDirect,
-		[]LogicalViewRecord{record},
-	); err != nil {
-		return DependencyResult{}, err
-	}
-	capture.claim.consumed = true
-	result = bindDependencyResult(result, state)
-	state.capture = captureDirect
-	return cloneDependencyResult(result), nil
-}
-
-// BindDependency rejects caller-reminted fixture DTOs. Runtime captures must
-// use CaptureDependency; serialized fixtures must use DecodeSpec.
-func (attempt *ObservationAttempt) BindDependency(
-	result DependencyResult,
-) (DependencyResult, error) {
-	return DependencyResult{}, fmt.Errorf(
-		"dependency binding requires CaptureDependency or DecodeSpec",
-	)
-}
-
-func (attempt *ObservationAttempt) openState() (*observationAttemptState, error) {
-	if attempt == nil || attempt.state == nil ||
-		attempt.state.factory == nil {
-		return nil, fmt.Errorf("observation attempt is invalid")
-	}
-	attempt.state.mu.Lock()
-	defer attempt.state.mu.Unlock()
-	if attempt.state.phase != attemptOpen {
-		return nil, fmt.Errorf("observation attempt is closed")
-	}
-	return attempt.state, nil
-}
-
-func (attempt *ObservationAttempt) prepareSpec(
-	spec ObservationSpec,
-) (ObservationSpec, error) {
-	if attempt == nil || attempt.state == nil {
-		return ObservationSpec{}, fmt.Errorf("observation attempt is invalid")
-	}
-	state := attempt.state
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if state.factory == nil || state.phase != attemptOpen {
-		return ObservationSpec{}, fmt.Errorf("observation attempt is closed")
-	}
-	spec = cloneObservationSpec(spec)
-	if spec.PollGenerationID != state.identity.PollGenerationID ||
-		spec.RetryOrdinal != state.identity.RetryOrdinal {
-		return ObservationSpec{}, fmt.Errorf("observation attempt identity disagrees")
-	}
-	mode := state.factory.profile.spec.Coherence.Mode
-	switch mode {
-	case CoherenceSingleWireResponse:
-		if spec.RetryOrdinal != 0 {
-			return ObservationSpec{}, fmt.Errorf("single-wire retry identity is not applicable")
-		}
-	case CoherenceBoundedMultiResponse:
-		if spec.RetryOrdinal == 0 {
-			return ObservationSpec{}, fmt.Errorf("bounded retry identity is absent")
-		}
-	default:
-		return ObservationSpec{}, fmt.Errorf("observation coherence mode is invalid")
-	}
-	for index := range spec.Dependencies {
-		admitted, err := admittedDependencyResult(
-			spec.Dependencies[index],
-			state,
-		)
-		if err != nil || admitted.RetryOrdinal != spec.RetryOrdinal {
-			return ObservationSpec{}, fmt.Errorf(
-				"dependency %d is not bound to this attempt",
-				index,
-			)
-		}
-		spec.Dependencies[index] = admitted
-	}
-	return cloneObservationSpec(spec), nil
-}
-
-// Publish returns an Observation only after the external CAS succeeds.
-func (attempt *ObservationAttempt) Publish(
-	spec ObservationSpec,
-) (Observation, error) {
-	if attempt == nil || attempt.state == nil {
-		return Observation{}, fmt.Errorf("observation attempt is invalid")
-	}
-	state := attempt.state
-	state.mu.Lock()
-	if state.phase != attemptOpen {
-		state.mu.Unlock()
-		return Observation{}, fmt.Errorf("observation attempt is closed")
-	}
-	state.phase = attemptPublishing
-	state.mu.Unlock()
-	succeeded := false
-	defer func() {
-		state.mu.Lock()
-		if succeeded {
-			state.phase = attemptPublished
-		} else {
-			state.phase = attemptFailed
-		}
-		state.mu.Unlock()
-	}()
-	// prepareSpec normally requires an open attempt; publication already owns
-	// the lifecycle, so validate against this exact state directly.
-	prepared := cloneObservationSpec(spec)
-	if prepared.PollGenerationID != state.identity.PollGenerationID ||
-		prepared.RetryOrdinal != state.identity.RetryOrdinal {
-		return Observation{}, fmt.Errorf("observation attempt identity disagrees")
-	}
-	for index := range prepared.Dependencies {
-		admitted, err := admittedDependencyResult(
-			prepared.Dependencies[index],
-			state,
-		)
-		if err != nil || admitted.RetryOrdinal != prepared.RetryOrdinal {
-			return Observation{}, fmt.Errorf(
-				"dependency %d is not bound to this attempt",
-				index,
-			)
-		}
-		prepared.Dependencies[index] = admitted
-	}
-	if prepared.SampleID != "" {
-		return Observation{}, fmt.Errorf("sample ID must be factory-issued")
-	}
-	if !state.factory.sourcePollCurrent(state.identity.PollGenerationID) {
-		return Observation{}, fmt.Errorf("attempt poll generation is superseded")
-	}
-	observation, err := buildObservation(state.factory.profile, prepared)
-	if err != nil {
-		return Observation{}, err
-	}
-	sampleID, err := state.factory.ledger.commit(
-		state.factory.store,
-		state.identity,
-	)
-	if err != nil {
-		return Observation{}, err
-	}
-	observation.spec.SampleID = sampleID
-	succeeded = true
-	return observation, nil
 }
 
 // OwnershipBoundary documents that this package records source facts only.

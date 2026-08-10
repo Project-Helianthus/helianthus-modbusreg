@@ -11,7 +11,7 @@ import (
 
 const (
 	// PinnedMaxCoalescedDependents is the absolute V1 runtime guard at
-	// helianthus-modbus commit 4f81cbeb6321e64fa51676ed6e375ce36b60d16d.
+	// helianthus-modbus commit eab30aed9eb6f78a61c679c3bd9403d587025214.
 	// It is not a scheduler configuration value.
 	PinnedMaxCoalescedDependents = 4096
 
@@ -35,6 +35,78 @@ const (
 	// defining downstream freshness or availability policy.
 	MaxDeclaredCoherenceSkew = 24 * time.Hour
 )
+
+// LedgerLimits closes every allocation dimension owned by the M2 attempt
+// ledger. The runtime source has its own independent M1 limits.
+type LedgerLimits struct {
+	MaxRetainedAttempts                 int
+	MaxClaimEntriesPerAttempt           int
+	MaxRetainedClaimEntries             int
+	MaxDependencySetEncodedBytes        int
+	AttemptKeyMaxUTF8Bytes              int
+	NormalizationRecordMaxEncodedBytes  int
+	RetainedDiagnosticCountPerObjectMax int
+	RetainedDiagnosticMaxUTF8Bytes      int
+	AuditTombstoneLimit                 int
+	AuditTombstoneMaxEncodedBytes       int
+}
+
+// DefaultLedgerLimits returns finite production-safe contract bounds. Callers
+// may choose lower limits, but zero and internally inconsistent limits fail.
+func DefaultLedgerLimits() LedgerLimits {
+	return LedgerLimits{
+		MaxRetainedAttempts:                 64,
+		MaxClaimEntriesPerAttempt:           MaxProfileDependencies,
+		MaxRetainedClaimEntries:             64 * MaxProfileDependencies,
+		MaxDependencySetEncodedBytes:        MaxSerializedContractBytes,
+		AttemptKeyMaxUTF8Bytes:              MaxContractStringBytes,
+		NormalizationRecordMaxEncodedBytes:  MaxSerializedContractBytes,
+		RetainedDiagnosticCountPerObjectMax: 32,
+		RetainedDiagnosticMaxUTF8Bytes:      MaxContractStringBytes,
+		AuditTombstoneLimit:                 4096,
+		AuditTombstoneMaxEncodedBytes:       256,
+	}
+}
+
+func validateLedgerLimits(limits LedgerLimits) error {
+	positive := []int{
+		limits.MaxRetainedAttempts,
+		limits.MaxClaimEntriesPerAttempt,
+		limits.MaxRetainedClaimEntries,
+		limits.MaxDependencySetEncodedBytes,
+		limits.AttemptKeyMaxUTF8Bytes,
+		limits.NormalizationRecordMaxEncodedBytes,
+		limits.RetainedDiagnosticCountPerObjectMax,
+		limits.RetainedDiagnosticMaxUTF8Bytes,
+		limits.AuditTombstoneLimit,
+		limits.AuditTombstoneMaxEncodedBytes,
+	}
+	for _, value := range positive {
+		if value <= 0 {
+			return fmt.Errorf("ledger limits must be finite and positive")
+		}
+	}
+	if limits.MaxRetainedAttempts > 1<<16 ||
+		limits.MaxClaimEntriesPerAttempt > MaxProfileDependencies ||
+		limits.MaxDependencySetEncodedBytes > MaxSerializedContractBytes ||
+		limits.AttemptKeyMaxUTF8Bytes > MaxContractStringBytes ||
+		limits.NormalizationRecordMaxEncodedBytes > MaxSerializedContractBytes ||
+		limits.RetainedDiagnosticCountPerObjectMax > MaxProfileDependencies ||
+		limits.RetainedDiagnosticMaxUTF8Bytes > MaxContractStringBytes ||
+		limits.AuditTombstoneLimit > 1<<20 ||
+		limits.AuditTombstoneMaxEncodedBytes > MaxSerializedContractBytes {
+		return fmt.Errorf("ledger limits exceed the contract maximum")
+	}
+	if limits.MaxRetainedAttempts > int(^uint(0)>>1)/limits.MaxClaimEntriesPerAttempt {
+		return fmt.Errorf("ledger claim-entry product overflows")
+	}
+	product := limits.MaxRetainedAttempts * limits.MaxClaimEntriesPerAttempt
+	if limits.MaxRetainedClaimEntries < limits.MaxClaimEntriesPerAttempt ||
+		limits.MaxRetainedClaimEntries > product {
+		return fmt.Errorf("ledger claim-entry limits are inconsistent")
+	}
+	return nil
+}
 
 func validateBoundedString(field, value string, required bool) error {
 	if (required && value == "") ||
