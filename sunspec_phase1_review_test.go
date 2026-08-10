@@ -123,25 +123,35 @@ func TestSunSpecPhaseOneIdenticalRawAllowsDistinctCoherentPolls(t *testing.T) {
 
 func TestSunSpecPhaseOneParsesFixtureSemanticsFromRawModels(t *testing.T) {
 	decoder, _ := reviewDecoder(t)
-	// Values are the public M3-01 synthetic FSS-P-002 and FSS-P-003 examples.
+	// Offsets follow official models commit 7abdf8982d5364f8ae916deee18aac86c11be36d.
 	chain, err := decoder.Parse(reviewRawChain(101, 102, 103))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
 	common, ok := chain.Common()
 	if !ok || common.Manufacturer() != "FixtureCo" || common.Model() != "Fixture-1" ||
-		common.SerialNumber() != "PLACEHOLDER" || common.Version() != "VERSION123456789" {
+		common.Options() != "A" || common.Version() != "VERSION123456789" ||
+		common.SerialNumber() != "PLACEHOLDER" || common.DeviceAddress() != 42 {
 		t.Fatalf("Common model 1 = %#v, present=%t", common, ok)
+	}
+	expected := map[uint16]struct {
+		powerRaw, powerScale, energyRaw, energyScale int64
+		powerValue, energyValue                      float64
+	}{
+		101: {-123, -1, 120000, 0, -12.3, 120000},
+		102: {321, -1, 131072, 0, 32.1, 131072},
+		103: {-10, -2, 4660, 0, -0.1, 4660},
 	}
 	for _, id := range []uint16{101, 102, 103} {
 		inverter, ok := chain.Inverter(id)
 		if !ok {
 			t.Fatalf("model %d was not semantically exposed", id)
 		}
-		if power := inverter.Power(); power.Raw() != -123 || power.ScaleFactor() != -1 || power.Value() != -12.3 {
+		want := expected[id]
+		if power := inverter.Power(); power.Raw() != want.powerRaw || int64(power.ScaleFactor()) != want.powerScale || power.Value() != want.powerValue {
 			t.Fatalf("model %d power = %#v", id, power)
 		}
-		if energy := inverter.Energy(); energy.Raw() != 120000 || energy.ScaleFactor() != 0 || energy.Value() != 120000 {
+		if energy := inverter.Energy(); energy.Raw() != want.energyRaw || int64(energy.ScaleFactor()) != want.energyScale || energy.Value() != want.energyValue {
 			t.Fatalf("model %d energy = %#v", id, energy)
 		}
 	}
@@ -216,14 +226,28 @@ func reviewRawChain(ids ...uint16) []uint16 {
 	common := make([]uint16, 65)
 	copy(common[0:], reviewStringWords("FixtureCo", 16))
 	copy(common[16:], reviewStringWords("Fixture-1", 16))
-	copy(common[32:], reviewStringWords("PLACEHOLDER", 16))
-	copy(common[48:], reviewStringWords("VERSION123456789", 8))
+	copy(common[32:], reviewStringWords("A", 8))
+	copy(common[40:], reviewStringWords("VERSION123456789", 8))
+	copy(common[48:], reviewStringWords("PLACEHOLDER", 16))
+	common[64] = 42
 	words = append(words, common...)
 	for _, id := range ids {
 		words = append(words, id, 50)
 		payload := make([]uint16, 50)
-		payload[8], payload[9] = 0xff85, 0xffff
-		payload[16], payload[17], payload[18] = 1, 0xd4c0, 0
+		// Poison the old incorrect offsets with valid but unmistakably wrong values.
+		payload[8], payload[9] = 123, 1
+		payload[16], payload[17], payload[18] = 3, 4, 1
+		switch id {
+		case 101:
+			payload[12], payload[13] = 0xff85, 0xffff
+			payload[22], payload[23], payload[24] = 1, 0xd4c0, 0
+		case 102:
+			payload[12], payload[13] = 321, 0xffff
+			payload[22], payload[23], payload[24] = 2, 0, 0
+		case 103:
+			payload[12], payload[13] = 0xfff6, 0xfffe
+			payload[22], payload[23], payload[24] = 0, 0x1234, 0
+		}
 		words = append(words, payload...)
 	}
 	return append(words, 0xffff, 0)
