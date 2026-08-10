@@ -122,14 +122,13 @@ func TestSunSpecPhaseOneDecodingAndObservationActivationPreserveProvenance(t *te
 		t.Fatalf("full-width string = %q, %v", got, err)
 	}
 
-	chain, err := decoder.Parse(sunSpecWords(1, 65, 102, 50, 0xffff, 0))
+	raw := sunSpecWords(1, 65, 102, 50, 0xffff, 0)
+	chain, err := decoder.Parse(raw)
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	activation := reg.SunSpecPhaseOneActivation{
-		Chain:       chain,
-		Observation: sunSpecObservation(t, profile),
-	}
+	capture, observationSpec := reviewCapture(t, profile, raw, 77, 5000, reg.TransportTCP)
+	activation := reg.SunSpecPhaseOneActivation{Chain: chain, RawWords: raw, Capture: capture, Observation: observationSpec}
 	observation, err := decoder.Activate(activation)
 	if err != nil {
 		t.Fatalf("Activate: %v", err)

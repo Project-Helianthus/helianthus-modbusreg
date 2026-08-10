@@ -1,11 +1,9 @@
 package modbusreg
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"fmt"
 	"reflect"
-	"sync"
+	"slices"
 )
 
 const (
@@ -49,15 +47,7 @@ func (SunSpecDiscoveryRequest) Offset() uint16         { return 40000 }
 func (SunSpecDiscoveryRequest) ReadOnly() bool         { return true }
 
 // SunSpecPhaseOneDecoder validates and decodes the v1 standard family only.
-type SunSpecPhaseOneDecoder struct {
-	profile  ProfileDescriptor
-	bindings *sunSpecBindingStore
-}
-
-type sunSpecBindingStore struct {
-	mu     sync.Mutex
-	values map[[32]byte][]byte
-}
+type SunSpecPhaseOneDecoder struct{ profile ProfileDescriptor }
 
 func NewSunSpecPhaseOneDecoder(profile ProfileDescriptor) (SunSpecPhaseOneDecoder, error) {
 	if profile.ID() != sunSpecPhaseOneProfileID || profile.Kind() != ProfileStandardFamily || profile.Version() != CurrentSchemaVersion() || profile.CodecContractVersion() != CurrentCodecContractVersion() {
@@ -70,7 +60,7 @@ func NewSunSpecPhaseOneDecoder(profile ProfileDescriptor) (SunSpecPhaseOneDecode
 	if err != nil || !reflect.DeepEqual(profile.Spec(), expected.Spec()) {
 		return SunSpecPhaseOneDecoder{}, fmt.Errorf("SunSpec phase-one profile is not exact")
 	}
-	return SunSpecPhaseOneDecoder{profile: profile, bindings: &sunSpecBindingStore{values: make(map[[32]byte][]byte)}}, nil
+	return SunSpecPhaseOneDecoder{profile: profile}, nil
 }
 func (SunSpecPhaseOneDecoder) DiscoveryRequest() SunSpecDiscoveryRequest {
 	return SunSpecDiscoveryRequest{}
@@ -152,6 +142,12 @@ func (SunSpecPhaseOneDecoder) Parse(words []uint16) (SunSpecPhaseOneChain, error
 			if length != 0 {
 				return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec end marker has nonzero length")
 			}
+			if offset+2 != len(words) {
+				return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec chain has trailing words")
+			}
+			if chain.common == nil {
+				return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec Common model is missing")
+			}
 			chain.valid = true
 			return chain, nil
 		}
@@ -163,8 +159,14 @@ func (SunSpecPhaseOneDecoder) Parse(words []uint16) (SunSpecPhaseOneChain, error
 			return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec model extent overruns raw chain")
 		}
 		model := SunSpecPhaseOneModel{id: id, offset: uint16(offset), length: length}
+		if offset == 2 && id != 1 {
+			return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec Common model must be first")
+		}
 		switch {
 		case id == 1:
+			if offset != 2 || chain.common != nil {
+				return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec Common model is duplicated or reordered")
+			}
 			if length != 65 {
 				return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec Common model length is invalid")
 			}
@@ -193,7 +195,8 @@ func (SunSpecPhaseOneDecoder) Parse(words []uint16) (SunSpecPhaseOneChain, error
 	}
 }
 func deferredSunSpecModel(id uint16) bool {
-	return (id >= 200 && id <= 219) || (id >= 700 && id <= 799)
+	return (id >= 111 && id <= 113) || (id >= 120 && id <= 124) || id == 160 ||
+		(id >= 200 && id <= 219) || (id >= 700 && id <= 799)
 }
 
 func decodeSunSpecCommon(words []uint16) (SunSpecCommonModel, error) {
@@ -279,10 +282,21 @@ func (SunSpecPhaseOneDecoder) String(words []uint16) (string, error) {
 	return string(bytes), nil
 }
 
-// SunSpecPhaseOneActivation joins a validated chain to the existing source envelope.
+// SunSpecPhaseOneCapture is the ordered source-view input for one activation.
+type SunSpecPhaseOneCapture struct {
+	SourceViews []LogicalViewSnapshot
+}
+
+// Views returns defensive copies of the ordered source views.
+func (capture SunSpecPhaseOneCapture) Views() []LogicalViewSnapshot {
+	return cloneSunSpecViews(capture.SourceViews)
+}
+
+// SunSpecPhaseOneActivation joins a validated chain to one exact source capture.
 type SunSpecPhaseOneActivation struct {
 	Chain       SunSpecPhaseOneChain
 	RawWords    []uint16
+	Capture     SunSpecPhaseOneCapture
 	Observation ObservationSpec
 }
 
@@ -290,6 +304,7 @@ type SunSpecPhaseOneActivation struct {
 type SunSpecPhaseOneObservation struct {
 	observation Observation
 	raw         []uint16
+	views       []LogicalViewSnapshot
 }
 
 func (observation SunSpecPhaseOneObservation) Spec() ObservationSpec {
@@ -298,40 +313,134 @@ func (observation SunSpecPhaseOneObservation) Spec() ObservationSpec {
 func (observation SunSpecPhaseOneObservation) RawWords() []uint16 {
 	return append([]uint16(nil), observation.raw...)
 }
+func (observation SunSpecPhaseOneObservation) SourceViews() []LogicalViewSnapshot {
+	return cloneSunSpecViews(observation.views)
+}
 
 func (decoder SunSpecPhaseOneDecoder) Activate(activation SunSpecPhaseOneActivation) (SunSpecPhaseOneObservation, error) {
-	raw := activation.RawWords
-	if raw == nil {
-		raw = activation.Chain.raw
+	if !activation.Chain.valid {
+		return SunSpecPhaseOneObservation{}, fmt.Errorf("SunSpec chain was not parsed")
 	}
-	if !activation.Chain.valid || !bytes.Equal(wordsToBytes(activation.Chain.raw), wordsToBytes(raw)) {
+	raw, views, err := validateSunSpecCapture(activation.Capture)
+	if err != nil {
+		return SunSpecPhaseOneObservation{}, err
+	}
+	if !slices.Equal(activation.Chain.raw, raw) ||
+		(activation.RawWords != nil && !slices.Equal(activation.RawWords, raw)) {
 		return SunSpecPhaseOneObservation{}, fmt.Errorf("SunSpec chain does not match raw words")
 	}
 	observation, err := buildObservation(decoder.profile, activation.Observation)
 	if err != nil {
 		return SunSpecPhaseOneObservation{}, err
 	}
-	encoded := []byte(fmt.Sprintf("%#v", observation.Spec()))
-	key := sha256.Sum256(wordsToBytes(raw))
-	decoder.bindings.mu.Lock()
-	defer decoder.bindings.mu.Unlock()
-	if prior, exists := decoder.bindings.values[key]; exists {
-		if !bytes.Equal(prior, encoded) {
-			return SunSpecPhaseOneObservation{}, fmt.Errorf("SunSpec raw chain provenance is mismatched")
-		}
-		return SunSpecPhaseOneObservation{observation: observation, raw: append([]uint16(nil), raw...)}, nil
+	if err := bindSunSpecObservation(decoder.profile, observation.Spec(), views); err != nil {
+		return SunSpecPhaseOneObservation{}, err
 	}
-	if len(decoder.bindings.values) >= 64 {
-		return SunSpecPhaseOneObservation{}, fmt.Errorf("SunSpec retained binding limit reached")
-	}
-	decoder.bindings.values[key] = append([]byte(nil), encoded...)
-	return SunSpecPhaseOneObservation{observation: observation, raw: append([]uint16(nil), raw...)}, nil
+	return SunSpecPhaseOneObservation{
+		observation: observation,
+		raw:         append([]uint16(nil), raw...),
+		views:       cloneSunSpecViews(views),
+	}, nil
 }
 
-func wordsToBytes(words []uint16) []byte {
-	result := make([]byte, len(words)*2)
-	for index, word := range words {
-		result[index*2], result[index*2+1] = byte(word>>8), byte(word)
+func validateSunSpecCapture(capture SunSpecPhaseOneCapture) ([]uint16, []LogicalViewSnapshot, error) {
+	if len(capture.SourceViews) == 0 || len(capture.SourceViews) > MaxSunSpecPhaseOneChainWords {
+		return nil, nil, fmt.Errorf("SunSpec source-view count is invalid")
+	}
+	views := cloneSunSpecViews(capture.SourceViews)
+	first := views[0].Record()
+	expectedOffset := uint32(40000)
+	raw := make([]uint16, 0, MaxSunSpecPhaseOneChainWords)
+	logicalIDs := make(map[uint64]struct{}, len(views))
+	type physicalIdentity struct {
+		wireResponseID, connectionID, transportGeneration uint64
+		function                                          FunctionCode
+		table                                             LogicalTable
+		offset, count                                     uint16
+	}
+	physicalIDs := make(map[uint64]physicalIdentity, len(views))
+	type wireIdentity struct {
+		physicalRequestID uint64
+		responseBytes     []byte
+	}
+	wireIDs := make(map[uint64]wireIdentity, len(views))
+	for index, view := range views {
+		if !view.valid {
+			return nil, nil, fmt.Errorf("SunSpec source view %d is invalid", index)
+		}
+		record := view.Record()
+		if uint32(record.LogicalOffset) != expectedOffset ||
+			record.Table != HoldingRegisters ||
+			record.RequestedFunction != FunctionReadHoldingRegisters ||
+			record.ReceivedFunction != FunctionReadHoldingRegisters ||
+			record.Endpoint != first.Endpoint || record.UnitID != first.UnitID ||
+			record.PollGeneration != first.PollGeneration ||
+			record.Transport != first.Transport ||
+			record.TransportGeneration != first.TransportGeneration ||
+			record.ConnectionID != first.ConnectionID ||
+			record.AuthorizationScope != first.AuthorizationScope {
+			return nil, nil, fmt.Errorf("SunSpec source views are detached or incoherent")
+		}
+		if _, duplicate := logicalIDs[record.LogicalViewID]; duplicate {
+			return nil, nil, fmt.Errorf("SunSpec logical-view identity is duplicated")
+		}
+		logicalIDs[record.LogicalViewID] = struct{}{}
+		physical := physicalIdentity{
+			wireResponseID: record.WireResponseID, connectionID: record.ConnectionID,
+			transportGeneration: record.TransportGeneration, function: record.RequestedFunction,
+			table: record.Table, offset: record.PhysicalOffset, count: record.PhysicalWordCount,
+		}
+		if prior, exists := physicalIDs[record.PhysicalRequestID]; exists && prior != physical {
+			return nil, nil, fmt.Errorf("SunSpec physical-request identity is contradictory")
+		}
+		physicalIDs[record.PhysicalRequestID] = physical
+		if prior, exists := wireIDs[record.WireResponseID]; exists {
+			if prior.physicalRequestID != record.PhysicalRequestID ||
+				!slices.Equal(prior.responseBytes, record.WireResponseBytes) {
+				return nil, nil, fmt.Errorf("SunSpec wire-response identity is contradictory")
+			}
+		}
+		wireIDs[record.WireResponseID] = wireIdentity{
+			physicalRequestID: record.PhysicalRequestID,
+			responseBytes:     append([]byte(nil), record.WireResponseBytes...),
+		}
+		if len(raw)+len(record.Words) > MaxSunSpecPhaseOneChainWords {
+			return nil, nil, fmt.Errorf("SunSpec source views exceed the raw bound")
+		}
+		raw = append(raw, record.Words...)
+		expectedOffset += uint32(record.LogicalWordCount)
+	}
+	return raw, views, nil
+}
+
+func bindSunSpecObservation(profile ProfileDescriptor, spec ObservationSpec, views []LogicalViewSnapshot) error {
+	if len(spec.Dependencies) != 1 || len(views) == 0 {
+		return fmt.Errorf("SunSpec observation has no exact base source view")
+	}
+	dependency := profile.Dependencies().Dependencies()[0]
+	result := spec.Dependencies[0]
+	if result.DependencyID != dependency.ID() ||
+		result.DependencyVersion != dependency.Version() ||
+		result.CodecID != dependency.CodecID() ||
+		result.CodecVersion != dependency.CodecVersion() ||
+		result.NormalizationVersion != dependency.Normalization().Spec().Version ||
+		!reflect.DeepEqual(result.View.Record(), views[0].Record()) {
+		return fmt.Errorf("SunSpec observation base view is detached from capture")
+	}
+	first := views[0].Record()
+	if spec.Endpoint != first.Endpoint || spec.UnitID != first.UnitID ||
+		spec.PollGenerationID != first.PollGeneration ||
+		first.LogicalOffset != dependency.Normalization().ResolvedPDUOffset() ||
+		first.LogicalWordCount != dependency.WordCount() {
+		return fmt.Errorf("SunSpec observation provenance disagrees with capture")
+	}
+	return nil
+}
+
+func cloneSunSpecViews(values []LogicalViewSnapshot) []LogicalViewSnapshot {
+	result := make([]LogicalViewSnapshot, len(values))
+	for index, value := range values {
+		result[index], _ = NewLogicalViewSnapshot(value.Record())
 	}
 	return result
 }

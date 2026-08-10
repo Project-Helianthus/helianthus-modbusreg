@@ -13,17 +13,21 @@ register discovery at PDU offset `40000`, the normalized form of documentary
 register `40001`. No write or control operation is exported.
 
 `Parse` accepts a bounded raw image (at most 512 words), requires the `SunS`
-signature and a zero-length end marker, and validates every declared extent.
+signature, Common model 1 first and exactly once, and a zero-length end marker
+that consumes all input. It validates every declared extent.
 It semantically exposes models 1, 101, 102, and 103; it structurally skips
 unknown models only after their bounds validate; and it explicitly rejects the
 deferred model families. `Int16`, `Acc32`, `ScaleFactor`, and `String` encode
 the phase-one signedness, high-word ordering, scale-factor range/sentinel, and
 first-NUL fixed-width string rules.
 
-`Activate` does not rebuild observations. It passes the caller-provided
-`ObservationSpec` into the existing immutable admission path, so sample, poll,
-dependency, wire/logical view, timing, version, and coherence facts remain
-validated and retained exactly.
+`Activate` is stateless across polls. Each call takes a
+`SunSpecPhaseOneCapture` containing ordered `LogicalViewSnapshot` source views,
+derives the exact raw chain from contiguous FC03 views beginning at offset
+`40000`, and requires the observation dependency to be the exact captured base
+view. It then passes the caller-provided `ObservationSpec` into the existing
+immutable admission path, so sample, poll, dependency, wire/logical view,
+timing, version, and coherence facts remain validated and retained exactly.
 
 ## Evidence, limits, and rollback
 

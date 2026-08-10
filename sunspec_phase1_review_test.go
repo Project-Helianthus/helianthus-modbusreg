@@ -187,7 +187,7 @@ func TestSunSpecPhaseOneRejectsTrailingWordsAndInvalidCommonOrder(t *testing.T) 
 		t.Fatal("chain with words after the terminal marker was accepted")
 	}
 	for _, words := range [][]uint16{
-		reviewRawChainWithLength(101, 50),
+		append(append([]uint16{0x5375, 0x6e53, 101, 50}, make([]uint16, 50)...), 0xffff, 0),
 		sunSpecWords(1, 65, 1, 65, 0xffff, 0),
 		sunSpecWords(666, 3, 1, 65, 0xffff, 0),
 	} {
@@ -230,6 +230,9 @@ func reviewRawChain(ids ...uint16) []uint16 {
 }
 
 func reviewRawChainWithLength(id, length uint16) []uint16 {
+	if id != 1 {
+		return sunSpecWords(1, 65, id, length, 0xffff, 0)
+	}
 	return append(append([]uint16{0x5375, 0x6e53, id, length}, make([]uint16, length)...), 0xffff, 0)
 }
 
@@ -248,6 +251,8 @@ func reviewCapture(t *testing.T, profile reg.ProfileDescriptor, raw []uint16, po
 	makeView := func(id uint64, offset uint16, words []uint16) reg.LogicalViewSnapshot {
 		record := logicalViewRecord(id, offset, 0, words)
 		record.Endpoint, record.UnitID, record.PollGeneration = "fixture:source", 7, poll
+		record.RequestedFunction, record.ReceivedFunction = reg.FunctionReadHoldingRegisters, reg.FunctionReadHoldingRegisters
+		record.Table = reg.HoldingRegisters
 		record.Transport, record.TransportGeneration = transport, 19
 		record.ConnectionID = 23
 		if transport == reg.TransportRTU {
