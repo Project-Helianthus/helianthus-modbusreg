@@ -84,16 +84,47 @@ func TestFMV3M303CompletionDispositionSetIsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCurrentFMV3M303CompletionRecord: %v", err)
 	}
+	if current.Disposition() != reg.CompletionDispositionStandardOnly {
+		t.Fatalf("canonical disposition = %q", current.Disposition())
+	}
 	overlayRequired := current.Spec()
 	overlayRequired.Disposition = reg.CompletionDispositionOverlayRequired
 	overlayRequired.OverlayPresent = true
-	if _, err := reg.NewFMV3M303CompletionRecord(overlayRequired); err != nil {
-		t.Fatalf("closed schema value OVERLAY_REQUIRED was rejected: %v", err)
-	}
-	overlayRequired.Disposition = reg.CompletionDisposition("OTHER")
-	if _, err := reg.NewFMV3M303CompletionRecord(overlayRequired); err == nil {
+	t.Run("constructor", func(t *testing.T) {
+		if _, err := reg.NewFMV3M303CompletionRecord(overlayRequired); err == nil {
+			t.Fatal("current evidence contract represented OVERLAY_REQUIRED")
+		}
+	})
+	unknown := overlayRequired
+	unknown.Disposition = reg.CompletionDisposition("OTHER")
+	if _, err := reg.NewFMV3M303CompletionRecord(unknown); err == nil {
 		t.Fatal("unknown disposition was accepted")
 	}
+
+	golden, err := os.ReadFile("testdata/fmv3-m3-03-completion-v2.json")
+	if err != nil {
+		t.Fatalf("ReadFile(golden): %v", err)
+	}
+	fabricated := bytes.Replace(
+		golden,
+		[]byte(`"disposition":"STANDARD_ONLY"`),
+		[]byte(`"disposition":"OVERLAY_REQUIRED"`),
+		1,
+	)
+	fabricated = bytes.Replace(
+		fabricated,
+		[]byte(`"overlay_present":false`),
+		[]byte(`"overlay_present":true`),
+		1,
+	)
+	if bytes.Equal(fabricated, golden) {
+		t.Fatal("OVERLAY_REQUIRED JSON mutation did not apply")
+	}
+	t.Run("JSON unmarshal", func(t *testing.T) {
+		if _, err := reg.UnmarshalFMV3M303CompletionRecord(fabricated); err == nil {
+			t.Fatal("current evidence contract unmarshaled fabricated OVERLAY_REQUIRED")
+		}
+	})
 }
 
 func TestFMV3M303CompletionUsesDefensiveCopies(t *testing.T) {
