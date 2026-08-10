@@ -795,9 +795,11 @@ type fixtureRecordDTO struct {
 }
 
 func MarshalFixtureConformanceCorpusSpec(spec FixtureConformanceCorpusSpec) ([]byte, error) {
-	if _, err := NewFixtureConformanceCorpus(spec); err != nil {
+	corpus, err := NewFixtureConformanceCorpus(spec)
+	if err != nil {
 		return nil, err
 	}
+	spec = corpus.Spec()
 	metadata, err := json.Marshal(spec.Metadata)
 	if err != nil {
 		return nil, err

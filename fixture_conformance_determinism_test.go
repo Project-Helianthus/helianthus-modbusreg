@@ -66,6 +66,45 @@ func TestM203CorpusReplayIsDeterministicAcrossRealPermutationsAndConcurrentRuns(
 	}
 }
 
+func TestM203CorpusSpecMarshalIsCanonicalAcrossIndependentPermutations(t *testing.T) {
+	baseline := m203SyntheticCorpus(t)
+	baselineEncoded, err := reg.MarshalFixtureConformanceCorpusSpec(baseline)
+	if err != nil {
+		t.Fatalf("MarshalFixtureConformanceCorpusSpec(baseline): %v", err)
+	}
+
+	permuted := m203SyntheticCorpus(t)
+	permuted.Profiles[0], permuted.Profiles[1] = permuted.Profiles[1], permuted.Profiles[0]
+	permuted.Records[0], permuted.Records[1] = permuted.Records[1], permuted.Records[0]
+	permutedEncoded, err := reg.MarshalFixtureConformanceCorpusSpec(permuted)
+	if err != nil {
+		t.Fatalf("MarshalFixtureConformanceCorpusSpec(permuted): %v", err)
+	}
+	if !bytes.Equal(permutedEncoded, baselineEncoded) {
+		t.Fatalf("permuted corpus spec = %s; want byte-identical canonical encoding %s", permutedEncoded, baselineEncoded)
+	}
+
+	baselineCorpus, err := reg.UnmarshalFixtureConformanceCorpus(baselineEncoded)
+	if err != nil {
+		t.Fatalf("UnmarshalFixtureConformanceCorpus(baseline): %v", err)
+	}
+	permutedCorpus, err := reg.UnmarshalFixtureConformanceCorpus(permutedEncoded)
+	if err != nil {
+		t.Fatalf("UnmarshalFixtureConformanceCorpus(permuted): %v", err)
+	}
+	baselineReport, err := baselineCorpus.MarshalBoundedReport()
+	if err != nil {
+		t.Fatalf("MarshalBoundedReport(baseline): %v", err)
+	}
+	permutedReport, err := permutedCorpus.MarshalBoundedReport()
+	if err != nil {
+		t.Fatalf("MarshalBoundedReport(permuted): %v", err)
+	}
+	if !bytes.Equal(permutedReport, baselineReport) {
+		t.Fatalf("permuted replay report = %s; want byte-identical canonical report %s", permutedReport, baselineReport)
+	}
+}
+
 func TestM203BoundedReportCarriesConformanceEvidence(t *testing.T) {
 	corpus, err := reg.NewFixtureConformanceCorpus(m203SyntheticCorpus(t))
 	if err != nil {
