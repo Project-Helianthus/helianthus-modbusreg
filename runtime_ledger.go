@@ -69,18 +69,20 @@ type LedgerAuditTombstone struct {
 	SchemaVersion           int                   `json:"schema_version"`
 	ObjectKind              LedgerAuditObjectKind `json:"object_kind"`
 	TerminalSequence        uint64                `json:"terminal_sequence"`
+	ClaimCount              uint64                `json:"claim_count,omitempty"`
 	AttemptTerminalSequence uint64                `json:"attempt_terminal_sequence,omitempty"`
 	ClaimOrdinal            uint64                `json:"claim_ordinal,omitempty"`
 	TerminalOutcome         string                `json:"terminal_outcome"`
 }
 
 const maxLedgerAuditTombstoneJSONBytes = 256
-const maxLedgerRestartAuditTombstones = 1 << 20
+const maxLedgerRestartAuditTombstones = MaxSerializedContractBytes / 64
 
 type attemptAuditTombstoneDTO struct {
 	SchemaVersion    int                   `json:"schema_version"`
 	ObjectKind       LedgerAuditObjectKind `json:"object_kind"`
 	TerminalSequence uint64                `json:"terminal_sequence"`
+	ClaimCount       uint64                `json:"claim_count"`
 	TerminalOutcome  string                `json:"terminal_outcome"`
 }
 
@@ -98,13 +100,14 @@ func validateLedgerAuditTombstone(tombstone LedgerAuditTombstone) error {
 	case LedgerAuditAttempt:
 		if !validAttemptTerminalOutcome(AttemptPhase(tombstone.TerminalOutcome)) ||
 			tombstone.SchemaVersion != 1 || tombstone.TerminalSequence == 0 ||
+			tombstone.ClaimCount == 0 ||
 			tombstone.AttemptTerminalSequence != 0 || tombstone.ClaimOrdinal != 0 {
 			return fmt.Errorf("attempt audit tombstone is invalid")
 		}
 	case LedgerAuditClaim:
 		if !validClaimOutcome(ClaimOutcome(tombstone.TerminalOutcome)) ||
 			tombstone.SchemaVersion != 1 || tombstone.TerminalSequence == 0 ||
-			tombstone.AttemptTerminalSequence == 0 {
+			tombstone.AttemptTerminalSequence == 0 || tombstone.ClaimCount != 0 {
 			return fmt.Errorf("claim audit tombstone is invalid")
 		}
 	default:
@@ -123,6 +126,7 @@ func (tombstone LedgerAuditTombstone) MarshalJSON() ([]byte, error) {
 			SchemaVersion:    1,
 			ObjectKind:       LedgerAuditAttempt,
 			TerminalSequence: tombstone.TerminalSequence,
+			ClaimCount:       tombstone.ClaimCount,
 			TerminalOutcome:  tombstone.TerminalOutcome,
 		})
 	case LedgerAuditClaim:
@@ -163,6 +167,7 @@ func (tombstone *LedgerAuditTombstone) UnmarshalJSON(data []byte) error {
 			SchemaVersion:    record.SchemaVersion,
 			ObjectKind:       record.ObjectKind,
 			TerminalSequence: record.TerminalSequence,
+			ClaimCount:       record.ClaimCount,
 			TerminalOutcome:  record.TerminalOutcome,
 		}
 	case LedgerAuditClaim:
@@ -170,7 +175,14 @@ func (tombstone *LedgerAuditTombstone) UnmarshalJSON(data []byte) error {
 		if err := decodeStrict(data, &record); err != nil {
 			return err
 		}
-		decoded = LedgerAuditTombstone(record)
+		decoded = LedgerAuditTombstone{
+			SchemaVersion:           record.SchemaVersion,
+			ObjectKind:              record.ObjectKind,
+			TerminalSequence:        record.TerminalSequence,
+			AttemptTerminalSequence: record.AttemptTerminalSequence,
+			ClaimOrdinal:            record.ClaimOrdinal,
+			TerminalOutcome:         record.TerminalOutcome,
+		}
 	default:
 		return fmt.Errorf("ledger audit tombstone kind is invalid")
 	}
@@ -192,20 +204,38 @@ type LedgerRestartState struct {
 }
 
 // CoversTerminalWatermark reports whether restart prevents reuse of every
-// terminal sequence already covered by prior. Audit retention is not compared.
+// terminal sequence already covered by prior without contradicting any
+// overlapping retained history. History fully below restart's truncation
+// watermark is intentionally non-reconstructing and needs no comparison.
 func (restart LedgerRestartState) CoversTerminalWatermark(
 	prior LedgerRestartState,
 ) bool {
-	if restart.SchemaVersion != 1 || prior.SchemaVersion != 1 {
+	limits := maximumLedgerRestartValidationLimits()
+	if validateLedgerRestartState(restart, limits) != nil ||
+		validateLedgerRestartState(prior, limits) != nil {
 		return false
 	}
-	if restart.SequenceExhausted {
-		return true
-	}
-	if prior.SequenceExhausted {
+	if prior.SequenceExhausted && !restart.SequenceExhausted {
 		return false
 	}
-	return restart.NextTerminalSequence >= prior.NextTerminalSequence
+	if !restart.SequenceExhausted && !prior.SequenceExhausted &&
+		restart.NextTerminalSequence < prior.NextTerminalSequence {
+		return false
+	}
+	current := make(map[uint64]LedgerAuditTombstone, len(restart.AuditTombstones))
+	for _, tombstone := range restart.AuditTombstones {
+		current[tombstone.TerminalSequence] = tombstone
+	}
+	for _, tombstone := range prior.AuditTombstones {
+		if tombstone.TerminalSequence <= restart.TruncatedThroughSequence {
+			continue
+		}
+		candidate, exists := current[tombstone.TerminalSequence]
+		if !exists || candidate != tombstone {
+			return false
+		}
+	}
+	return true
 }
 
 type ledgerRestartStateDTO struct {
@@ -232,7 +262,7 @@ func (restart LedgerRestartState) MarshalJSON() ([]byte, error) {
 	); err != nil {
 		return nil, err
 	}
-	return json.Marshal(ledgerRestartStateDTO{
+	return marshalBounded(ledgerRestartStateDTO{
 		SchemaVersion:            restart.SchemaVersion,
 		NextTerminalSequence:     restart.NextTerminalSequence,
 		SequenceExhausted:        restart.SequenceExhausted,
@@ -355,6 +385,12 @@ func newSampleLedger(
 	if err := validateLedgerLimits(limits); err != nil {
 		return nil, err
 	}
+	const restartEnvelopeBudget = 512
+	perTombstoneBudget := limits.AuditTombstoneMaxEncodedBytes + 1
+	if limits.AuditTombstoneLimit >
+		(MaxSerializedContractBytes-restartEnvelopeBudget)/perTombstoneBudget {
+		return nil, fmt.Errorf("ledger audit limits exceed the aggregate serialization bound")
+	}
 	if err := validateLargestLedgerTombstones(limits); err != nil {
 		return nil, err
 	}
@@ -462,7 +498,6 @@ func validateLedgerRestartState(
 		return fmt.Errorf("ledger restart history follows an exhausted truncation watermark")
 	}
 	var previous uint64
-	attemptSequences := make([]uint64, 0, len(restart.AuditTombstones))
 	tombstoneBySequence := make(
 		map[uint64]LedgerAuditTombstone,
 		len(restart.AuditTombstones),
@@ -477,65 +512,82 @@ func validateLedgerRestartState(
 			return fmt.Errorf("ledger restart tombstone is invalid")
 		}
 		tombstoneBySequence[tombstone.TerminalSequence] = tombstone
-		if tombstone.ObjectKind == LedgerAuditAttempt {
-			attemptSequences = append(attemptSequences, tombstone.TerminalSequence)
-		}
 		previous = tombstone.TerminalSequence
 	}
 	if previous != endSequence {
 		return fmt.Errorf("ledger restart history does not end at the watermark")
 	}
 	lastClaimOrdinal := make(map[uint64]uint64)
+	for index, tombstone := range restart.AuditTombstones {
+		switch tombstone.ObjectKind {
+		case LedgerAuditClaim:
+			if tombstone.ClaimOrdinal >= uint64(limits.MaxClaimEntriesPerAttempt) ||
+				tombstone.ClaimOrdinal == math.MaxUint64 {
+				return fmt.Errorf("ledger restart claim ordinal is invalid")
+			}
+			offset := tombstone.ClaimOrdinal + 1
+			if tombstone.AttemptTerminalSequence > math.MaxUint64-offset ||
+				tombstone.TerminalSequence != tombstone.AttemptTerminalSequence+offset {
+				return fmt.Errorf("ledger restart claim sequence is invalid")
+			}
+			if target, exists := tombstoneBySequence[tombstone.AttemptTerminalSequence]; tombstone.AttemptTerminalSequence > restart.TruncatedThroughSequence &&
+				(!exists || target.ObjectKind != LedgerAuditAttempt) {
+				return fmt.Errorf("ledger restart claim target is not an attempt")
+			}
+			if prior, exists := lastClaimOrdinal[tombstone.AttemptTerminalSequence]; exists {
+				if prior == math.MaxUint64 || tombstone.ClaimOrdinal != prior+1 {
+					return fmt.Errorf("ledger restart claim ordinals are not contiguous")
+				}
+			} else if tombstone.AttemptTerminalSequence >
+				restart.TruncatedThroughSequence && tombstone.ClaimOrdinal != 0 {
+				return fmt.Errorf("ledger restart retained attempt lacks its first claim")
+			}
+			lastClaimOrdinal[tombstone.AttemptTerminalSequence] = tombstone.ClaimOrdinal
+		case LedgerAuditAttempt:
+			if tombstone.ClaimCount > uint64(limits.MaxClaimEntriesPerAttempt) ||
+				tombstone.ClaimCount > math.MaxUint64-tombstone.TerminalSequence {
+				return fmt.Errorf("ledger restart attempt claim count is invalid")
+			}
+			if tombstone.TerminalSequence+tombstone.ClaimCount > endSequence ||
+				index+int(tombstone.ClaimCount) >= len(restart.AuditTombstones) {
+				return fmt.Errorf("ledger restart attempt claim interval is incomplete")
+			}
+			for ordinal := uint64(0); ordinal < tombstone.ClaimCount; ordinal++ {
+				claim := restart.AuditTombstones[index+int(ordinal)+1]
+				if claim.ObjectKind != LedgerAuditClaim ||
+					claim.AttemptTerminalSequence != tombstone.TerminalSequence ||
+					claim.ClaimOrdinal != ordinal ||
+					claim.TerminalSequence != tombstone.TerminalSequence+ordinal+1 {
+					return fmt.Errorf("ledger restart attempt claim interval is invalid")
+				}
+				if (tombstone.TerminalOutcome == string(AttemptPublished) ||
+					tombstone.TerminalOutcome == string(AttemptPublishFailed)) &&
+					claim.TerminalOutcome != string(ClaimSucceeded) {
+					return fmt.Errorf("ledger restart publication has an impossible claim outcome")
+				}
+			}
+		default:
+			return fmt.Errorf("ledger restart tombstone kind is invalid")
+		}
+	}
 	for _, tombstone := range restart.AuditTombstones {
 		if tombstone.ObjectKind != LedgerAuditClaim {
 			continue
 		}
-		if tombstone.ClaimOrdinal >= uint64(limits.MaxClaimEntriesPerAttempt) ||
-			tombstone.ClaimOrdinal == math.MaxUint64 {
-			return fmt.Errorf("ledger restart claim ordinal is invalid")
-		}
-		offset := tombstone.ClaimOrdinal + 1
-		if tombstone.AttemptTerminalSequence > math.MaxUint64-offset ||
-			tombstone.TerminalSequence != tombstone.AttemptTerminalSequence+offset {
-			return fmt.Errorf("ledger restart claim sequence is invalid")
-		}
-		if tombstone.AttemptTerminalSequence >
-			restart.TruncatedThroughSequence {
-			target, exists := tombstoneBySequence[tombstone.AttemptTerminalSequence]
-			if !exists || target.ObjectKind != LedgerAuditAttempt {
-				return fmt.Errorf("ledger restart claim target is not an attempt")
-			}
-		}
-		if prior, exists := lastClaimOrdinal[tombstone.AttemptTerminalSequence]; exists {
-			if prior == math.MaxUint64 || tombstone.ClaimOrdinal != prior+1 {
-				return fmt.Errorf("ledger restart claim ordinals are not contiguous")
-			}
-		} else if tombstone.AttemptTerminalSequence >
-			restart.TruncatedThroughSequence && tombstone.ClaimOrdinal != 0 {
-			return fmt.Errorf("ledger restart retained attempt lacks its first claim")
-		}
-		lastClaimOrdinal[tombstone.AttemptTerminalSequence] = tombstone.ClaimOrdinal
-		laterAttempt := sort.Search(len(attemptSequences), func(index int) bool {
-			return attemptSequences[index] > tombstone.AttemptTerminalSequence
-		})
-		if laterAttempt < len(attemptSequences) &&
-			attemptSequences[laterAttempt] <= tombstone.TerminalSequence {
-			return fmt.Errorf("ledger restart claim reservation overlaps a later attempt")
+		if target, exists := tombstoneBySequence[tombstone.AttemptTerminalSequence]; exists &&
+			target.ObjectKind == LedgerAuditAttempt &&
+			tombstone.ClaimOrdinal >= target.ClaimCount {
+			return fmt.Errorf("ledger restart claim exceeds its reservation")
 		}
 	}
-	for index, tombstone := range restart.AuditTombstones {
-		if tombstone.ObjectKind != LedgerAuditAttempt {
-			continue
-		}
-		if index+1 >= len(restart.AuditTombstones) {
-			return fmt.Errorf("ledger restart attempt has no retained claim interval")
-		}
-		firstClaim := restart.AuditTombstones[index+1]
-		if firstClaim.ObjectKind != LedgerAuditClaim ||
-			firstClaim.AttemptTerminalSequence != tombstone.TerminalSequence ||
-			firstClaim.ClaimOrdinal != 0 {
-			return fmt.Errorf("ledger restart attempt claim interval is invalid")
-		}
+	if _, err := marshalBounded(ledgerRestartStateDTO{
+		SchemaVersion:            restart.SchemaVersion,
+		NextTerminalSequence:     restart.NextTerminalSequence,
+		SequenceExhausted:        restart.SequenceExhausted,
+		TruncatedThroughSequence: restart.TruncatedThroughSequence,
+		AuditTombstones:          nonNilLedgerAuditTombstones(restart.AuditTombstones),
+	}); err != nil {
+		return fmt.Errorf("ledger restart aggregate: %w", err)
 	}
 	return nil
 }
@@ -546,6 +598,7 @@ func validateLargestLedgerTombstones(limits LedgerLimits) error {
 			SchemaVersion:    1,
 			ObjectKind:       LedgerAuditAttempt,
 			TerminalSequence: math.MaxUint64,
+			ClaimCount:       uint64(limits.MaxClaimEntriesPerAttempt),
 			TerminalOutcome:  string(AttemptPublishFailed),
 		},
 		{
@@ -716,6 +769,7 @@ type PublicationCommitRequest struct {
 	PublishedRestartState LedgerRestartState
 	Attempt               PublishedAttemptV1
 	Observation           Observation
+	ObservationBytes      []byte
 }
 
 // TerminalStateCommitRequest durably records a nonpublished terminal outcome
@@ -772,11 +826,21 @@ type RuntimeAttemptRequest struct {
 // ObservationFactory binds production attempts to one profile, ledger, and
 // transactional publication boundary.
 type ObservationFactory struct {
-	profile             ProfileDescriptor
-	ledger              *SampleLedger
-	committer           PublicationCommitter
-	dependencySetDigest string
-	dependencyBytes     []byte
+	profile               ProfileDescriptor
+	ledger                *SampleLedger
+	committer             PublicationCommitter
+	dependencySetDigest   string
+	dependencyBytes       []byte
+	terminalCommitTimeout time.Duration
+}
+
+// DefaultTerminalCommitTimeout bounds every nonpublication terminal commit.
+const DefaultTerminalCommitTimeout = 5 * time.Second
+
+// ObservationFactoryOptions controls bounded transactional behavior without
+// changing the public attempt lifecycle.
+type ObservationFactoryOptions struct {
+	TerminalCommitTimeout time.Duration
 }
 
 // NewObservationFactory activates production ingestion. Fixture replay uses
@@ -786,8 +850,27 @@ func NewObservationFactory(
 	ledger *SampleLedger,
 	committer PublicationCommitter,
 ) (*ObservationFactory, error) {
+	return NewObservationFactoryWithOptions(
+		profile,
+		ledger,
+		committer,
+		ObservationFactoryOptions{TerminalCommitTimeout: DefaultTerminalCommitTimeout},
+	)
+}
+
+// NewObservationFactoryWithOptions activates production ingestion with an
+// explicit finite nonpublication terminal-commit deadline.
+func NewObservationFactoryWithOptions(
+	profile ProfileDescriptor,
+	ledger *SampleLedger,
+	committer PublicationCommitter,
+	options ObservationFactoryOptions,
+) (*ObservationFactory, error) {
 	if ledger == nil || committer == nil {
 		return nil, fmt.Errorf("observation factory requires a ledger and publication committer")
+	}
+	if options.TerminalCommitTimeout <= 0 || options.TerminalCommitTimeout > time.Minute {
+		return nil, fmt.Errorf("terminal commit timeout must be finite and positive")
 	}
 	copy, err := NewProfileDescriptor(profile.Spec())
 	if err != nil {
@@ -823,11 +906,12 @@ func NewObservationFactory(
 		return nil, err
 	}
 	return &ObservationFactory{
-		profile:             copy,
-		ledger:              ledger,
-		committer:           committer,
-		dependencySetDigest: digest,
-		dependencyBytes:     encoded,
+		profile:               copy,
+		ledger:                ledger,
+		committer:             committer,
+		dependencySetDigest:   digest,
+		dependencyBytes:       encoded,
+		terminalCommitTimeout: options.TerminalCommitTimeout,
 	}, nil
 }
 
@@ -890,33 +974,37 @@ type runtimeClaimEntry struct {
 }
 
 type runtimeAttemptState struct {
-	mu                  sync.Mutex
-	cond                *sync.Cond
-	factory             *ObservationFactory
-	key                 string
-	identity            AttemptIdentity
-	phase               AttemptPhase
-	terminalSequence    uint64
-	entries             []runtimeClaimEntry
-	inProgressClaims    int
-	source              *modbus.RuntimeAcquisitionSource
-	producerAttempt     *modbus.RuntimeAttempt
-	instance            modbus.RuntimeAttemptInstance
-	admitted            bool
-	acquisitions        []modbus.RuntimeAcquisition
-	issued              []bool
-	observationFacts    RuntimeObservationFacts
-	dependencyFacts     []RuntimeDependencyFacts
-	diagnostics         []string
-	template            Observation
-	publishCancel       context.CancelFunc
-	publishAbort        chan struct{}
-	publishAbortClosed  bool
-	restartCommitted    bool
-	sourceDrainMu       sync.Mutex
-	sourceDrainComplete bool
-	sourceDrainErr      error
-	cancelOpen          func() error
+	mu                       sync.Mutex
+	cond                     *sync.Cond
+	factory                  *ObservationFactory
+	key                      string
+	identity                 AttemptIdentity
+	phase                    AttemptPhase
+	terminalSequence         uint64
+	entries                  []runtimeClaimEntry
+	inProgressClaims         int
+	source                   *modbus.RuntimeAcquisitionSource
+	producerAttempt          *modbus.RuntimeAttempt
+	instance                 modbus.RuntimeAttemptInstance
+	admitted                 bool
+	acquisitions             []modbus.RuntimeAcquisition
+	issued                   []bool
+	observationFacts         RuntimeObservationFacts
+	dependencyFacts          []RuntimeDependencyFacts
+	diagnostics              []string
+	template                 Observation
+	publishCancel            context.CancelFunc
+	publishAbort             chan struct{}
+	publishAbortClosed       bool
+	restartCommitted         bool
+	terminalOutcome          AttemptPhase
+	terminalCommitInProgress bool
+	terminalPersistenceErr   error
+	terminalWaiters          int
+	sourceDrainMu            sync.Mutex
+	sourceDrainComplete      bool
+	sourceDrainErr           error
+	cancelOpen               func() error
 }
 
 // ObservationAttempt is a shared pointer view of one bounded ledger attempt.
@@ -1077,12 +1165,14 @@ func (attempt *ObservationAttempt) Admit() error {
 	state.producerAttempt = nil
 	if err != nil {
 		state.cancelUnresolvedLocked()
-		state.phase = AttemptCancelled
+		state.phase = AttemptCancelling
 		state.source = nil
-		state.cond.Broadcast()
 		state.mu.Unlock()
-		state.factory.ledger.reclaimTerminalAttempt(state, AttemptCancelled)
-		return fmt.Errorf("close retained producer runtime attempt: %w", err)
+		cause := fmt.Errorf("close retained producer runtime attempt: %w", err)
+		if terminalErr := attempt.finishCancellation(AttemptCancelFailed); terminalErr != nil {
+			return fmt.Errorf("%v; terminal persistence: %w", cause, terminalErr)
+		}
+		return cause
 	}
 	state.instance = instance
 	state.admitted = true
@@ -1108,7 +1198,15 @@ func (attempt *ObservationAttempt) Admit() error {
 	state.acquisitions = retained
 	state.mu.Unlock()
 	if drainErr := state.drainSource(); drainErr != nil {
-		_ = attempt.finishCancellation(AttemptCancelFailed)
+		terminalErr := attempt.finishCancellation(AttemptCancelFailed)
+		if terminalErr != nil {
+			return fmt.Errorf(
+				"runtime admission validation failed (%v), source drain failed (%v), and terminal persistence failed: %w",
+				validationErr,
+				drainErr,
+				terminalErr,
+			)
+		}
 		return fmt.Errorf(
 			"runtime admission validation failed (%v) and source drain failed: %w",
 			validationErr,
@@ -1497,18 +1595,7 @@ func (attempt *ObservationAttempt) finishCancellation(outcome AttemptPhase) erro
 		state.cancelUnresolvedLocked()
 	}
 	state.mu.Unlock()
-	commitErr := attempt.commitTerminalState(outcome)
-	state.mu.Lock()
-	if state.phase == AttemptCancelling {
-		state.phase = outcome
-	}
-	factory := state.factory
-	state.cond.Broadcast()
-	state.mu.Unlock()
-	if factory != nil {
-		factory.ledger.reclaimTerminalAttempt(state, outcome)
-	}
-	return commitErr
+	return attempt.persistTerminalOutcome(outcome)
 }
 
 // Cancel performs the one-shot claim drain and exact producer cancellation.
@@ -1518,6 +1605,7 @@ func (attempt *ObservationAttempt) Cancel() (CancellationResult, error) {
 	}
 	state := attempt.state
 	state.mu.Lock()
+	waitedForPersistence := false
 	for {
 		switch state.phase {
 		case AttemptPublished:
@@ -1533,6 +1621,19 @@ func (attempt *ObservationAttempt) Cancel() (CancellationResult, error) {
 			state.mu.Unlock()
 			return CancellationCompleted, nil
 		case AttemptPublishing:
+			if state.terminalPersistenceErr != nil {
+				persistenceErr := state.terminalPersistenceErr
+				outcome := state.terminalOutcome
+				if waitedForPersistence || state.terminalWaiters != 0 {
+					state.mu.Unlock()
+					return CancellationFailed, persistenceErr
+				}
+				state.mu.Unlock()
+				if err := attempt.persistTerminalOutcome(outcome); err != nil {
+					return CancellationFailed, err
+				}
+				return CancellationPublishFailed, nil
+			}
 			if state.publishAbort != nil && !state.publishAbortClosed {
 				close(state.publishAbort)
 				state.publishAbortClosed = true
@@ -1540,10 +1641,32 @@ func (attempt *ObservationAttempt) Cancel() (CancellationResult, error) {
 			if state.publishCancel != nil {
 				state.publishCancel()
 			}
+			state.terminalWaiters++
 			state.cond.Wait()
+			state.terminalWaiters--
+			waitedForPersistence = true
 			continue
 		case AttemptCancelling:
+			if state.terminalPersistenceErr != nil {
+				persistenceErr := state.terminalPersistenceErr
+				outcome := state.terminalOutcome
+				if waitedForPersistence || state.terminalWaiters != 0 {
+					state.mu.Unlock()
+					return CancellationFailed, persistenceErr
+				}
+				state.mu.Unlock()
+				if err := attempt.persistTerminalOutcome(outcome); err != nil {
+					return CancellationFailed, err
+				}
+				if outcome == AttemptCancelFailed {
+					return CancellationFailed, nil
+				}
+				return CancellationCompleted, nil
+			}
+			state.terminalWaiters++
 			state.cond.Wait()
+			state.terminalWaiters--
+			waitedForPersistence = true
 			continue
 		case AttemptOpen, AttemptSealed:
 			state.phase = AttemptCancelling
@@ -1563,15 +1686,21 @@ func (attempt *ObservationAttempt) Cancel() (CancellationResult, error) {
 
 	if !admitted {
 		if producerAttempt == nil {
-			_ = attempt.finishCancellation(AttemptCancelFailed)
-			return CancellationFailed, fmt.Errorf("producer runtime attempt is unavailable")
+			cause := fmt.Errorf("producer runtime attempt is unavailable")
+			if terminalErr := attempt.finishCancellation(AttemptCancelFailed); terminalErr != nil {
+				return CancellationFailed, fmt.Errorf("%v; terminal persistence: %w", cause, terminalErr)
+			}
+			return CancellationFailed, cause
 		}
 		_, closeErr := producerAttempt.Close(nil)
 		if closeErr != nil &&
 			!errors.Is(closeErr, modbus.ErrRuntimeAttemptMembership) &&
 			!errors.Is(closeErr, modbus.ErrRuntimeAttemptClosed) {
-			_ = attempt.finishCancellation(AttemptCancelFailed)
-			return CancellationFailed, fmt.Errorf("close unadmitted producer attempt: %w", closeErr)
+			cause := fmt.Errorf("close unadmitted producer attempt: %w", closeErr)
+			if terminalErr := attempt.finishCancellation(AttemptCancelFailed); terminalErr != nil {
+				return CancellationFailed, fmt.Errorf("%v; terminal persistence: %w", cause, terminalErr)
+			}
+			return CancellationFailed, cause
 		}
 		state.mu.Lock()
 		state.source = nil
@@ -1623,17 +1752,14 @@ func (attempt *ObservationAttempt) Publish(
 	defer cancel()
 
 	if err := state.drainSource(); err != nil {
-		attempt.finishPublication(AttemptPublishFailed)
-		return Observation{}, fmt.Errorf("drain producer runtime attempt: %w", err)
+		return attempt.failPublication(fmt.Errorf("drain producer runtime attempt: %w", err))
 	}
 	ledger := factory.ledger
 	select {
 	case <-ctx.Done():
-		attempt.finishPublication(AttemptPublishFailed)
-		return Observation{}, fmt.Errorf("publication context ended before commit admission: %w", ctx.Err())
+		return attempt.failPublication(fmt.Errorf("publication context ended before commit admission: %w", ctx.Err()))
 	case <-publishAbort:
-		attempt.finishPublication(AttemptPublishFailed)
-		return Observation{}, fmt.Errorf("publication was cancelled before commit admission")
+		return attempt.failPublication(fmt.Errorf("publication was cancelled before commit admission"))
 	case <-ledger.commitSerial:
 	}
 	releaseCommitSerial := func() {
@@ -1645,21 +1771,18 @@ func (attempt *ObservationAttempt) Publish(
 	state.mu.Unlock()
 	if aborted {
 		releaseCommitSerial()
-		attempt.finishPublication(AttemptPublishFailed)
-		return Observation{}, fmt.Errorf("publication was cancelled before commit admission")
+		return attempt.failPublication(fmt.Errorf("publication was cancelled before commit admission"))
 	}
 	if contextErr != nil {
 		releaseCommitSerial()
-		attempt.finishPublication(AttemptPublishFailed)
-		return Observation{}, fmt.Errorf("publication context ended before commit admission: %w", contextErr)
+		return attempt.failPublication(fmt.Errorf("publication context ended before commit admission: %w", contextErr))
 	}
 	ledger.mu.Lock()
 	if ledger.revision == math.MaxUint64 || ledger.highWater == math.MaxUint64 ||
 		!attemptIdentityAdvances(ledger.lastCommittedAttempt, state.identity) {
 		ledger.mu.Unlock()
 		releaseCommitSerial()
-		attempt.finishPublication(AttemptPublishFailed)
-		return Observation{}, fmt.Errorf("sample ledger is exhausted or attempt does not advance")
+		return attempt.failPublication(fmt.Errorf("sample ledger is exhausted or attempt does not advance"))
 	}
 	expected := ledger.stateLocked()
 	next := expected
@@ -1673,15 +1796,14 @@ func (attempt *ObservationAttempt) Publish(
 	ledger.mu.Unlock()
 	if restartErr != nil {
 		releaseCommitSerial()
-		attempt.finishPublication(AttemptPublishFailed)
-		return Observation{}, fmt.Errorf("publication restart state: %w", restartErr)
+		return attempt.failPublication(fmt.Errorf("publication restart state: %w", restartErr))
 	}
 	observation := state.template
 	observation.spec.SampleID = fmt.Sprintf("%s:%d", ledger.issuerDomain, next.HighWater)
-	if _, err := MarshalObservation(observation); err != nil {
+	observationBytes, err := MarshalObservation(observation)
+	if err != nil {
 		releaseCommitSerial()
-		attempt.finishPublication(AttemptPublishFailed)
-		return Observation{}, fmt.Errorf("final publication observation: %w", err)
+		return attempt.failPublication(fmt.Errorf("final publication observation: %w", err))
 	}
 	projection := state.publishedProjection()
 	decision, err := factory.committer.CommitPublication(
@@ -1693,15 +1815,15 @@ func (attempt *ObservationAttempt) Publish(
 			PublishedRestartState: publishedRestart,
 			Attempt:               projection,
 			Observation:           observation,
+			ObservationBytes:      append([]byte(nil), observationBytes...),
 		},
 	)
 	if err != nil || decision != PublicationCommitCommitted {
 		releaseCommitSerial()
-		attempt.finishPublication(AttemptPublishFailed)
 		if err != nil {
-			return Observation{}, fmt.Errorf("transactional publication: %w", err)
+			return attempt.failPublication(fmt.Errorf("transactional publication: %w", err))
 		}
-		return Observation{}, fmt.Errorf("transactional publication was cancelled")
+		return attempt.failPublication(fmt.Errorf("transactional publication was cancelled"))
 	}
 	ledger.mu.Lock()
 	currentRestart := ledger.durableRestartStateLocked()
@@ -1710,8 +1832,7 @@ func (attempt *ObservationAttempt) Publish(
 			!currentRestart.CoversTerminalWatermark(publishedRestart)) {
 		ledger.mu.Unlock()
 		releaseCommitSerial()
-		attempt.finishPublication(AttemptPublishFailed)
-		return Observation{}, fmt.Errorf("sample ledger changed during publication commit")
+		return attempt.failPublication(fmt.Errorf("sample ledger changed during publication commit"))
 	}
 	ledger.revision = next.Revision
 	ledger.highWater = next.HighWater
@@ -1724,19 +1845,58 @@ func (attempt *ObservationAttempt) Publish(
 	state.restartCommitted = true
 	state.mu.Unlock()
 	releaseCommitSerial()
-	attempt.finishPublication(AttemptPublished)
+	if err := attempt.finishPublication(AttemptPublished); err != nil {
+		return Observation{}, err
+	}
 	return observation, nil
 }
 
-func (attempt *ObservationAttempt) finishPublication(outcome AttemptPhase) {
+func (attempt *ObservationAttempt) failPublication(cause error) (Observation, error) {
+	if terminalErr := attempt.finishPublication(AttemptPublishFailed); terminalErr != nil {
+		return Observation{}, fmt.Errorf("%v; terminal persistence: %w", cause, terminalErr)
+	}
+	return Observation{}, cause
+}
+
+func (attempt *ObservationAttempt) finishPublication(outcome AttemptPhase) error {
+	return attempt.persistTerminalOutcome(outcome)
+}
+
+func (attempt *ObservationAttempt) persistTerminalOutcome(outcome AttemptPhase) error {
 	state := attempt.state
-	if outcome != AttemptPublished {
-		_ = attempt.commitTerminalState(outcome)
+	state.mu.Lock()
+	if !validAttemptTerminalOutcome(outcome) ||
+		(state.phase != AttemptCancelling && state.phase != AttemptPublishing) {
+		state.mu.Unlock()
+		return fmt.Errorf("terminal persistence retry is unavailable")
+	}
+	if state.terminalPersistenceErr != nil && state.terminalOutcome != outcome {
+		state.mu.Unlock()
+		return fmt.Errorf("terminal persistence outcome is immutable")
+	}
+	if state.terminalCommitInProgress {
+		state.mu.Unlock()
+		return fmt.Errorf("terminal persistence is already in progress")
+	}
+	state.terminalOutcome = outcome
+	state.terminalCommitInProgress = true
+	alreadyCommitted := state.restartCommitted
+	state.mu.Unlock()
+
+	var commitErr error
+	if !alreadyCommitted {
+		commitErr = attempt.commitTerminalState(outcome)
 	}
 	state.mu.Lock()
-	if state.phase == AttemptPublishing {
-		state.phase = outcome
+	state.terminalCommitInProgress = false
+	if commitErr != nil {
+		state.terminalPersistenceErr = commitErr
+		state.cond.Broadcast()
+		state.mu.Unlock()
+		return commitErr
 	}
+	state.terminalPersistenceErr = nil
+	state.phase = outcome
 	factory := state.factory
 	state.publishCancel = nil
 	state.publishAbort = nil
@@ -1746,6 +1906,7 @@ func (attempt *ObservationAttempt) finishPublication(outcome AttemptPhase) {
 	if factory != nil {
 		factory.ledger.reclaimTerminalAttempt(state, outcome)
 	}
+	return nil
 }
 
 func (state *runtimeAttemptState) publishedProjection() PublishedAttemptV1 {
@@ -1811,6 +1972,7 @@ func (state *runtimeAttemptState) terminalTombstones(
 		SchemaVersion:    1,
 		ObjectKind:       LedgerAuditAttempt,
 		TerminalSequence: state.terminalSequence,
+		ClaimCount:       uint64(len(state.entries)),
 		TerminalOutcome:  string(outcome),
 	})
 	for ordinal, entry := range state.entries {
@@ -1902,7 +2064,7 @@ func (attempt *ObservationAttempt) commitTerminalState(outcome AttemptPhase) err
 	state.mu.Lock()
 	factory := state.factory
 	state.mu.Unlock()
-	if factory == nil {
+	if factory == nil || factory.committer == nil || factory.terminalCommitTimeout <= 0 {
 		return fmt.Errorf("terminal commit factory is unavailable")
 	}
 	ledger := factory.ledger
@@ -1913,8 +2075,13 @@ func (attempt *ObservationAttempt) commitTerminalState(outcome AttemptPhase) err
 	if err != nil {
 		return err
 	}
-	if err := factory.committer.CommitTerminalState(
+	commitContext, cancel := context.WithTimeout(
 		context.Background(),
+		factory.terminalCommitTimeout,
+	)
+	defer cancel()
+	if err := factory.committer.CommitTerminalState(
+		commitContext,
 		TerminalStateCommitRequest{
 			ExpectedRestartState: expected,
 			TerminalRestartState: terminal,
@@ -1987,6 +2154,7 @@ func (ledger *SampleLedger) reclaimTerminalAttempt(
 			SchemaVersion:    1,
 			ObjectKind:       LedgerAuditAttempt,
 			TerminalSequence: attemptSequence,
+			ClaimCount:       uint64(len(entries)),
 			TerminalOutcome:  string(outcome),
 		})
 	}

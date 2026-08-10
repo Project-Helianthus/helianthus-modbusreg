@@ -29,6 +29,12 @@ func TestLedgerLimitsRejectZeroAndAcceptFiniteConfiguration(t *testing.T) {
 		t.Fatal("an unusable audit tombstone byte bound was accepted")
 	}
 	limits = reg.DefaultLedgerLimits()
+	limits.AuditTombstoneLimit = 20000
+	limits.AuditTombstoneMaxEncodedBytes = 256
+	if ledger, err := reg.NewSampleLedger(state, 0, limits); err == nil || ledger != nil {
+		t.Fatal("audit limits exceeding the aggregate serialization bound were accepted")
+	}
+	limits = reg.DefaultLedgerLimits()
 	limits.MaxDependencySetEncodedBytes = 1
 	boundedLedger, err := reg.NewSampleLedger(state, 0, limits)
 	if err != nil {

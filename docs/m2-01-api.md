@@ -26,6 +26,16 @@ composition.
 ```go
 factory, err := modbusreg.NewObservationFactory(profile, ledger, committer)
 
+// Optional: choose a shorter finite terminal-persistence deadline.
+factory, err = modbusreg.NewObservationFactoryWithOptions(
+    profile,
+    ledger,
+    committer,
+    modbusreg.ObservationFactoryOptions{
+        TerminalCommitTimeout: time.Second,
+    },
+)
+
 attempt, err := factory.BeginRuntimeAttempt(modbusreg.RuntimeAttemptRequest{
     Source:       source,
     AttemptKey:   attemptKey,
@@ -116,8 +126,16 @@ exact producer instance through the retained source.
 `modbus.ErrRuntimeAttemptClosed` during drain is the known benign disposition
 when producer restart export already retired an otherwise terminal exact
 instance. Any unknown drain error still reaches an immutable terminal state,
-wakes waiters, emits an audit tombstone, and reclaims retained resources. It
-never leaves an attempt in `cancelling`.
+wakes waiters, and enters durable terminal persistence.
+
+A `CommitTerminalState` error is fail-closed. The attempt remains retained in
+its existing `cancelling` or `publishing` phase with one immutable intended
+terminal outcome and the retryable persistence error. Every waiter attached to
+that commit receives the same failure, no resources are reclaimed, and restart
+export remains unavailable. A later `Cancel` call retries the same idempotent
+terminal target. Durable success alone changes the public phase, wakes retry
+waiters, and synchronously reclaims the attempt. This private retry state does
+not add lifecycle phases or permit a second terminal decision.
 
 Publication and cancellation share one arbitration. A publishing attempt has a
 private cancel signal and derived context. Commit-slot acquisition selects on
@@ -141,21 +159,25 @@ type PublicationCommitter interface {
 ```
 
 `PublicationCommitRequest` contains the complete expected and next sample-ledger
-states, expected and next restart states, final immutable `Observation`, and the
-only externally publishable attempt projection. The observation is constructed
-and validated before the callback, including its production sample ID, exact
-words, wire-response bytes, and producer normalization bytes. The committer must
-atomically persist that exact observation, both durable states, irreversible
-external effect, and `committed` decision. An error or `cancelled` decision
-guarantees that no irreversible effect occurred.
+states, expected and next restart states, final immutable `Observation`, its
+bounded `ObservationBytes` durable envelope, and the only externally publishable
+attempt projection. The observation is constructed and validated before the
+callback, including its production sample ID, exact words, wire-response bytes,
+logical views, and producer normalization bytes. A durable committer persists
+`ObservationBytes`; `UnmarshalObservation(profile, bytes)` strictly reconstructs
+the same observation after process-memory loss. The committer must atomically
+persist that envelope, both durable states, irreversible external effect, and
+`committed` decision. An error or `cancelled` decision guarantees that no
+irreversible effect occurred.
 
 `CommitTerminalState` is the durable boundary for cancelled, cancel-failed, and
 publish-failed attempts. It persists no observation and creates no external
 sample. Its restart transition is an idempotent monotonic watermark join: the
 committer may accept either the expected state or an already-persisted identical
 terminal target or any state for which `CoversTerminalWatermark(target)` is
-true. This permits cancellation to drain without waiting behind a blocked
-publication callback while preventing terminal-sequence reuse.
+true. Every call receives a finite deadline, five seconds by default. This
+permits cancellation to drain without waiting behind a blocked publication
+callback while preventing terminal-sequence reuse.
 
 The ledger serializes committer admission locally without holding its mutex
 during the callback. A committed decision advances revision/high-water and
@@ -179,15 +201,20 @@ claims. Sequence exhaustion is explicit. Terminal attempts are reclaimed
 synchronously, freeing attempt and claim capacity for deterministic reuse.
 
 `LedgerAuditTombstone` is a strict bounded snake_case JSON variant. Attempt and
-claim records contain only terminal sequence links, ordinal where applicable,
-and closed outcomes. They do not reconstruct attempt keys, capabilities,
-normalization bytes, diagnostics, or producer authority.
+claim records contain only terminal sequence links, the attempt's bounded
+`claim_count`, ordinal where applicable, and closed outcomes. They do not
+reconstruct attempt keys, capabilities, normalization bytes, diagnostics, or
+producer authority.
 
 `LedgerRestartState` is also a strict snake_case JSON object. Its retained
 tombstones must be one contiguous suffix ending at `next_terminal_sequence - 1`
 (or `MaxUint64` after exhaustion). Claim records must link to the correct
 attempt-kind record when that target is retained, claim ordinals must match the
-reserved sequence interval, and attempt intervals cannot overlap.
+complete reserved sequence interval, and attempt intervals cannot overlap.
+Published and publish-failed histories require every reserved claim to have
+succeeded. Coverage compares every overlapping nontruncated tombstone and
+rejects contradictory histories even when the candidate watermark is equal or
+higher.
 
 `truncated_through_sequence` explicitly accounts for every omitted prefix. An
 empty history beyond the initial state is valid only when this watermark reaches
@@ -198,6 +225,10 @@ than inventing terminal records.
 `ExportRestartState` succeeds only when no live attempt remains and every
 reserved terminal watermark has crossed a durable committer boundary. Live
 attempts and capabilities are intentionally nonserializable.
+
+Restart JSON and configured tombstone count/byte limits must fit the single
+`MaxSerializedContractBytes` aggregate ceiling; accepted or exported restart
+state cannot rely on a larger decoder-only allowance.
 
 ## Offline Fixture Replay
 

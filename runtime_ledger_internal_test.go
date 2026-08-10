@@ -1,6 +1,7 @@
 package modbusreg
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -111,9 +112,10 @@ func TestLedgerAuditTombstoneStrictJSONRoundTrip(t *testing.T) {
 				SchemaVersion:    1,
 				ObjectKind:       LedgerAuditAttempt,
 				TerminalSequence: 7,
+				ClaimCount:       1,
 				TerminalOutcome:  string(AttemptCancelled),
 			},
-			expected: `{"schema_version":1,"object_kind":"attempt","terminal_sequence":7,"terminal_outcome":"cancelled"}`,
+			expected: `{"schema_version":1,"object_kind":"attempt","terminal_sequence":7,"claim_count":1,"terminal_outcome":"cancelled"}`,
 		},
 		{
 			name: "claim ordinal zero",
@@ -161,16 +163,38 @@ func TestLedgerAuditTombstoneStrictJSONRoundTrip(t *testing.T) {
 	}
 }
 
+type internalTerminalCommitter struct{}
+
+func (internalTerminalCommitter) CommitPublication(
+	context.Context,
+	PublicationCommitRequest,
+) (PublicationCommitDecision, error) {
+	return PublicationCommitCancelled, errors.New("publication is not used")
+}
+
+func (internalTerminalCommitter) CommitTerminalState(
+	context.Context,
+	TerminalStateCommitRequest,
+) error {
+	return nil
+}
+
 func TestUnknownDrainErrorTerminalizesAndWakesCancellationWaiters(t *testing.T) {
 	limits := DefaultLedgerLimits()
 	ledger := &SampleLedger{
-		limits:          limits,
-		attempts:        make(map[string]*runtimeAttemptState),
-		commitSerial:    make(chan struct{}, 1),
-		auditTombstones: make([]LedgerAuditTombstone, 0, limits.AuditTombstoneLimit),
+		limits:                      limits,
+		attempts:                    make(map[string]*runtimeAttemptState),
+		commitSerial:                make(chan struct{}, 1),
+		nextTerminalSequence:        3,
+		durableNextTerminalSequence: 1,
+		auditTombstones:             make([]LedgerAuditTombstone, 0, limits.AuditTombstoneLimit),
 	}
 	ledger.commitSerial <- struct{}{}
-	factory := &ObservationFactory{ledger: ledger}
+	factory := &ObservationFactory{
+		ledger:                ledger,
+		committer:             internalTerminalCommitter{},
+		terminalCommitTimeout: DefaultTerminalCommitTimeout,
+	}
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	forced := errors.New("forced unknown drain failure")

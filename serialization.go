@@ -3,9 +3,13 @@ package modbusreg
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"time"
+	"unicode/utf8"
+
+	modbus "github.com/Project-Helianthus/helianthus-modbus"
 )
 
 type dependencySetDTO struct {
@@ -481,6 +485,12 @@ type observationDTO struct {
 	Dependencies           []dependencyResultDTO `json:"dependencies"`
 }
 
+type durableObservationDTO struct {
+	SchemaVersion         int            `json:"schema_version"`
+	Observation           observationDTO `json:"observation"`
+	RuntimeNormalizations [][]byte       `json:"runtime_normalizations"`
+}
+
 func sourceTimeToDTO(source SourceTimeSpec) (sourceTimeDTO, error) {
 	if err := validateSourceTime(source); err != nil {
 		return sourceTimeDTO{}, err
@@ -807,7 +817,8 @@ func (spec *ObservationSpec) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalObservation emits deterministic lossless observation bytes.
+// MarshalObservation emits the bounded production envelope, including every
+// exact producer-admitted normalization record needed for durable replay.
 func MarshalObservation(observation Observation) ([]byte, error) {
 	if observation.SampleID() == "" {
 		return nil, fmt.Errorf("observation is invalid")
@@ -816,7 +827,177 @@ func MarshalObservation(observation Observation) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return marshalBounded(record)
+	if len(observation.replayed) != len(record.Dependencies) {
+		return nil, fmt.Errorf("observation runtime provenance is incomplete")
+	}
+	normalizations := make([][]byte, len(observation.replayed))
+	for index, dependency := range observation.replayed {
+		encoded := dependency.runtimeNormalizationBytes
+		if len(encoded) == 0 || len(encoded) > MaxSerializedContractBytes {
+			return nil, fmt.Errorf("observation runtime normalization %d is invalid", index)
+		}
+		fields, err := decodeDurableRuntimeNormalization(encoded)
+		if err != nil || fields != dependency.runtimeNormalizationFields {
+			return nil, fmt.Errorf("observation runtime normalization %d is invalid", index)
+		}
+		normalizations[index] = append([]byte(nil), encoded...)
+	}
+	return marshalBounded(durableObservationDTO{
+		SchemaVersion:         1,
+		Observation:           record,
+		RuntimeNormalizations: normalizations,
+	})
+}
+
+// UnmarshalObservation strictly reconstructs one production observation from
+// its bounded durable envelope. Fixture records intentionally use a different
+// nonpublishable contract and are rejected here.
+func UnmarshalObservation(
+	profile ProfileDescriptor,
+	data []byte,
+) (Observation, error) {
+	validatedProfile, err := NewProfileDescriptor(profile.Spec())
+	if err != nil {
+		return Observation{}, fmt.Errorf("observation profile: %w", err)
+	}
+	var record durableObservationDTO
+	if err := decodeStrict(data, &record); err != nil {
+		return Observation{}, err
+	}
+	if record.SchemaVersion != 1 || record.Observation.SampleID == "" ||
+		len(record.RuntimeNormalizations) != len(record.Observation.Dependencies) {
+		return Observation{}, fmt.Errorf("durable observation envelope is invalid")
+	}
+	spec, err := observationSpecFromDTO(record.Observation)
+	if err != nil {
+		return Observation{}, err
+	}
+	observation, err := buildObservation(validatedProfile, spec)
+	if err != nil {
+		return Observation{}, err
+	}
+	declarations := validatedProfile.Dependencies().Dependencies()
+	if len(declarations) != len(record.RuntimeNormalizations) {
+		return Observation{}, fmt.Errorf("durable observation dependency cardinality disagrees")
+	}
+	for index, encoded := range record.RuntimeNormalizations {
+		if len(encoded) == 0 || len(encoded) > MaxSerializedContractBytes {
+			return Observation{}, fmt.Errorf("durable runtime normalization %d is invalid", index)
+		}
+		fields, err := decodeDurableRuntimeNormalization(encoded)
+		if err != nil {
+			return Observation{}, fmt.Errorf("durable runtime normalization %d: %w", index, err)
+		}
+		if err := matchRuntimeNormalization(declarations[index], fields); err != nil {
+			return Observation{}, fmt.Errorf("durable runtime normalization %d: %w", index, err)
+		}
+		observation.replayed[index].runtimeNormalizationBytes = append([]byte(nil), encoded...)
+		observation.replayed[index].runtimeNormalizationFields = fields
+	}
+	return observation, nil
+}
+
+var durableRuntimeNormalizationFields = map[string]struct{}{
+	"schema_version":                   {},
+	"source_kind":                      {},
+	"source_evidence_id":               {},
+	"documentary_notation":             {},
+	"documentary_address":              {},
+	"documentary_address_base":         {},
+	"function_code":                    {},
+	"logical_table":                    {},
+	"normalized_zero_based_pdu_offset": {},
+	"word_count":                       {},
+}
+
+func decodeDurableRuntimeNormalization(
+	encoded []byte,
+) (modbus.RuntimeNormalizationFields, error) {
+	if len(encoded) == 0 || len(encoded) > MaxSerializedContractBytes ||
+		!utf8.Valid(encoded) {
+		return modbus.RuntimeNormalizationFields{}, fmt.Errorf("encoding exceeds its bound")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	token, err := decoder.Token()
+	if err != nil || token != json.Delim('{') {
+		return modbus.RuntimeNormalizationFields{}, fmt.Errorf("encoding is not an object")
+	}
+	values := make(map[string]json.RawMessage)
+	for decoder.More() {
+		keyToken, err := decoder.Token()
+		key, ok := keyToken.(string)
+		if err != nil || !ok || key == "" || !utf8.ValidString(key) ||
+			len(key) > MaxContractStringBytes {
+			return modbus.RuntimeNormalizationFields{}, fmt.Errorf("object key is invalid")
+		}
+		if _, duplicate := values[key]; duplicate {
+			return modbus.RuntimeNormalizationFields{}, fmt.Errorf("object key is duplicated")
+		}
+		var raw json.RawMessage
+		if err := decoder.Decode(&raw); err != nil || len(raw) > MaxSerializedContractBytes {
+			return modbus.RuntimeNormalizationFields{}, fmt.Errorf("object value is invalid")
+		}
+		values[key] = append(json.RawMessage(nil), raw...)
+		if len(values) > MaxProfileDependencies {
+			return modbus.RuntimeNormalizationFields{}, fmt.Errorf("object has too many fields")
+		}
+	}
+	if token, err = decoder.Token(); err != nil || token != json.Delim('}') {
+		return modbus.RuntimeNormalizationFields{}, fmt.Errorf("object is not closed")
+	}
+	if token, err = decoder.Token(); !errors.Is(err, io.EOF) || token != nil {
+		return modbus.RuntimeNormalizationFields{}, fmt.Errorf("encoding has trailing data")
+	}
+	for required := range durableRuntimeNormalizationFields {
+		if _, exists := values[required]; !exists {
+			return modbus.RuntimeNormalizationFields{}, fmt.Errorf("required field %q is absent", required)
+		}
+	}
+	decode := func(key string, destination any) error {
+		valueDecoder := json.NewDecoder(bytes.NewReader(values[key]))
+		if err := valueDecoder.Decode(destination); err != nil {
+			return err
+		}
+		if token, err := valueDecoder.Token(); !errors.Is(err, io.EOF) || token != nil {
+			return fmt.Errorf("field %q has trailing data", key)
+		}
+		return nil
+	}
+	var fields modbus.RuntimeNormalizationFields
+	var function uint8
+	if decode("schema_version", &fields.SchemaVersion) != nil || fields.SchemaVersion != 1 ||
+		decode("source_kind", &fields.SourceKind) != nil ||
+		fields.SourceKind != modbus.RuntimeAcquisitionSourceRuntime ||
+		decode("source_evidence_id", &fields.SourceEvidenceID) != nil ||
+		decode("documentary_notation", &fields.DocumentaryNotation) != nil ||
+		decode("documentary_address", &fields.DocumentaryAddress) != nil ||
+		decode("documentary_address_base", &fields.DocumentaryAddressBase) != nil ||
+		decode("function_code", &function) != nil ||
+		decode("logical_table", &fields.LogicalTable) != nil ||
+		decode("normalized_zero_based_pdu_offset", &fields.NormalizedZeroBasedPDUOffset) != nil ||
+		decode("word_count", &fields.WordCount) != nil || fields.SourceEvidenceID == "" ||
+		fields.DocumentaryNotation == "" || fields.DocumentaryAddressBase == "" ||
+		fields.WordCount == 0 || fields.WordCount > modbus.MaxReadRegisters {
+		return modbus.RuntimeNormalizationFields{}, fmt.Errorf("required fields are invalid")
+	}
+	fields.FunctionCode = modbus.FunctionCode(function)
+	end := uint32(fields.NormalizedZeroBasedPDUOffset) + uint32(fields.WordCount)
+	if end > 1<<16 {
+		return modbus.RuntimeNormalizationFields{}, fmt.Errorf("normalized range is invalid")
+	}
+	switch fields.FunctionCode {
+	case modbus.FunctionReadHoldingRegisters:
+		if fields.LogicalTable != modbus.HoldingRegisters {
+			return modbus.RuntimeNormalizationFields{}, fmt.Errorf("logical table disagrees")
+		}
+	case modbus.FunctionReadInputRegisters:
+		if fields.LogicalTable != modbus.InputRegisters {
+			return modbus.RuntimeNormalizationFields{}, fmt.Errorf("logical table disagrees")
+		}
+	default:
+		return modbus.RuntimeNormalizationFields{}, fmt.Errorf("function code is invalid")
+	}
+	return fields, nil
 }
 
 // MarshalJSON serializes an immutable admitted observation.

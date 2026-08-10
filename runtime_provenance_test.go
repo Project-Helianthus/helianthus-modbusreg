@@ -412,6 +412,85 @@ type memoryPublicationCommitter struct {
 	terminal      []reg.TerminalStateCommitRequest
 }
 
+type retryTerminalCommitter struct {
+	memoryPublicationCommitter
+	mu            sync.Mutex
+	failuresLeft  int
+	terminalCalls int
+}
+
+type blockingTerminalCommitter struct {
+	memoryPublicationCommitter
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (committer *blockingTerminalCommitter) CommitTerminalState(
+	ctx context.Context,
+	request reg.TerminalStateCommitRequest,
+) error {
+	committer.once.Do(func() { close(committer.entered) })
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-committer.release:
+		return fmt.Errorf("forced terminal persistence failure")
+	}
+}
+
+type contextDeadlineCommitter struct {
+	memoryPublicationCommitter
+	deadlineObserved chan struct{}
+}
+
+func (committer *contextDeadlineCommitter) CommitTerminalState(
+	ctx context.Context,
+	request reg.TerminalStateCommitRequest,
+) error {
+	if _, ok := ctx.Deadline(); !ok {
+		return fmt.Errorf("terminal commit context has no deadline")
+	}
+	close(committer.deadlineObserved)
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+type failedPublicationCommitter struct {
+	retryTerminalCommitter
+}
+
+func (committer *failedPublicationCommitter) CommitPublication(
+	context.Context,
+	reg.PublicationCommitRequest,
+) (reg.PublicationCommitDecision, error) {
+	return "", fmt.Errorf("forced publication failure")
+}
+
+func (committer *retryTerminalCommitter) CommitTerminalState(
+	ctx context.Context,
+	request reg.TerminalStateCommitRequest,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	committer.mu.Lock()
+	committer.terminalCalls++
+	if committer.failuresLeft > 0 {
+		committer.failuresLeft--
+		committer.mu.Unlock()
+		return fmt.Errorf("forced terminal persistence failure")
+	}
+	committer.mu.Unlock()
+	return committer.memoryPublicationCommitter.CommitTerminalState(ctx, request)
+}
+
+func (committer *retryTerminalCommitter) callCount() int {
+	committer.mu.Lock()
+	defer committer.mu.Unlock()
+	return committer.terminalCalls
+}
+
 type arbitrationPublicationCommitter struct {
 	mu        sync.Mutex
 	state     reg.SampleLedgerState
@@ -588,7 +667,21 @@ func TestPublicationCommitCarriesExactFinalObservationAndRestartState(t *testing
 	}
 	request := committer.requests[0]
 	committer.mu.Unlock()
-	committedObservation := request.Observation
+	expectedDurableBytes, err := reg.MarshalObservation(request.Observation)
+	if err != nil {
+		t.Fatalf("MarshalObservation(committed request): %v", err)
+	}
+	if !bytes.Equal(request.ObservationBytes, expectedDurableBytes) {
+		t.Fatal("committed durable envelope disagrees with the final observation")
+	}
+	durableBytes := append([]byte(nil), request.ObservationBytes...)
+	publishedState := request.PublishedState
+	publishedRestartState := request.PublishedRestartState
+	request = reg.PublicationCommitRequest{}
+	committedObservation, err := reg.UnmarshalObservation(profile, durableBytes)
+	if err != nil {
+		t.Fatalf("UnmarshalObservation after committed-memory discard: %v", err)
+	}
 	if committedObservation.SampleID() != published.SampleID() ||
 		!reflect.DeepEqual(committedObservation.Spec(), published.Spec()) {
 		t.Fatal("committed final observation envelope differs from the published result")
@@ -610,24 +703,24 @@ func TestPublicationCommitCarriesExactFinalObservationAndRestartState(t *testing
 			t.Fatalf("committed dependency %d lost exact provenance", index)
 		}
 	}
-	if request.PublishedRestartState.NextTerminalSequence == 0 {
+	if publishedRestartState.NextTerminalSequence == 0 {
 		t.Fatal("atomic publication request omits terminal restart state")
 	}
 	restored, err := reg.NewSampleLedgerFromRestart(
-		request.PublishedState,
-		request.PublishedState.Revision,
+		publishedState,
+		publishedState.Revision,
 		reg.DefaultLedgerLimits(),
-		request.PublishedRestartState,
+		publishedRestartState,
 	)
 	if err != nil {
 		t.Fatalf("crash-boundary publication restart: %v", err)
 	}
-	if got := restored.Snapshot().NextTerminalSequence; got != request.PublishedRestartState.NextTerminalSequence {
+	if got := restored.Snapshot().NextTerminalSequence; got != publishedRestartState.NextTerminalSequence {
 		t.Fatalf("restored terminal watermark=%d", got)
 	}
 	restartCommitter := &memoryPublicationCommitter{
-		state:   request.PublishedState,
-		restart: request.PublishedRestartState,
+		state:   publishedState,
+		restart: publishedRestartState,
 	}
 	restoredFactory, err := reg.NewObservationFactory(profile, restored, restartCommitter)
 	if err != nil {
@@ -649,7 +742,7 @@ func TestPublicationCommitCarriesExactFinalObservationAndRestartState(t *testing
 		result != reg.CancellationCompleted {
 		t.Fatalf("Cancel(restored)=(%q, %v)", result, err)
 	}
-	if got := restartCommitter.terminal[0].Attempt.AttemptTerminalSequence; got != request.PublishedRestartState.NextTerminalSequence {
+	if got := restartCommitter.terminal[0].Attempt.AttemptTerminalSequence; got != publishedRestartState.NextTerminalSequence {
 		t.Fatalf("post-crash terminal sequence=%d reused committed history", got)
 	}
 }
@@ -724,6 +817,214 @@ func TestCancellationCrossesDurableTerminalBoundary(t *testing.T) {
 	}
 	if got := restartCommitter.terminal[0].Attempt.AttemptTerminalSequence; got != terminal.TerminalRestartState.NextTerminalSequence {
 		t.Fatalf("post-crash terminal sequence=%d reused cancelled history", got)
+	}
+}
+
+func TestCancellationPersistenceFailureRetainsAndRetriesAttempt(t *testing.T) {
+	profile := profileFixture(t)
+	source, _ := runtimeSourceAndViews(t)
+	initial, ledger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
+	committer := &retryTerminalCommitter{
+		memoryPublicationCommitter: memoryPublicationCommitter{state: initial},
+		failuresLeft:               1,
+	}
+	factory, err := reg.NewObservationFactory(profile, ledger, committer)
+	if err != nil {
+		t.Fatalf("NewObservationFactory: %v", err)
+	}
+	attempt, err := factory.BeginRuntimeAttempt(runtimeAttemptRequestForTest(
+		source,
+		"retry-terminal-cancellation",
+		41,
+		2,
+	))
+	if err != nil {
+		t.Fatalf("BeginRuntimeAttempt: %v", err)
+	}
+
+	if result, err := attempt.Cancel(); err == nil || result != reg.CancellationFailed {
+		t.Fatalf("first Cancel=(%q, %v), want retryable persistence failure", result, err)
+	}
+	if phase := attempt.Phase(); phase != reg.AttemptCancelling {
+		t.Fatalf("phase after nondurable terminalization=%q", phase)
+	}
+	if snapshot := ledger.Snapshot(); snapshot.RetainedAttempts != 1 ||
+		snapshot.RetainedClaimEntries != 2 {
+		t.Fatalf("nondurable attempt was reclaimed: %+v", snapshot)
+	}
+	if _, err := ledger.ExportRestartState(); err == nil {
+		t.Fatal("nondurable terminal watermark was exported")
+	}
+
+	if result, err := attempt.Cancel(); err != nil || result != reg.CancellationCompleted {
+		t.Fatalf("retry Cancel=(%q, %v)", result, err)
+	}
+	if calls := committer.callCount(); calls != 2 {
+		t.Fatalf("terminal persistence calls=%d, want 2", calls)
+	}
+	if snapshot := ledger.Snapshot(); snapshot.RetainedAttempts != 0 ||
+		snapshot.RetainedClaimEntries != 0 {
+		t.Fatalf("durably terminal attempt was not reclaimed: %+v", snapshot)
+	}
+}
+
+func TestTerminalPersistenceFailurePropagatesToAllCancellationWaiters(t *testing.T) {
+	profile := profileFixture(t)
+	source, _ := runtimeSourceAndViews(t)
+	initial, ledger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
+	committer := &blockingTerminalCommitter{
+		memoryPublicationCommitter: memoryPublicationCommitter{state: initial},
+		entered:                    make(chan struct{}),
+		release:                    make(chan struct{}),
+	}
+	factory, err := reg.NewObservationFactory(profile, ledger, committer)
+	if err != nil {
+		t.Fatalf("NewObservationFactory: %v", err)
+	}
+	attempt, err := factory.BeginRuntimeAttempt(runtimeAttemptRequestForTest(
+		source,
+		"terminal-waiters",
+		41,
+		2,
+	))
+	if err != nil {
+		t.Fatalf("BeginRuntimeAttempt: %v", err)
+	}
+	type cancellation struct {
+		result reg.CancellationResult
+		err    error
+	}
+	results := make(chan cancellation, 2)
+	go func() {
+		result, err := attempt.Cancel()
+		results <- cancellation{result: result, err: err}
+	}()
+	<-committer.entered
+	go func() {
+		result, err := attempt.Cancel()
+		results <- cancellation{result: result, err: err}
+	}()
+	close(committer.release)
+	for index := 0; index < 2; index++ {
+		got := <-results
+		if got.result != reg.CancellationFailed || got.err == nil {
+			t.Fatalf("waiter %d Cancel=(%q, %v)", index, got.result, got.err)
+		}
+	}
+	if snapshot := ledger.Snapshot(); snapshot.RetainedAttempts != 1 {
+		t.Fatalf("failed terminal persistence reclaimed attempt: %+v", snapshot)
+	}
+}
+
+func TestTerminalCommitUsesConfiguredFiniteDeadline(t *testing.T) {
+	profile := profileFixture(t)
+	source, _ := runtimeSourceAndViews(t)
+	initial, ledger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
+	committer := &contextDeadlineCommitter{
+		memoryPublicationCommitter: memoryPublicationCommitter{state: initial},
+		deadlineObserved:           make(chan struct{}),
+	}
+	factory, err := reg.NewObservationFactoryWithOptions(
+		profile,
+		ledger,
+		committer,
+		reg.ObservationFactoryOptions{TerminalCommitTimeout: time.Millisecond},
+	)
+	if err != nil {
+		t.Fatalf("NewObservationFactoryWithOptions: %v", err)
+	}
+	attempt, err := factory.BeginRuntimeAttempt(runtimeAttemptRequestForTest(
+		source,
+		"terminal-deadline",
+		41,
+		2,
+	))
+	if err != nil {
+		t.Fatalf("BeginRuntimeAttempt: %v", err)
+	}
+	if result, err := attempt.Cancel(); err == nil || result != reg.CancellationFailed {
+		t.Fatalf("Cancel=(%q, %v), want bounded retryable failure", result, err)
+	}
+	<-committer.deadlineObserved
+	if phase := attempt.Phase(); phase != reg.AttemptCancelling {
+		t.Fatalf("deadline failure phase=%q", phase)
+	}
+}
+
+func TestPublishFailureTerminalPersistenceIsRetryable(t *testing.T) {
+	profile := profileFixture(t)
+	source, views := runtimeSourceAndViews(t)
+	initial, ledger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
+	committer := &failedPublicationCommitter{retryTerminalCommitter: retryTerminalCommitter{
+		memoryPublicationCommitter: memoryPublicationCommitter{state: initial},
+		failuresLeft:               1,
+	}}
+	factory, err := reg.NewObservationFactory(profile, ledger, committer)
+	if err != nil {
+		t.Fatalf("NewObservationFactory: %v", err)
+	}
+	attempt := beginAdmittedRuntimeAttempt(
+		t,
+		factory,
+		source,
+		views,
+		"retry-publish-failure",
+		41,
+	)
+	for ordinal := range views {
+		if outcome, err := attempt.Claim(uint64(ordinal)); err != nil ||
+			outcome != reg.ClaimSucceeded {
+			t.Fatalf("Claim(%d)=(%q, %v)", ordinal, outcome, err)
+		}
+	}
+	if err := attempt.Seal(); err != nil {
+		t.Fatalf("Seal: %v", err)
+	}
+	if _, err := attempt.Publish(context.Background()); err == nil {
+		t.Fatal("forced publication failure was accepted")
+	}
+	if phase := attempt.Phase(); phase != reg.AttemptPublishing {
+		t.Fatalf("nondurable publish-failure phase=%q", phase)
+	}
+	if snapshot := ledger.Snapshot(); snapshot.RetainedAttempts != 1 {
+		t.Fatalf("nondurable publish failure was reclaimed: %+v", snapshot)
+	}
+	if result, err := attempt.Cancel(); err != nil ||
+		result != reg.CancellationPublishFailed {
+		t.Fatalf("terminal persistence retry Cancel=(%q, %v)", result, err)
+	}
+}
+
+func TestAdmissionFailureTerminalPersistenceIsRetryable(t *testing.T) {
+	profile := profileFixture(t)
+	source, views := runtimeSourceAndViews(t)
+	initial, ledger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
+	committer := &retryTerminalCommitter{
+		memoryPublicationCommitter: memoryPublicationCommitter{state: initial},
+		failuresLeft:               1,
+	}
+	factory, err := reg.NewObservationFactory(profile, ledger, committer)
+	if err != nil {
+		t.Fatalf("NewObservationFactory: %v", err)
+	}
+	attempt, err := factory.BeginRuntimeAttempt(runtimeAttemptRequestForTest(
+		source,
+		"retry-admission-failure",
+		42,
+		len(views),
+	))
+	if err != nil {
+		t.Fatalf("BeginRuntimeAttempt: %v", err)
+	}
+	issueRuntimeDependencies(t, source, attempt, views)
+	if err := attempt.Admit(); err == nil {
+		t.Fatal("generation-mismatched admission was accepted")
+	}
+	if phase := attempt.Phase(); phase != reg.AttemptCancelling {
+		t.Fatalf("nondurable admission-failure phase=%q", phase)
+	}
+	if result, err := attempt.Cancel(); err != nil || result != reg.CancellationCompleted {
+		t.Fatalf("admission terminal persistence retry=(%q, %v)", result, err)
 	}
 }
 
@@ -1131,12 +1432,13 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 	limits.MaxClaimEntriesPerAttempt = 2
 	limits.MaxRetainedClaimEntries = 2 * limits.MaxRetainedAttempts
 
-	attempt := func(sequence uint64) reg.LedgerAuditTombstone {
+	attempt := func(sequence, claimCount uint64, outcome reg.AttemptPhase) reg.LedgerAuditTombstone {
 		return reg.LedgerAuditTombstone{
 			SchemaVersion:    1,
 			ObjectKind:       reg.LedgerAuditAttempt,
 			TerminalSequence: sequence,
-			TerminalOutcome:  string(reg.AttemptCancelled),
+			ClaimCount:       claimCount,
+			TerminalOutcome:  string(outcome),
 		}
 	}
 	claim := func(sequence, attemptSequence, ordinal uint64) reg.LedgerAuditTombstone {
@@ -1159,13 +1461,13 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 	}{
 		{
 			name:       "claim sequence does not match reservation",
-			tombstones: []reg.LedgerAuditTombstone{attempt(7), claim(9, 7, 0)},
+			tombstones: []reg.LedgerAuditTombstone{attempt(7, 1, reg.AttemptCancelled), claim(9, 7, 0)},
 			next:       10,
 			truncated:  6,
 		},
 		{
 			name:       "claim ordinal reaches configured bound",
-			tombstones: []reg.LedgerAuditTombstone{attempt(7), claim(10, 7, 2)},
+			tombstones: []reg.LedgerAuditTombstone{attempt(7, 1, reg.AttemptCancelled), claim(10, 7, 2)},
 			next:       11,
 			truncated:  6,
 		},
@@ -1178,8 +1480,8 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 		{
 			name: "claim reservation crosses future attempt",
 			tombstones: []reg.LedgerAuditTombstone{
-				attempt(7),
-				attempt(8),
+				attempt(7, 2, reg.AttemptCancelled),
+				attempt(8, 1, reg.AttemptCancelled),
 				claim(9, 7, 1),
 			},
 			next:      10,
@@ -1187,7 +1489,7 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 		},
 		{
 			name:       "retained history has a sequence gap",
-			tombstones: []reg.LedgerAuditTombstone{attempt(7), claim(9, 7, 1)},
+			tombstones: []reg.LedgerAuditTombstone{attempt(7, 1, reg.AttemptCancelled), claim(9, 7, 1)},
 			next:       10,
 			truncated:  6,
 		},
@@ -1204,6 +1506,24 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 			name:       "empty history has an unexplained watermark",
 			tombstones: nil,
 			next:       7,
+		},
+		{
+			name: "two-claim reservation omits the second claim",
+			tombstones: []reg.LedgerAuditTombstone{
+				attempt(7, 2, reg.AttemptCancelled),
+				claim(8, 7, 0),
+			},
+			next:      9,
+			truncated: 6,
+		},
+		{
+			name: "published history contains a cancelled claim",
+			tombstones: []reg.LedgerAuditTombstone{
+				attempt(7, 1, reg.AttemptPublished),
+				claim(8, 7, 0),
+			},
+			next:      9,
+			truncated: 6,
 		},
 	}
 	for _, test := range tests {
@@ -1242,6 +1562,7 @@ func TestLedgerRestartClaimSequenceReservationRoundTrip(t *testing.T) {
 				SchemaVersion:    1,
 				ObjectKind:       reg.LedgerAuditAttempt,
 				TerminalSequence: 7,
+				ClaimCount:       2,
 				TerminalOutcome:  string(reg.AttemptCancelled),
 			},
 			{
@@ -1280,6 +1601,108 @@ func TestLedgerRestartClaimSequenceReservationRoundTrip(t *testing.T) {
 	}
 	if !bytes.Equal(encodedGot, encodedWant) {
 		t.Fatalf("restart round trip = %s, want %s", encodedGot, encodedWant)
+	}
+}
+
+func TestTerminalWatermarkCoverageRejectsConflictingRetainedHistory(t *testing.T) {
+	attempt := func(sequence uint64, outcome reg.AttemptPhase) reg.LedgerAuditTombstone {
+		return reg.LedgerAuditTombstone{
+			SchemaVersion:    1,
+			ObjectKind:       reg.LedgerAuditAttempt,
+			TerminalSequence: sequence,
+			ClaimCount:       1,
+			TerminalOutcome:  string(outcome),
+		}
+	}
+	claim := func(sequence, attemptSequence uint64) reg.LedgerAuditTombstone {
+		return reg.LedgerAuditTombstone{
+			SchemaVersion:           1,
+			ObjectKind:              reg.LedgerAuditClaim,
+			TerminalSequence:        sequence,
+			AttemptTerminalSequence: attemptSequence,
+			ClaimOrdinal:            0,
+			TerminalOutcome:         string(reg.ClaimAttemptCancelled),
+		}
+	}
+	prior := reg.LedgerRestartState{
+		SchemaVersion:            1,
+		NextTerminalSequence:     9,
+		TruncatedThroughSequence: 6,
+		AuditTombstones: []reg.LedgerAuditTombstone{
+			attempt(7, reg.AttemptCancelled),
+			claim(8, 7),
+		},
+	}
+	tests := []struct {
+		name    string
+		current reg.LedgerRestartState
+	}{
+		{
+			name: "same watermark",
+			current: reg.LedgerRestartState{
+				SchemaVersion:            1,
+				NextTerminalSequence:     9,
+				TruncatedThroughSequence: 6,
+				AuditTombstones: []reg.LedgerAuditTombstone{
+					attempt(7, reg.AttemptCancelFailed),
+					claim(8, 7),
+				},
+			},
+		},
+		{
+			name: "higher watermark",
+			current: reg.LedgerRestartState{
+				SchemaVersion:            1,
+				NextTerminalSequence:     11,
+				TruncatedThroughSequence: 6,
+				AuditTombstones: []reg.LedgerAuditTombstone{
+					attempt(7, reg.AttemptCancelFailed),
+					claim(8, 7),
+					attempt(9, reg.AttemptCancelled),
+					claim(10, 9),
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.current.CoversTerminalWatermark(prior) {
+				t.Fatal("contradictory retained terminal history was treated as covered")
+			}
+		})
+	}
+}
+
+func TestLedgerRestartJSONRejectsAggregateLargerThanContract(t *testing.T) {
+	const attempts = 18000
+	tombstones := make([]reg.LedgerAuditTombstone, 0, attempts*2)
+	for index := uint64(0); index < attempts; index++ {
+		attemptSequence := index*2 + 1
+		tombstones = append(tombstones,
+			reg.LedgerAuditTombstone{
+				SchemaVersion:    1,
+				ObjectKind:       reg.LedgerAuditAttempt,
+				TerminalSequence: attemptSequence,
+				ClaimCount:       1,
+				TerminalOutcome:  string(reg.AttemptCancelled),
+			},
+			reg.LedgerAuditTombstone{
+				SchemaVersion:           1,
+				ObjectKind:              reg.LedgerAuditClaim,
+				TerminalSequence:        attemptSequence + 1,
+				AttemptTerminalSequence: attemptSequence,
+				ClaimOrdinal:            0,
+				TerminalOutcome:         string(reg.ClaimAttemptCancelled),
+			},
+		)
+	}
+	restart := reg.LedgerRestartState{
+		SchemaVersion:        1,
+		NextTerminalSequence: attempts*2 + 1,
+		AuditTombstones:      tombstones,
+	}
+	if encoded, err := json.Marshal(restart); err == nil {
+		t.Fatalf("oversized restart JSON was emitted with %d bytes", len(encoded))
 	}
 }
 
