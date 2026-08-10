@@ -3,6 +3,7 @@ package modbusreg_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -174,7 +175,20 @@ func runtimeSourceAndViewsForGeneration(
 ) (*modbus.RuntimeAcquisitionSource, []modbus.LogicalReadView) {
 	t.Helper()
 	clock := newRuntimeIntegrationClock()
-	source, err := modbus.NewRuntimeAcquisitionSource(runtimeSourceConfig(clock))
+	return runtimeSourceAndViewsWithConfig(
+		t,
+		runtimeSourceConfig(clock),
+		pollGeneration,
+	)
+}
+
+func runtimeSourceAndViewsWithConfig(
+	t *testing.T,
+	config modbus.RuntimeAcquisitionConfig,
+	pollGeneration uint64,
+) (*modbus.RuntimeAcquisitionSource, []modbus.LogicalReadView) {
+	t.Helper()
+	source, err := modbus.NewRuntimeAcquisitionSource(config)
 	if err != nil {
 		t.Fatalf("NewRuntimeAcquisitionSource: %v", err)
 	}
@@ -319,6 +333,36 @@ func largeRuntimeNormalizations(
 		if err != nil {
 			t.Fatalf("ParseNormalizationRecord(%d): %v", index, err)
 		}
+	}
+	return normalizations, encoded
+}
+
+func overflowingRuntimeNormalizations(
+	t *testing.T,
+	source *modbus.RuntimeAcquisitionSource,
+	views []modbus.LogicalReadView,
+) ([]modbus.RuntimeNormalizationRecord, [][]byte) {
+	t.Helper()
+	padding := strings.Repeat("z", 1_575_000)
+	normalizations := make([]modbus.RuntimeNormalizationRecord, len(views))
+	encoded := make([][]byte, len(views))
+	base64Bytes := 0
+	for index := range views {
+		encoded[index] = []byte(fmt.Sprintf(
+			`{"schema_version":1,"source_kind":"runtime","source_evidence_id":"urn:helianthus:evidence:example-register-map","documentary_notation":"one-based input register","documentary_address":%d,"documentary_address_base":"one_based_register","function_code":4,"logical_table":"input_registers","normalized_zero_based_pdu_offset":%d,"word_count":2,"padding":"%s"}`,
+			101+index,
+			100+index,
+			padding,
+		))
+		base64Bytes += base64.StdEncoding.EncodedLen(len(encoded[index]))
+		var err error
+		normalizations[index], err = source.ParseNormalizationRecord(encoded[index])
+		if err != nil {
+			t.Fatalf("ParseNormalizationRecord(%d): %v", index, err)
+		}
+	}
+	if base64Bytes <= reg.MaxSerializedContractBytes {
+		t.Fatalf("base64 normalization payload is only %d bytes", base64Bytes)
 	}
 	return normalizations, encoded
 }
@@ -835,6 +879,27 @@ func TestDurableObservationRoundTripsLargeProducerNormalization(t *testing.T) {
 		t.Fatalf("json.Unmarshal(durable): %v", err)
 	}
 	values := envelope["runtime_normalizations"].([]any)
+	numericBytes := make([]int, len(normalizationBytes[0]))
+	for index, value := range normalizationBytes[0] {
+		numericBytes[index] = int(value)
+	}
+	values[0] = numericBytes
+	numericArray, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("json.Marshal(numeric array): %v", err)
+	}
+	if _, err := reg.UnmarshalObservation(profile, numericArray); err == nil {
+		t.Fatal("numeric-array binary normalization was accepted")
+	}
+	canonicalBase64 := base64.StdEncoding.EncodeToString(normalizationBytes[0])
+	values[0] = canonicalBase64[:4] + "\n" + canonicalBase64[4:]
+	noncanonical, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("json.Marshal(noncanonical base64): %v", err)
+	}
+	if _, err := reg.UnmarshalObservation(profile, noncanonical); err == nil {
+		t.Fatal("noncanonical base64 normalization was accepted")
+	}
 	values[0] = "not-base64!"
 	malformed, err := json.Marshal(envelope)
 	if err != nil {
@@ -850,6 +915,72 @@ func TestDurableObservationRoundTripsLargeProducerNormalization(t *testing.T) {
 	}
 	if _, err := reg.UnmarshalObservation(profile, oversized); err == nil {
 		t.Fatal("oversized durable normalization envelope was accepted")
+	}
+	for index := range values {
+		raw := []byte(fmt.Sprintf(
+			`{"schema_version":1,"source_kind":"runtime","source_evidence_id":"urn:helianthus:evidence:example-register-map","documentary_notation":"one-based input register","documentary_address":%d,"documentary_address_base":"one_based_register","function_code":4,"logical_table":"input_registers","normalized_zero_based_pdu_offset":%d,"word_count":2,"padding":"%s"}`,
+			101+index,
+			100+index,
+			strings.Repeat("r", 150_000),
+		))
+		values[index] = base64.StdEncoding.EncodeToString(raw)
+	}
+	nonRemarshalable, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("json.Marshal(non-remarshalable): %v", err)
+	}
+	if len(nonRemarshalable) >= reg.MaxSerializedContractBytes {
+		t.Fatalf("non-remarshalable fixture is already oversized: %d", len(nonRemarshalable))
+	}
+	if _, err := reg.UnmarshalObservation(profile, nonRemarshalable); err == nil {
+		t.Fatal("durable envelope that cannot be re-marshaled was accepted")
+	}
+}
+
+func TestRuntimeAdmissionRejectsOversizedDurableEnvelopeBeforeClaims(t *testing.T) {
+	profile := profileFixture(t)
+	clock := newRuntimeIntegrationClock()
+	config := runtimeSourceConfig(clock)
+	config.Limits.NormalizationRecordMaxEncodedBytes = reg.MaxSerializedContractBytes
+	config.Limits.NormalizationExtensionValueMaxEncodedBytes = reg.MaxSerializedContractBytes
+	source, views := runtimeSourceAndViewsWithConfig(t, config, 41)
+	initial, ledger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
+	committer := &memoryPublicationCommitter{state: initial}
+	factory, err := reg.NewObservationFactory(profile, ledger, committer)
+	if err != nil {
+		t.Fatalf("NewObservationFactory: %v", err)
+	}
+	attempt, err := factory.BeginRuntimeAttempt(runtimeAttemptRequestForTest(
+		source,
+		"oversized-durable-envelope",
+		41,
+		len(views),
+	))
+	if err != nil {
+		t.Fatalf("BeginRuntimeAttempt: %v", err)
+	}
+	normalizations, _ := overflowingRuntimeNormalizations(t, source, views)
+	for index := range views {
+		if err := attempt.Issue(uint32(index), views[index], normalizations[index]); err != nil {
+			t.Fatalf("Issue(%d): %v", index, err)
+		}
+	}
+	if err := attempt.Admit(); err == nil {
+		t.Fatal("durably oversized runtime observation was admitted")
+	}
+	if outcome, err := attempt.Claim(0); err == nil || outcome == reg.ClaimSucceeded {
+		t.Fatalf("Claim after failed admission=(%q, %v)", outcome, err)
+	}
+	if phase := attempt.Phase(); phase != reg.AttemptCancelled {
+		t.Fatalf("failed durable admission phase=%q", phase)
+	}
+	if snapshot := source.Snapshot(); snapshot.LiveCapabilities != 0 ||
+		snapshot.ActiveAttempts != 0 {
+		t.Fatalf("failed durable admission retained producer authority: %+v", snapshot)
+	}
+	if snapshot := ledger.Snapshot(); snapshot.RetainedAttempts != 0 ||
+		snapshot.RetainedClaimEntries != 0 {
+		t.Fatalf("failed durable admission retained ledger authority: %+v", snapshot)
 	}
 }
 

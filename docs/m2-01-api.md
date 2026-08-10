@@ -71,7 +71,10 @@ state, so the same ordinal or source view cannot be issued twice.
 It requires every dependency ordinal exactly once, closes the retained producer
 attempt over the private ordered set, and stores the exact returned
 `RuntimeAttemptInstance`. Acquisitions from another source or attempt cannot be
-injected into admission.
+injected into admission. Before admission becomes claimable, the complete
+runtime template is checked through the production durable-envelope marshal
+path using the longest possible issuer sample ID. Aggregate infeasibility
+drains and terminalizes the closed producer instance without allowing claims.
 
 `Claim` performs exactly one producer
 `acquisition.Capability().Claim(retainedInstance)` operation. Later calls see
@@ -234,6 +237,10 @@ sequences per committed publication: one attempt plus at least one claim. An
 exhausted terminal watermark satisfies this relationship only when that minimum
 history itself fits the terminal sequence space.
 
+The last committed `poll_generation_id` must be positive and greater than or
+equal to `revision`. Generations may skip, but strictly increasing publication
+identity means fewer generations than committed revisions is impossible.
+
 `ExportRestartState` succeeds only when no live attempt remains and every
 reserved terminal watermark has crossed a durable committer boundary. Live
 attempts and capabilities are intentionally nonserializable.
@@ -292,10 +299,13 @@ collections, duplicate and case-folded keys, invalid UTF-8, unpaired surrogate
 escapes, `null`, missing required members, unknown fields, and incompatible
 schemas before activation.
 
-JSON strings representing `[]byte` fields are bounded by the aggregate contract
-ceiling rather than the ordinary 4096-byte text-scalar ceiling. This accounts
-for base64 expansion while preserving exact producer normalization bytes;
-ordinary textual fields retain their existing scalar bound.
+JSON strings representing `[]byte` fields must be canonical standard base64 and
+are bounded by the aggregate contract ceiling rather than the ordinary
+4096-byte text-scalar ceiling. Numeric byte arrays and noncanonical base64 are
+rejected. This accounts for base64 expansion while preserving exact producer
+normalization bytes; ordinary textual fields retain their existing scalar
+bound. `UnmarshalObservation` also passes the reconstructed observation through
+the same bounded durable marshal path before returning it.
 
 Required timestamp presence is structural. UTC year one is valid when
 explicitly present; absent, unmarked, or out-of-range values fail closed.

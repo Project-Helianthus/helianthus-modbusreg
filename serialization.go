@@ -849,6 +849,18 @@ func MarshalObservation(observation Observation) ([]byte, error) {
 	})
 }
 
+func validateDurableObservationEnvelope(
+	observation Observation,
+	sampleID string,
+) error {
+	candidate := observation
+	candidate.spec.SampleID = sampleID
+	if _, err := MarshalObservation(candidate); err != nil {
+		return fmt.Errorf("durable observation envelope: %w", err)
+	}
+	return nil
+}
+
 // UnmarshalObservation strictly reconstructs one production observation from
 // its bounded durable envelope. Fixture records intentionally use a different
 // nonpublishable contract and are rejected here.
@@ -893,6 +905,12 @@ func UnmarshalObservation(
 		}
 		observation.replayed[index].runtimeNormalizationBytes = append([]byte(nil), encoded...)
 		observation.replayed[index].runtimeNormalizationFields = fields
+	}
+	if err := validateDurableObservationEnvelope(
+		observation,
+		observation.SampleID(),
+	); err != nil {
+		return Observation{}, err
 	}
 	return observation, nil
 }

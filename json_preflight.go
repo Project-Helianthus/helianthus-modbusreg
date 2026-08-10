@@ -2,6 +2,7 @@ package modbusreg
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -143,6 +144,9 @@ func scanJSONValue(
 			}
 			return scanJSONObject(decoder, depth, expected)
 		case '[':
+			if expected == byteSliceType {
+				return fmt.Errorf("serialized binary field must use canonical base64")
+			}
 			if expected == nil ||
 				(expected.Kind() != reflect.Slice && expected.Kind() != reflect.Array) {
 				return fmt.Errorf("serialized array has an incompatible shape")
@@ -160,6 +164,10 @@ func scanJSONValue(
 		if expected == byteSliceType {
 			if len(value) > MaxSerializedContractBytes {
 				return fmt.Errorf("serialized binary field exceeds the byte boundary")
+			}
+			decoded, err := base64.StdEncoding.Strict().DecodeString(value)
+			if err != nil || base64.StdEncoding.EncodeToString(decoded) != value {
+				return fmt.Errorf("serialized binary field is not canonical base64")
 			}
 		} else {
 			if err := validateBoundedString("serialized string", value, false); err != nil {

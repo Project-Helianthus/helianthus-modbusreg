@@ -633,6 +633,64 @@ func TestSampleLedgerStateRestartValidationIsBounded(t *testing.T) {
 	}
 }
 
+func TestPersistedSampleGenerationCoversEveryCommittedRevision(t *testing.T) {
+	profile := profileFixture(t)
+	state := emptyFixtureLedgerState(t, profile)
+	state.Revision = 2
+	state.HighWater = 2
+	state.LastCommittedAttempt = reg.AttemptIdentity{PollGenerationID: 1}
+	restart := reg.LedgerRestartState{
+		SchemaVersion:            1,
+		NextTerminalSequence:     5,
+		TruncatedThroughSequence: 4,
+	}
+	if ledger, err := reg.NewSampleLedgerFromRestart(
+		state,
+		2,
+		reg.DefaultLedgerLimits(),
+		restart,
+	); err == nil || ledger != nil {
+		t.Fatal("committed revision count exceeded its poll generation")
+	}
+	if encoded, err := reg.MarshalSampleLedgerState(state); err == nil || encoded != nil {
+		t.Fatal("invalid committed poll generation was serialized")
+	}
+
+	valid := state
+	valid.LastCommittedAttempt.PollGenerationID = 7
+	encoded, err := reg.MarshalSampleLedgerState(valid)
+	if err != nil {
+		t.Fatalf("MarshalSampleLedgerState(valid skipped generation): %v", err)
+	}
+	badJSON := bytes.Replace(
+		encoded,
+		[]byte(`"poll_generation_id":7`),
+		[]byte(`"poll_generation_id":1`),
+		1,
+	)
+	if bytes.Equal(badJSON, encoded) {
+		t.Fatal("poll generation JSON mutation did not apply")
+	}
+	if _, err := reg.UnmarshalSampleLedgerState(badJSON); err == nil {
+		t.Fatal("invalid committed poll generation JSON was accepted")
+	}
+	decoded, err := reg.UnmarshalSampleLedgerState(encoded)
+	if err != nil {
+		t.Fatalf("UnmarshalSampleLedgerState(valid skipped generation): %v", err)
+	}
+	if decoded != valid {
+		t.Fatalf("valid skipped generation changed: got %+v want %+v", decoded, valid)
+	}
+	if _, err := reg.NewSampleLedgerFromRestart(
+		valid,
+		2,
+		reg.DefaultLedgerLimits(),
+		restart,
+	); err != nil {
+		t.Fatalf("valid skipped generation restore: %v", err)
+	}
+}
+
 func TestRevokedProfileRejectsSuccessorFields(t *testing.T) {
 	base := profileFixture(t)
 	spec := base.Spec()

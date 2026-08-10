@@ -479,6 +479,8 @@ func validateSampleLedgerState(
 		state.Revision < trustedMinimumRevision ||
 		(state.Revision == 0 && !initialAttemptState) ||
 		(state.Revision != 0 && state.LastCommittedAttempt.PollGenerationID == 0) ||
+		(state.Revision != 0 &&
+			state.LastCommittedAttempt.PollGenerationID < state.Revision) ||
 		(state.LastCommittedAttempt.PollGenerationID == 0 &&
 			state.LastCommittedAttempt.RetryOrdinal != 0) {
 		return fmt.Errorf("sample ledger state is incomplete, stale, or incompatible")
@@ -1244,6 +1246,17 @@ func (attempt *ObservationAttempt) Admit() error {
 		request,
 		state.factory.profile.Dependencies().Dependencies(),
 	)
+	if validationErr == nil {
+		maximumSampleID := fmt.Sprintf(
+			"%s:%d",
+			state.factory.ledger.issuerDomain,
+			uint64(math.MaxUint64),
+		)
+		validationErr = validateDurableObservationEnvelope(
+			template,
+			maximumSampleID,
+		)
+	}
 	if validationErr == nil {
 		state.acquisitions = retained
 		state.template = template
