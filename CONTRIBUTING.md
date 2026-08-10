@@ -5,8 +5,8 @@
 1. Work from one linked GitHub issue.
 2. Use `issue/<id>-<slug>` for the branch.
 3. Keep at most one open pull request in this repository.
-4. For implementation, preserve a test-only RED commit observed by CI before
-   the implementation commit.
+4. Add focused RED tests before behavioral changes when TDD adds value, and
+   record the observed failure in normal Git or pull-request evidence.
 5. Run `./scripts/ci_local.sh`.
 6. Link admissible public evidence for every profile fact.
 7. Squash merge only after CI and review gates pass.

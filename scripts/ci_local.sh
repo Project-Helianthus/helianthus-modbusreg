@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 export GOWORK=off
+export PYTHONDONTWRITEBYTECODE=1
 
 echo "==> terminology gate"
 if git grep -nIwiE 'm[a]ster|s[l]ave'; then
@@ -18,7 +19,7 @@ echo "==> scope policy mutation tests"
 python3 -m unittest discover -s tests -p 'test_*.py'
 
 echo "==> gofmt"
-go_files="$(git ls-files '*.go')"
+go_files="$(git ls-files '*.go' | LC_ALL=C sort)"
 if [[ -n "$go_files" ]]; then
   unformatted="$(gofmt -l $go_files)"
   if [[ -n "$unformatted" ]]; then

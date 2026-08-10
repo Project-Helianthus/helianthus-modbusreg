@@ -1,29 +1,70 @@
 {
-  "schema": "helianthus-modbusreg-boundary/v1",
+  "schema": "helianthus-modbusreg-boundary/v4",
   "repository_mode": "single_multi_vendor",
-  "implementation_lock": "bootstrap_only",
-  "allowed_product_go_files": [
-    "doc.go"
+  "implementation_scope": "m2_01_contracts_only",
+  "module_path": "github.com/Project-Helianthus/helianthus-modbusreg",
+  "required_public_dependencies": [
+    "github.com/Project-Helianthus/helianthus-modbus"
   ],
-  "allowed_product_go_sha256": {
-    "doc.go": "9e8a409c21ddc211f0854177c29ae29303c81c20a434ea28f1eca895e7bafaba"
-  },
-  "standard_root": "profiles/standard",
-  "vendor_root": "profiles/vendor",
-  "vendor_evidence_file": "evidence.json",
   "allowed_project_import_prefixes": [
     "github.com/Project-Helianthus/helianthus-modbus",
     "github.com/Project-Helianthus/helianthus-modbusreg"
   ],
-  "forbidden_import_prefixes": [
+  "allowed_non_io_net_imports": [
+    "net/url"
+  ],
+  "forbidden_product_import_prefixes": [
     "net",
     "syscall",
     "golang.org/x/sys/"
   ],
-  "forbidden_import_tokens": [
+  "forbidden_product_import_tokens": [
+    "framing",
     "serial",
-    "modbus"
+    "socket"
   ],
+  "forbidden_m2_01_directory_names": [
+    "binding",
+    "bindings",
+    "canonical",
+    "detector",
+    "detectors",
+    "framing",
+    "gateway",
+    "gateways",
+    "network",
+    "private",
+    "probe",
+    "probes",
+    "profiles",
+    "qualification",
+    "qualifications",
+    "semantic",
+    "semantics",
+    "serial",
+    "socket",
+    "sockets",
+    "transport",
+    "transports"
+  ],
+  "forbidden_m2_01_product_file_stems": [
+    "binding",
+    "canonical",
+    "detector",
+    "framing",
+    "gateway",
+    "network",
+    "probe",
+    "qualification",
+    "semantic",
+    "semantics",
+    "serial",
+    "socket",
+    "transport"
+  ],
+  "standard_root": "profiles/standard",
+  "vendor_root": "profiles/vendor",
+  "vendor_evidence_file": "evidence.json",
   "vendor_identifiers": [
     "fronius",
     "growatt",

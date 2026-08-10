@@ -1,0 +1,552 @@
+package modbusreg_test
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+)
+
+func fixtureLedgerState(
+	t *testing.T,
+	profile reg.ProfileDescriptor,
+	issuer string,
+) reg.SampleLedgerState {
+	t.Helper()
+	state, err := reg.EmptySampleLedgerState(issuer, profile)
+	if err != nil {
+		t.Fatalf("EmptySampleLedgerState: %v", err)
+	}
+	return state
+}
+
+func fixtureFactoryFromState(
+	t *testing.T,
+	profile reg.ProfileDescriptor,
+	state reg.SampleLedgerState,
+) *fixtureValidationFactory {
+	t.Helper()
+	ledger, err := reg.NewSampleLedger(state, state.Revision)
+	if err != nil {
+		t.Fatalf("NewSampleLedger: %v", err)
+	}
+	_ = ledger
+	return newFixtureValidationFactory(t, profile)
+}
+
+func decodeFixtureAttempt(
+	t *testing.T,
+	factory *fixtureValidationFactory,
+	spec reg.ObservationSpec,
+) (*fixtureReplaySession, reg.ObservationSpec) {
+	t.Helper()
+	encoded, err := reg.MarshalFixtureSpec(spec)
+	if err != nil {
+		t.Fatalf("MarshalFixtureSpec: %v", err)
+	}
+	attempt, err := factory.BeginFixtureReplay(reg.AttemptIdentity{
+		PollGenerationID: spec.PollGenerationID,
+		RetryOrdinal:     spec.RetryOrdinal,
+	})
+	if err != nil {
+		t.Fatalf("BeginFixtureReplay: %v", err)
+	}
+	decoded, err := attempt.DecodeSpec(encoded)
+	if err != nil {
+		t.Fatalf("DecodeSpec: %v", err)
+	}
+	return attempt, decoded
+}
+
+func validateFixtureReplay(
+	t *testing.T,
+	profile reg.ProfileDescriptor,
+	spec reg.ObservationSpec,
+) (reg.FixtureReplay, error) {
+	t.Helper()
+	state := fixtureLedgerState(t, profile, "fixture-issuer")
+	factory := fixtureFactoryFromState(t, profile, state)
+	return replayWithFactory(factory, spec)
+}
+
+func TestLogicalViewIDIsUniqueOnlyWithinPhysicalGroup(t *testing.T) {
+	profile, spec := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	first := spec.Dependencies[0].View.Record()
+	second := spec.Dependencies[1].View.Record()
+	second.LogicalViewID = first.LogicalViewID
+	spec.Dependencies[1].View = snapshotFromRecord(t, second)
+	if _, err := validateFixtureReplay(t, profile, spec); err != nil {
+		t.Fatalf("distinct physical responses reused a legal logical ID: %v", err)
+	}
+
+	_, samePhysical := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	makeRepeatedWireGroup(t, &samePhysical)
+	first = samePhysical.Dependencies[0].View.Record()
+	second = samePhysical.Dependencies[1].View.Record()
+	second.LogicalViewID = first.LogicalViewID
+	samePhysical.Dependencies[1].View = snapshotFromRecord(t, second)
+	if _, err := validateFixtureReplay(t, profile, samePhysical); err == nil {
+		t.Fatal("one physical response accepted a duplicate logical-view ID")
+	}
+}
+
+func TestPhysicalAndWireIdentityIsBidirectional(t *testing.T) {
+	profile, aliasedPhysical := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	originalWire := aliasedPhysical.Dependencies[1].View.Record().WireResponseID
+	makeRepeatedWireGroup(t, &aliasedPhysical)
+	second := aliasedPhysical.Dependencies[1].View.Record()
+	if originalWire == second.WireResponseID {
+		originalWire++
+	}
+	second.WireResponseID = originalWire
+	aliasedPhysical.Dependencies[1].View = snapshotFromRecord(t, second)
+	if _, err := validateFixtureReplay(t, profile, aliasedPhysical); err == nil {
+		t.Fatal("one physical identity mapped to two wire-response IDs")
+	}
+
+	_, aliasedWire := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	first := aliasedWire.Dependencies[0].View.Record()
+	second = aliasedWire.Dependencies[1].View.Record()
+	second.WireResponseID = first.WireResponseID
+	aliasedWire.Dependencies[1].View = snapshotFromRecord(t, second)
+	if _, err := validateFixtureReplay(t, profile, aliasedWire); err == nil {
+		t.Fatal("one wire-response ID mapped to two physical identities")
+	}
+
+	_, conflictingWords := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	makeRepeatedWireGroup(t, &conflictingWords)
+	second = conflictingWords.Dependencies[1].View.Record()
+	second.Words[0] ^= 0xffff
+	conflictingWords.Dependencies[1].View = snapshotFromRecord(t, second)
+	if _, err := validateFixtureReplay(t, profile, conflictingWords); err == nil {
+		t.Fatal("one physical group accepted contradictory overlapping words")
+	}
+}
+
+func TestRetryAttemptBindingIsOwnedAndDeterministicallyReplayable(
+	t *testing.T,
+) {
+	profile, firstSpec := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	state := fixtureLedgerState(t, profile, "retry-binding")
+	factory := fixtureFactoryFromState(t, profile, state)
+
+	firstAttempt, firstBound := decodeFixtureAttempt(t, factory, firstSpec)
+	_, secondSpec := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	secondSpec.RetryOrdinal = firstSpec.RetryOrdinal + 1
+	for index := range secondSpec.Dependencies {
+		secondSpec.Dependencies[index].RetryOrdinal = secondSpec.RetryOrdinal
+	}
+	_, secondBound := decodeFixtureAttempt(t, factory, secondSpec)
+
+	mixed := firstBound
+	mixed.Dependencies = append(
+		[]reg.DependencyResult(nil),
+		firstBound.Dependencies...,
+	)
+	mixed.Dependencies[1] = secondBound.Dependencies[1]
+	if _, err := firstAttempt.Replay(mixed); err == nil {
+		t.Fatal("retained-old and new-attempt dependencies were mixed")
+	}
+
+	_, serialSpec := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	serialAttempt, serialBound := decodeFixtureAttempt(t, factory, serialSpec)
+	encoded, err := serialAttempt.MarshalSpec(serialBound)
+	if err != nil {
+		t.Fatalf("MarshalSpec: %v", err)
+	}
+	if bytes.Contains(encoded, []byte(`"retry_attempt_token"`)) ||
+		!bytes.Contains(encoded, []byte(`"retry_ordinal":1`)) {
+		t.Fatal("serialized retry identity is not deterministic")
+	}
+	replayAttempt, err := factory.BeginFixtureReplay(reg.AttemptIdentity{
+		PollGenerationID: serialSpec.PollGenerationID,
+		RetryOrdinal:     serialSpec.RetryOrdinal,
+	})
+	if err != nil {
+		t.Fatalf("BeginFixtureReplay(replay): %v", err)
+	}
+	replayed, err := replayAttempt.DecodeSpec(encoded)
+	if err != nil {
+		t.Fatalf("deterministic fresh-attempt replay failed: %v", err)
+	}
+	reencoded, err := replayAttempt.MarshalSpec(replayed)
+	if err != nil {
+		t.Fatalf("MarshalSpec(replayed): %v", err)
+	}
+	if !bytes.Equal(encoded, reencoded) {
+		t.Fatal("deterministic replay changed serialized bytes")
+	}
+	if _, err := replayAttempt.Replay(replayed); err != nil {
+		t.Fatalf("fresh-attempt serialized input was rejected: %v", err)
+	}
+}
+
+func TestRuntimeContractVersionIsPinned(t *testing.T) {
+	if reg.PinnedRuntimeContractVersion().String() != "1.0.0" {
+		t.Fatalf(
+			"pinned runtime version = %q",
+			reg.PinnedRuntimeContractVersion().String(),
+		)
+	}
+	spec := profileFixture(t).Spec()
+	spec.RuntimeContractVersion = version(t, "9.0.0")
+	if _, err := reg.NewProfileDescriptor(spec); err == nil {
+		t.Fatal("profile accepted an arbitrary runtime contract version")
+	}
+
+	encoded, err := reg.MarshalProfileDescriptor(profileFixture(t))
+	if err != nil {
+		t.Fatalf("MarshalProfileDescriptor: %v", err)
+	}
+	forged := bytes.Replace(
+		encoded,
+		[]byte(`"runtime_contract_version":"1.0.0"`),
+		[]byte(`"runtime_contract_version":"9.0.0"`),
+		1,
+	)
+	if _, err := reg.UnmarshalProfileDescriptor(forged); err == nil {
+		t.Fatal("serialized profile accepted an incompatible runtime version")
+	}
+}
+
+func overlayCodecDelta(
+	t *testing.T,
+	id string,
+	codec reg.CodecSpec,
+) reg.VendorOverlayDeltaSpec {
+	t.Helper()
+	return reg.VendorOverlayDeltaSpec{
+		ID:                 id,
+		Version:            version(t, "1.0.0"),
+		Kind:               reg.OverlayDeltaCodec,
+		Operation:          reg.OverlayDeltaReplace,
+		TargetID:           codec.ID,
+		Codec:              &codec,
+		EvidenceReferences: []string{"overlay-evidence"},
+	}
+}
+
+func overlayDependencyDelta(
+	t *testing.T,
+	id string,
+	dependency reg.DependencySpec,
+) reg.VendorOverlayDeltaSpec {
+	t.Helper()
+	return reg.VendorOverlayDeltaSpec{
+		ID:                 id,
+		Version:            version(t, "1.0.0"),
+		Kind:               reg.OverlayDeltaDependency,
+		Operation:          reg.OverlayDeltaReplace,
+		TargetID:           dependency.ID,
+		Dependency:         &dependency,
+		EvidenceReferences: []string{"overlay-evidence"},
+	}
+}
+
+func TestOverlayMaterializesAndValidatesEffectiveGraph(t *testing.T) {
+	base := qualifiedBaseProfile(t)
+
+	sameVersionCodec := numericCodecSpec(t)
+	sameVersionCodec.Scale.Denominator = 20
+	sameVersionOverlay := overlayDeltaProfile(
+		t,
+		base,
+		[]reg.VendorOverlayDeltaSpec{
+			overlayCodecDelta(t, "same-version-codec", sameVersionCodec),
+		},
+	)
+	if _, err := reg.NewCatalog(base, sameVersionOverlay); err == nil {
+		t.Fatal("semantic codec replacement kept the base codec version")
+	}
+
+	widthChangedCodec := numericCodecSpec(t)
+	widthChangedCodec.Version = version(t, "2.0.0")
+	widthChangedCodec.RawWordCount = 1
+	widthChangedCodec.WordPermutation = []uint16{0}
+	widthChangedCodec.Sentinels = []reg.RawSentinel{{
+		Kind:  reg.SentinelInvalid,
+		Words: []uint16{0xffff},
+	}}
+	widthOverlay := overlayDeltaProfile(
+		t,
+		base,
+		[]reg.VendorOverlayDeltaSpec{
+			overlayCodecDelta(t, "width-codec", widthChangedCodec),
+		},
+	)
+	if _, err := reg.NewCatalog(base, widthOverlay); err == nil {
+		t.Fatal("effective graph ignored dependencies broken by a codec replacement")
+	}
+
+	missingCodecDependency := dependencySpec(t, "vendor-extra", 110)
+	missingCodecDependency.Version = version(t, "2.0.0")
+	missingCodecDependency.CodecID = "missing-codec"
+	missingCodecDependency.CodecVersion = version(t, "2.0.0")
+	missingCodecDependency.EvidenceReferences = []string{"overlay-evidence"}
+	missingCodecOverlay := overlayDeltaProfile(
+		t,
+		base,
+		[]reg.VendorOverlayDeltaSpec{{
+			ID:                 "missing-codec-dependency",
+			Version:            version(t, "1.0.0"),
+			Kind:               reg.OverlayDeltaDependency,
+			Operation:          reg.OverlayDeltaAdd,
+			TargetID:           missingCodecDependency.ID,
+			Dependency:         &missingCodecDependency,
+			EvidenceReferences: []string{"overlay-evidence"},
+		}},
+	)
+	if _, err := reg.NewCatalog(base, missingCodecOverlay); err == nil {
+		t.Fatal("added dependency referenced an absent effective codec")
+	}
+
+	changedCodec := numericCodecSpec(t)
+	changedCodec.Version = version(t, "2.0.0")
+	changedCodec.Scale.Denominator = 20
+	deltas := []reg.VendorOverlayDeltaSpec{
+		overlayCodecDelta(t, "codec-v2", changedCodec),
+	}
+	for index, dependency := range base.Dependencies().Dependencies() {
+		spec := dependency.Spec()
+		spec.Version = version(t, "2.0.0")
+		spec.CodecVersion = version(t, "2.0.0")
+		spec.EvidenceReferences = []string{"overlay-evidence"}
+		deltas = append(
+			deltas,
+			overlayDependencyDelta(
+				t,
+				fmt.Sprintf("dependency-v2-%d", index),
+				spec,
+			),
+		)
+	}
+	validOverlay := overlayDeltaProfile(t, base, deltas)
+	if _, err := reg.NewCatalog(base, validOverlay); err != nil {
+		t.Fatalf("fully coherent effective overlay graph rejected: %v", err)
+	}
+
+	coherence := base.Spec().Coherence
+	coherence.Mode = reg.CoherenceBoundedMultiResponse
+	coherence.MaximumSourceSkew = time.Second
+	coherence.MaximumReceiptSkew = time.Second
+	coherence.RequireGenerationEquality = true
+	coherence.AcquisitionOrder = reg.AcquisitionOrderDependencyDeclaration
+	coherence.RetrySetBehavior = reg.RetryWholeSet
+	sameVersionCoherence := overlayDeltaProfile(
+		t,
+		base,
+		[]reg.VendorOverlayDeltaSpec{{
+			ID:                 "same-version-coherence",
+			Version:            version(t, "1.0.0"),
+			Kind:               reg.OverlayDeltaCoherence,
+			Operation:          reg.OverlayDeltaReplace,
+			TargetID:           "coherence-policy",
+			Coherence:          &coherence,
+			EvidenceReferences: []string{"overlay-evidence"},
+		}},
+	)
+	if _, err := reg.NewCatalog(base, sameVersionCoherence); err == nil {
+		t.Fatal("semantic coherence replacement kept the base version")
+	}
+}
+
+func TestBoundedSkewUsesCheckedArithmetic(t *testing.T) {
+	profile, observation := boundedFixture(
+		t,
+		reg.AcquisitionOrderDependencyDeclaration,
+	)
+	invalidProfile := profile.Spec()
+	invalidProfile.Coherence.MaximumSourceSkew = time.Duration(1<<63 - 1)
+	invalidProfile.Coherence.MaximumReceiptSkew = time.Duration(1<<63 - 1)
+	if _, err := reg.NewProfileDescriptor(invalidProfile); err == nil {
+		t.Fatal("profile accepted a saturated multi-century skew declaration")
+	}
+
+	boundedProfile := profile.Spec()
+	boundedProfile.Coherence.MaximumSourceSkew = reg.MaxDeclaredCoherenceSkew
+	boundedProfile.Coherence.MaximumReceiptSkew = reg.MaxDeclaredCoherenceSkew
+	profile, err := reg.NewProfileDescriptor(boundedProfile)
+	if err != nil {
+		t.Fatalf("NewProfileDescriptor(max bounded skew): %v", err)
+	}
+	early := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
+	late := time.Date(9999, time.December, 31, 0, 0, 0, 0, time.UTC)
+	observation.Dependencies[0].SourceTime = reg.SourceTimeObserved(early)
+	observation.Dependencies[0].LocalReceiptTime = early
+	observation.Dependencies[1].SourceTime = reg.SourceTimeObserved(late)
+	observation.Dependencies[1].LocalReceiptTime = late
+	observation.SourceTime = reg.SourceTimeObserved(late)
+	observation.LocalReceiptTime = late
+	if _, err := validateFixtureReplay(t, profile, observation); err == nil {
+		t.Fatal("year 1..9999 skew passed through time.Duration saturation")
+	}
+}
+
+func TestJSONRequiresExactKeysAndUnicode(t *testing.T) {
+	encoded, err := reg.MarshalProfileDescriptor(profileFixture(t))
+	if err != nil {
+		t.Fatalf("MarshalProfileDescriptor: %v", err)
+	}
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "standalone root case alias",
+			data: bytes.Replace(
+				encoded,
+				[]byte(`"schema_version"`),
+				[]byte(`"Schema_Version"`),
+				1,
+			),
+		},
+		{
+			name: "standalone nested case alias",
+			data: bytes.Replace(
+				encoded,
+				[]byte(`"ID":"u32-energy"`),
+				[]byte(`"id":"u32-energy"`),
+				1,
+			),
+		},
+		{
+			name: "invalid UTF-8",
+			data: bytes.Replace(
+				encoded,
+				[]byte("example.standard.energy"),
+				[]byte{'e', 'x', 0xff},
+				1,
+			),
+		},
+		{
+			name: "unpaired high surrogate",
+			data: bytes.Replace(
+				encoded,
+				[]byte("example.standard.energy"),
+				[]byte(`example.standard.\ud800`),
+				1,
+			),
+		},
+		{
+			name: "unpaired low surrogate",
+			data: bytes.Replace(
+				encoded,
+				[]byte("example.standard.energy"),
+				[]byte(`example.standard.\udc00`),
+				1,
+			),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := reg.UnmarshalProfileDescriptor(test.data); err == nil {
+				t.Fatal("non-canonical JSON was accepted")
+			}
+		})
+	}
+}
+
+func TestConstructorsUseOneCumulativeBudget(t *testing.T) {
+	dependency := dependencySpec(t, "aggregate-budget", 0)
+	dependency.EvidenceReferences = make(
+		[]string,
+		reg.MaxProfileEvidenceReferences,
+	)
+	for index := range dependency.EvidenceReferences {
+		dependency.EvidenceReferences[index] = fmt.Sprintf(
+			"evidence-%04d-%s",
+			index,
+			strings.Repeat("x", reg.MaxContractStringBytes-20),
+		)
+	}
+	if _, err := reg.NewDependency(dependency); err == nil {
+		t.Fatal("nested dependency strings exceeded the cumulative byte budget")
+	}
+
+	base := profileFixture(t).Spec()
+	profiles := make([]reg.ProfileDescriptor, 0, 8)
+	totalSerialized := 0
+	for profileIndex := 0; profileIndex < 8; profileIndex++ {
+		spec := base
+		spec.ID = fmt.Sprintf("example.standard.aggregate-%d", profileIndex)
+		spec.ModelApplicability = make([]string, 600)
+		for modelIndex := range spec.ModelApplicability {
+			spec.ModelApplicability[modelIndex] = fmt.Sprintf(
+				"model-%03d-%s",
+				modelIndex,
+				strings.Repeat("m", 980),
+			)
+		}
+		profile, err := reg.NewProfileDescriptor(spec)
+		if err != nil {
+			t.Fatalf("NewProfileDescriptor(%d): %v", profileIndex, err)
+		}
+		serialized, err := reg.MarshalProfileDescriptor(profile)
+		if err != nil {
+			t.Fatalf("MarshalProfileDescriptor(%d): %v", profileIndex, err)
+		}
+		totalSerialized += len(serialized)
+		profiles = append(profiles, profile)
+	}
+	if totalSerialized <= reg.MaxSerializedContractBytes {
+		t.Fatalf("catalog fixture is only %d bytes", totalSerialized)
+	}
+	if _, err := reg.NewCatalog(profiles...); err == nil {
+		t.Fatal("catalog ignored its cumulative aggregate byte budget")
+	}
+}
+
+func TestDependencySetDigestShapeIsValidatedEverywhere(t *testing.T) {
+	profile := profileFixture(t)
+	state := fixtureLedgerState(t, profile, "digest-shape")
+	factory := fixtureFactoryFromState(t, profile, state)
+	attempt, spec := decodeFixtureAttempt(
+		t,
+		factory,
+		successfulObservationSpec(t, profile),
+	)
+	encoded, err := attempt.MarshalSpec(spec)
+	if err != nil {
+		t.Fatalf("MarshalSpec: %v", err)
+	}
+	var record map[string]any
+	if err := json.Unmarshal(encoded, &record); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	record["dependency_set_id"] = "sha256:" + strings.Repeat("A", 64)
+	forged, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if _, err := attempt.DecodeSpec(forged); err == nil {
+		t.Fatal("persisted observation accepted a malformed dependency-set digest")
+	}
+}
