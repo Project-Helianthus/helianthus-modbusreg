@@ -29,18 +29,21 @@ func TestFroniusObservedFlavorReasonsAreClosedAndFailClosed(t *testing.T) {
 	valid := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
 	identity := froniusObservedSnapshot(t, registry, "fronius", "Symo GEN24 10.0", "1.41.11-1")
 	firmware := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-2")
-	chain := valid
-	chain.occurrences[2], chain.occurrences[3] = chain.occurrences[3], chain.occurrences[2]
-	chain.raw = rawWordsForOccurrences(chain.occurrences)
-	invalidCapability := valid
-	invalidCapability.occurrences[1] = inverterOccurrence(t, registry, 113, map[string][]uint16{"St": {99}}, 2)
-	invalidCapability.raw = rawWordsForOccurrences(invalidCapability.occurrences)
-	ambiguous := valid
-	ambiguous.occurrences = append(ambiguous.occurrences[:2], append([]SunSpecOccurrence{inverterOccurrence(t, registry, 103, nil, 3)}, ambiguous.occurrences[2:]...)...)
-	for index := range ambiguous.occurrences {
-		ambiguous.occurrences[index].Ordinal = uint32(index + 1)
+	chainOccurrences := valid.Occurrences()
+	chainOccurrences[2], chainOccurrences[3] = chainOccurrences[3], chainOccurrences[2]
+	for index := range chainOccurrences {
+		chainOccurrences[index].Ordinal = uint32(index + 1)
 	}
-	ambiguous.raw = rawWordsForOccurrences(ambiguous.occurrences)
+	chain := snapshotFromOccurrences(chainOccurrences...)
+	invalidCapability := cloneSnapshotForTest(valid)
+	invalidCapability.occurrences[1] = inverterOccurrence(t, registry, 113, map[string][]uint16{"St": {99}}, 2)
+	invalidCapability = snapshotFromOccurrences(invalidCapability.occurrences...)
+	ambiguousOccurrences := valid.Occurrences()
+	ambiguousOccurrences = append(ambiguousOccurrences[:2], append([]SunSpecOccurrence{inverterOccurrence(t, registry, 103, nil, 3)}, ambiguousOccurrences[2:]...)...)
+	for index := range ambiguousOccurrences {
+		ambiguousOccurrences[index].Ordinal = uint32(index + 1)
+	}
+	ambiguous := snapshotFromOccurrences(ambiguousOccurrences...)
 
 	tests := map[string]struct {
 		snapshot SunSpecChainSnapshot
@@ -57,6 +60,27 @@ func TestFroniusObservedFlavorReasonsAreClosedAndFailClosed(t *testing.T) {
 			decision := registry.EvaluateFroniusObservedFlavor(tc.snapshot)
 			if decision.Matched() || decision.Reason() != tc.reason {
 				t.Fatalf("matched=%t reason=%q want=%q", decision.Matched(), decision.Reason(), tc.reason)
+			}
+		})
+	}
+}
+
+func TestFroniusObservedFlavorMapsMalformedSnapshotToCapabilityFailure(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	valid := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
+	missingTerminal := cloneSnapshotForTest(valid)
+	missingTerminal.raw = missingTerminal.raw[:len(missingTerminal.raw)-2]
+	trailing := cloneSnapshotForTest(valid)
+	trailing.raw = append(trailing.raw, 0)
+
+	for name, snapshot := range map[string]SunSpecChainSnapshot{
+		"missing terminal": missingTerminal,
+		"trailing words":   trailing,
+	} {
+		t.Run(name, func(t *testing.T) {
+			decision := registry.EvaluateFroniusObservedFlavor(snapshot)
+			if decision.Matched() || decision.Reason() != SunSpecFroniusFlavorReasonCapabilityNotAdmitted {
+				t.Fatalf("matched=%t reason=%q", decision.Matched(), decision.Reason())
 			}
 		})
 	}

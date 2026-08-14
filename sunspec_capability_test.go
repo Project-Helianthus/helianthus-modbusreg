@@ -1,6 +1,7 @@
 package modbusreg
 
 import (
+	"math"
 	"reflect"
 	"testing"
 )
@@ -42,6 +43,102 @@ func TestThreePhaseMonitoringFailsClosedOnSourceAmbiguity(t *testing.T) {
 			decision := registry.EvaluateThreePhaseMonitoring(snapshotFromOccurrences(occurrences...))
 			if decision.Admitted() || decision.Reason() != SunSpecCapabilityReasonAmbiguousSource || len(decision.Facts()) != 0 {
 				t.Fatalf("decision admitted=%t reason=%q facts=%d", decision.Admitted(), decision.Reason(), len(decision.Facts()))
+			}
+		})
+	}
+}
+
+func TestThreePhaseMonitoringRejectsMissingSourceAndInvalidCommon(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	common := commonOccurrence(t, registry, "Maker", "Model", "1.0", 1)
+	if decision := registry.EvaluateThreePhaseMonitoring(snapshotFromOccurrences(common)); decision.Admitted() || decision.Reason() != SunSpecCapabilityReasonSourceAbsent {
+		t.Fatalf("missing source admitted=%t reason=%q", decision.Admitted(), decision.Reason())
+	}
+	if decision := registry.EvaluateThreePhaseMonitoring(snapshotFromOccurrences(inverterOccurrence(t, registry, 113, nil, 1))); decision.Admitted() || decision.Reason() != SunSpecCapabilityReasonInvalidChain {
+		t.Fatalf("missing common admitted=%t reason=%q", decision.Admitted(), decision.Reason())
+	}
+}
+
+func TestThreePhaseMonitoringDistinguishesUnsupportedExactSource(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	common := commonOccurrence(t, registry, "Maker", "Model", "1.0", 1)
+	unsupported := inverterOccurrence(t, registry, 113, nil, 2)
+	unsupported.Disposition = SunSpecChainDispositionUnknownModel
+	unsupported.decoderKey = nil
+	decision := registry.EvaluateThreePhaseMonitoring(snapshotFromOccurrences(common, unsupported))
+	if decision.Admitted() || decision.Reason() != SunSpecCapabilityReasonSourceUnsupported {
+		t.Fatalf("unsupported admitted=%t reason=%q", decision.Admitted(), decision.Reason())
+	}
+
+	wrongLength := SunSpecOccurrence{
+		Ordinal: 2, WireKey: SunSpecWireKey{ModelID: 103, ModelLength: 49},
+		SchemaRevision: testSunSpecModelsRevision, Disposition: SunSpecChainDispositionUnsupportedLength,
+		words: append([]uint16{103, 49}, make([]uint16, 49)...),
+	}
+	valid := inverterOccurrence(t, registry, 113, nil, 3)
+	decision = registry.EvaluateThreePhaseMonitoring(snapshotFromOccurrences(common, wrongLength, valid))
+	if !decision.Admitted() {
+		t.Fatalf("wrong-length lookalike blocked exact source: %q", decision.Reason())
+	}
+
+	unsupported.Ordinal = 2
+	valid.Ordinal = 3
+	decision = registry.EvaluateThreePhaseMonitoring(snapshotFromOccurrences(common, unsupported, valid))
+	if decision.Admitted() || decision.Reason() != SunSpecCapabilityReasonAmbiguousSource {
+		t.Fatalf("unsupported exact source was ignored: admitted=%t reason=%q", decision.Admitted(), decision.Reason())
+	}
+}
+
+func TestCanonicalSunSpecNumbersUseClosedPlainDecimalGrammar(t *testing.T) {
+	tests := []struct {
+		decimal SunSpecDecimal
+		want    string
+	}{
+		{SunSpecDecimal{Coefficient: 0, Exponent: -4}, "0"},
+		{SunSpecDecimal{Coefficient: 12, Exponent: -1}, "1.2"},
+		{SunSpecDecimal{Coefficient: 120, Exponent: -2}, "1.2"},
+		{SunSpecDecimal{Coefficient: -5, Exponent: 0}, "-5"},
+		{SunSpecDecimal{Coefficient: 1, Exponent: -3}, "0.001"},
+		{SunSpecDecimal{Coefficient: -10, Exponent: 2}, "-1000"},
+	}
+	for _, tc := range tests {
+		if got := formatSunSpecDecimal(tc.decimal); got != tc.want {
+			t.Fatalf("formatSunSpecDecimal(%+v)=%q want=%q", tc.decimal, got, tc.want)
+		}
+	}
+	value, ok := canonicalSunSpecValue(SunSpecValue{
+		pointType: SunSpecTypeFloat32,
+		state:     SunSpecValueValid,
+		float32:   math.Float32frombits(0x80000000),
+		hasFloat:  true,
+	})
+	if number, numberOK := value.Number(); !ok || !numberOK || number != "0" {
+		t.Fatalf("negative zero canonical=%q value_ok=%t number_ok=%t", number, ok, numberOK)
+	}
+}
+
+func TestThreePhaseMonitoringRequiresVerifiedTerminalOffsetsAndSpans(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	valid := capabilitySnapshot(t, registry, 113, nil)
+	missingTerminal := cloneSnapshotForTest(valid)
+	missingTerminal.raw = missingTerminal.raw[:len(missingTerminal.raw)-2]
+	badOffset := cloneSnapshotForTest(valid)
+	badOffset.occurrences[1].HeaderOffset++
+	badSpan := cloneSnapshotForTest(valid)
+	badSpan.occurrences[1].spans[0].WordCount--
+	rawContradiction := cloneSnapshotForTest(valid)
+	rawContradiction.raw[2] = 2
+
+	for name, snapshot := range map[string]SunSpecChainSnapshot{
+		"missing terminal":  missingTerminal,
+		"bad offset":        badOffset,
+		"bad span":          badSpan,
+		"raw contradiction": rawContradiction,
+	} {
+		t.Run(name, func(t *testing.T) {
+			decision := registry.EvaluateThreePhaseMonitoring(snapshot)
+			if decision.Admitted() || decision.Reason() != SunSpecCapabilityReasonInvalidChain {
+				t.Fatalf("admitted=%t reason=%q", decision.Admitted(), decision.Reason())
 			}
 		})
 	}
@@ -95,6 +192,12 @@ func TestThreePhaseMonitoringNormalizesEquivalent103And113Values(t *testing.T) {
 			t.Fatalf("%s integer=%q/%t floating=%q/%t", field, leftNumber, leftOK, rightNumber, rightOK)
 		}
 	}
+	for _, field := range []string{"inverter.operating_state", "inverter.events.1", "inverter.events.2"} {
+		fact, ok := capabilityFactByID(floating.Facts(), field)
+		if !ok || fact.Unit() != "none" {
+			t.Fatalf("%s unit=%q present=%t", field, fact.Unit(), ok)
+		}
+	}
 }
 
 func TestThreePhaseMonitoringDecisionIsDefensiveAndRetainsEvidence(t *testing.T) {
@@ -105,6 +208,12 @@ func TestThreePhaseMonitoringDecisionIsDefensiveAndRetainsEvidence(t *testing.T)
 	facts[0] = SunSpecCapabilityFact{}
 	if decision.Facts()[0].FieldID() == "" {
 		t.Fatal("facts mutated through accessor")
+	}
+	original := decision.Facts()[0].SourceValue()
+	words := original.RawWords()
+	words[0] = 0
+	if decision.Facts()[0].SourceValue().RawWords()[0] == 0 {
+		t.Fatal("original typed value mutated through accessor")
 	}
 	source, ok := decision.SourceOccurrence()
 	if !ok {

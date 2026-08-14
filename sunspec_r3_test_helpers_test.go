@@ -57,13 +57,43 @@ func capabilitySnapshot(t *testing.T, registry SunSpecDecoderRegistry, modelID u
 }
 
 func snapshotFromOccurrences(occurrences ...SunSpecOccurrence) SunSpecChainSnapshot {
+	cloned := make([]SunSpecOccurrence, len(occurrences))
+	sources := make([]LogicalViewRecord, len(occurrences))
+	header := uint16(40002)
+	for index, occurrence := range occurrences {
+		occurrence = cloneOccurrence(occurrence)
+		occurrence.HeaderOffset = header
+		occurrence.PayloadOffset = header + 2
+		logicalViewID := uint64(index + 1)
+		occurrence.spans = []SunSpecSourceSpan{{LogicalViewID: logicalViewID, PDUOffset: 0, WordCount: uint16(len(occurrence.words))}}
+		cloned[index] = occurrence
+		sources[index] = LogicalViewRecord{
+			LogicalViewID: logicalViewID, WireResponseID: uint64(index + 101), PhysicalRequestID: uint64(index + 201),
+			Endpoint: "fixture-endpoint", ConnectionID: 4, Transport: TransportTCP, TransportGeneration: 5, UnitID: 1,
+			RequestedFunction: FunctionReadHoldingRegisters, ReceivedFunction: FunctionReadHoldingRegisters, Table: HoldingRegisters,
+			PhysicalOffset: header, PhysicalWordCount: uint16(len(occurrence.words)), AuthorizationScope: "fixture-read-only",
+			PollGeneration: 6, DeadlineIdentity: uint64(index + 301), LogicalOffset: header,
+			LogicalWordCount: uint16(len(occurrence.words)), SliceWordCount: uint16(len(occurrence.words)),
+			Words: occurrence.Words(), WireResponseBytes: []byte{0, byte(index + 1)},
+		}
+		header += uint16(len(occurrence.words))
+	}
 	return SunSpecChainSnapshot{
-		occurrences: occurrences,
-		raw:         rawWordsForOccurrences(occurrences),
-		sources: []LogicalViewRecord{{
-			LogicalViewID: 1, WireResponseID: 2, PhysicalRequestID: 3, ConnectionID: 4,
-			TransportGeneration: 5, PollGeneration: 6, Words: []uint16{1}, WireResponseBytes: []byte{0, 1},
-		}},
+		occurrences: cloned,
+		raw:         rawWordsForOccurrences(cloned),
+		sources:     sources,
+	}
+}
+
+func cloneSnapshotForTest(snapshot SunSpecChainSnapshot) SunSpecChainSnapshot {
+	sources := make([]LogicalViewRecord, len(snapshot.sources))
+	for index, source := range snapshot.sources {
+		sources[index] = cloneSunSpecLogicalViewRecord(source)
+	}
+	return SunSpecChainSnapshot{
+		occurrences: snapshot.Occurrences(),
+		raw:         snapshot.RawWords(),
+		sources:     sources,
 	}
 }
 
