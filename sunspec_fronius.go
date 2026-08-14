@@ -29,7 +29,12 @@ type SunSpecFroniusFlavorDecision struct {
 
 func (d SunSpecFroniusFlavorDecision) Matched() bool                      { return d.matched }
 func (d SunSpecFroniusFlavorDecision) Reason() SunSpecFroniusFlavorReason { return d.reason }
-func (d SunSpecFroniusFlavorDecision) FlavorID() string                   { return d.flavorID }
+func (d SunSpecFroniusFlavorDecision) FlavorID() string {
+	if d.flavorID == "" {
+		return SunSpecFroniusObservedFlavorID
+	}
+	return d.flavorID
+}
 func (d SunSpecFroniusFlavorDecision) Capability() SunSpecCapabilityDecision {
 	return cloneSunSpecCapabilityDecision(d.capability)
 }
