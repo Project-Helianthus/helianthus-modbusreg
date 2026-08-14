@@ -2,16 +2,12 @@ package modbusreg
 
 import "fmt"
 
-// SunSpecSchemaRevision identifies an exact, caller-selected schema revision.
 type SunSpecSchemaRevision string
-
-// SunSpecDecoderKey is a decoder identity. R1 defines it but does not decode.
+type SunSpecWireKey struct{ ModelID, ModelLength uint16 }
 type SunSpecDecoderKey struct {
 	ModelID, ModelLength uint16
 	SchemaRevision       SunSpecSchemaRevision
 }
-
-// SunSpecReadPurpose describes the grammar item requested by a read intent.
 type SunSpecReadPurpose string
 
 const (
@@ -20,64 +16,76 @@ const (
 	SunSpecReadPayload   SunSpecReadPurpose = "payload"
 )
 
-// SunSpecChainDisposition distinguishes structural admission from decoder support.
 type SunSpecChainDisposition string
 
 const (
 	SunSpecChainDispositionAdmitted          SunSpecChainDisposition = "admitted"
-	SunSpecChainDispositionUnknown           SunSpecChainDisposition = "unknown"
+	SunSpecChainDispositionUnknownModel      SunSpecChainDisposition = "unknown_model"
 	SunSpecChainDispositionUnsupportedLength SunSpecChainDisposition = "unsupported_length"
+	SunSpecChainDispositionUnknown                                   = SunSpecChainDispositionUnknownModel
 )
 
-// SunSpecSourceSpan identifies an immutable segment in one logical view.
 type SunSpecSourceSpan struct {
 	LogicalViewID        uint64
 	PDUOffset, WordCount uint16
 }
-
-// SunSpecModelOccurrence preserves wire order and raw evidence for one model.
-type SunSpecModelOccurrence struct {
-	Ordinal                                           uint32
-	ModelID, ModelLength, HeaderOffset, PayloadOffset uint16
-	Disposition                                       SunSpecChainDisposition
-	DecoderKey                                        *SunSpecDecoderKey
-	words                                             []uint16
-	spans                                             []SunSpecSourceSpan
+type SunSpecOccurrence struct {
+	Ordinal                     uint32
+	WireKey                     SunSpecWireKey
+	HeaderOffset, PayloadOffset uint16
+	Disposition                 SunSpecChainDisposition
+	decoderKey                  *SunSpecDecoderKey
+	words                       []uint16
+	spans                       []SunSpecSourceSpan
 }
 
-func (o SunSpecModelOccurrence) Words() []uint16 { return append([]uint16(nil), o.words...) }
-func (o SunSpecModelOccurrence) SourceSpans() []SunSpecSourceSpan {
+func (o SunSpecOccurrence) ModelID() uint16     { return o.WireKey.ModelID }
+func (o SunSpecOccurrence) ModelLength() uint16 { return o.WireKey.ModelLength }
+func (o SunSpecOccurrence) Words() []uint16     { return append([]uint16(nil), o.words...) }
+func (o SunSpecOccurrence) SourceSpans() []SunSpecSourceSpan {
 	return append([]SunSpecSourceSpan(nil), o.spans...)
 }
-func (o SunSpecModelOccurrence) Key() (SunSpecDecoderKey, bool) {
-	if o.DecoderKey == nil {
+func (o SunSpecOccurrence) DecoderKey() (SunSpecDecoderKey, bool) {
+	if o.decoderKey == nil {
 		return SunSpecDecoderKey{}, false
 	}
-	return *o.DecoderKey, true
+	return *o.decoderKey, true
 }
 
-// SunSpecChainSnapshot is the immutable completed generic chain.
+type SunSpecModelOccurrence = SunSpecOccurrence
 type SunSpecChainSnapshot struct {
-	occurrences []SunSpecModelOccurrence
+	occurrences []SunSpecOccurrence
 	raw         []uint16
 }
 
-func (s SunSpecChainSnapshot) Occurrences() []SunSpecModelOccurrence {
-	return append([]SunSpecModelOccurrence(nil), s.occurrences...)
+func cloneOccurrence(o SunSpecOccurrence) SunSpecOccurrence {
+	o.words = append([]uint16(nil), o.words...)
+	o.spans = append([]SunSpecSourceSpan(nil), o.spans...)
+	if o.decoderKey != nil {
+		k := *o.decoderKey
+		o.decoderKey = &k
+	}
+	return o
+}
+func (s SunSpecChainSnapshot) Occurrences() []SunSpecOccurrence {
+	out := make([]SunSpecOccurrence, len(s.occurrences))
+	for i, o := range s.occurrences {
+		out[i] = cloneOccurrence(o)
+	}
+	return out
 }
 func (s SunSpecChainSnapshot) RawWords() []uint16 { return append([]uint16(nil), s.raw...) }
-func (s SunSpecChainSnapshot) ByModelID(id uint16) []SunSpecModelOccurrence {
-	out := make([]SunSpecModelOccurrence, 0)
+func (s SunSpecChainSnapshot) ByModelID(id uint16) []SunSpecOccurrence {
+	out := []SunSpecOccurrence{}
 	for _, o := range s.occurrences {
-		if o.ModelID == id {
-			out = append(out, o)
+		if o.WireKey.ModelID == id {
+			out = append(out, cloneOccurrence(o))
 		}
 	}
 	return out
 }
-
 func validSunSpecRevision(v SunSpecSchemaRevision) bool { return len(v) > 0 && len(v) <= 128 }
-func sunSpecEnd(address uint16, words uint16) error {
+func sunSpecEnd(address, words uint16) error {
 	if words == 0 || uint32(address)+uint32(words) > 65536 {
 		return fmt.Errorf("SunSpec read range exceeds address space")
 	}

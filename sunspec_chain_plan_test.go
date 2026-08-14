@@ -1,6 +1,10 @@
 package modbusreg
 
-import "testing"
+import (
+	"reflect"
+	"strings"
+	"testing"
+)
 
 func TestSunSpecChainPlannerRequiresExplicitBasesAndBounds(t *testing.T) {
 	_, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{})
@@ -18,6 +22,15 @@ func TestSunSpecChainPlannerRequiresExplicitBasesAndBounds(t *testing.T) {
 	requests := plan.Requests()
 	if len(requests) != 1 || requests[0].Function() != FunctionReadHoldingRegisters || requests[0].WordCount() > 125 {
 		t.Fatalf("invalid initial request: %#v", requests)
+	}
+}
+
+func TestSunSpecChainPublicRequestsAreReadOnly(t *testing.T) {
+	typ := reflect.TypeFor[SunSpecReadRequest]()
+	for i := 0; i < typ.NumMethod(); i++ {
+		if strings.Contains(strings.ToLower(typ.Method(i).Name), "write") || strings.Contains(strings.ToLower(typ.Method(i).Name), "set") {
+			t.Fatalf("unexpected control authority: %s", typ.Method(i).Name)
+		}
 	}
 }
 
