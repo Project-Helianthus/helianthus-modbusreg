@@ -16,8 +16,10 @@ type SunSpecChain struct {
 	selected   *uint16
 	raw        []uint16
 	occ        []SunSpecOccurrence
+	sources    []LogicalViewRecord
 	current    *sunSpecCurrent
 	complete   bool
+	failed     bool
 }
 
 func NewSunSpecChain(p SunSpecChainPlan) *SunSpecChain {
@@ -29,7 +31,7 @@ func NewSunSpecChain(p SunSpecChainPlan) *SunSpecChain {
 }
 func (c *SunSpecChain) NextRequests() []SunSpecReadRequest { return sortedRequests(c.pending) }
 func (c *SunSpecChain) Admit(r SunSpecReadRequest, v LogicalViewSnapshot) (SunSpecChainSnapshot, error) {
-	if c == nil || c.complete || r.nonce != c.plan.nonce {
+	if c == nil || c.complete || c.failed || r.nonce != c.plan.nonce {
 		return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec request is detached or replayed")
 	}
 	want, ok := c.pending[r.sequence]
@@ -67,10 +69,13 @@ func (c *SunSpecChain) accept(r SunSpecReadRequest, x LogicalViewRecord) {
 	}
 	c.seen[x.LogicalViewID] = struct{}{}
 	delete(c.pending, r.sequence)
+	c.sources = append(c.sources, cloneSunSpecLogicalViewRecord(x))
 }
 func (c *SunSpecChain) signature(r SunSpecReadRequest, x LogicalViewRecord) (SunSpecChainSnapshot, error) {
 	if x.Words[0] == sunSpecSignatureFirst && x.Words[1] == sunSpecSignatureSecond {
 		if c.selected != nil {
+			c.failed = true
+			clear(c.pending)
 			return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec base candidates are ambiguous")
 		}
 		b := r.address
@@ -84,7 +89,7 @@ func (c *SunSpecChain) signature(r SunSpecReadRequest, x LogicalViewRecord) (Sun
 		return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec signature absent from candidates")
 	}
 	c.raw = []uint16{sunSpecSignatureFirst, sunSpecSignatureSecond}
-	return SunSpecChainSnapshot{}, c.queue(*c.selected+2, 2, SunSpecReadHeader)
+	return SunSpecChainSnapshot{}, c.queue(uint32(*c.selected)+2, 2, SunSpecReadHeader)
 }
 func (c *SunSpecChain) header(r SunSpecReadRequest, x LogicalViewRecord) (SunSpecChainSnapshot, error) {
 	id, n := x.Words[0], x.Words[1]
@@ -109,10 +114,15 @@ func (c *SunSpecChain) header(r SunSpecReadRequest, x LogicalViewRecord) (SunSpe
 	if uint32(r.address)+2+uint32(n) > 65536 {
 		return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec model range overflows")
 	}
+	payloadAddress := uint32(r.address) + 2
+	payloadWords := minSunSpec(n)
+	if err := sunSpecQueueAddress(payloadAddress, payloadWords); err != nil {
+		return SunSpecChainSnapshot{}, err
+	}
 	c.accept(r, x)
 	c.raw = append(c.raw, id, n)
 	c.current = &sunSpecCurrent{id: id, length: n, header: r.address, words: []uint16{id, n}, spans: []SunSpecSourceSpan{{x.LogicalViewID, r.address, 2}}}
-	return SunSpecChainSnapshot{}, c.queue(r.address+2, minSunSpec(n), SunSpecReadPayload)
+	return SunSpecChainSnapshot{}, c.queue(payloadAddress, payloadWords, SunSpecReadPayload)
 }
 func minSunSpec(n uint16) uint16 {
 	if n > maxSunSpecReadWords {
@@ -124,12 +134,23 @@ func (c *SunSpecChain) payload(r SunSpecReadRequest, x LogicalViewRecord) (SunSp
 	if c.current == nil {
 		return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec payload lacks header")
 	}
+	nextAddress := uint32(r.address) + uint32(r.words)
+	completed := uint16(len(c.current.words)-2)+r.words == c.current.length
+	nextPurpose, nextWords := SunSpecReadPayload, uint16(0)
+	if completed {
+		nextPurpose, nextWords = SunSpecReadHeader, 2
+	} else {
+		nextWords = minSunSpec(c.current.length - (uint16(len(c.current.words)-2) + r.words))
+	}
+	if err := sunSpecQueueAddress(nextAddress, nextWords); err != nil {
+		return SunSpecChainSnapshot{}, err
+	}
 	c.accept(r, x)
 	c.current.words = append(c.current.words, x.Words...)
 	c.current.spans = append(c.current.spans, SunSpecSourceSpan{x.LogicalViewID, r.address, r.words})
 	c.raw = append(c.raw, x.Words...)
-	if uint16(len(c.current.words)-2) < c.current.length {
-		return SunSpecChainSnapshot{}, c.queue(r.address+r.words, minSunSpec(c.current.length-uint16(len(c.current.words)-2)), SunSpecReadPayload)
+	if !completed {
+		return SunSpecChainSnapshot{}, c.queue(nextAddress, nextWords, nextPurpose)
 	}
 	wk := SunSpecWireKey{c.current.id, c.current.length}
 	d := SunSpecChainDispositionUnknownModel
@@ -143,17 +164,23 @@ func (c *SunSpecChain) payload(r SunSpecReadRequest, x LogicalViewRecord) (SunSp
 	}
 	c.occ = append(c.occ, SunSpecOccurrence{uint32(len(c.occ) + 1), wk, c.current.header, c.current.header + 2, d, key, append([]uint16(nil), c.current.words...), append([]SunSpecSourceSpan(nil), c.current.spans...)})
 	c.current = nil
-	return SunSpecChainSnapshot{}, c.queue(r.address+r.words, 2, SunSpecReadHeader)
+	return SunSpecChainSnapshot{}, c.queue(nextAddress, nextWords, nextPurpose)
 }
-func (c *SunSpecChain) queue(a, n uint16, p SunSpecReadPurpose) error {
+func sunSpecQueueAddress(address uint32, words uint16) error {
+	if address > 65535 {
+		return fmt.Errorf("SunSpec successor address exceeds address space")
+	}
+	return sunSpecEnd(uint16(address), words)
+}
+func (c *SunSpecChain) queue(address uint32, n uint16, p SunSpecReadPurpose) error {
 	if n == 0 || n > maxSunSpecReadWords {
 		return fmt.Errorf("SunSpec request bound invalid")
 	}
-	if err := sunSpecEnd(a, n); err != nil {
+	if err := sunSpecQueueAddress(address, n); err != nil {
 		return err
 	}
 	c.next++
-	c.pending[c.next] = SunSpecReadRequest{a, n, p, c.plan.nonce, c.next}
+	c.pending[c.next] = SunSpecReadRequest{uint16(address), n, p, c.plan.nonce, c.next}
 	return nil
 }
 func sameSunSpecProvenance(a, b LogicalViewRecord) bool {
@@ -163,6 +190,9 @@ func (c *SunSpecChain) snapshot() SunSpecChainSnapshot {
 	out := SunSpecChainSnapshot{raw: append([]uint16(nil), c.raw...)}
 	for _, o := range c.occ {
 		out.occurrences = append(out.occurrences, cloneOccurrence(o))
+	}
+	for _, source := range c.sources {
+		out.sources = append(out.sources, cloneSunSpecLogicalViewRecord(source))
 	}
 	return out
 }

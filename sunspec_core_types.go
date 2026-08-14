@@ -56,6 +56,7 @@ type SunSpecModelOccurrence = SunSpecOccurrence
 type SunSpecChainSnapshot struct {
 	occurrences []SunSpecOccurrence
 	raw         []uint16
+	sources     []LogicalViewRecord
 }
 
 func cloneOccurrence(o SunSpecOccurrence) SunSpecOccurrence {
@@ -75,6 +76,13 @@ func (s SunSpecChainSnapshot) Occurrences() []SunSpecOccurrence {
 	return out
 }
 func (s SunSpecChainSnapshot) RawWords() []uint16 { return append([]uint16(nil), s.raw...) }
+func (s SunSpecChainSnapshot) SourceViews() []LogicalViewSnapshot {
+	out := make([]LogicalViewSnapshot, len(s.sources))
+	for i, source := range s.sources {
+		out[i] = LogicalViewSnapshot{record: cloneSunSpecLogicalViewRecord(source), valid: true}
+	}
+	return out
+}
 func (s SunSpecChainSnapshot) ByModelID(id uint16) []SunSpecOccurrence {
 	out := []SunSpecOccurrence{}
 	for _, o := range s.occurrences {
@@ -83,6 +91,11 @@ func (s SunSpecChainSnapshot) ByModelID(id uint16) []SunSpecOccurrence {
 		}
 	}
 	return out
+}
+func cloneSunSpecLogicalViewRecord(record LogicalViewRecord) LogicalViewRecord {
+	record.Words = append([]uint16(nil), record.Words...)
+	record.WireResponseBytes = append([]byte(nil), record.WireResponseBytes...)
+	return record
 }
 func validSunSpecRevision(v SunSpecSchemaRevision) bool { return len(v) > 0 && len(v) <= 128 }
 func sunSpecEnd(address, words uint16) error {

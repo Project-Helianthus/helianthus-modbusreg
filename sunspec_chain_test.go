@@ -237,7 +237,7 @@ func TestSunSpecChainRejectsUnrepresentableSuccessorRequests(t *testing.T) {
 	if _, err := admitNext(t, c, &id, []uint16{0x5375, 0x6e53}); err == nil {
 		t.Fatal("signature at 65534 scheduled an unrepresentable header")
 	}
-	p, err = NewSunSpecChainPlan(SunSpecChainPlanSpec{SchemaRevision: "sunspec.r1@1", BaseCandidates: []uint16{65533}, Limits: SunSpecChainLimits{MaxTotalWords: 8, MaxOccurrences: 1}})
+	p, err = NewSunSpecChainPlan(SunSpecChainPlanSpec{SchemaRevision: "sunspec.r1@1", BaseCandidates: []uint16{65531}, Limits: SunSpecChainLimits{MaxTotalWords: 8, MaxOccurrences: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
