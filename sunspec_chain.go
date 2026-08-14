@@ -141,7 +141,7 @@ func (c *SunSpecChain) header(r SunSpecReadRequest, x LogicalViewRecord) (SunSpe
 	}
 	c.accept(r, x)
 	c.raw = append(c.raw, id, n)
-	c.current = &sunSpecCurrent{id: id, length: n, header: r.address, words: []uint16{id, n}, spans: []SunSpecSourceSpan{{x.LogicalViewID, r.address, 2}}}
+	c.current = &sunSpecCurrent{id: id, length: n, header: r.address, words: []uint16{id, n}, spans: []SunSpecSourceSpan{{x.LogicalViewID, x.SliceOffset, 2}}}
 	return SunSpecChainSnapshot{}, c.queue(payloadAddress, payloadWords, SunSpecReadPayload)
 }
 func minSunSpec(n uint16) uint16 {
@@ -167,7 +167,7 @@ func (c *SunSpecChain) payload(r SunSpecReadRequest, x LogicalViewRecord) (SunSp
 	}
 	c.accept(r, x)
 	c.current.words = append(c.current.words, x.Words...)
-	c.current.spans = append(c.current.spans, SunSpecSourceSpan{x.LogicalViewID, r.address, r.words})
+	c.current.spans = append(c.current.spans, SunSpecSourceSpan{x.LogicalViewID, x.SliceOffset, r.words})
 	c.raw = append(c.raw, x.Words...)
 	if !completed {
 		return SunSpecChainSnapshot{}, c.queue(nextAddress, nextWords, nextPurpose)

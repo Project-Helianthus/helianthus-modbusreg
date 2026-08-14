@@ -173,7 +173,7 @@ func TestSunSpecChainSourceSpansReconstructAndCopiesAreImmutable(t *testing.T) {
 	views[0].record.Words[0] = 0
 	views[0].record.WireResponseBytes[0] = 0
 	stored := method.Call(nil)[0].Interface().([]LogicalViewSnapshot)
-	if s.RawWords()[0] != 0x5375 || s.Occurrences()[0].Words()[0] != 65000 || s.Occurrences()[0].SourceSpans()[0].PDUOffset != 40002 || stored[0].Record().WireResponseBytes[0] != 1 {
+	if s.RawWords()[0] != 0x5375 || s.Occurrences()[0].Words()[0] != 65000 || s.Occurrences()[0].SourceSpans()[0].PDUOffset != 0 || stored[0].Record().WireResponseBytes[0] != 1 {
 		t.Fatal("returned copy mutated snapshot")
 	}
 }

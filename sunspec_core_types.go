@@ -26,7 +26,9 @@ const (
 )
 
 type SunSpecSourceSpan struct {
-	LogicalViewID        uint64
+	LogicalViewID uint64
+	// PDUOffset is the zero-based word offset in the physical response retained
+	// by the referenced logical view.
 	PDUOffset, WordCount uint16
 }
 type SunSpecOccurrence struct {
