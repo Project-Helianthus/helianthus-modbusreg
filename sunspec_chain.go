@@ -1,6 +1,7 @@
 package modbusreg
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 )
@@ -10,11 +11,23 @@ type sunSpecCurrent struct {
 	spans              []SunSpecSourceSpan
 	words              []uint16
 }
+type sunSpecPhysicalSource struct {
+	wireResponseID, connectionID, transportGeneration uint64
+	function                                          FunctionCode
+	table                                             LogicalTable
+	offset, count                                     uint16
+}
+type sunSpecWireSource struct {
+	physicalRequestID uint64
+	responseBytes     []byte
+}
 type SunSpecChain struct {
 	mu         sync.Mutex
 	plan       SunSpecChainPlan
 	instance   uint64
 	seen       map[uint64]struct{}
+	physical   map[uint64]sunSpecPhysicalSource
+	wire       map[uint64]sunSpecWireSource
 	provenance *LogicalViewRecord
 	pending    map[uint64]SunSpecReadRequest
 	next       uint64
@@ -37,7 +50,15 @@ func NewSunSpecChain(p SunSpecChainPlan) *SunSpecChain {
 		r.instance = instance
 		q[r.sequence] = r
 	}
-	return &SunSpecChain{plan: p, instance: instance, seen: map[uint64]struct{}{}, pending: q, next: uint64(len(p.initial))}
+	return &SunSpecChain{
+		plan:     p,
+		instance: instance,
+		seen:     map[uint64]struct{}{},
+		physical: map[uint64]sunSpecPhysicalSource{},
+		wire:     map[uint64]sunSpecWireSource{},
+		pending:  q,
+		next:     uint64(len(p.initial)),
+	}
 }
 func nextSunSpecChainInstance() uint64 {
 	for {
@@ -84,6 +105,9 @@ func (c *SunSpecChain) admitReplay(r SunSpecReadRequest, v LogicalViewSnapshot) 
 	if c.provenance != nil && !sameSunSpecProvenance(*c.provenance, x) {
 		return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec views have mixed provenance")
 	}
+	if err := c.validateSourceIdentity(x); err != nil {
+		return SunSpecChainSnapshot{}, c.fail(err)
+	}
 	if r.purpose == SunSpecReadSignature {
 		snapshot, err := c.signature(r, x)
 		if err != nil {
@@ -109,6 +133,30 @@ func (c *SunSpecChain) admitReplay(r SunSpecReadRequest, v LogicalViewSnapshot) 
 		return snapshot, nil
 	}
 	return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec request purpose invalid")
+}
+func (c *SunSpecChain) validateSourceIdentity(x LogicalViewRecord) error {
+	physical := sunSpecPhysicalSource{
+		wireResponseID:      x.WireResponseID,
+		connectionID:        x.ConnectionID,
+		transportGeneration: x.TransportGeneration,
+		function:            x.RequestedFunction,
+		table:               x.Table,
+		offset:              x.PhysicalOffset,
+		count:               x.PhysicalWordCount,
+	}
+	if prior, ok := c.physical[x.PhysicalRequestID]; ok && prior != physical {
+		return fmt.Errorf("SunSpec physical-request identity is contradictory")
+	}
+	if prior, ok := c.wire[x.WireResponseID]; ok &&
+		(prior.physicalRequestID != x.PhysicalRequestID || !bytes.Equal(prior.responseBytes, x.WireResponseBytes)) {
+		return fmt.Errorf("SunSpec wire-response identity is contradictory")
+	}
+	c.physical[x.PhysicalRequestID] = physical
+	c.wire[x.WireResponseID] = sunSpecWireSource{
+		physicalRequestID: x.PhysicalRequestID,
+		responseBytes:     append([]byte(nil), x.WireResponseBytes...),
+	}
+	return nil
 }
 func (c *SunSpecChain) fail(err error) error {
 	c.failed = true
