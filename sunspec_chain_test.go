@@ -29,7 +29,21 @@ func admitNext(t *testing.T, c *SunSpecChain, id *uint64, words []uint16) (SunSp
 	r := c.NextRequests()[0]
 	v := chainView(t, r, *id, words, "fixture")
 	*id++
-	return c.Admit(r, v)
+	return c.AdmitReplay(r, v)
+}
+
+func TestSunSpecChainRejectsCrossInstanceReplay(t *testing.T) {
+	plan := chainPlan(t, []uint16{40000})
+	c1 := NewSunSpecChain(plan)
+	c2 := NewSunSpecChain(plan)
+	r := c1.NextRequests()[0]
+	v := chainView(t, r, 1, []uint16{0x5375, 0x6e53}, "fixture")
+	if _, err := c1.AdmitReplay(r, v); err != nil {
+		t.Fatalf("first chain replay admission: %v", err)
+	}
+	if _, err := c2.AdmitReplay(r, v); err == nil {
+		t.Fatal("stale request/view from a different chain instance was admitted")
+	}
 }
 
 func TestSunSpecChainRetainsOrderedDuplicatesUnknownAndWrongLength(t *testing.T) {
@@ -155,16 +169,16 @@ func TestSunSpecChainSourceSpansReconstructAndCopiesAreImmutable(t *testing.T) {
 func TestSunSpecChainAmbiguityTerminallyPoisonsBuilder(t *testing.T) {
 	c := NewSunSpecChain(chainPlan(t, []uint16{40000, 41000}))
 	rs := c.NextRequests()
-	if _, e := c.Admit(rs[0], chainView(t, rs[0], 1, []uint16{0x5375, 0x6e53}, "fixture")); e != nil {
+	if _, e := c.AdmitReplay(rs[0], chainView(t, rs[0], 1, []uint16{0x5375, 0x6e53}, "fixture")); e != nil {
 		t.Fatal(e)
 	}
-	if _, e := c.Admit(rs[1], chainView(t, rs[1], 2, []uint16{0x5375, 0x6e53}, "fixture")); e == nil {
+	if _, e := c.AdmitReplay(rs[1], chainView(t, rs[1], 2, []uint16{0x5375, 0x6e53}, "fixture")); e == nil {
 		t.Fatal("ambiguous bases admitted")
 	}
 	if got := c.NextRequests(); len(got) != 0 {
 		t.Fatalf("ambiguous builder retained retryable requests: %#v", got)
 	}
-	if _, e := c.Admit(rs[1], chainView(t, rs[1], 3, []uint16{0, 0}, "fixture")); e == nil {
+	if _, e := c.AdmitReplay(rs[1], chainView(t, rs[1], 3, []uint16{0, 0}, "fixture")); e == nil {
 		t.Fatal("ambiguous builder recovered after resubmission")
 	}
 }
@@ -173,33 +187,33 @@ func TestSunSpecChainRejectsProvenanceReplayAndTerminalErrors(t *testing.T) {
 	c := NewSunSpecChain(chainPlan(t, []uint16{40000}))
 	r := c.NextRequests()[0]
 	v := chainView(t, r, 1, []uint16{0x5375, 0x6e53}, "fixture")
-	if _, e := c.Admit(r, v); e != nil {
+	if _, e := c.AdmitReplay(r, v); e != nil {
 		t.Fatal(e)
 	}
-	if _, e := c.Admit(r, v); e == nil {
+	if _, e := c.AdmitReplay(r, v); e == nil {
 		t.Fatal("replay admitted")
 	}
 	h := c.NextRequests()[0]
-	if _, e := c.Admit(h, chainView(t, h, 2, []uint16{0xffff, 1}, "fixture")); e == nil {
+	if _, e := c.AdmitReplay(h, chainView(t, h, 2, []uint16{0xffff, 1}, "fixture")); e == nil {
 		t.Fatal("nonzero terminal admitted")
 	}
 }
 func TestSunSpecChainRejectsDetachedRangeAndMixedProvenance(t *testing.T) {
 	c := NewSunSpecChain(chainPlan(t, []uint16{40000}))
 	r := c.NextRequests()[0]
-	if _, e := c.Admit(SunSpecReadRequest{}, chainView(t, r, 1, []uint16{0x5375, 0x6e53}, "fixture")); e == nil {
+	if _, e := c.AdmitReplay(SunSpecReadRequest{}, chainView(t, r, 1, []uint16{0x5375, 0x6e53}, "fixture")); e == nil {
 		t.Fatal("detached request admitted")
 	}
-	if _, e := c.Admit(r, chainView(t, r, 1, []uint16{0, 0}, "fixture")); e == nil {
+	if _, e := c.AdmitReplay(r, chainView(t, r, 1, []uint16{0, 0}, "fixture")); e == nil {
 		t.Fatal("bad signature admitted")
 	}
 	c = NewSunSpecChain(chainPlan(t, []uint16{40000}))
 	r = c.NextRequests()[0]
-	if _, e := c.Admit(r, chainView(t, r, 1, []uint16{0x5375, 0x6e53}, "fixture")); e != nil {
+	if _, e := c.AdmitReplay(r, chainView(t, r, 1, []uint16{0x5375, 0x6e53}, "fixture")); e != nil {
 		t.Fatal(e)
 	}
 	h := c.NextRequests()[0]
-	if _, e := c.Admit(h, chainView(t, h, 2, []uint16{0xffff, 0}, "other")); e == nil {
+	if _, e := c.AdmitReplay(h, chainView(t, h, 2, []uint16{0xffff, 0}, "other")); e == nil {
 		t.Fatal("mixed provenance admitted")
 	}
 }

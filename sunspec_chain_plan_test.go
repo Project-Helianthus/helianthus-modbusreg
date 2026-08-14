@@ -1,6 +1,7 @@
 package modbusreg
 
 import (
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -31,6 +32,27 @@ func TestSunSpecChainPublicRequestsAreReadOnly(t *testing.T) {
 		if strings.Contains(strings.ToLower(typ.Method(i).Name), "write") || strings.Contains(strings.ToLower(typ.Method(i).Name), "set") {
 			t.Fatalf("unexpected control authority: %s", typ.Method(i).Name)
 		}
+	}
+}
+
+func TestSunSpecChainAdmissionIsReplayOnlyAndDoesNotTrustSyntheticWireBytes(t *testing.T) {
+	typ := reflect.TypeFor[*SunSpecChain]()
+	if _, ok := typ.MethodByName("Admit"); ok {
+		t.Fatal("generic exported Admit surface remains available")
+	}
+	method, ok := typ.MethodByName("AdmitReplay")
+	if !ok {
+		t.Fatal("replay-only admission surface is absent")
+	}
+	if method.Type.NumIn() != 3 || method.Type.In(2) != reflect.TypeFor[LogicalViewSnapshot]() {
+		t.Fatalf("unexpected replay admission signature: %v", method.Type)
+	}
+	source, err := os.ReadFile("sunspec_chain.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(source), "WireResponseBytes") {
+		t.Fatal("synthetic fixture wire bytes became a chain runtime trust gate")
 	}
 }
 
