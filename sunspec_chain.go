@@ -9,6 +9,7 @@ type sunSpecCurrent struct {
 }
 type SunSpecChain struct {
 	plan       SunSpecChainPlan
+	instance   uint64
 	seen       map[uint64]struct{}
 	provenance *LogicalViewRecord
 	pending    map[uint64]SunSpecReadRequest
@@ -23,15 +24,34 @@ type SunSpecChain struct {
 }
 
 func NewSunSpecChain(p SunSpecChainPlan) *SunSpecChain {
+	instance := nextSunSpecChainInstance()
+	if instance == 0 {
+		return &SunSpecChain{failed: true}
+	}
 	q := map[uint64]SunSpecReadRequest{}
 	for _, r := range p.initial {
+		r.instance = instance
 		q[r.sequence] = r
 	}
-	return &SunSpecChain{plan: p, seen: map[uint64]struct{}{}, pending: q, next: uint64(len(p.initial))}
+	return &SunSpecChain{plan: p, instance: instance, seen: map[uint64]struct{}{}, pending: q, next: uint64(len(p.initial))}
+}
+func nextSunSpecChainInstance() uint64 {
+	for {
+		current := sunSpecChainInstance.Load()
+		if current == ^uint64(0) {
+			return 0
+		}
+		if sunSpecChainInstance.CompareAndSwap(current, current+1) {
+			return current + 1
+		}
+	}
 }
 func (c *SunSpecChain) NextRequests() []SunSpecReadRequest { return sortedRequests(c.pending) }
-func (c *SunSpecChain) Admit(r SunSpecReadRequest, v LogicalViewSnapshot) (SunSpecChainSnapshot, error) {
-	if c == nil || c.complete || c.failed || r.nonce != c.plan.nonce {
+func (c *SunSpecChain) AdmitReplay(r SunSpecReadRequest, v LogicalViewSnapshot) (SunSpecChainSnapshot, error) {
+	return c.admitReplay(r, v)
+}
+func (c *SunSpecChain) admitReplay(r SunSpecReadRequest, v LogicalViewSnapshot) (SunSpecChainSnapshot, error) {
+	if c == nil || c.complete || c.failed || c.instance == 0 || r.nonce != c.plan.nonce || r.instance != c.instance {
 		return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec request is detached or replayed")
 	}
 	want, ok := c.pending[r.sequence]
@@ -180,7 +200,7 @@ func (c *SunSpecChain) queue(address uint32, n uint16, p SunSpecReadPurpose) err
 		return err
 	}
 	c.next++
-	c.pending[c.next] = SunSpecReadRequest{uint16(address), n, p, c.plan.nonce, c.next}
+	c.pending[c.next] = SunSpecReadRequest{uint16(address), n, p, c.plan.nonce, c.instance, c.next}
 	return nil
 }
 func sameSunSpecProvenance(a, b LogicalViewRecord) bool {

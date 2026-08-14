@@ -54,6 +54,13 @@ func TestSunSpecChainAdmissionIsReplayOnlyAndDoesNotTrustSyntheticWireBytes(t *t
 	if strings.Contains(string(source), "WireResponseBytes") {
 		t.Fatal("synthetic fixture wire bytes became a chain runtime trust gate")
 	}
+	c := NewSunSpecChain(chainPlan(t, []uint16{40000}))
+	r := c.NextRequests()[0]
+	v := chainView(t, r, 1, []uint16{0x5375, 0x6e53}, "fixture")
+	v.record.WireResponseBytes = []byte{0xde, 0xad, 0xbe, 0xef}
+	if _, err := c.AdmitReplay(r, v); err != nil {
+		t.Fatalf("synthetic replay bytes must not be a runtime trust gate: %v", err)
+	}
 }
 
 func TestSunSpecChainPlanRejectsAddressAndAggregateOverflow(t *testing.T) {

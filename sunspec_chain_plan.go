@@ -9,6 +9,7 @@ import (
 const maxSunSpecReadWords uint16 = 125
 
 var sunSpecPlanNonce atomic.Uint64
+var sunSpecChainInstance atomic.Uint64
 
 type SunSpecChainLimits struct {
 	MaxTotalWords  uint32
@@ -30,9 +31,9 @@ type SunSpecChainPlan struct {
 	initial  []SunSpecReadRequest
 }
 type SunSpecReadRequest struct {
-	address, words  uint16
-	purpose         SunSpecReadPurpose
-	nonce, sequence uint64
+	address, words            uint16
+	purpose                   SunSpecReadPurpose
+	nonce, instance, sequence uint64
 }
 
 func (r SunSpecReadRequest) Function() FunctionCode      { return FunctionReadHoldingRegisters }
@@ -61,7 +62,7 @@ func NewSunSpecChainPlan(s SunSpecChainPlanSpec) (SunSpecChainPlan, error) {
 		p.known[k.ModelID] = struct{}{}
 	}
 	for i, b := range p.bases {
-		p.initial = append(p.initial, SunSpecReadRequest{b, 2, SunSpecReadSignature, p.nonce, uint64(i + 1)})
+		p.initial = append(p.initial, SunSpecReadRequest{address: b, words: 2, purpose: SunSpecReadSignature, nonce: p.nonce, sequence: uint64(i + 1)})
 	}
 	return p, nil
 }
