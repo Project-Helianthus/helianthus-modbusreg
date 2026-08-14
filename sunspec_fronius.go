@@ -2,7 +2,10 @@ package modbusreg
 
 import "slices"
 
-const SunSpecFroniusObservedFlavorID = "sunspec.flavor.fronius.gen24.float.observed@1.0.0"
+const (
+	SunSpecFroniusObservedFlavorID    = "sunspec.flavor.fronius.gen24.float.observed@1.0.0"
+	SunSpecFroniusObservedFlavorV11ID = "sunspec.flavor.fronius.gen24.float.observed@1.1.0"
+)
 
 type SunSpecFroniusFlavorReason string
 
@@ -16,6 +19,7 @@ const (
 )
 
 type SunSpecFroniusFlavorDecision struct {
+	flavorID   string
 	matched    bool
 	reason     SunSpecFroniusFlavorReason
 	capability SunSpecCapabilityDecision
@@ -25,7 +29,7 @@ type SunSpecFroniusFlavorDecision struct {
 
 func (d SunSpecFroniusFlavorDecision) Matched() bool                      { return d.matched }
 func (d SunSpecFroniusFlavorDecision) Reason() SunSpecFroniusFlavorReason { return d.reason }
-func (d SunSpecFroniusFlavorDecision) FlavorID() string                   { return SunSpecFroniusObservedFlavorID }
+func (d SunSpecFroniusFlavorDecision) FlavorID() string                   { return d.flavorID }
 func (d SunSpecFroniusFlavorDecision) Capability() SunSpecCapabilityDecision {
 	return cloneSunSpecCapabilityDecision(d.capability)
 }
@@ -47,10 +51,75 @@ var froniusObservedChainV1 = []SunSpecWireKey{
 	{ModelID: sunSpecEndModel, ModelLength: 0},
 }
 
+var froniusObservedChainV11 = []SunSpecWireKey{
+	{ModelID: 1, ModelLength: 65},
+	{ModelID: 113, ModelLength: 60},
+	{ModelID: 120, ModelLength: 26},
+	{ModelID: 121, ModelLength: 30},
+	{ModelID: 122, ModelLength: 44},
+	{ModelID: 123, ModelLength: 24},
+	{ModelID: 160, ModelLength: 88},
+	{ModelID: 124, ModelLength: 24},
+	{ModelID: sunSpecEndModel, ModelLength: 0},
+}
+
+type sunSpecFroniusFlavorDefinition struct {
+	id    string
+	chain []SunSpecWireKey
+}
+
+type SunSpecFroniusFlavorSelectionReason string
+
+const (
+	SunSpecFroniusFlavorSelectionReasonNoMatch        SunSpecFroniusFlavorSelectionReason = "NO_MATCH"
+	SunSpecFroniusFlavorSelectionReasonAmbiguousMatch SunSpecFroniusFlavorSelectionReason = "AMBIGUOUS_MATCH"
+	SunSpecFroniusFlavorSelectionReasonMatched        SunSpecFroniusFlavorSelectionReason = "MATCHED"
+)
+
+type SunSpecFroniusFlavorSelection struct {
+	matched     bool
+	reason      SunSpecFroniusFlavorSelectionReason
+	decision    *SunSpecFroniusFlavorDecision
+	evaluations []SunSpecFroniusFlavorDecision
+}
+
+func (s SunSpecFroniusFlavorSelection) Matched() bool { return s.matched }
+func (s SunSpecFroniusFlavorSelection) Reason() SunSpecFroniusFlavorSelectionReason {
+	return s.reason
+}
+func (s SunSpecFroniusFlavorSelection) Decision() (SunSpecFroniusFlavorDecision, bool) {
+	if s.decision == nil {
+		return SunSpecFroniusFlavorDecision{}, false
+	}
+	return cloneSunSpecFroniusFlavorDecision(*s.decision), true
+}
+func (s SunSpecFroniusFlavorSelection) Evaluations() []SunSpecFroniusFlavorDecision {
+	return cloneSunSpecFroniusFlavorDecisions(s.evaluations)
+}
+
 func (r SunSpecDecoderRegistry) EvaluateFroniusObservedFlavor(snapshot SunSpecChainSnapshot) SunSpecFroniusFlavorDecision {
+	return r.evaluateFroniusObservedFlavor(snapshot, sunSpecFroniusFlavorDefinition{
+		id: SunSpecFroniusObservedFlavorID, chain: froniusObservedChainV1,
+	})
+}
+
+func (r SunSpecDecoderRegistry) EvaluateFroniusObservedFlavorV11(snapshot SunSpecChainSnapshot) SunSpecFroniusFlavorDecision {
+	return r.evaluateFroniusObservedFlavor(snapshot, sunSpecFroniusFlavorDefinition{
+		id: SunSpecFroniusObservedFlavorV11ID, chain: froniusObservedChainV11,
+	})
+}
+
+func (r SunSpecDecoderRegistry) SelectFroniusObservedFlavor(snapshot SunSpecChainSnapshot) SunSpecFroniusFlavorSelection {
+	return selectSunSpecFroniusFlavor([]SunSpecFroniusFlavorDecision{
+		r.EvaluateFroniusObservedFlavor(snapshot),
+		r.EvaluateFroniusObservedFlavorV11(snapshot),
+	})
+}
+
+func (r SunSpecDecoderRegistry) evaluateFroniusObservedFlavor(snapshot SunSpecChainSnapshot, definition sunSpecFroniusFlavorDefinition) SunSpecFroniusFlavorDecision {
 	capability := r.EvaluateThreePhaseMonitoring(snapshot)
 	rejected := func(reason SunSpecFroniusFlavorReason) SunSpecFroniusFlavorDecision {
-		return SunSpecFroniusFlavorDecision{reason: reason, capability: capability}
+		return SunSpecFroniusFlavorDecision{flavorID: definition.id, reason: reason, capability: capability}
 	}
 	if capability.Reason() == SunSpecCapabilityReasonAmbiguousSource {
 		return rejected(SunSpecFroniusFlavorReasonAmbiguousSource)
@@ -76,16 +145,56 @@ func (r SunSpecDecoderRegistry) EvaluateFroniusObservedFlavor(snapshot SunSpecCh
 		return rejected(SunSpecFroniusFlavorReasonFirmwareMismatch)
 	}
 	chain, valid := sunSpecSnapshotWireChain(snapshot)
-	if !valid || !slices.Equal(chain, froniusObservedChainV1) {
+	if !valid || !slices.Equal(chain, definition.chain) {
 		return rejected(SunSpecFroniusFlavorReasonChainMismatch)
 	}
 	return SunSpecFroniusFlavorDecision{
+		flavorID:   definition.id,
 		matched:    true,
 		reason:     SunSpecFroniusFlavorReasonMatched,
 		capability: capability,
 		chain:      chain,
 		views:      snapshot.SourceViews(),
 	}
+}
+
+func selectSunSpecFroniusFlavor(evaluations []SunSpecFroniusFlavorDecision) SunSpecFroniusFlavorSelection {
+	selection := SunSpecFroniusFlavorSelection{
+		reason:      SunSpecFroniusFlavorSelectionReasonNoMatch,
+		evaluations: cloneSunSpecFroniusFlavorDecisions(evaluations),
+	}
+	for index := range evaluations {
+		if !evaluations[index].Matched() {
+			continue
+		}
+		if selection.decision != nil {
+			selection.decision = nil
+			selection.reason = SunSpecFroniusFlavorSelectionReasonAmbiguousMatch
+			return selection
+		}
+		decision := cloneSunSpecFroniusFlavorDecision(evaluations[index])
+		selection.decision = &decision
+	}
+	if selection.decision != nil {
+		selection.matched = true
+		selection.reason = SunSpecFroniusFlavorSelectionReasonMatched
+	}
+	return selection
+}
+
+func cloneSunSpecFroniusFlavorDecision(decision SunSpecFroniusFlavorDecision) SunSpecFroniusFlavorDecision {
+	decision.capability = cloneSunSpecCapabilityDecision(decision.capability)
+	decision.chain = append([]SunSpecWireKey(nil), decision.chain...)
+	decision.views = cloneSunSpecLogicalViewSnapshots(decision.views)
+	return decision
+}
+
+func cloneSunSpecFroniusFlavorDecisions(decisions []SunSpecFroniusFlavorDecision) []SunSpecFroniusFlavorDecision {
+	out := make([]SunSpecFroniusFlavorDecision, len(decisions))
+	for index := range decisions {
+		out[index] = cloneSunSpecFroniusFlavorDecision(decisions[index])
+	}
+	return out
 }
 
 func sunSpecTextFact(model SunSpecDecodedModel, fieldID string) (string, bool) {
