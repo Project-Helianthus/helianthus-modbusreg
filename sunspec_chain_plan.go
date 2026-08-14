@@ -45,10 +45,15 @@ func NewSunSpecChainPlan(s SunSpecChainPlanSpec) (SunSpecChainPlan, error) {
 		return SunSpecChainPlan{}, fmt.Errorf("SunSpec chain plan requires explicit finite bounds")
 	}
 	p := SunSpecChainPlan{revision: s.SchemaRevision, bases: append([]uint16(nil), s.BaseCandidates...), limits: s.Limits, keys: map[SunSpecWireKey]SunSpecDecoderKey{}, known: map[uint16]struct{}{}, nonce: sunSpecPlanNonce.Add(1)}
+	seenBases := make(map[uint16]struct{}, len(p.bases))
 	for _, b := range p.bases {
+		if _, duplicate := seenBases[b]; duplicate {
+			return SunSpecChainPlan{}, fmt.Errorf("SunSpec base candidate duplicated")
+		}
 		if err := sunSpecEnd(b, 2); err != nil {
 			return SunSpecChainPlan{}, err
 		}
+		seenBases[b] = struct{}{}
 	}
 	for _, k := range s.DecoderKeys {
 		if k.SchemaRevision != s.SchemaRevision || k.ModelLength == 0 {
