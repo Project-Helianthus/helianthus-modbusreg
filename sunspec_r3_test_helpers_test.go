@@ -99,6 +99,11 @@ func cloneSnapshotForTest(snapshot SunSpecChainSnapshot) SunSpecChainSnapshot {
 
 func completedChainSnapshot(t *testing.T, registry SunSpecDecoderRegistry, occurrences ...SunSpecOccurrence) SunSpecChainSnapshot {
 	t.Helper()
+	return completedChainSnapshotWithKeys(t, registry.DecoderKeys(), occurrences...)
+}
+
+func completedChainSnapshotWithKeys(t *testing.T, decoderKeys []SunSpecDecoderKey, occurrences ...SunSpecOccurrence) SunSpecChainSnapshot {
+	t.Helper()
 	const base = uint16(40000)
 	raw := rawWordsForOccurrences(occurrences)
 	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
@@ -108,7 +113,7 @@ func completedChainSnapshot(t *testing.T, registry SunSpecDecoderRegistry, occur
 			MaxTotalWords:  uint32(len(raw)),
 			MaxOccurrences: uint32(len(occurrences)),
 		},
-		DecoderKeys: registry.DecoderKeys(),
+		DecoderKeys: decoderKeys,
 	})
 	if err != nil {
 		t.Fatal(err)

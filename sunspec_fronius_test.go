@@ -63,6 +63,32 @@ func TestCapabilityAndFlavorRejectInvalidCommonAndAdmittedGeometry(t *testing.T)
 	}
 }
 
+func TestCapabilityAndFlavorRejectRetainedUnadmittedModel160Geometry(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	fixture := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
+	occurrences := fixture.Occurrences()
+	occurrences[5] = admittedOccurrence(160, 88, modelWords(t, registry, 160, 88, map[string][]uint16{"N": {3}}), 6)
+	keys := registry.DecoderKeys()
+	withoutExactMPPT := keys[:0]
+	for _, key := range keys {
+		if key.ModelID != 160 || key.ModelLength != 88 {
+			withoutExactMPPT = append(withoutExactMPPT, key)
+		}
+	}
+	snapshot := completedChainSnapshotWithKeys(t, withoutExactMPPT, occurrences...)
+	if model160 := snapshot.ByModelID(160); len(model160) != 1 || model160[0].Disposition != SunSpecChainDispositionUnsupportedLength {
+		t.Fatalf("retained Model 160=%#v", model160)
+	}
+	capability := registry.EvaluateThreePhaseMonitoring(snapshot)
+	if capability.Admitted() || capability.Reason() != SunSpecCapabilityReasonInvalidChain {
+		t.Fatalf("capability admitted=%t reason=%q", capability.Admitted(), capability.Reason())
+	}
+	flavor := registry.EvaluateFroniusObservedFlavor(snapshot)
+	if flavor.Matched() || flavor.Reason() != SunSpecFroniusFlavorReasonCapabilityNotAdmitted {
+		t.Fatalf("flavor matched=%t reason=%q", flavor.Matched(), flavor.Reason())
+	}
+}
+
 func TestFroniusObservedFlavorReasonsAreClosedAndFailClosed(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
 	valid := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
