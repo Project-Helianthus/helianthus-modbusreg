@@ -1,0 +1,18 @@
+{
+  "source_commit": "7abdf8982d5364f8ae916deee18aac86c11be36d",
+  "id": 123,
+  "length": 24,
+  "point_count": 26,
+  "mandatory": [
+    "ID",
+    "L",
+    "Conn",
+    "WMaxLimPct",
+    "WMaxLim_Ena",
+    "OutPFSet",
+    "OutPFSet_Ena",
+    "VArPct_Ena",
+    "WMaxLimPct_SF",
+    "OutPFSet_SF"
+  ]
+}

@@ -158,12 +158,25 @@ func (r SunSpecDecoderRegistry) DecodeOccurrence(occurrence SunSpecOccurrence) (
 			scale = &value
 		}
 		value := decodeSunSpecValue(point, words[point.offset:point.offset+point.size], scale)
-		if point.mandatory && value.State() != SunSpecValueValid {
+		if point.mandatory && !mandatorySunSpecValueQualifies(value) {
 			model.qualifies = false
 		}
 		model.facts = append(model.facts, SunSpecFact{FieldID: point.fieldID, PointName: point.name, Unit: point.unit, Required: point.required, GroupID: point.groupID, RepeatIndex: point.repeatIndex, Repeated: point.repeated, Value: value})
 	}
 	return model, nil
+}
+
+func mandatorySunSpecValueQualifies(value SunSpecValue) bool {
+	if value.State() != SunSpecValueValid {
+		return false
+	}
+	if _, symbol, ok := value.Enum(); ok {
+		return symbol != ""
+	}
+	if _, unknown, ok := value.Bitfield(); ok {
+		return unknown == 0
+	}
+	return true
 }
 
 func (r SunSpecDecoderRegistry) DecodeChain(snapshot SunSpecChainSnapshot) (SunSpecDecodedChain, error) {

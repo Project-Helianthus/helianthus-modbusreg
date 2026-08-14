@@ -75,6 +75,7 @@ func standardSunSpecModelDefinitions(revision SunSpecSchemaRevision) ([]sunSpecM
 		{120, 26, nameplateSunSpecPoints()},
 		{121, 30, settingsSunSpecPoints()},
 		{122, 44, statusSunSpecPoints()},
+		{123, 24, immediateControlsSunSpecPoints()},
 		{124, 24, storageSunSpecPoints()},
 	} {
 		definitions, err = appendSunSpecDefinition(definitions, revision, model.id, model.length, SunSpecTopologyNone, false, model.points)
