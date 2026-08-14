@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -97,6 +98,11 @@ func TestSunSpecChainRetainsOrderedDuplicatesUnknownAndWrongLength(t *testing.T)
 	}
 	if got := s.ByModelID(103); len(got) != 2 || got[0].Ordinal != 2 || got[1].Ordinal != 4 {
 		t.Fatalf("duplicates lost: %#v", got)
+	}
+	for _, occurrence := range o {
+		if occurrence.SchemaRevision != "sunspec.r1@1" {
+			t.Fatalf("occurrence %d lost schema revision: %#v", occurrence.Ordinal, occurrence)
+		}
 	}
 }
 
@@ -289,6 +295,83 @@ func TestSunSpecChainRejectsZeroLengthAndBoundedOverrun(t *testing.T) {
 	}
 	if _, err := admitNext(t, c, &id, []uint16{7, 125}); err == nil {
 		t.Fatal("address-space overrun admitted")
+	}
+}
+
+func TestSunSpecChainStructuralErrorsTerminallyPoisonBuilder(t *testing.T) {
+	tests := []struct {
+		name      string
+		base      uint16
+		malformed []uint16
+	}{
+		{name: "zero length", base: 40000, malformed: []uint16{7, 0}},
+		{name: "nonzero terminal", base: 40000, malformed: []uint16{0xffff, 1}},
+		{name: "unrepresentable payload successor", base: 65531, malformed: []uint16{1, 1}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{SchemaRevision: "sunspec.r1@1", BaseCandidates: []uint16{tc.base}, Limits: SunSpecChainLimits{MaxTotalWords: 8, MaxOccurrences: 1}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			chain := NewSunSpecChain(plan)
+			id := uint64(1)
+			if _, err := admitNext(t, chain, &id, []uint16{0x5375, 0x6e53}); err != nil {
+				t.Fatal(err)
+			}
+			request := chain.NextRequests()[0]
+			if _, err := chain.AdmitReplay(request, chainView(t, request, id, tc.malformed, "fixture")); err == nil {
+				t.Fatal("malformed structure was admitted")
+			}
+			if pending := chain.NextRequests(); len(pending) != 0 {
+				t.Fatalf("failed chain retained requests: %#v", pending)
+			}
+			id++
+			if _, err := chain.AdmitReplay(request, chainView(t, request, id, []uint16{0xffff, 0}, "fixture")); err == nil {
+				t.Fatal("failed chain recovered after structural error")
+			}
+		})
+	}
+}
+
+func TestSunSpecChainSerializesConcurrentAdmissions(t *testing.T) {
+	chain := NewSunSpecChain(chainPlan(t, []uint16{40000, 41000}))
+	requests := chain.NextRequests()
+	start := make(chan struct{})
+	errs := make(chan error, len(requests))
+	var wait sync.WaitGroup
+	for index, request := range requests {
+		wait.Add(1)
+		go func(index int, request SunSpecReadRequest) {
+			defer wait.Done()
+			<-start
+			words := []uint16{0, 0}
+			if index == 0 {
+				words = []uint16{0x5375, 0x6e53}
+			}
+			_, err := chain.AdmitReplay(request, chainView(t, request, uint64(index+1), words, "fixture"))
+			errs <- err
+		}(index, request)
+	}
+	wait.Add(1)
+	go func() {
+		defer wait.Done()
+		<-start
+		for range 100 {
+			_ = chain.NextRequests()
+		}
+	}()
+	close(start)
+	wait.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	pending := chain.NextRequests()
+	if len(pending) != 1 || pending[0].Purpose() != SunSpecReadHeader || pending[0].Address() != 40002 {
+		t.Fatalf("concurrent admission produced %#v", pending)
 	}
 }
 
