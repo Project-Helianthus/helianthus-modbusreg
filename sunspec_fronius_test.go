@@ -37,6 +37,32 @@ func TestFroniusObservedFlavorAcceptsCompletedPublicChainSnapshot(t *testing.T) 
 	}
 }
 
+func TestCapabilityAndFlavorRejectInvalidCommonAndAdmittedGeometry(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	valid := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
+	invalidCommon := valid.Occurrences()
+	invalidCommon[0] = commonOccurrence(t, registry, "", "Symo GEN24 10.0", "1.41.11-1", 1)
+	invalidGeometry := valid.Occurrences()
+	invalidGeometry[5] = admittedOccurrence(160, 88, modelWords(t, registry, 160, 88, map[string][]uint16{"N": {3}}), 6)
+
+	for name, occurrences := range map[string][]SunSpecOccurrence{
+		"invalid mandatory Common":   invalidCommon,
+		"invalid Model 160 geometry": invalidGeometry,
+	} {
+		t.Run(name, func(t *testing.T) {
+			snapshot := completedChainSnapshot(t, registry, occurrences...)
+			capability := registry.EvaluateThreePhaseMonitoring(snapshot)
+			if capability.Admitted() || capability.Reason() != SunSpecCapabilityReasonInvalidChain {
+				t.Fatalf("capability admitted=%t reason=%q", capability.Admitted(), capability.Reason())
+			}
+			flavor := registry.EvaluateFroniusObservedFlavor(snapshot)
+			if flavor.Matched() || flavor.Reason() != SunSpecFroniusFlavorReasonCapabilityNotAdmitted {
+				t.Fatalf("flavor matched=%t reason=%q", flavor.Matched(), flavor.Reason())
+			}
+		})
+	}
+}
+
 func TestFroniusObservedFlavorReasonsAreClosedAndFailClosed(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
 	valid := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
