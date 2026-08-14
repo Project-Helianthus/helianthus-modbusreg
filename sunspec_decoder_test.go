@@ -47,7 +47,8 @@ func TestSunSpecDecoderRegistryUsesExactImmutableKeys(t *testing.T) {
 		{101, 50, testSunSpecModelsRevision}, {102, 50, testSunSpecModelsRevision}, {103, 50, testSunSpecModelsRevision},
 		{111, 60, testSunSpecModelsRevision}, {112, 60, testSunSpecModelsRevision}, {113, 60, testSunSpecModelsRevision},
 		{120, 26, testSunSpecModelsRevision}, {121, 30, testSunSpecModelsRevision},
-		{122, 44, testSunSpecModelsRevision}, {124, 24, testSunSpecModelsRevision},
+		{122, 44, testSunSpecModelsRevision}, {123, 24, testSunSpecModelsRevision},
+		{124, 24, testSunSpecModelsRevision},
 	}
 	sort.Slice(want, func(i, j int) bool {
 		if want[i].ModelID != want[j].ModelID {

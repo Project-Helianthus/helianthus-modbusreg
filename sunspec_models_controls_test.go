@@ -1,7 +1,9 @@
 package modbusreg
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -35,6 +37,40 @@ func TestSunSpecModel123CatalogMatchesPinnedImmediateControls(t *testing.T) {
 	}
 }
 
+func TestSunSpecModel123GoldenMetadataMatchesCatalog(t *testing.T) {
+	data, err := os.ReadFile("testdata/sunspec/models/v1/model_123.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		SourceCommit string   `json:"source_commit"`
+		ID           uint16   `json:"id"`
+		Length       uint16   `json:"length"`
+		PointCount   int      `json:"point_count"`
+		Mandatory    []string `json:"mandatory"`
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.SourceCommit != "7abdf8982d5364f8ae916deee18aac86c11be36d" || fixture.ID != 123 || fixture.Length != 24 {
+		t.Fatalf("unpinned Model 123 fixture: %#v", fixture)
+	}
+	registry := mustStandardSunSpecRegistry(t)
+	definition, ok := registry.definition(SunSpecDecoderKey{fixture.ID, fixture.Length, testSunSpecModelsRevision})
+	if !ok || len(definition.points) != fixture.PointCount {
+		t.Fatalf("Model 123 points=%d ok=%v", len(definition.points), ok)
+	}
+	var mandatory []string
+	for _, point := range definition.points {
+		if point.mandatory {
+			mandatory = append(mandatory, point.name)
+		}
+	}
+	if !reflect.DeepEqual(mandatory, fixture.Mandatory) {
+		t.Fatalf("Model 123 mandatory=%v want=%v", mandatory, fixture.Mandatory)
+	}
+}
+
 func TestSunSpecModel123DecodesReadOnlyTypedFacts(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
 	words := modelWords(t, registry, 123, 24, validModel123Values())
@@ -64,7 +100,7 @@ func TestSunSpecModel123DecodesReadOnlyTypedFacts(t *testing.T) {
 		t.Fatalf("power factor=%#v/%v", decimal, ok)
 	}
 	mode := mustSunSpecFact(t, decoded, "der.control.reactive_power.mode")
-	if number, symbol, ok := mode.Value.Enum(); !ok || number != 3 || symbol != "VAR_AVAIL" {
+	if number, symbol, ok := mode.Value.Enum(); !ok || number != 3 || symbol != "VArAval" {
 		t.Fatalf("reactive mode=%d/%q/%v", number, symbol, ok)
 	}
 }
