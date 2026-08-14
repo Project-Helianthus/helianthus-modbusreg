@@ -10,7 +10,7 @@ func TestSunSpecChainPlannerRequiresExplicitBasesAndBounds(t *testing.T) {
 	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
 		SchemaRevision: SunSpecSchemaRevision("sunspec.r1@1"),
 		BaseCandidates: []uint16{40000},
-		Limits: SunSpecChainLimits{MaxTotalWords: 125, MaxOccurrences: 8},
+		Limits:         SunSpecChainLimits{MaxTotalWords: 125, MaxOccurrences: 8},
 	})
 	if err != nil {
 		t.Fatalf("NewSunSpecChainPlan: %v", err)
@@ -25,7 +25,7 @@ func TestSunSpecChainPlanRejectsAddressAndAggregateOverflow(t *testing.T) {
 	_, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
 		SchemaRevision: SunSpecSchemaRevision("sunspec.r1@1"),
 		BaseCandidates: []uint16{65535},
-		Limits: SunSpecChainLimits{MaxTotalWords: 126, MaxOccurrences: 1},
+		Limits:         SunSpecChainLimits{MaxTotalWords: 126, MaxOccurrences: 1},
 	})
 	if err == nil {
 		t.Fatal("address overflow was admitted")
