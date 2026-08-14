@@ -24,6 +24,13 @@ func TestFroniusObservedFlavorMatchesOnlyExactEvidenceTuple(t *testing.T) {
 	}
 }
 
+func TestFroniusFlavorDecisionZeroValuePreservesV1Identity(t *testing.T) {
+	var decision SunSpecFroniusFlavorDecision
+	if decision.FlavorID() != SunSpecFroniusObservedFlavorID {
+		t.Fatalf("zero-value flavor id=%q want=%q", decision.FlavorID(), SunSpecFroniusObservedFlavorID)
+	}
+}
+
 func TestFroniusObservedFlavorAcceptsCompletedPublicChainSnapshot(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
 	fixture := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")

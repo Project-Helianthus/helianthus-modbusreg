@@ -71,6 +71,30 @@ func TestSunSpecModel123GoldenMetadataMatchesCatalog(t *testing.T) {
 	}
 }
 
+func TestSunSpecModel123EnumSymbolsMatchPinnedCatalog(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	definition, ok := registry.definition(SunSpecDecoderKey{123, 24, testSunSpecModelsRevision})
+	if !ok {
+		t.Fatal("Model 123 definition absent")
+	}
+	want := map[string]map[uint64]string{
+		"Conn":         {0: "DISCONNECT", 1: "CONNECT"},
+		"WMaxLim_Ena":  {0: "DISABLED", 1: "ENABLED"},
+		"OutPFSet_Ena": {0: "DISABLED", 1: "ENABLED"},
+		"VArPct_Mod":   {0: "NONE", 1: "WMax", 2: "VArMax", 3: "VArAval"},
+		"VArPct_Ena":   {0: "DISABLED", 1: "ENABLED"},
+	}
+	got := make(map[string]map[uint64]string)
+	for _, point := range definition.points {
+		if point.pointType == SunSpecTypeEnum16 {
+			got[point.name] = cloneSunSpecSymbols(point.symbols)
+		}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Model 123 enum symbols=%v want=%v", got, want)
+	}
+}
+
 func TestSunSpecModel123DecodesReadOnlyTypedFacts(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
 	words := modelWords(t, registry, 123, 24, validModel123Values())
