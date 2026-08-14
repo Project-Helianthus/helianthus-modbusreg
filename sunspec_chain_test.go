@@ -24,6 +24,17 @@ func chainView(t *testing.T, r SunSpecReadRequest, id uint64, words []uint16, en
 	}
 	return v
 }
+
+func chainSlicedView(t *testing.T, r SunSpecReadRequest, id uint64, words []uint16, sliceOffset uint16) LogicalViewSnapshot {
+	t.Helper()
+	physicalOffset := r.Address() - sliceOffset
+	physicalWords := r.WordCount() + sliceOffset + 1
+	v, err := NewLogicalViewSnapshot(LogicalViewRecord{LogicalViewID: id, WireResponseID: id + 100, PhysicalRequestID: id + 200, Endpoint: "fixture", ConnectionID: 4, Transport: TransportTCP, TransportGeneration: 5, UnitID: 1, RequestedFunction: FunctionReadHoldingRegisters, ReceivedFunction: FunctionReadHoldingRegisters, Table: HoldingRegisters, PhysicalOffset: physicalOffset, PhysicalWordCount: physicalWords, AuthorizationScope: "read", PollGeneration: 6, DeadlineIdentity: 7, LogicalOffset: r.Address(), LogicalWordCount: r.WordCount(), SliceOffset: sliceOffset, SliceWordCount: r.WordCount(), Words: words, WireResponseBytes: []byte{byte(id)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
 func admitNext(t *testing.T, c *SunSpecChain, id *uint64, words []uint16) (SunSpecChainSnapshot, error) {
 	t.Helper()
 	r := c.NextRequests()[0]
@@ -164,6 +175,46 @@ func TestSunSpecChainSourceSpansReconstructAndCopiesAreImmutable(t *testing.T) {
 	stored := method.Call(nil)[0].Interface().([]LogicalViewSnapshot)
 	if s.RawWords()[0] != 0x5375 || s.Occurrences()[0].Words()[0] != 65000 || s.Occurrences()[0].SourceSpans()[0].PDUOffset != 40002 || stored[0].Record().WireResponseBytes[0] != 1 {
 		t.Fatal("returned copy mutated snapshot")
+	}
+}
+
+func TestSunSpecChainSourceSpansUseSourcePDUCoordinates(t *testing.T) {
+	c := NewSunSpecChain(chainPlan(t, []uint16{40000}))
+	id := uint64(1)
+	for _, words := range [][]uint16{{0x5375, 0x6e53}, {65000, 2}, {3, 4}, {0xffff, 0}} {
+		r := c.NextRequests()[0]
+		snapshot, err := c.AdmitReplay(r, chainSlicedView(t, r, id, words, 3))
+		if err != nil {
+			t.Fatal(err)
+		}
+		id++
+		if len(snapshot.Occurrences()) == 0 {
+			continue
+		}
+
+		occurrence := snapshot.Occurrences()[0]
+		views := snapshot.SourceViews()
+		var reconstructed []uint16
+		for _, span := range occurrence.SourceSpans() {
+			var source *LogicalViewRecord
+			for _, view := range views {
+				record := view.Record()
+				if record.LogicalViewID == span.LogicalViewID {
+					source = &record
+					break
+				}
+			}
+			if source == nil {
+				t.Fatalf("source view %d is missing", span.LogicalViewID)
+			}
+			if span.PDUOffset != source.SliceOffset || span.WordCount != source.SliceWordCount || uint32(span.PDUOffset)+uint32(span.WordCount) > uint32(source.PhysicalWordCount) {
+				t.Fatalf("span %#v does not identify source PDU slice %#v", span, *source)
+			}
+			reconstructed = append(reconstructed, source.Words...)
+		}
+		if !reflect.DeepEqual(reconstructed, occurrence.Words()) {
+			t.Fatalf("reconstructed=%v occurrence=%v", reconstructed, occurrence.Words())
+		}
 	}
 }
 func TestSunSpecChainAmbiguityTerminallyPoisonsBuilder(t *testing.T) {
