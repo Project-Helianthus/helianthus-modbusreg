@@ -1,0 +1,23 @@
+{
+  "schema": "helianthus-sunspec-fronius-observed-flavor/v1",
+  "flavor_id": "sunspec.flavor.fronius.gen24.float.observed@1.0.0",
+  "manufacturer": "Fronius",
+  "model": "Symo GEN24 10.0",
+  "firmware": "1.41.11-1",
+  "chain": [
+    {"ModelID": 1, "ModelLength": 65},
+    {"ModelID": 113, "ModelLength": 60},
+    {"ModelID": 120, "ModelLength": 26},
+    {"ModelID": 121, "ModelLength": 30},
+    {"ModelID": 122, "ModelLength": 44},
+    {"ModelID": 160, "ModelLength": 88},
+    {"ModelID": 124, "ModelLength": 24},
+    {"ModelID": 65535, "ModelLength": 0}
+  ],
+  "sanitized_observation": {
+    "function": "FC03",
+    "unit_id": 1,
+    "pdu_offset": 40000,
+    "authority": "non_actionable_provenance_only"
+  }
+}

@@ -10,10 +10,13 @@ public M1-06 opaque runtime-acquisition API. M2-02 adds bounded, deterministic,
 read-only profile detection over the immutable catalog. M2-03 adds an immutable
 transport-neutral corpus for sanitized synthetic fixture replay and cross-profile
 conformance. M3-02 adds the bounded, read-only SunSpec phase-one standard-family
-profile and parser. M3-03 records the evidence-qualified `STANDARD_ONLY`
-disposition: it adds no vendor overlay, detector, product qualification, or
-live access. Vendor overlays, product qualification, and live access remain
-outside this milestone.
+profile and parser. M3-03 records its historical evidence-qualified
+`STANDARD_ONLY` disposition. The generic SunSpec R1-R3 wave now adds the
+bounded model chain and decoder registry, standard Models
+1/101-103/111-113/120-122/124/160, the encoding-neutral three-phase monitoring
+capability, and one exact experimental Fronius observed flavor. That flavor is
+post-capability classification only: it adds no product qualification,
+acquisition activation, support statement, live result, or write authority.
 
 ## One Registry, Multiple Vendors
 
@@ -47,7 +50,8 @@ This repository owns:
   detection;
 - strict bounded synthetic fixture corpus serialization, replay, mutation
   classification, and deterministic conformance reports; and
-- evidence-gated vendor overlay declarations for future milestones.
+- evidence-gated, versioned vendor flavors that cannot override standard model
+  semantics or create acquisition authority.
 
 This repository does not own:
 
@@ -114,8 +118,8 @@ Work remains one issue and one pull request at a time, with squash merge,
 proportionate test-first evidence, applicable public documentation/evidence,
 and blocker-driven review of the current head.
 
-The current execution cycle stops after M3-03 and before all gateway work in
-M4-01. Crossing that boundary requires a separate operator request.
+Gateway composition, registry dispatch, and live qualification remain separate
+milestones outside this repository.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 
