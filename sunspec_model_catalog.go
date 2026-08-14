@@ -15,9 +15,10 @@ const (
 
 type sunSpecPointDefinition struct {
 	name, fieldID, unit, scaleFactor string
+	groupID                          string
 	pointType                        SunSpecPointType
-	offset, size                     uint16
-	mandatory, required              bool
+	offset, size, repeatIndex        uint16
+	mandatory, required, repeated    bool
 	symbols                          map[uint64]string
 	knownMask                        uint64
 }
@@ -27,6 +28,7 @@ type sunSpecModelDefinition struct {
 	topology      SunSpecTopology
 	compatibility bool
 	points        []sunSpecPointDefinition
+	geometry      func([]uint16) bool
 }
 
 func standardSunSpecModelDefinitions(revision SunSpecSchemaRevision) ([]sunSpecModelDefinition, error) {
@@ -34,7 +36,7 @@ func standardSunSpecModelDefinitions(revision SunSpecSchemaRevision) ([]sunSpecM
 		return nil, fmt.Errorf("SunSpec schema revision is unsupported")
 	}
 	common := commonSunSpecPoints()
-	definitions := make([]sunSpecModelDefinition, 0, 8)
+	definitions := make([]sunSpecModelDefinition, 0, 12)
 	var err error
 	definitions, err = appendSunSpecDefinition(definitions, revision, 1, 66, SunSpecTopologyNone, false, common)
 	if err != nil {
@@ -62,6 +64,20 @@ func standardSunSpecModelDefinitions(revision SunSpecSchemaRevision) ([]sunSpecM
 			points[index].required = points[index].mandatory && points[index].name != "ID" && points[index].name != "L" && points[index].pointType != SunSpecTypeScaleFactor
 		}
 		definitions, err = appendSunSpecDefinition(definitions, revision, model.id, model.length, model.topology, false, points)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, model := range []struct {
+		id, length uint16
+		points     []sunSpecPointDefinition
+	}{
+		{120, 26, nameplateSunSpecPoints()},
+		{121, 30, settingsSunSpecPoints()},
+		{122, 44, statusSunSpecPoints()},
+		{124, 24, storageSunSpecPoints()},
+	} {
+		definitions, err = appendSunSpecDefinition(definitions, revision, model.id, model.length, SunSpecTopologyNone, false, model.points)
 		if err != nil {
 			return nil, err
 		}

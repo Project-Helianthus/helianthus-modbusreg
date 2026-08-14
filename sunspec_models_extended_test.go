@@ -1,7 +1,10 @@
 package modbusreg
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"reflect"
 	"testing"
 )
 
@@ -33,13 +36,60 @@ func TestSunSpecExtendedModelCatalogMatchesPinnedShapes(t *testing.T) {
 	}
 }
 
+func TestSunSpecExtendedGoldenMetadataMatchesCatalog(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(testSunSpecModelsRevision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"120", "121", "122", "124", "160_n4"} {
+		data, err := os.ReadFile("testdata/sunspec/models/v1/model_" + name + ".json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fixture struct {
+			SourceCommit     string `json:"source_commit"`
+			ID, Length       uint16
+			PointCount       int      `json:"point_count"`
+			Mandatory        []string `json:"mandatory"`
+			ModuleCount      uint16   `json:"module_count"`
+			ModulePointCount int      `json:"module_point_count"`
+		}
+		if err := json.Unmarshal(data, &fixture); err != nil {
+			t.Fatal(err)
+		}
+		if fixture.SourceCommit != "7abdf8982d5364f8ae916deee18aac86c11be36d" {
+			t.Fatalf("fixture %s source=%s", name, fixture.SourceCommit)
+		}
+		definition, ok := registry.definition(SunSpecDecoderKey{fixture.ID, fixture.Length, testSunSpecModelsRevision})
+		if !ok || len(definition.points) != fixture.PointCount {
+			t.Fatalf("fixture %s points=%d ok=%v", name, len(definition.points), ok)
+		}
+		var mandatory []string
+		var repeated int
+		for _, point := range definition.points {
+			if point.mandatory {
+				mandatory = append(mandatory, point.name)
+			}
+			if point.repeated {
+				repeated++
+			}
+		}
+		if !reflect.DeepEqual(mandatory, fixture.Mandatory) {
+			t.Fatalf("fixture %s mandatory=%v", name, mandatory)
+		}
+		if fixture.ModuleCount > 0 && repeated != int(fixture.ModuleCount)*fixture.ModulePointCount {
+			t.Fatalf("fixture %s repeated=%d", name, repeated)
+		}
+	}
+}
+
 func TestSunSpecExtendedModelsDecodeTypedFactsAndFailClosed(t *testing.T) {
 	registry, err := NewStandardSunSpecDecoderRegistry(testSunSpecModelsRevision)
 	if err != nil {
 		t.Fatal(err)
 	}
 	nameplate, err := registry.DecodeOccurrence(admittedOccurrence(120, 26, modelWords(t, registry, 120, 26, map[string][]uint16{
-		"DERTyp": {1}, "WRtg": {1234}, "WRtg_SF": {0xffff}, "VARtg": {1400}, "VARtg_SF": {0},
+		"DERTyp": {1}, "WRtg": {1234}, "WRtg_SF": {0x8000}, "VARtg": {1400}, "VARtg_SF": {0},
 		"VArRtgQ1": {1}, "VArRtgQ2": {1}, "VArRtgQ3": {1}, "VArRtgQ4": {1}, "VArRtg_SF": {0},
 		"ARtg": {100}, "ARtg_SF": {0}, "PFRtgQ1": {1}, "PFRtgQ2": {1}, "PFRtgQ3": {1}, "PFRtgQ4": {1}, "PFRtg_SF": {0}, "Pad": {0x8000},
 	}), 1))

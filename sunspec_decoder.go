@@ -6,27 +6,32 @@ import (
 )
 
 type SunSpecFact struct {
-	FieldID   string
-	PointName string
-	Unit      string
-	Required  bool
-	Value     SunSpecValue
+	FieldID     string
+	PointName   string
+	Unit        string
+	Required    bool
+	GroupID     string
+	RepeatIndex uint16
+	Repeated    bool
+	Value       SunSpecValue
 }
 
 type SunSpecDecodedModel struct {
-	key       SunSpecDecoderKey
-	ordinal   uint32
-	topology  SunSpecTopology
-	qualifies bool
-	raw       []uint16
-	spans     []SunSpecSourceSpan
-	facts     []SunSpecFact
+	key           SunSpecDecoderKey
+	ordinal       uint32
+	topology      SunSpecTopology
+	qualifies     bool
+	geometryValid bool
+	raw           []uint16
+	spans         []SunSpecSourceSpan
+	facts         []SunSpecFact
 }
 
 func (m SunSpecDecodedModel) Key() SunSpecDecoderKey    { return m.key }
 func (m SunSpecDecodedModel) Ordinal() uint32           { return m.ordinal }
 func (m SunSpecDecodedModel) Topology() SunSpecTopology { return m.topology }
 func (m SunSpecDecodedModel) Qualifies() bool           { return m.qualifies }
+func (m SunSpecDecodedModel) GeometryValid() bool       { return m.geometryValid }
 func (m SunSpecDecodedModel) RawWords() []uint16        { return append([]uint16(nil), m.raw...) }
 func (m SunSpecDecodedModel) SourceSpans() []SunSpecSourceSpan {
 	return append([]SunSpecSourceSpan(nil), m.spans...)
@@ -84,6 +89,9 @@ func NewStandardSunSpecDecoderRegistry(revision SunSpecSchemaRevision) (SunSpecD
 		registry.definitions[definition.key] = definition
 		registry.keys = append(registry.keys, definition.key)
 	}
+	for modules := uint32(0); modules <= maxSunSpecMPPTModules; modules++ {
+		registry.keys = append(registry.keys, SunSpecDecoderKey{ModelID: 160, ModelLength: uint16(8 + 20*modules), SchemaRevision: revision})
+	}
 	sort.Slice(registry.keys, func(i, j int) bool {
 		if registry.keys[i].ModelID != registry.keys[j].ModelID {
 			return registry.keys[i].ModelID < registry.keys[j].ModelID
@@ -101,7 +109,14 @@ func (r SunSpecDecoderRegistry) DecoderKeys() []SunSpecDecoderKey {
 }
 func (r SunSpecDecoderRegistry) definition(key SunSpecDecoderKey) (sunSpecModelDefinition, bool) {
 	definition, ok := r.definitions[key]
-	return definition, ok
+	if ok {
+		return definition, true
+	}
+	if key.SchemaRevision != r.revision || key.ModelID != 160 {
+		return sunSpecModelDefinition{}, false
+	}
+	definition, err := mpptSunSpecDefinition(key.SchemaRevision, key.ModelLength)
+	return definition, err == nil
 }
 
 func (r SunSpecDecoderRegistry) DecodeOccurrence(occurrence SunSpecOccurrence) (SunSpecDecodedModel, error) {
@@ -109,13 +124,19 @@ func (r SunSpecDecoderRegistry) DecodeOccurrence(occurrence SunSpecOccurrence) (
 	if !ok || occurrence.Disposition != SunSpecChainDispositionAdmitted || key.ModelID != occurrence.WireKey.ModelID || key.ModelLength != occurrence.WireKey.ModelLength || key.SchemaRevision != occurrence.SchemaRevision || key.SchemaRevision != r.revision {
 		return SunSpecDecodedModel{}, fmt.Errorf("SunSpec occurrence lacks an exact admitted decoder key")
 	}
-	definition, ok := r.definitions[key]
+	definition, ok := r.definition(key)
 	if !ok {
 		return SunSpecDecodedModel{}, fmt.Errorf("SunSpec decoder key is unsupported")
 	}
 	words := occurrence.Words()
 	if len(words) != int(key.ModelLength)+2 || words[0] != key.ModelID || words[1] != key.ModelLength {
 		return SunSpecDecodedModel{}, fmt.Errorf("SunSpec occurrence words contradict decoder key")
+	}
+	model := SunSpecDecodedModel{key: key, ordinal: occurrence.Ordinal, topology: definition.topology, qualifies: true, geometryValid: true, raw: append([]uint16(nil), words...), spans: occurrence.SourceSpans()}
+	if definition.geometry != nil && !definition.geometry(words) {
+		model.geometryValid = false
+		model.qualifies = false
+		return model, nil
 	}
 	scales := make(map[string]SunSpecValue)
 	for _, point := range definition.points {
@@ -124,9 +145,8 @@ func (r SunSpecDecoderRegistry) DecodeOccurrence(occurrence SunSpecOccurrence) (
 		}
 		scales[point.name] = decodeSunSpecValue(point, words[point.offset:point.offset+point.size], nil)
 	}
-	model := SunSpecDecodedModel{key: key, ordinal: occurrence.Ordinal, topology: definition.topology, qualifies: true, raw: append([]uint16(nil), words...), spans: occurrence.SourceSpans()}
 	for _, point := range definition.points {
-		if point.name == "ID" || point.name == "L" {
+		if point.offset < 2 {
 			continue
 		}
 		var scale *SunSpecValue
@@ -141,7 +161,7 @@ func (r SunSpecDecoderRegistry) DecodeOccurrence(occurrence SunSpecOccurrence) (
 		if point.mandatory && value.State() != SunSpecValueValid {
 			model.qualifies = false
 		}
-		model.facts = append(model.facts, SunSpecFact{FieldID: point.fieldID, PointName: point.name, Unit: point.unit, Required: point.required, Value: value})
+		model.facts = append(model.facts, SunSpecFact{FieldID: point.fieldID, PointName: point.name, Unit: point.unit, Required: point.required, GroupID: point.groupID, RepeatIndex: point.repeatIndex, Repeated: point.repeated, Value: value})
 	}
 	return model, nil
 }

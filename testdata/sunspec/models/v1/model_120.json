@@ -1,0 +1,7 @@
+{
+  "source_commit": "7abdf8982d5364f8ae916deee18aac86c11be36d",
+  "id": 120,
+  "length": 26,
+  "point_count": 28,
+  "mandatory": ["ID", "L", "DERTyp", "WRtg", "WRtg_SF", "VARtg", "VARtg_SF", "VArRtgQ1", "VArRtgQ2", "VArRtgQ3", "VArRtgQ4", "VArRtg_SF", "ARtg", "ARtg_SF", "PFRtgQ1", "PFRtgQ2", "PFRtgQ3", "PFRtgQ4", "PFRtg_SF"]
+}

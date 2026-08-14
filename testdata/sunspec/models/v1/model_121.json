@@ -1,0 +1,7 @@
+{
+  "source_commit": "7abdf8982d5364f8ae916deee18aac86c11be36d",
+  "id": 121,
+  "length": 30,
+  "point_count": 32,
+  "mandatory": ["ID", "L", "WMax", "VRef", "VRefOfs", "WMax_SF", "VRef_SF", "VRefOfs_SF"]
+}

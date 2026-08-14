@@ -99,8 +99,8 @@ func TestSunSpecMPPTCountMustMatchExactLength(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if decoded.GeometryValid() || decoded.Qualifies() || !reflect.DeepEqual(decoded.RawWords(), words) {
-				t.Fatalf("geometry=%v qualifies=%v", decoded.GeometryValid(), decoded.Qualifies())
+			if decoded.GeometryValid() || decoded.Qualifies() || len(decoded.Facts()) != 0 || !reflect.DeepEqual(decoded.RawWords(), words) {
+				t.Fatalf("geometry=%v qualifies=%v facts=%d", decoded.GeometryValid(), decoded.Qualifies(), len(decoded.Facts()))
 			}
 		})
 	}

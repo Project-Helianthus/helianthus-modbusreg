@@ -1,0 +1,7 @@
+{
+  "source_commit": "7abdf8982d5364f8ae916deee18aac86c11be36d",
+  "id": 124,
+  "length": 24,
+  "point_count": 26,
+  "mandatory": ["ID", "L", "WChaMax", "WChaGra", "WDisChaGra", "StorCtl_Mod", "WChaMax_SF", "WChaDisChaGra_SF"]
+}

@@ -1,0 +1,9 @@
+{
+  "source_commit": "7abdf8982d5364f8ae916deee18aac86c11be36d",
+  "id": 160,
+  "length": 88,
+  "point_count": 49,
+  "mandatory": ["ID", "L"],
+  "module_count": 4,
+  "module_point_count": 10
+}
