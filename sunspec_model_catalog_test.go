@@ -1,0 +1,98 @@
+package modbusreg
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"reflect"
+	"testing"
+)
+
+func TestSunSpecModelCatalogMatchesPinnedAuthoritativeShapes(t *testing.T) {
+	data, err := os.ReadFile("testdata/sunspec/models/v1/catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		SourceCommit   string                `json:"source_commit"`
+		SchemaRevision SunSpecSchemaRevision `json:"schema_revision"`
+		Models         []struct {
+			ID, Length, Points uint16
+			Compatibility      bool `json:"compatibility"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.SourceCommit != "7abdf8982d5364f8ae916deee18aac86c11be36d" || fixture.SchemaRevision != testSunSpecModelsRevision {
+		t.Fatalf("unpinned fixture: %#v", fixture)
+	}
+	registry, err := NewStandardSunSpecDecoderRegistry(fixture.SchemaRevision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range fixture.Models {
+		definition, ok := registry.definition(SunSpecDecoderKey{expected.ID, expected.Length, fixture.SchemaRevision})
+		if !ok {
+			t.Fatalf("model %d/%d absent", expected.ID, expected.Length)
+		}
+		if len(definition.points) != int(expected.Points) || definition.compatibility != expected.Compatibility {
+			t.Fatalf("model %d/%d points=%d compatibility=%v", expected.ID, expected.Length, len(definition.points), definition.compatibility)
+		}
+		var end uint16
+		for _, point := range definition.points {
+			if point.offset != end || point.size == 0 {
+				t.Fatalf("model %d point %#v is not contiguous", expected.ID, point)
+			}
+			end += point.size
+		}
+		if end != expected.Length+2 {
+			t.Fatalf("model %d/%d extent=%d", expected.ID, expected.Length, end)
+		}
+	}
+}
+
+func TestSunSpecPinnedPointOrderAndTypes(t *testing.T) {
+	common := "ID:uint16:1,L:uint16:1,Mn:string:16,Md:string:16,Opt:string:8,Vr:string:8,SN:string:16,DA:uint16:1,Pad:pad:1"
+	integer := "ID:uint16:1,L:uint16:1,A:uint16:1,AphA:uint16:1,AphB:uint16:1,AphC:uint16:1,A_SF:sunssf:1,PPVphAB:uint16:1,PPVphBC:uint16:1,PPVphCA:uint16:1,PhVphA:uint16:1,PhVphB:uint16:1,PhVphC:uint16:1,V_SF:sunssf:1,W:int16:1,W_SF:sunssf:1,Hz:uint16:1,Hz_SF:sunssf:1,VA:int16:1,VA_SF:sunssf:1,VAr:int16:1,VAr_SF:sunssf:1,PF:int16:1,PF_SF:sunssf:1,WH:acc32:2,WH_SF:sunssf:1,DCA:uint16:1,DCA_SF:sunssf:1,DCV:uint16:1,DCV_SF:sunssf:1,DCW:int16:1,DCW_SF:sunssf:1,TmpCab:int16:1,TmpSnk:int16:1,TmpTrns:int16:1,TmpOt:int16:1,Tmp_SF:sunssf:1,St:enum16:1,StVnd:enum16:1,Evt1:bitfield32:2,Evt2:bitfield32:2,EvtVnd1:bitfield32:2,EvtVnd2:bitfield32:2,EvtVnd3:bitfield32:2,EvtVnd4:bitfield32:2"
+	float := "ID:uint16:1,L:uint16:1,A:float32:2,AphA:float32:2,AphB:float32:2,AphC:float32:2,PPVphAB:float32:2,PPVphBC:float32:2,PPVphCA:float32:2,PhVphA:float32:2,PhVphB:float32:2,PhVphC:float32:2,W:float32:2,Hz:float32:2,VA:float32:2,VAr:float32:2,PF:float32:2,WH:float32:2,DCA:float32:2,DCV:float32:2,DCW:float32:2,TmpCab:float32:2,TmpSnk:float32:2,TmpTrns:float32:2,TmpOt:float32:2,St:enum16:1,StVnd:enum16:1,Evt1:bitfield32:2,Evt2:bitfield32:2,EvtVnd1:bitfield32:2,EvtVnd2:bitfield32:2,EvtVnd3:bitfield32:2,EvtVnd4:bitfield32:2"
+	registry, err := NewStandardSunSpecDecoderRegistry(testSunSpecModelsRevision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		id, length uint16
+		want       string
+	}{
+		{1, 66, common}, {101, 50, integer}, {102, 50, integer}, {103, 50, integer},
+		{111, 60, float}, {112, 60, float}, {113, 60, float},
+	} {
+		definition, ok := registry.definition(SunSpecDecoderKey{tc.id, tc.length, testSunSpecModelsRevision})
+		if !ok {
+			t.Fatalf("definition %d absent", tc.id)
+		}
+		got := make([]string, len(definition.points))
+		for index, point := range definition.points {
+			got[index] = fmt.Sprintf("%s:%s:%d", point.name, point.pointType, point.size)
+		}
+		if joined := joinSunSpecCatalog(got); joined != tc.want {
+			t.Fatalf("model %d catalog\n%s\nwant\n%s", tc.id, joined, tc.want)
+		}
+	}
+	l65, _ := registry.definition(SunSpecDecoderKey{1, 65, testSunSpecModelsRevision})
+	l66, _ := registry.definition(SunSpecDecoderKey{1, 66, testSunSpecModelsRevision})
+	if !reflect.DeepEqual(l65.points, l66.points[:len(l66.points)-1]) || l66.points[len(l66.points)-1].name != "Pad" {
+		t.Fatal("Model 1 L65 compatibility is not exactly L66 without Pad")
+	}
+}
+
+func joinSunSpecCatalog(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	result := values[0]
+	for _, value := range values[1:] {
+		result += "," + value
+	}
+	return result
+}

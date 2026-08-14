@@ -1,0 +1,14 @@
+{
+  "source_commit": "7abdf8982d5364f8ae916deee18aac86c11be36d",
+  "schema_revision": "sunspec.models@7abdf898-v1",
+  "models": [
+    {"id": 1, "length": 66, "points": 9},
+    {"id": 1, "length": 65, "points": 8, "compatibility": true},
+    {"id": 101, "length": 50, "points": 45},
+    {"id": 102, "length": 50, "points": 45},
+    {"id": 103, "length": 50, "points": 45},
+    {"id": 111, "length": 60, "points": 33},
+    {"id": 112, "length": 60, "points": 33},
+    {"id": 113, "length": 60, "points": 33}
+  ]
+}
