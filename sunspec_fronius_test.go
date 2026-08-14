@@ -24,6 +24,19 @@ func TestFroniusObservedFlavorMatchesOnlyExactEvidenceTuple(t *testing.T) {
 	}
 }
 
+func TestFroniusObservedFlavorAcceptsCompletedPublicChainSnapshot(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	fixture := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
+	snapshot := completedChainSnapshot(t, registry, fixture.Occurrences()...)
+	decision := registry.EvaluateFroniusObservedFlavor(snapshot)
+	if !decision.Matched() || !decision.Capability().Admitted() {
+		t.Fatalf("matched=%t flavor_reason=%q capability_reason=%q", decision.Matched(), decision.Reason(), decision.Capability().Reason())
+	}
+	if len(snapshot.SourceViews()) <= len(snapshot.Occurrences()) {
+		t.Fatalf("production snapshot did not retain split signature/header/payload/terminal views: views=%d occurrences=%d", len(snapshot.SourceViews()), len(snapshot.Occurrences()))
+	}
+}
+
 func TestFroniusObservedFlavorReasonsAreClosedAndFailClosed(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
 	valid := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")

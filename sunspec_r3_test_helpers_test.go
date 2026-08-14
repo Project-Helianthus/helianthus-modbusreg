@@ -97,6 +97,48 @@ func cloneSnapshotForTest(snapshot SunSpecChainSnapshot) SunSpecChainSnapshot {
 	}
 }
 
+func completedChainSnapshot(t *testing.T, registry SunSpecDecoderRegistry, occurrences ...SunSpecOccurrence) SunSpecChainSnapshot {
+	t.Helper()
+	const base = uint16(40000)
+	raw := rawWordsForOccurrences(occurrences)
+	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+		SchemaRevision: testSunSpecModelsRevision,
+		BaseCandidates: []uint16{base},
+		Limits: SunSpecChainLimits{
+			MaxTotalWords:  uint32(len(raw)),
+			MaxOccurrences: uint32(len(occurrences)),
+		},
+		DecoderKeys: registry.DecoderKeys(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := NewSunSpecChain(plan)
+	logicalViewID := uint64(1000)
+	for step := 0; step < len(raw); step++ {
+		requests := chain.NextRequests()
+		if len(requests) != 1 {
+			t.Fatalf("pending requests=%d", len(requests))
+		}
+		request := requests[0]
+		start := int(uint32(request.Address()) - uint32(base))
+		end := start + int(request.WordCount())
+		if start < 0 || end > len(raw) {
+			t.Fatalf("request [%d,%d) exceeds raw words %d", start, end, len(raw))
+		}
+		snapshot, err := chain.AdmitReplay(request, chainView(t, request, logicalViewID, raw[start:end], "fixture"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		logicalViewID++
+		if len(snapshot.RawWords()) != 0 {
+			return snapshot
+		}
+	}
+	t.Fatal("SunSpec chain did not reach its terminal snapshot")
+	return SunSpecChainSnapshot{}
+}
+
 func rawWordsForOccurrences(occurrences []SunSpecOccurrence) []uint16 {
 	raw := []uint16{sunSpecSignatureFirst, sunSpecSignatureSecond}
 	for _, occurrence := range occurrences {
