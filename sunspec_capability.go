@@ -114,6 +114,9 @@ func (r SunSpecDecoderRegistry) EvaluateThreePhaseMonitoring(snapshot SunSpecCha
 	}
 	exactSources := make([]SunSpecOccurrence, 0, 2)
 	for _, occurrence := range snapshot.Occurrences() {
+		if !validRetainedSunSpecGeometry(occurrence) {
+			return rejected(SunSpecCapabilityReasonInvalidChain)
+		}
 		if occurrence.WireKey == (SunSpecWireKey{ModelID: 103, ModelLength: 50}) || occurrence.WireKey == (SunSpecWireKey{ModelID: 113, ModelLength: 60}) {
 			exactSources = append(exactSources, occurrence)
 		}
@@ -186,6 +189,17 @@ func (r SunSpecDecoderRegistry) EvaluateThreePhaseMonitoring(snapshot SunSpecCha
 		facts:    canonical,
 		views:    snapshot.SourceViews(),
 	}
+}
+
+func validRetainedSunSpecGeometry(occurrence SunSpecOccurrence) bool {
+	if occurrence.ModelID() != 160 {
+		return true
+	}
+	words := occurrence.Words()
+	if len(words) != int(occurrence.ModelLength())+2 || len(words) <= 8 || words[8] == 0xffff {
+		return false
+	}
+	return uint32(occurrence.ModelLength()) == 8+20*uint32(words[8])
 }
 
 func canonicalSunSpecValue(value SunSpecValue) (SunSpecCanonicalValue, bool) {
