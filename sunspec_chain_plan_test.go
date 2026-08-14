@@ -26,6 +26,17 @@ func TestSunSpecChainPlannerRequiresExplicitBasesAndBounds(t *testing.T) {
 	}
 }
 
+func TestSunSpecChainPlannerRejectsDuplicateBaseCandidates(t *testing.T) {
+	_, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+		SchemaRevision: SunSpecSchemaRevision("sunspec.r1@1"),
+		BaseCandidates: []uint16{40000, 40000},
+		Limits:         SunSpecChainLimits{MaxTotalWords: 125, MaxOccurrences: 8},
+	})
+	if err == nil {
+		t.Fatal("duplicate base candidates were admitted")
+	}
+}
+
 func TestSunSpecChainPublicRequestsAreReadOnly(t *testing.T) {
 	typ := reflect.TypeFor[SunSpecReadRequest]()
 	for i := 0; i < typ.NumMethod(); i++ {
