@@ -79,6 +79,36 @@ func TestSunSpecInverterEventDefinitionsMatchPinnedSource(t *testing.T) {
 	}
 }
 
+func TestSunSpecInverterStatusDefinitionsMatchPinnedSource(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(testSunSpecModelsRevision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	standard := map[uint64]string{1: "OFF", 2: "SLEEPING", 3: "STARTING", 4: "MPPT", 5: "THROTTLED", 6: "SHUTTING_DOWN", 7: "FAULT", 8: "STANDBY"}
+	model111 := map[uint64]string{1: "ggOFF", 2: "ggSLEEPING", 3: "ggSTARTING", 4: "ggMPPT", 5: "ggTHROTTLED", 6: "ggSHUTTING_DOWN", 7: "ggFAULT", 8: "ggSTANDBY"}
+	for _, modelID := range []uint16{101, 102, 103, 111, 112, 113} {
+		length, want := uint16(50), standard
+		if modelID >= 111 {
+			length = 60
+		}
+		if modelID == 111 {
+			want = model111
+		}
+		definition, ok := registry.definition(SunSpecDecoderKey{modelID, length, testSunSpecModelsRevision})
+		if !ok {
+			t.Fatalf("model %d absent", modelID)
+		}
+		for _, point := range definition.points {
+			if point.name == "St" {
+				if !reflect.DeepEqual(point.symbols, want) {
+					t.Fatalf("model %d status symbols=%v", modelID, point.symbols)
+				}
+				break
+			}
+		}
+	}
+}
+
 func TestSunSpecModelDecodeFailsClosedOnInvalidRequiredEncoding(t *testing.T) {
 	registry, err := NewStandardSunSpecDecoderRegistry(testSunSpecModelsRevision)
 	if err != nil {
