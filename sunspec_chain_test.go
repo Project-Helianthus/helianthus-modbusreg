@@ -1,6 +1,12 @@
 package modbusreg
 
-import "testing"
+import (
+	"os"
+	"reflect"
+	"strconv"
+	"strings"
+	"testing"
+)
 
 func chainPlan(t *testing.T, bases []uint16) SunSpecChainPlan {
 	t.Helper()
@@ -29,9 +35,16 @@ func admitNext(t *testing.T, c *SunSpecChain, id *uint64, words []uint16) (SunSp
 func TestSunSpecChainRetainsOrderedDuplicatesUnknownAndWrongLength(t *testing.T) {
 	c := NewSunSpecChain(chainPlan(t, []uint16{40000}))
 	id := uint64(1)
-	for _, words := range [][]uint16{{0x5375, 0x6e53}, {1, 1}, {9}, {103, 1}, {8}, {65000, 2}, {3, 4}, {103, 2}, {5, 6}, {113, 1}, {7}} {
-		if _, err := admitNext(t, c, &id, words); err != nil {
-			t.Fatalf("admit %v: %v", words, err)
+	words := orderedChainWords(t)
+	for len(words) != 0 {
+		r := c.NextRequests()[0]
+		if len(words) < int(r.WordCount()) {
+			t.Fatalf("fixture ended before %v request", r.Purpose())
+		}
+		chunk := words[:r.WordCount()]
+		words = words[r.WordCount():]
+		if _, err := admitNext(t, c, &id, chunk); err != nil {
+			t.Fatalf("admit %v: %v", chunk, err)
 		}
 	}
 	s, err := admitNext(t, c, &id, []uint16{0xffff, 0})
@@ -39,10 +52,10 @@ func TestSunSpecChainRetainsOrderedDuplicatesUnknownAndWrongLength(t *testing.T)
 		t.Fatal(err)
 	}
 	o := s.Occurrences()
-	if len(o) != 5 {
+	if len(o) != 4 {
 		t.Fatalf("occurrences=%d", len(o))
 	}
-	want := []uint16{1, 103, 65000, 103, 113}
+	want := []uint16{1, 103, 65000, 103}
 	for i, id := range want {
 		if o[i].ModelID() != id || o[i].Ordinal != uint32(i+1) {
 			t.Fatalf("occurrence %d=%#v", i, o[i])
@@ -60,6 +73,24 @@ func TestSunSpecChainRetainsOrderedDuplicatesUnknownAndWrongLength(t *testing.T)
 	if got := s.ByModelID(103); len(got) != 2 || got[0].Ordinal != 2 || got[1].Ordinal != 4 {
 		t.Fatalf("duplicates lost: %#v", got)
 	}
+}
+
+func orderedChainWords(t *testing.T) []uint16 {
+	t.Helper()
+	b, err := os.ReadFile("testdata/sunspec/chain/ordered-chain.words")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := strings.Fields(string(b))
+	words := make([]uint16, 0, len(fields))
+	for _, field := range fields {
+		word, err := strconv.ParseUint(field, 16, 16)
+		if err != nil {
+			t.Fatalf("parse fixture word %q: %v", field, err)
+		}
+		words = append(words, uint16(word))
+	}
+	return words
 }
 func TestSunSpecChainSourceSpansReconstructAndCopiesAreImmutable(t *testing.T) {
 	c := NewSunSpecChain(chainPlan(t, []uint16{40000}))
@@ -88,11 +119,40 @@ func TestSunSpecChainSourceSpansReconstructAndCopiesAreImmutable(t *testing.T) {
 	spans[0].PDUOffset = 0
 	out := s.Occurrences()
 	out[0].words[0] = 0
-	if s.RawWords()[0] != 0x5375 || s.Occurrences()[0].Words()[0] != 65000 || s.Occurrences()[0].SourceSpans()[0].PDUOffset != 40002 {
+	method := reflect.ValueOf(s).MethodByName("SourceViews")
+	if !method.IsValid() {
+		t.Fatal("completed chain snapshot does not expose source views")
+	}
+	views, ok := method.Call(nil)[0].Interface().([]LogicalViewSnapshot)
+	if !ok {
+		t.Fatal("source views have the wrong type")
+	}
+	if len(views) != 4 {
+		t.Fatalf("source views=%d", len(views))
+	}
+	for _, span := range s.Occurrences()[0].SourceSpans() {
+		found := false
+		for _, view := range views {
+			if view.Record().LogicalViewID == span.LogicalViewID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("span %#v is detached from source views", span)
+		}
+	}
+	if got := views[0].Record(); got.Words[0] != 0x5375 || got.WireResponseBytes[0] != 1 {
+		t.Fatalf("signature source cannot reconstruct bytes: %#v", got)
+	}
+	views[0].record.Words[0] = 0
+	views[0].record.WireResponseBytes[0] = 0
+	stored := method.Call(nil)[0].Interface().([]LogicalViewSnapshot)
+	if s.RawWords()[0] != 0x5375 || s.Occurrences()[0].Words()[0] != 65000 || s.Occurrences()[0].SourceSpans()[0].PDUOffset != 40002 || stored[0].Record().WireResponseBytes[0] != 1 {
 		t.Fatal("returned copy mutated snapshot")
 	}
 }
-func TestSunSpecChainRejectsAmbiguityAndProvenanceReplayAndTerminalErrors(t *testing.T) {
+func TestSunSpecChainAmbiguityTerminallyPoisonsBuilder(t *testing.T) {
 	c := NewSunSpecChain(chainPlan(t, []uint16{40000, 41000}))
 	rs := c.NextRequests()
 	if _, e := c.Admit(rs[0], chainView(t, rs[0], 1, []uint16{0x5375, 0x6e53}, "fixture")); e != nil {
@@ -101,7 +161,16 @@ func TestSunSpecChainRejectsAmbiguityAndProvenanceReplayAndTerminalErrors(t *tes
 	if _, e := c.Admit(rs[1], chainView(t, rs[1], 2, []uint16{0x5375, 0x6e53}, "fixture")); e == nil {
 		t.Fatal("ambiguous bases admitted")
 	}
-	c = NewSunSpecChain(chainPlan(t, []uint16{40000}))
+	if got := c.NextRequests(); len(got) != 0 {
+		t.Fatalf("ambiguous builder retained retryable requests: %#v", got)
+	}
+	if _, e := c.Admit(rs[1], chainView(t, rs[1], 3, []uint16{0, 0}, "fixture")); e == nil {
+		t.Fatal("ambiguous builder recovered after resubmission")
+	}
+}
+
+func TestSunSpecChainRejectsProvenanceReplayAndTerminalErrors(t *testing.T) {
+	c := NewSunSpecChain(chainPlan(t, []uint16{40000}))
 	r := c.NextRequests()[0]
 	v := chainView(t, r, 1, []uint16{0x5375, 0x6e53}, "fixture")
 	if _, e := c.Admit(r, v); e != nil {
@@ -155,5 +224,32 @@ func TestSunSpecChainRejectsZeroLengthAndBoundedOverrun(t *testing.T) {
 	}
 	if _, err := admitNext(t, c, &id, []uint16{7, 125}); err == nil {
 		t.Fatal("address-space overrun admitted")
+	}
+}
+
+func TestSunSpecChainRejectsUnrepresentableSuccessorRequests(t *testing.T) {
+	p, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{SchemaRevision: "sunspec.r1@1", BaseCandidates: []uint16{65534}, Limits: SunSpecChainLimits{MaxTotalWords: 8, MaxOccurrences: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := NewSunSpecChain(p)
+	id := uint64(1)
+	if _, err := admitNext(t, c, &id, []uint16{0x5375, 0x6e53}); err == nil {
+		t.Fatal("signature at 65534 scheduled an unrepresentable header")
+	}
+	p, err = NewSunSpecChainPlan(SunSpecChainPlanSpec{SchemaRevision: "sunspec.r1@1", BaseCandidates: []uint16{65533}, Limits: SunSpecChainLimits{MaxTotalWords: 8, MaxOccurrences: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c = NewSunSpecChain(p)
+	id = 10
+	if _, err := admitNext(t, c, &id, []uint16{0x5375, 0x6e53}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admitNext(t, c, &id, []uint16{1, 1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admitNext(t, c, &id, []uint16{9}); err == nil {
+		t.Fatal("payload ending at 65536 scheduled an unrepresentable terminal header")
 	}
 }
