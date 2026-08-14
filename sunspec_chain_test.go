@@ -398,6 +398,57 @@ func TestSunSpecChainSerializesConcurrentAdmissions(t *testing.T) {
 	}
 }
 
+func TestSunSpecChainRejectsContradictorySourceIdentities(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*LogicalViewRecord, LogicalViewRecord)
+	}{
+		{
+			name: "wire response maps to another physical request",
+			mutate: func(record *LogicalViewRecord, first LogicalViewRecord) {
+				record.WireResponseID = first.WireResponseID
+			},
+		},
+		{
+			name: "physical request maps to another wire response",
+			mutate: func(record *LogicalViewRecord, first LogicalViewRecord) {
+				record.PhysicalRequestID = first.PhysicalRequestID
+			},
+		},
+		{
+			name: "wire response maps to contradictory exact bytes",
+			mutate: func(record *LogicalViewRecord, first LogicalViewRecord) {
+				record.WireResponseID = first.WireResponseID
+				record.PhysicalRequestID = first.PhysicalRequestID
+				record.WireResponseBytes = []byte{0xff}
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			chain := NewSunSpecChain(chainPlan(t, []uint16{40000}))
+			signatureRequest := chain.NextRequests()[0]
+			signatureView := chainView(t, signatureRequest, 1, []uint16{0x5375, 0x6e53}, "fixture")
+			if _, err := chain.AdmitReplay(signatureRequest, signatureView); err != nil {
+				t.Fatal(err)
+			}
+			headerRequest := chain.NextRequests()[0]
+			record := chainView(t, headerRequest, 2, []uint16{0xffff, 0}, "fixture").Record()
+			tc.mutate(&record, signatureView.Record())
+			contradictory, err := NewLogicalViewSnapshot(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := chain.AdmitReplay(headerRequest, contradictory); err == nil {
+				t.Fatal("contradictory source identity completed the chain")
+			}
+			if pending := chain.NextRequests(); len(pending) != 0 {
+				t.Fatalf("contradictory provenance did not poison chain: %#v", pending)
+			}
+		})
+	}
+}
+
 func TestSunSpecChainRejectsUnrepresentableSuccessorRequests(t *testing.T) {
 	p, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{SchemaRevision: "sunspec.r1@1", BaseCandidates: []uint16{65534}, Limits: SunSpecChainLimits{MaxTotalWords: 8, MaxOccurrences: 1}})
 	if err != nil {
