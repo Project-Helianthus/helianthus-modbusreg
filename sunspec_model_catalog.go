@@ -1,0 +1,94 @@
+package modbusreg
+
+import "fmt"
+
+const SunSpecModelsRevisionV1 SunSpecSchemaRevision = "sunspec.models@7abdf898-v1"
+
+type SunSpecTopology string
+
+const (
+	SunSpecTopologyNone        SunSpecTopology = "none"
+	SunSpecTopologySinglePhase SunSpecTopology = "single_phase"
+	SunSpecTopologySplitPhase  SunSpecTopology = "split_phase"
+	SunSpecTopologyThreePhase  SunSpecTopology = "three_phase"
+)
+
+type sunSpecPointDefinition struct {
+	name, fieldID, unit, scaleFactor string
+	pointType                        SunSpecPointType
+	offset, size                     uint16
+	mandatory, required              bool
+	symbols                          map[uint64]string
+	knownMask                        uint64
+}
+
+type sunSpecModelDefinition struct {
+	key           SunSpecDecoderKey
+	topology      SunSpecTopology
+	compatibility bool
+	points        []sunSpecPointDefinition
+}
+
+func standardSunSpecModelDefinitions(revision SunSpecSchemaRevision) ([]sunSpecModelDefinition, error) {
+	if revision != SunSpecModelsRevisionV1 {
+		return nil, fmt.Errorf("SunSpec schema revision is unsupported")
+	}
+	common := commonSunSpecPoints()
+	definitions := make([]sunSpecModelDefinition, 0, 8)
+	var err error
+	definitions, err = appendSunSpecDefinition(definitions, revision, 1, 66, SunSpecTopologyNone, false, common)
+	if err != nil {
+		return nil, err
+	}
+	definitions, err = appendSunSpecDefinition(definitions, revision, 1, 65, SunSpecTopologyNone, true, common[:len(common)-1])
+	if err != nil {
+		return nil, err
+	}
+	for _, model := range []struct {
+		id, length uint16
+		topology   SunSpecTopology
+		points     []sunSpecPointDefinition
+	}{
+		{101, 50, SunSpecTopologySinglePhase, integerInverterSunSpecPoints()},
+		{102, 50, SunSpecTopologySplitPhase, integerInverterSunSpecPoints()},
+		{103, 50, SunSpecTopologyThreePhase, integerInverterSunSpecPoints()},
+		{111, 60, SunSpecTopologySinglePhase, floatInverterSunSpecPoints()},
+		{112, 60, SunSpecTopologySplitPhase, floatInverterSunSpecPoints()},
+		{113, 60, SunSpecTopologyThreePhase, floatInverterSunSpecPoints()},
+	} {
+		points := cloneSunSpecPointDefinitions(model.points)
+		for index := range points {
+			points[index].mandatory = sunSpecPointMandatory(model.id, points[index].name)
+			points[index].required = points[index].mandatory && points[index].name != "ID" && points[index].name != "L" && points[index].pointType != SunSpecTypeScaleFactor
+		}
+		definitions, err = appendSunSpecDefinition(definitions, revision, model.id, model.length, model.topology, false, points)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return definitions, nil
+}
+
+func appendSunSpecDefinition(values []sunSpecModelDefinition, revision SunSpecSchemaRevision, id, length uint16, topology SunSpecTopology, compatibility bool, points []sunSpecPointDefinition) ([]sunSpecModelDefinition, error) {
+	points = cloneSunSpecPointDefinitions(points)
+	var offset uint16
+	for index := range points {
+		if points[index].size == 0 {
+			return nil, fmt.Errorf("SunSpec point size is zero")
+		}
+		points[index].offset = offset
+		offset += points[index].size
+	}
+	if offset != length+2 {
+		return nil, fmt.Errorf("SunSpec model %d/%d catalog extent is %d", id, length, offset)
+	}
+	return append(values, sunSpecModelDefinition{key: SunSpecDecoderKey{id, length, revision}, topology: topology, compatibility: compatibility, points: points}), nil
+}
+
+func cloneSunSpecPointDefinitions(points []sunSpecPointDefinition) []sunSpecPointDefinition {
+	return append([]sunSpecPointDefinition(nil), points...)
+}
+
+func sunSpecPoint(name, fieldID string, pointType SunSpecPointType, size uint16, unit, scaleFactor string, mandatory bool, symbols map[uint64]string, knownMask uint64) sunSpecPointDefinition {
+	return sunSpecPointDefinition{name: name, fieldID: fieldID, pointType: pointType, size: size, unit: unit, scaleFactor: scaleFactor, mandatory: mandatory, required: mandatory && name != "ID" && name != "L" && pointType != SunSpecTypeScaleFactor, symbols: symbols, knownMask: knownMask}
+}

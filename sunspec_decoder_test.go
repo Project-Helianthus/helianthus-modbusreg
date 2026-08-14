@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -82,7 +83,9 @@ func TestSunSpecDecodedModelsAreDefensiveAndReadOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	words := modelWords(t, registry, 1, 65, map[string][]uint16{"Mn": stringWords("Maker", 16), "Md": stringWords("Model", 16)})
-	decoded, err := registry.DecodeOccurrence(admittedOccurrence(1, 65, words, 1))
+	occurrence := admittedOccurrence(1, 65, words, 1)
+	occurrence.spans = []SunSpecSourceSpan{{LogicalViewID: 17, PDUOffset: 3, WordCount: 65}}
+	decoded, err := registry.DecodeOccurrence(occurrence)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +102,81 @@ func TestSunSpecDecodedModelsAreDefensiveAndReadOnly(t *testing.T) {
 	if decoded.RawWords()[0] != 1 {
 		t.Fatal("raw words were mutable")
 	}
+	spans := decoded.SourceSpans()
+	if len(spans) != 1 || spans[0] != occurrence.spans[0] {
+		t.Fatalf("source spans=%#v", spans)
+	}
+	spans[0].LogicalViewID = 99
+	if decoded.SourceSpans()[0].LogicalViewID != 17 {
+		t.Fatal("source spans were mutable")
+	}
 }
+
+func TestSunSpecDecoderRejectsMalformedOccurrenceWithoutMutatingEvidence(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(testSunSpecModelsRevision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid := modelWords(t, registry, 103, 50, nil)
+	for name, words := range map[string][]uint16{
+		"truncated":       append([]uint16(nil), valid[:len(valid)-1]...),
+		"extra":           append(append([]uint16(nil), valid...), 0),
+		"model mismatch":  append([]uint16{102}, valid[1:]...),
+		"length mismatch": append([]uint16{103, 49}, valid[2:]...),
+	} {
+		t.Run(name, func(t *testing.T) {
+			occurrence := admittedOccurrence(103, 50, words, 1)
+			before := occurrence.Words()
+			if _, err := registry.DecodeOccurrence(occurrence); err == nil {
+				t.Fatal("malformed occurrence decoded")
+			}
+			if !reflect.DeepEqual(occurrence.Words(), before) {
+				t.Fatal("raw occurrence evidence changed on rejection")
+			}
+		})
+	}
+}
+
+func TestSunSpecDecoderRegistrySupportsConcurrentReadOnlyDecode(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(testSunSpecModelsRevision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	occurrence := admittedOccurrence(113, 60, modelWords(t, registry, 113, 60, map[string][]uint16{
+		"A": {0x4148, 0}, "W": {0x42f6, 0}, "Hz": {0x4248, 0}, "WH": {0x42c8, 0}, "St": {4},
+	}), 1)
+
+	const workers = 64
+	var wg sync.WaitGroup
+	errors := make(chan error, workers)
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			decoded, err := registry.DecodeOccurrence(occurrence)
+			if err != nil {
+				errors <- err
+				return
+			}
+			if decoded.Key().ModelID != 113 || len(decoded.Facts()) != 31 {
+				errors <- errUnexpectedConcurrentDecode
+			}
+		}()
+	}
+	wg.Wait()
+	close(errors)
+	for err := range errors {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+type sunSpecTestError string
+
+func (e sunSpecTestError) Error() string { return string(e) }
+
+const errUnexpectedConcurrentDecode sunSpecTestError = "unexpected concurrent SunSpec decode"
 
 func stringWords(value string, words int) []uint16 {
 	raw := make([]byte, words*2)
