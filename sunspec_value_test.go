@@ -73,9 +73,18 @@ func TestSunSpecValueFloatEnumBitfieldAndStringAreLossless(t *testing.T) {
 	}
 	bitfieldDefinition := sizedSunSpecPoint(SunSpecTypeBitfield32, 2)
 	bitfieldDefinition.knownMask = 0x0000ffff
+	bitfieldDefinition.symbols = map[uint64]string{0: "GROUND_FAULT", 16: "VENDOR_EXTENSION"}
 	bits := decodeSunSpecValue(bitfieldDefinition, []uint16{0x0001, 0x0001}, nil)
 	if value, unknown, ok := bits.Bitfield(); !ok || value != 0x00010001 || unknown != 0x00010000 {
 		t.Fatalf("bitfield=%x unknown=%x ok=%v", value, unknown, ok)
+	}
+	if symbols := bits.BitfieldSymbols(); !reflect.DeepEqual(symbols, []string{"GROUND_FAULT"}) {
+		t.Fatalf("bitfield symbols=%v", symbols)
+	}
+	symbols := bits.BitfieldSymbols()
+	symbols[0] = "MUTATED"
+	if bits.BitfieldSymbols()[0] != "GROUND_FAULT" {
+		t.Fatal("bitfield symbols were mutable")
 	}
 	text := decodeSunSpecValue(sizedSunSpecPoint(SunSpecTypeString, 2), []uint16{0x41c4, 0x8300}, nil)
 	if got, ok := text.Text(); !ok || got != "Aă" {

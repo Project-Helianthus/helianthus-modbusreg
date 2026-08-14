@@ -1,6 +1,9 @@
 package modbusreg
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestSunSpecIntegerAndFloatInvertersDecodeAllFields(t *testing.T) {
 	registry, err := NewStandardSunSpecDecoderRegistry(testSunSpecModelsRevision)
@@ -41,6 +44,37 @@ func TestSunSpecIntegerAndFloatInvertersDecodeAllFields(t *testing.T) {
 		power, _ := decoded.Fact("inverter.ac.power.active")
 		if value, ok := power.Value.Float32(); !ok || value != -123 {
 			t.Fatalf("model %d power=%v/%v", id, value, ok)
+		}
+	}
+}
+
+func TestSunSpecInverterEventDefinitionsMatchPinnedSource(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(testSunSpecModelsRevision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[uint64]string{
+		0: "GROUND_FAULT", 1: "DC_OVER_VOLT", 2: "AC_DISCONNECT", 3: "DC_DISCONNECT",
+		4: "GRID_DISCONNECT", 5: "CABINET_OPEN", 6: "MANUAL_SHUTDOWN", 7: "OVER_TEMP",
+		8: "OVER_FREQUENCY", 9: "UNDER_FREQUENCY", 10: "AC_OVER_VOLT", 11: "AC_UNDER_VOLT",
+		12: "BLOWN_STRING_FUSE", 13: "UNDER_TEMP", 14: "MEMORY_LOSS", 15: "HW_TEST_FAILURE",
+	}
+	for _, modelID := range []uint16{101, 102, 103, 111, 112, 113} {
+		length := uint16(50)
+		if modelID >= 111 {
+			length = 60
+		}
+		definition, ok := registry.definition(SunSpecDecoderKey{modelID, length, testSunSpecModelsRevision})
+		if !ok {
+			t.Fatalf("model %d absent", modelID)
+		}
+		for _, point := range definition.points {
+			if point.name == "Evt1" {
+				if point.knownMask != 0x0000ffff || !reflect.DeepEqual(point.symbols, want) {
+					t.Fatalf("model %d Evt1 mask=%x symbols=%v", modelID, point.knownMask, point.symbols)
+				}
+				break
+			}
 		}
 	}
 }
