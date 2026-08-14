@@ -54,6 +54,7 @@ type SunSpecValue struct {
 	hasEnum     bool
 	bits        uint64
 	unknown     uint64
+	bitSymbols  []string
 	hasBits     bool
 }
 
@@ -67,6 +68,9 @@ func (v SunSpecValue) Unsigned() (uint64, bool)         { return v.unsigned, v.h
 func (v SunSpecValue) Text() (string, bool)             { return v.text, v.hasText }
 func (v SunSpecValue) Enum() (uint64, string, bool)     { return v.enumNumber, v.enumSymbol, v.hasEnum }
 func (v SunSpecValue) Bitfield() (uint64, uint64, bool) { return v.bits, v.unknown, v.hasBits }
+func (v SunSpecValue) BitfieldSymbols() []string {
+	return append([]string(nil), v.bitSymbols...)
+}
 
 func invalidSunSpecValue(pointType SunSpecPointType, words []uint16, state SunSpecValueState) SunSpecValue {
 	return SunSpecValue{pointType: pointType, state: state, raw: append([]uint16(nil), words...)}
@@ -133,6 +137,12 @@ func decodeSunSpecValue(def sunSpecPointDefinition, words []uint16, scale *SunSp
 			return value
 		}
 		value.bits, value.unknown, value.hasBits = bits, bits&^def.knownMask, true
+		for bit := uint64(0); bit < 31; bit++ {
+			mask := uint64(1) << bit
+			if bits&mask != 0 && def.knownMask&mask != 0 && def.symbols[bit] != "" {
+				value.bitSymbols = append(value.bitSymbols, def.symbols[bit])
+			}
+		}
 	case SunSpecTypeString:
 		return decodeSunSpecString(def, words)
 	case SunSpecTypePad:

@@ -96,6 +96,22 @@ func TestSunSpecValueFloatEnumBitfieldAndStringAreLossless(t *testing.T) {
 	}
 }
 
+func TestSunSpecBitfield32DomainBoundary(t *testing.T) {
+	definition := sizedSunSpecPoint(SunSpecTypeBitfield32, 2)
+	valid := decodeSunSpecValue(definition, []uint16{0x7fff, 0xffff}, nil)
+	if bits, unknown, ok := valid.Bitfield(); valid.State() != SunSpecValueValid || !ok || bits != 0x7fffffff || unknown != 0x7fffffff {
+		t.Fatalf("valid boundary state=%s bits=%x unknown=%x ok=%v", valid.State(), bits, unknown, ok)
+	}
+	invalid := decodeSunSpecValue(definition, []uint16{0x8000, 0}, nil)
+	if _, _, ok := invalid.Bitfield(); invalid.State() != SunSpecValueInvalidEncoding || ok || !reflect.DeepEqual(invalid.RawWords(), []uint16{0x8000, 0}) {
+		t.Fatalf("invalid boundary=%#v", invalid)
+	}
+	sentinel := decodeSunSpecValue(definition, []uint16{0xffff, 0xffff}, nil)
+	if sentinel.State() != SunSpecValueNotImplemented || !reflect.DeepEqual(sentinel.RawWords(), []uint16{0xffff, 0xffff}) {
+		t.Fatalf("sentinel=%#v", sentinel)
+	}
+}
+
 func sizedSunSpecPoint(pointType SunSpecPointType, size uint16) sunSpecPointDefinition {
 	return sunSpecPointDefinition{pointType: pointType, size: size}
 }

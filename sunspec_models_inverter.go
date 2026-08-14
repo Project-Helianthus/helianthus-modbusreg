@@ -40,16 +40,16 @@ func integerInverterSunSpecPoints() []sunSpecPointDefinition {
 		inverterSunSpecPoint("Tmp_SF", "inverter.scale.temperature", SunSpecTypeScaleFactor, 1, "", ""),
 		inverterSunSpecEnumPoint("St", "inverter.operating_state", inverterStatusSymbols()),
 		inverterSunSpecEnumPoint("StVnd", "inverter.vendor_state", nil),
-		inverterSunSpecBitfieldPoint("Evt1", "inverter.events.1", 0x0000ffff),
-		inverterSunSpecBitfieldPoint("Evt2", "inverter.events.2", 0),
-		inverterSunSpecBitfieldPoint("EvtVnd1", "inverter.vendor_events.1", 0),
-		inverterSunSpecBitfieldPoint("EvtVnd2", "inverter.vendor_events.2", 0),
-		inverterSunSpecBitfieldPoint("EvtVnd3", "inverter.vendor_events.3", 0),
-		inverterSunSpecBitfieldPoint("EvtVnd4", "inverter.vendor_events.4", 0),
+		inverterSunSpecBitfieldPoint("Evt1", "inverter.events.1", inverterEvent1Symbols()),
+		inverterSunSpecBitfieldPoint("Evt2", "inverter.events.2", nil),
+		inverterSunSpecBitfieldPoint("EvtVnd1", "inverter.vendor_events.1", nil),
+		inverterSunSpecBitfieldPoint("EvtVnd2", "inverter.vendor_events.2", nil),
+		inverterSunSpecBitfieldPoint("EvtVnd3", "inverter.vendor_events.3", nil),
+		inverterSunSpecBitfieldPoint("EvtVnd4", "inverter.vendor_events.4", nil),
 	}
 }
 
-func floatInverterSunSpecPoints() []sunSpecPointDefinition {
+func floatInverterSunSpecPoints(statusSymbols map[uint64]string) []sunSpecPointDefinition {
 	points := []sunSpecPointDefinition{
 		inverterSunSpecPoint("ID", "", SunSpecTypeUint16, 1, "", ""), inverterSunSpecPoint("L", "", SunSpecTypeUint16, 1, "", ""),
 	}
@@ -64,10 +64,10 @@ func floatInverterSunSpecPoints() []sunSpecPointDefinition {
 		points = append(points, inverterSunSpecPoint(point.name, point.field, SunSpecTypeFloat32, 2, point.unit, ""))
 	}
 	return append(points,
-		inverterSunSpecEnumPoint("St", "inverter.operating_state", inverterStatusSymbols()), inverterSunSpecEnumPoint("StVnd", "inverter.vendor_state", nil),
-		inverterSunSpecBitfieldPoint("Evt1", "inverter.events.1", 0x0000ffff), inverterSunSpecBitfieldPoint("Evt2", "inverter.events.2", 0),
-		inverterSunSpecBitfieldPoint("EvtVnd1", "inverter.vendor_events.1", 0), inverterSunSpecBitfieldPoint("EvtVnd2", "inverter.vendor_events.2", 0),
-		inverterSunSpecBitfieldPoint("EvtVnd3", "inverter.vendor_events.3", 0), inverterSunSpecBitfieldPoint("EvtVnd4", "inverter.vendor_events.4", 0),
+		inverterSunSpecEnumPoint("St", "inverter.operating_state", statusSymbols), inverterSunSpecEnumPoint("StVnd", "inverter.vendor_state", nil),
+		inverterSunSpecBitfieldPoint("Evt1", "inverter.events.1", inverterEvent1Symbols()), inverterSunSpecBitfieldPoint("Evt2", "inverter.events.2", nil),
+		inverterSunSpecBitfieldPoint("EvtVnd1", "inverter.vendor_events.1", nil), inverterSunSpecBitfieldPoint("EvtVnd2", "inverter.vendor_events.2", nil),
+		inverterSunSpecBitfieldPoint("EvtVnd3", "inverter.vendor_events.3", nil), inverterSunSpecBitfieldPoint("EvtVnd4", "inverter.vendor_events.4", nil),
 	)
 }
 
@@ -79,12 +79,31 @@ func inverterSunSpecEnumPoint(name, field string, symbols map[uint64]string) sun
 	return sunSpecPoint(name, field, SunSpecTypeEnum16, 1, "", "", false, symbols, 0)
 }
 
-func inverterSunSpecBitfieldPoint(name, field string, knownMask uint64) sunSpecPointDefinition {
-	return sunSpecPoint(name, field, SunSpecTypeBitfield32, 2, "", "", false, nil, knownMask)
+func inverterSunSpecBitfieldPoint(name, field string, symbols map[uint64]string) sunSpecPointDefinition {
+	var knownMask uint64
+	for bit := range symbols {
+		if bit < 31 {
+			knownMask |= uint64(1) << bit
+		}
+	}
+	return sunSpecPoint(name, field, SunSpecTypeBitfield32, 2, "", "", false, symbols, knownMask)
 }
 
 func inverterStatusSymbols() map[uint64]string {
 	return map[uint64]string{1: "OFF", 2: "SLEEPING", 3: "STARTING", 4: "MPPT", 5: "THROTTLED", 6: "SHUTTING_DOWN", 7: "FAULT", 8: "STANDBY"}
+}
+
+func inverterModel111StatusSymbols() map[uint64]string {
+	return map[uint64]string{1: "ggOFF", 2: "ggSLEEPING", 3: "ggSTARTING", 4: "ggMPPT", 5: "ggTHROTTLED", 6: "ggSHUTTING_DOWN", 7: "ggFAULT", 8: "ggSTANDBY"}
+}
+
+func inverterEvent1Symbols() map[uint64]string {
+	return map[uint64]string{
+		0: "GROUND_FAULT", 1: "DC_OVER_VOLT", 2: "AC_DISCONNECT", 3: "DC_DISCONNECT",
+		4: "GRID_DISCONNECT", 5: "CABINET_OPEN", 6: "MANUAL_SHUTDOWN", 7: "OVER_TEMP",
+		8: "OVER_FREQUENCY", 9: "UNDER_FREQUENCY", 10: "AC_OVER_VOLT", 11: "AC_UNDER_VOLT",
+		12: "BLOWN_STRING_FUSE", 13: "UNDER_TEMP", 14: "MEMORY_LOSS", 15: "HW_TEST_FAILURE",
+	}
 }
 
 func sunSpecPointMandatory(modelID uint16, name string) bool {

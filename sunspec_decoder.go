@@ -48,6 +48,7 @@ func (m SunSpecDecodedModel) Fact(fieldID string) (SunSpecFact, bool) {
 }
 func cloneSunSpecFact(fact SunSpecFact) SunSpecFact {
 	fact.Value.raw = append([]uint16(nil), fact.Value.raw...)
+	fact.Value.bitSymbols = append([]string(nil), fact.Value.bitSymbols...)
 	return fact
 }
 

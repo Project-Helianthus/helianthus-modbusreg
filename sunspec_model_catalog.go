@@ -52,9 +52,9 @@ func standardSunSpecModelDefinitions(revision SunSpecSchemaRevision) ([]sunSpecM
 		{101, 50, SunSpecTopologySinglePhase, integerInverterSunSpecPoints()},
 		{102, 50, SunSpecTopologySplitPhase, integerInverterSunSpecPoints()},
 		{103, 50, SunSpecTopologyThreePhase, integerInverterSunSpecPoints()},
-		{111, 60, SunSpecTopologySinglePhase, floatInverterSunSpecPoints()},
-		{112, 60, SunSpecTopologySplitPhase, floatInverterSunSpecPoints()},
-		{113, 60, SunSpecTopologyThreePhase, floatInverterSunSpecPoints()},
+		{111, 60, SunSpecTopologySinglePhase, floatInverterSunSpecPoints(inverterModel111StatusSymbols())},
+		{112, 60, SunSpecTopologySplitPhase, floatInverterSunSpecPoints(inverterStatusSymbols())},
+		{113, 60, SunSpecTopologyThreePhase, floatInverterSunSpecPoints(inverterStatusSymbols())},
 	} {
 		points := cloneSunSpecPointDefinitions(model.points)
 		for index := range points {
@@ -86,7 +86,22 @@ func appendSunSpecDefinition(values []sunSpecModelDefinition, revision SunSpecSc
 }
 
 func cloneSunSpecPointDefinitions(points []sunSpecPointDefinition) []sunSpecPointDefinition {
-	return append([]sunSpecPointDefinition(nil), points...)
+	out := append([]sunSpecPointDefinition(nil), points...)
+	for index := range out {
+		out[index].symbols = cloneSunSpecSymbols(out[index].symbols)
+	}
+	return out
+}
+
+func cloneSunSpecSymbols(symbols map[uint64]string) map[uint64]string {
+	if symbols == nil {
+		return nil
+	}
+	out := make(map[uint64]string, len(symbols))
+	for value, symbol := range symbols {
+		out[value] = symbol
+	}
+	return out
 }
 
 func sunSpecPoint(name, fieldID string, pointType SunSpecPointType, size uint16, unit, scaleFactor string, mandatory bool, symbols map[uint64]string, knownMask uint64) sunSpecPointDefinition {
