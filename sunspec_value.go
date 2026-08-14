@@ -13,7 +13,10 @@ const (
 	SunSpecTypeUint16        SunSpecPointType = "uint16"
 	SunSpecTypeUint32        SunSpecPointType = "uint32"
 	SunSpecTypeAccumulator32 SunSpecPointType = "acc32"
+	SunSpecTypeAccumulator64 SunSpecPointType = "acc64"
+	SunSpecTypeCount         SunSpecPointType = "count"
 	SunSpecTypeEnum16        SunSpecPointType = "enum16"
+	SunSpecTypeBitfield16    SunSpecPointType = "bitfield16"
 	SunSpecTypeBitfield32    SunSpecPointType = "bitfield32"
 	SunSpecTypeString        SunSpecPointType = "string"
 	SunSpecTypeFloat32       SunSpecPointType = "float32"
@@ -87,7 +90,7 @@ func decodeSunSpecValue(def sunSpecPointDefinition, words []uint16, scale *SunSp
 			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotImplemented)
 		}
 		value.signed, value.hasSigned = int64(int16(words[0])), true
-	case SunSpecTypeUint16:
+	case SunSpecTypeUint16, SunSpecTypeCount:
 		if words[0] == 0xffff {
 			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotImplemented)
 		}
@@ -100,6 +103,12 @@ func decodeSunSpecValue(def sunSpecPointDefinition, words []uint16, scale *SunSp
 		value.unsigned, value.hasUnsigned = raw, true
 	case SunSpecTypeAccumulator32:
 		raw := uint64(uint32(words[0])<<16 | uint32(words[1]))
+		if raw == 0 {
+			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotAccumulated)
+		}
+		value.unsigned, value.hasUnsigned = raw, true
+	case SunSpecTypeAccumulator64:
+		raw := uint64(words[0])<<48 | uint64(words[1])<<32 | uint64(words[2])<<16 | uint64(words[3])
 		if raw == 0 {
 			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotAccumulated)
 		}
@@ -128,6 +137,15 @@ func decodeSunSpecValue(def sunSpecPointDefinition, words []uint16, scale *SunSp
 			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotImplemented)
 		}
 		value.enumNumber, value.enumSymbol, value.hasEnum = uint64(words[0]), def.symbols[uint64(words[0])], true
+	case SunSpecTypeBitfield16:
+		bits := uint64(words[0])
+		if bits == math.MaxUint16 {
+			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotImplemented)
+		}
+		if bits > math.MaxInt16 {
+			return value
+		}
+		setSunSpecBitfield(&value, bits, def, 15)
 	case SunSpecTypeBitfield32:
 		bits := uint64(uint32(words[0])<<16 | uint32(words[1]))
 		if bits == math.MaxUint32 {
@@ -136,13 +154,7 @@ func decodeSunSpecValue(def sunSpecPointDefinition, words []uint16, scale *SunSp
 		if bits > math.MaxInt32 {
 			return value
 		}
-		value.bits, value.unknown, value.hasBits = bits, bits&^def.knownMask, true
-		for bit := uint64(0); bit < 31; bit++ {
-			mask := uint64(1) << bit
-			if bits&mask != 0 && def.knownMask&mask != 0 && def.symbols[bit] != "" {
-				value.bitSymbols = append(value.bitSymbols, def.symbols[bit])
-			}
-		}
+		setSunSpecBitfield(&value, bits, def, 31)
 	case SunSpecTypeString:
 		return decodeSunSpecString(def, words)
 	case SunSpecTypePad:
@@ -157,6 +169,16 @@ func decodeSunSpecValue(def sunSpecPointDefinition, words []uint16, scale *SunSp
 		return applySunSpecScale(value, scale)
 	}
 	return value
+}
+
+func setSunSpecBitfield(value *SunSpecValue, bits uint64, def sunSpecPointDefinition, width uint64) {
+	value.bits, value.unknown, value.hasBits = bits, bits&^def.knownMask, true
+	for bit := uint64(0); bit < width; bit++ {
+		mask := uint64(1) << bit
+		if bits&mask != 0 && def.knownMask&mask != 0 && def.symbols[bit] != "" {
+			value.bitSymbols = append(value.bitSymbols, def.symbols[bit])
+		}
+	}
 }
 
 func applySunSpecScale(value SunSpecValue, scale *SunSpecValue) SunSpecValue {

@@ -112,6 +112,38 @@ func TestSunSpecBitfield32DomainBoundary(t *testing.T) {
 	}
 }
 
+func TestSunSpecExtendedValueTypesRetainExactState(t *testing.T) {
+	accumulator := decodeSunSpecValue(sizedSunSpecPoint(SunSpecTypeAccumulator64, 4), []uint16{0x0001, 0x0002, 0x0003, 0x0004}, nil)
+	if value, ok := accumulator.Unsigned(); accumulator.State() != SunSpecValueValid || !ok || value != 0x0001000200030004 {
+		t.Fatalf("acc64 state=%s value=%x ok=%v", accumulator.State(), value, ok)
+	}
+	notAccumulated := decodeSunSpecValue(sizedSunSpecPoint(SunSpecTypeAccumulator64, 4), []uint16{0, 0, 0, 0}, nil)
+	if notAccumulated.State() != SunSpecValueNotAccumulated {
+		t.Fatalf("zero acc64 state=%s", notAccumulated.State())
+	}
+	count := decodeSunSpecValue(sizedSunSpecPoint(SunSpecTypeCount, 1), []uint16{4}, nil)
+	if value, ok := count.Unsigned(); count.State() != SunSpecValueValid || !ok || value != 4 {
+		t.Fatalf("count state=%s value=%d ok=%v", count.State(), value, ok)
+	}
+	if got := decodeSunSpecValue(sizedSunSpecPoint(SunSpecTypeCount, 1), []uint16{0xffff}, nil); got.State() != SunSpecValueNotImplemented {
+		t.Fatalf("count sentinel state=%s", got.State())
+	}
+	definition := sizedSunSpecPoint(SunSpecTypeBitfield16, 1)
+	definition.knownMask = 0x000f
+	valid := decodeSunSpecValue(definition, []uint16{0x4011}, nil)
+	if bits, unknown, ok := valid.Bitfield(); valid.State() != SunSpecValueValid || !ok || bits != 0x4011 || unknown != 0x4010 {
+		t.Fatalf("bitfield16 state=%s bits=%x unknown=%x ok=%v", valid.State(), bits, unknown, ok)
+	}
+	invalid := decodeSunSpecValue(definition, []uint16{0x8000}, nil)
+	if invalid.State() != SunSpecValueInvalidEncoding || !reflect.DeepEqual(invalid.RawWords(), []uint16{0x8000}) {
+		t.Fatalf("bitfield16 invalid boundary=%#v", invalid)
+	}
+	sentinel := decodeSunSpecValue(definition, []uint16{0xffff}, nil)
+	if sentinel.State() != SunSpecValueNotImplemented {
+		t.Fatalf("bitfield16 sentinel state=%s", sentinel.State())
+	}
+}
+
 func sizedSunSpecPoint(pointType SunSpecPointType, size uint16) sunSpecPointDefinition {
 	return sunSpecPointDefinition{pointType: pointType, size: size}
 }

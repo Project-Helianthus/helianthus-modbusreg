@@ -1,0 +1,7 @@
+{
+  "source_commit": "7abdf8982d5364f8ae916deee18aac86c11be36d",
+  "id": 122,
+  "length": 44,
+  "point_count": 22,
+  "mandatory": ["ID", "L", "PVConn", "StorConn", "ECPConn"]
+}

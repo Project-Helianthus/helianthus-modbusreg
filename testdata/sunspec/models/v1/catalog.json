@@ -9,6 +9,11 @@
     {"id": 103, "length": 50, "points": 45},
     {"id": 111, "length": 60, "points": 33},
     {"id": 112, "length": 60, "points": 33},
-    {"id": 113, "length": 60, "points": 33}
+    {"id": 113, "length": 60, "points": 33},
+    {"id": 120, "length": 26, "points": 28},
+    {"id": 121, "length": 30, "points": 32},
+    {"id": 122, "length": 44, "points": 22},
+    {"id": 124, "length": 24, "points": 26},
+    {"id": 160, "length": 88, "points": 49}
   ]
 }
