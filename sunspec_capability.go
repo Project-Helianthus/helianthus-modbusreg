@@ -122,6 +122,11 @@ func (r SunSpecDecoderRegistry) EvaluateThreePhaseMonitoring(snapshot SunSpecCha
 	if err != nil {
 		return rejected(SunSpecCapabilityReasonInvalidChain)
 	}
+	for _, candidate := range decoded.Models() {
+		if !candidate.GeometryValid() || (candidate.Key().ModelID == 1 && !candidate.Qualifies()) {
+			return rejected(SunSpecCapabilityReasonInvalidChain)
+		}
+	}
 	if len(exactSources) > 1 {
 		return rejected(SunSpecCapabilityReasonAmbiguousSource)
 	}
