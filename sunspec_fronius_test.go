@@ -182,6 +182,99 @@ func TestFroniusObservedFlavorFixtureIsExactAndNonActionable(t *testing.T) {
 	}
 }
 
+func TestFroniusObservedFlavorV11MatchesOnlyTheModel123Chain(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	v1Snapshot := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
+	v11Snapshot := froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
+
+	v1 := registry.EvaluateFroniusObservedFlavor(v11Snapshot)
+	if v1.Matched() || v1.Reason() != SunSpecFroniusFlavorReasonChainMismatch || v1.FlavorID() != SunSpecFroniusObservedFlavorID {
+		t.Fatalf("V1 on V1.1 chain matched=%t reason=%q id=%q", v1.Matched(), v1.Reason(), v1.FlavorID())
+	}
+	v11OnV1 := registry.EvaluateFroniusObservedFlavorV11(v1Snapshot)
+	if v11OnV1.Matched() || v11OnV1.Reason() != SunSpecFroniusFlavorReasonChainMismatch || v11OnV1.FlavorID() != SunSpecFroniusObservedFlavorV11ID {
+		t.Fatalf("V1.1 on V1 chain matched=%t reason=%q id=%q", v11OnV1.Matched(), v11OnV1.Reason(), v11OnV1.FlavorID())
+	}
+	v11 := registry.EvaluateFroniusObservedFlavorV11(v11Snapshot)
+	if !v11.Matched() || v11.Reason() != SunSpecFroniusFlavorReasonMatched || v11.FlavorID() != SunSpecFroniusObservedFlavorV11ID {
+		t.Fatalf("V1.1 matched=%t reason=%q id=%q", v11.Matched(), v11.Reason(), v11.FlavorID())
+	}
+	if !v11.Capability().Admitted() || len(v11.Chain()) != 9 || len(v11.SourceViews()) != len(v11Snapshot.SourceViews()) {
+		t.Fatalf("V1.1 capability=%t chain=%v views=%d", v11.Capability().Admitted(), v11.Chain(), len(v11.SourceViews()))
+	}
+}
+
+func TestFroniusObservedFlavorSelectorRequiresExactlyOneMatch(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	for name, snapshot := range map[string]SunSpecChainSnapshot{
+		"v1":   froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1"),
+		"v1.1": froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			selection := registry.SelectFroniusObservedFlavor(snapshot)
+			if !selection.Matched() || selection.Reason() != SunSpecFroniusFlavorSelectionReasonMatched {
+				t.Fatalf("selection matched=%t reason=%q", selection.Matched(), selection.Reason())
+			}
+			decision, ok := selection.Decision()
+			if !ok || !decision.Matched() {
+				t.Fatalf("selected decision=%#v ok=%v", decision, ok)
+			}
+			wantID := SunSpecFroniusObservedFlavorID
+			if name == "v1.1" {
+				wantID = SunSpecFroniusObservedFlavorV11ID
+			}
+			if decision.FlavorID() != wantID || len(selection.Evaluations()) != 2 {
+				t.Fatalf("selected id=%q evaluations=%d", decision.FlavorID(), len(selection.Evaluations()))
+			}
+		})
+	}
+
+	noMatch := registry.SelectFroniusObservedFlavor(froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-2"))
+	if noMatch.Matched() || noMatch.Reason() != SunSpecFroniusFlavorSelectionReasonNoMatch {
+		t.Fatalf("no-match matched=%t reason=%q", noMatch.Matched(), noMatch.Reason())
+	}
+	if _, ok := noMatch.Decision(); ok {
+		t.Fatal("no-match selection exposed a decision")
+	}
+
+	matched := registry.EvaluateFroniusObservedFlavor(froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1"))
+	ambiguous := selectSunSpecFroniusFlavor([]SunSpecFroniusFlavorDecision{matched, matched})
+	if ambiguous.Matched() || ambiguous.Reason() != SunSpecFroniusFlavorSelectionReasonAmbiguousMatch {
+		t.Fatalf("ambiguous matched=%t reason=%q", ambiguous.Matched(), ambiguous.Reason())
+	}
+}
+
+func TestFroniusObservedFlavorV11FixtureIsExactAndNonActionable(t *testing.T) {
+	raw, err := os.ReadFile("testdata/sunspec/chains/fronius_gen24_float_v1_1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Schema       string           `json:"schema"`
+		FlavorID     string           `json:"flavor_id"`
+		Manufacturer string           `json:"manufacturer"`
+		Model        string           `json:"model"`
+		Firmware     string           `json:"firmware"`
+		Chain        []SunSpecWireKey `json:"chain"`
+		Observation  struct {
+			Function  string `json:"function"`
+			UnitID    uint16 `json:"unit_id"`
+			PDUOffset uint16 `json:"pdu_offset"`
+			Authority string `json:"authority"`
+		} `json:"sanitized_observation"`
+	}
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	wantChain := []SunSpecWireKey{{1, 65}, {113, 60}, {120, 26}, {121, 30}, {122, 44}, {123, 24}, {160, 88}, {124, 24}, {0xffff, 0}}
+	if fixture.Schema != "helianthus-sunspec-fronius-observed-flavor/v1.1" || fixture.FlavorID != SunSpecFroniusObservedFlavorV11ID || fixture.Manufacturer != "Fronius" || fixture.Model != "Symo GEN24 10.0" || fixture.Firmware != "1.41.11-1" || !reflect.DeepEqual(fixture.Chain, wantChain) {
+		t.Fatalf("fixture=%+v", fixture)
+	}
+	if fixture.Observation.Function != "FC03" || fixture.Observation.UnitID != 1 || fixture.Observation.PDUOffset != 40000 || fixture.Observation.Authority != "non_actionable_provenance_only" {
+		t.Fatalf("observation=%+v", fixture.Observation)
+	}
+}
+
 func froniusObservedSnapshot(t *testing.T, registry SunSpecDecoderRegistry, manufacturer, model, firmware string) SunSpecChainSnapshot {
 	t.Helper()
 	occurrences := []SunSpecOccurrence{
@@ -192,6 +285,21 @@ func froniusObservedSnapshot(t *testing.T, registry SunSpecDecoderRegistry, manu
 		admittedOccurrence(122, 44, modelWords(t, registry, 122, 44, nil), 5),
 		admittedOccurrence(160, 88, modelWords(t, registry, 160, 88, map[string][]uint16{"N": {4}}), 6),
 		admittedOccurrence(124, 24, modelWords(t, registry, 124, 24, nil), 7),
+	}
+	return snapshotFromOccurrences(occurrences...)
+}
+
+func froniusObservedSnapshotV11(t *testing.T, registry SunSpecDecoderRegistry, manufacturer, model, firmware string) SunSpecChainSnapshot {
+	t.Helper()
+	occurrences := []SunSpecOccurrence{
+		commonOccurrence(t, registry, manufacturer, model, firmware, 1),
+		inverterOccurrence(t, registry, 113, nil, 2),
+		admittedOccurrence(120, 26, modelWords(t, registry, 120, 26, nil), 3),
+		admittedOccurrence(121, 30, modelWords(t, registry, 121, 30, nil), 4),
+		admittedOccurrence(122, 44, modelWords(t, registry, 122, 44, nil), 5),
+		admittedOccurrence(123, 24, modelWords(t, registry, 123, 24, validModel123Values()), 6),
+		admittedOccurrence(160, 88, modelWords(t, registry, 160, 88, map[string][]uint16{"N": {4}}), 7),
+		admittedOccurrence(124, 24, modelWords(t, registry, 124, 24, nil), 8),
 	}
 	return snapshotFromOccurrences(occurrences...)
 }
