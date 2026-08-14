@@ -306,7 +306,6 @@ func TestSunSpecChainStructuralErrorsTerminallyPoisonBuilder(t *testing.T) {
 	}{
 		{name: "zero length", base: 40000, malformed: []uint16{7, 0}},
 		{name: "nonzero terminal", base: 40000, malformed: []uint16{0xffff, 1}},
-		{name: "unrepresentable payload successor", base: 65531, malformed: []uint16{1, 1}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -331,6 +330,30 @@ func TestSunSpecChainStructuralErrorsTerminallyPoisonBuilder(t *testing.T) {
 				t.Fatal("failed chain recovered after structural error")
 			}
 		})
+	}
+
+	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{SchemaRevision: "sunspec.r1@1", BaseCandidates: []uint16{65531}, Limits: SunSpecChainLimits{MaxTotalWords: 8, MaxOccurrences: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := NewSunSpecChain(plan)
+	id := uint64(20)
+	if _, err := admitNext(t, chain, &id, []uint16{0x5375, 0x6e53}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admitNext(t, chain, &id, []uint16{1, 1}); err != nil {
+		t.Fatal(err)
+	}
+	request := chain.NextRequests()[0]
+	if _, err := chain.AdmitReplay(request, chainView(t, request, id, []uint16{9}, "fixture")); err == nil {
+		t.Fatal("unrepresentable payload successor was admitted")
+	}
+	if pending := chain.NextRequests(); len(pending) != 0 {
+		t.Fatalf("failed payload chain retained requests: %#v", pending)
+	}
+	id++
+	if _, err := chain.AdmitReplay(request, chainView(t, request, id, []uint16{8}, "fixture")); err == nil {
+		t.Fatal("failed payload chain recovered after structural error")
 	}
 }
 

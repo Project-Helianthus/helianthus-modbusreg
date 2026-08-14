@@ -1,6 +1,9 @@
 package modbusreg
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 type sunSpecCurrent struct {
 	id, length, header uint16
@@ -8,6 +11,7 @@ type sunSpecCurrent struct {
 	words              []uint16
 }
 type SunSpecChain struct {
+	mu         sync.Mutex
 	plan       SunSpecChainPlan
 	instance   uint64
 	seen       map[uint64]struct{}
@@ -46,8 +50,20 @@ func nextSunSpecChainInstance() uint64 {
 		}
 	}
 }
-func (c *SunSpecChain) NextRequests() []SunSpecReadRequest { return sortedRequests(c.pending) }
+func (c *SunSpecChain) NextRequests() []SunSpecReadRequest {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return sortedRequests(c.pending)
+}
 func (c *SunSpecChain) AdmitReplay(r SunSpecReadRequest, v LogicalViewSnapshot) (SunSpecChainSnapshot, error) {
+	if c == nil {
+		return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec chain is unavailable")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.admitReplay(r, v)
 }
 func (c *SunSpecChain) admitReplay(r SunSpecReadRequest, v LogicalViewSnapshot) (SunSpecChainSnapshot, error) {
@@ -69,18 +85,36 @@ func (c *SunSpecChain) admitReplay(r SunSpecReadRequest, v LogicalViewSnapshot) 
 		return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec views have mixed provenance")
 	}
 	if r.purpose == SunSpecReadSignature {
-		return c.signature(r, x)
+		snapshot, err := c.signature(r, x)
+		if err != nil {
+			return snapshot, c.fail(err)
+		}
+		return snapshot, nil
 	}
 	if c.selected == nil {
 		return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec base is not selected")
 	}
 	if r.purpose == SunSpecReadHeader {
-		return c.header(r, x)
+		snapshot, err := c.header(r, x)
+		if err != nil {
+			return snapshot, c.fail(err)
+		}
+		return snapshot, nil
 	}
 	if r.purpose == SunSpecReadPayload {
-		return c.payload(r, x)
+		snapshot, err := c.payload(r, x)
+		if err != nil {
+			return snapshot, c.fail(err)
+		}
+		return snapshot, nil
 	}
 	return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec request purpose invalid")
+}
+func (c *SunSpecChain) fail(err error) error {
+	c.failed = true
+	clear(c.pending)
+	c.current = nil
+	return err
 }
 func (c *SunSpecChain) accept(r SunSpecReadRequest, x LogicalViewRecord) {
 	if c.provenance == nil {
@@ -182,7 +216,17 @@ func (c *SunSpecChain) payload(r SunSpecReadRequest, x LogicalViewRecord) (SunSp
 	} else if _, ok := c.plan.known[c.current.id]; ok {
 		d = SunSpecChainDispositionUnsupportedLength
 	}
-	c.occ = append(c.occ, SunSpecOccurrence{uint32(len(c.occ) + 1), wk, c.current.header, c.current.header + 2, d, key, append([]uint16(nil), c.current.words...), append([]SunSpecSourceSpan(nil), c.current.spans...)})
+	c.occ = append(c.occ, SunSpecOccurrence{
+		Ordinal:        uint32(len(c.occ) + 1),
+		WireKey:        wk,
+		SchemaRevision: c.plan.revision,
+		HeaderOffset:   c.current.header,
+		PayloadOffset:  c.current.header + 2,
+		Disposition:    d,
+		decoderKey:     key,
+		words:          append([]uint16(nil), c.current.words...),
+		spans:          append([]SunSpecSourceSpan(nil), c.current.spans...),
+	})
 	c.current = nil
 	return SunSpecChainSnapshot{}, c.queue(nextAddress, nextWords, nextPurpose)
 }

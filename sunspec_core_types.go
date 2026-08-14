@@ -34,6 +34,7 @@ type SunSpecSourceSpan struct {
 type SunSpecOccurrence struct {
 	Ordinal                     uint32
 	WireKey                     SunSpecWireKey
+	SchemaRevision              SunSpecSchemaRevision
 	HeaderOffset, PayloadOffset uint16
 	Disposition                 SunSpecChainDisposition
 	decoderKey                  *SunSpecDecoderKey
