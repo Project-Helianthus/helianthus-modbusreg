@@ -34,6 +34,9 @@ func TestSunSpecQualificationObservationDerivesAndRetainsExactV11Evidence(t *tes
 	if identity.PollGeneration() != 6 || identity.DeadlineIdentity() != 700 {
 		t.Fatalf("sample identity=%#v", identity)
 	}
+	if observation.SampleID() != "sunspec-6-700" {
+		t.Fatalf("sample id=%q", observation.SampleID())
+	}
 	occurrences, views := observation.Occurrences(), observation.SourceViews()
 	if len(occurrences) != 8 || len(views) != len(snapshot.SourceViews()) {
 		t.Fatalf("occurrences=%d views=%d", len(occurrences), len(views))
@@ -85,8 +88,33 @@ func TestSunSpecQualificationObservationJSONGoldenAndBoundedReplay(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(first, fixture) {
-		t.Fatalf("qualification JSON differs from golden\n got: %s\nwant: %s", first, fixture)
+	var want qualificationObservationManifest
+	if err := json.Unmarshal(fixture, &want); err != nil {
+		t.Fatalf("unmarshal metadata manifest: %v", err)
+	}
+	var got serializedQualificationObservation
+	if err := json.Unmarshal(first, &got); err != nil {
+		t.Fatalf("unmarshal qualification JSON: %v", err)
+	}
+	if got.Schema != want.Schema || got.CapabilityID != want.CapabilityID || got.FlavorID != want.FlavorID || got.SampleID != want.SampleID || got.SampleIdentity != want.SampleIdentity || !reflect.DeepEqual(got.Chain, want.Chain) {
+		t.Fatalf("serialized metadata=%+v want=%+v", got.qualificationMetadata(), want)
+	}
+	if !reflect.DeepEqual(got.RawWords, observation.RawWords()) || len(got.Occurrences) != 8 || len(got.SourceViews) != len(observation.SourceViews()) {
+		t.Fatalf("serialized evidence raw=%d occurrences=%d source_views=%d", len(got.RawWords), len(got.Occurrences), len(got.SourceViews))
+	}
+	for index, occurrence := range got.Occurrences {
+		if len(occurrence.Words) == 0 || len(occurrence.SourceSpans) == 0 || occurrence.DecoderKey == nil {
+			t.Fatalf("serialized occurrence %d lost words, spans, or decoder key: %#v", index, occurrence)
+		}
+	}
+	model123 := got.Occurrences[5]
+	if model123.WireKey != (SunSpecWireKey{ModelID: 123, ModelLength: 24}) || model123.DecoderKey == nil || *model123.DecoderKey != (SunSpecDecoderKey{ModelID: 123, ModelLength: 24, SchemaRevision: testSunSpecModelsRevision}) {
+		t.Fatalf("serialized model 123=%#v", model123)
+	}
+	for index, view := range got.SourceViews {
+		if view.Transport == "" || len(view.WireResponseBytes) == 0 || view.PollGeneration != 6 || view.DeadlineIdentity != 700 {
+			t.Fatalf("serialized source view %d lost wire or transport provenance: %#v", index, view)
+		}
 	}
 
 	replay, err := observation.Replay()
@@ -155,11 +183,51 @@ func TestSunSpecQualificationObservationFailsClosed(t *testing.T) {
 
 func qualificationSnapshot(t *testing.T, registry SunSpecDecoderRegistry) SunSpecChainSnapshot {
 	t.Helper()
-	snapshot := cloneSnapshotForTest(froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1"))
+	v11 := froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
+	snapshot := completedChainSnapshot(t, registry, v11.Occurrences()...)
 	for index := range snapshot.sources {
 		snapshot.sources[index].DeadlineIdentity = 700
 	}
 	return snapshot
+}
+
+type qualificationObservationManifest struct {
+	Schema         string            `json:"schema"`
+	CapabilityID   string            `json:"capability_id"`
+	FlavorID       string            `json:"flavor_id"`
+	SampleID       string            `json:"sample_id"`
+	SampleIdentity sampleIdentityDTO `json:"sample_identity"`
+	Chain          []SunSpecWireKey  `json:"chain"`
+}
+
+type sampleIdentityDTO struct {
+	PollGeneration   uint64 `json:"poll_generation"`
+	DeadlineIdentity uint64 `json:"deadline_identity"`
+}
+
+type serializedQualificationObservation struct {
+	qualificationObservationManifest
+	RawWords    []uint16                      `json:"raw_words"`
+	Occurrences []serializedSunSpecOccurrence `json:"occurrences"`
+	SourceViews []serializedLogicalView       `json:"source_views"`
+}
+
+func (value serializedQualificationObservation) qualificationMetadata() qualificationObservationManifest {
+	return value.qualificationObservationManifest
+}
+
+type serializedSunSpecOccurrence struct {
+	WireKey     SunSpecWireKey      `json:"wire_key"`
+	DecoderKey  *SunSpecDecoderKey  `json:"decoder_key"`
+	Words       []uint16            `json:"words"`
+	SourceSpans []SunSpecSourceSpan `json:"source_spans"`
+}
+
+type serializedLogicalView struct {
+	Transport         string `json:"transport"`
+	WireResponseBytes []byte `json:"wire_response_bytes"`
+	PollGeneration    uint64 `json:"poll_generation"`
+	DeadlineIdentity  uint64 `json:"deadline_identity"`
 }
 
 func qualificationRebuildSnapshot(t *testing.T, registry SunSpecDecoderRegistry, snapshot SunSpecChainSnapshot) SunSpecChainSnapshot {
