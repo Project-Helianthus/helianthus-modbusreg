@@ -1,0 +1,13 @@
+{
+  "schema": "helianthus-sunspec-qualification-observation/v1",
+  "capability_id": "sunspec.inverter.three_phase.monitoring@1.0.0",
+  "flavor_id": "sunspec.flavor.fronius.gen24.float.observed@1.1.0",
+  "sample_identity": {"poll_generation": 6, "deadline_identity": 700},
+  "requirements": {
+    "terminal_verified": true,
+    "ordered_bounded_replay": true,
+    "occurrences": ["all", "including_unknown_and_unsupported"],
+    "provenance": ["logical_views", "wire_evidence", "transport"],
+    "retained_model": {"model_id": 123, "model_length": 24}
+  }
+}
