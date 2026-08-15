@@ -1,7 +1,9 @@
 {
   "schema": "helianthus-sunspec-qualification-observation/v1",
   "capability_id": "sunspec.inverter.three_phase.monitoring@1.0.0",
+  "capability_reason": "ADMITTED",
   "flavor_id": "sunspec.flavor.fronius.gen24.float.observed@1.1.0",
+  "flavor_reason": "MATCHED",
   "sample_id": "sunspec-6-700",
   "sample_identity": {"poll_generation": 6, "deadline_identity": 700},
   "chain": [

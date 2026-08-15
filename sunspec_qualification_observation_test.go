@@ -96,24 +96,30 @@ func TestSunSpecQualificationObservationJSONGoldenAndBoundedReplay(t *testing.T)
 	if err := json.Unmarshal(first, &got); err != nil {
 		t.Fatalf("unmarshal qualification JSON: %v", err)
 	}
-	if got.Schema != want.Schema || got.CapabilityID != want.CapabilityID || got.FlavorID != want.FlavorID || got.SampleID != want.SampleID || got.SampleIdentity != want.SampleIdentity || !reflect.DeepEqual(got.Chain, want.Chain) {
+	if got.Schema != want.Schema || got.CapabilityID != want.CapabilityID || got.CapabilityReason != want.CapabilityReason || got.FlavorID != want.FlavorID || got.FlavorReason != want.FlavorReason || got.SampleID != want.SampleID || got.SampleIdentity != want.SampleIdentity || !reflect.DeepEqual(got.Chain, want.Chain) {
 		t.Fatalf("serialized metadata=%+v want=%+v", got.qualificationMetadata(), want)
+	}
+	if got.CapabilityReason != SunSpecCapabilityReasonAdmitted || got.FlavorReason != SunSpecFroniusFlavorReasonMatched {
+		t.Fatalf("serialized reasons capability=%q flavor=%q", got.CapabilityReason, got.FlavorReason)
 	}
 	if !reflect.DeepEqual(got.RawWords, observation.RawWords()) || len(got.Occurrences) != 8 || len(got.SourceViews) != len(observation.SourceViews()) {
 		t.Fatalf("serialized evidence raw=%d occurrences=%d source_views=%d", len(got.RawWords), len(got.Occurrences), len(got.SourceViews))
 	}
-	for index, occurrence := range got.Occurrences {
-		if len(occurrence.Words) == 0 || len(occurrence.SourceSpans) == 0 || occurrence.DecoderKey == nil {
-			t.Fatalf("serialized occurrence %d lost words, spans, or decoder key: %#v", index, occurrence)
+	for index, gotOccurrence := range got.Occurrences {
+		wantOccurrence := observation.Occurrences()[index]
+		wantDecoderKey, wantHasDecoderKey := wantOccurrence.DecoderKey()
+		if gotOccurrence.Ordinal != wantOccurrence.Ordinal || gotOccurrence.WireKey != wantOccurrence.WireKey || gotOccurrence.SchemaRevision != wantOccurrence.SchemaRevision || gotOccurrence.HeaderOffset != wantOccurrence.HeaderOffset || gotOccurrence.PayloadOffset != wantOccurrence.PayloadOffset || gotOccurrence.Disposition != wantOccurrence.Disposition || !reflect.DeepEqual(gotOccurrence.Words, wantOccurrence.Words()) || !reflect.DeepEqual(gotOccurrence.SourceSpans, wantOccurrence.SourceSpans()) || (gotOccurrence.DecoderKey != nil) != wantHasDecoderKey || wantHasDecoderKey && *gotOccurrence.DecoderKey != wantDecoderKey {
+			t.Fatalf("serialized occurrence %d=%#v does not retain source=%#v", index, gotOccurrence, wantOccurrence)
 		}
 	}
 	model123 := got.Occurrences[5]
 	if model123.WireKey != (SunSpecWireKey{ModelID: 123, ModelLength: 24}) || model123.DecoderKey == nil || *model123.DecoderKey != (SunSpecDecoderKey{ModelID: 123, ModelLength: 24, SchemaRevision: testSunSpecModelsRevision}) {
 		t.Fatalf("serialized model 123=%#v", model123)
 	}
-	for index, view := range got.SourceViews {
-		if view.Transport == "" || len(view.WireResponseBytes) == 0 || view.PollGeneration != 6 || view.DeadlineIdentity != 700 {
-			t.Fatalf("serialized source view %d lost wire or transport provenance: %#v", index, view)
+	for index, gotView := range got.SourceViews {
+		wantView := observation.SourceViews()[index].Record()
+		if gotView.LogicalViewID != wantView.LogicalViewID || gotView.WireResponseID != wantView.WireResponseID || gotView.PhysicalRequestID != wantView.PhysicalRequestID || gotView.Endpoint != wantView.Endpoint || gotView.ConnectionID != wantView.ConnectionID || gotView.Transport != wantView.Transport || gotView.TransportGeneration != wantView.TransportGeneration || gotView.UnitID != wantView.UnitID || gotView.RequestedFunction != wantView.RequestedFunction || gotView.ReceivedFunction != wantView.ReceivedFunction || gotView.Table != wantView.Table || gotView.PhysicalOffset != wantView.PhysicalOffset || gotView.PhysicalWordCount != wantView.PhysicalWordCount || gotView.AuthorizationScope != wantView.AuthorizationScope || gotView.PollGeneration != wantView.PollGeneration || gotView.DeadlineIdentity != wantView.DeadlineIdentity || gotView.LogicalOffset != wantView.LogicalOffset || gotView.LogicalWordCount != wantView.LogicalWordCount || gotView.SliceOffset != wantView.SliceOffset || gotView.SliceWordCount != wantView.SliceWordCount || !reflect.DeepEqual(gotView.Words, wantView.Words) || !reflect.DeepEqual(gotView.WireResponseBytes, wantView.WireResponseBytes) {
+			t.Fatalf("serialized source view %d=%#v does not retain source=%#v", index, gotView, wantView)
 		}
 	}
 
@@ -128,6 +134,12 @@ func TestSunSpecQualificationObservationJSONGoldenAndBoundedReplay(t *testing.T)
 	replayed[0] = 0
 	if observation.RawWords()[0] != sunSpecSignatureFirst {
 		t.Fatal("replay retained caller-owned raw storage")
+	}
+}
+
+func TestSunSpecQualificationObservationJSONRejectsZeroValue(t *testing.T) {
+	if _, err := json.Marshal(SunSpecQualificationObservation{}); err == nil {
+		t.Fatal("zero qualification observation unexpectedly marshaled")
 	}
 }
 
@@ -192,12 +204,14 @@ func qualificationSnapshot(t *testing.T, registry SunSpecDecoderRegistry) SunSpe
 }
 
 type qualificationObservationManifest struct {
-	Schema         string            `json:"schema"`
-	CapabilityID   string            `json:"capability_id"`
-	FlavorID       string            `json:"flavor_id"`
-	SampleID       string            `json:"sample_id"`
-	SampleIdentity sampleIdentityDTO `json:"sample_identity"`
-	Chain          []SunSpecWireKey  `json:"chain"`
+	Schema           string                     `json:"schema"`
+	CapabilityID     string                     `json:"capability_id"`
+	CapabilityReason SunSpecCapabilityReason    `json:"capability_reason"`
+	FlavorID         string                     `json:"flavor_id"`
+	FlavorReason     SunSpecFroniusFlavorReason `json:"flavor_reason"`
+	SampleID         string                     `json:"sample_id"`
+	SampleIdentity   sampleIdentityDTO          `json:"sample_identity"`
+	Chain            []SunSpecWireKey           `json:"chain"`
 }
 
 type sampleIdentityDTO struct {
@@ -217,17 +231,40 @@ func (value serializedQualificationObservation) qualificationMetadata() qualific
 }
 
 type serializedSunSpecOccurrence struct {
-	WireKey     SunSpecWireKey      `json:"wire_key"`
-	DecoderKey  *SunSpecDecoderKey  `json:"decoder_key"`
-	Words       []uint16            `json:"words"`
-	SourceSpans []SunSpecSourceSpan `json:"source_spans"`
+	Ordinal        uint32                  `json:"ordinal"`
+	WireKey        SunSpecWireKey          `json:"wire_key"`
+	SchemaRevision SunSpecSchemaRevision   `json:"schema_revision"`
+	HeaderOffset   uint16                  `json:"header_offset"`
+	PayloadOffset  uint16                  `json:"payload_offset"`
+	Disposition    SunSpecChainDisposition `json:"disposition"`
+	DecoderKey     *SunSpecDecoderKey      `json:"decoder_key"`
+	Words          []uint16                `json:"words"`
+	SourceSpans    []SunSpecSourceSpan     `json:"source_spans"`
 }
 
 type serializedLogicalView struct {
-	Transport         string `json:"transport"`
-	WireResponseBytes []byte `json:"wire_response_bytes"`
-	PollGeneration    uint64 `json:"poll_generation"`
-	DeadlineIdentity  uint64 `json:"deadline_identity"`
+	LogicalViewID       uint64          `json:"logical_view_id"`
+	WireResponseID      uint64          `json:"wire_response_id"`
+	PhysicalRequestID   uint64          `json:"physical_request_id"`
+	Endpoint            string          `json:"endpoint"`
+	ConnectionID        uint64          `json:"connection_id"`
+	Transport           TransportFamily `json:"transport"`
+	TransportGeneration uint64          `json:"transport_generation"`
+	UnitID              byte            `json:"unit_id"`
+	RequestedFunction   FunctionCode    `json:"requested_function"`
+	ReceivedFunction    FunctionCode    `json:"received_function"`
+	Table               LogicalTable    `json:"table"`
+	PhysicalOffset      uint16          `json:"physical_offset"`
+	PhysicalWordCount   uint16          `json:"physical_word_count"`
+	AuthorizationScope  string          `json:"authorization_scope"`
+	PollGeneration      uint64          `json:"poll_generation"`
+	DeadlineIdentity    uint64          `json:"deadline_identity"`
+	LogicalOffset       uint16          `json:"logical_offset"`
+	LogicalWordCount    uint16          `json:"logical_word_count"`
+	SliceOffset         uint16          `json:"slice_offset"`
+	SliceWordCount      uint16          `json:"slice_word_count"`
+	Words               []uint16        `json:"words"`
+	WireResponseBytes   []byte          `json:"wire_response_bytes"`
 }
 
 func qualificationRebuildSnapshot(t *testing.T, registry SunSpecDecoderRegistry, snapshot SunSpecChainSnapshot) SunSpecChainSnapshot {
