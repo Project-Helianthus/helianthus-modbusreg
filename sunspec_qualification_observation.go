@@ -3,6 +3,7 @@ package modbusreg
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 )
 
 const sunSpecQualificationObservationSchema = "helianthus-sunspec-qualification-observation/v1"
@@ -159,7 +160,28 @@ func cloneSunSpecQualificationSnapshot(snapshot SunSpecChainSnapshot) SunSpecCha
 }
 
 func (observation SunSpecQualificationObservation) MarshalJSON() ([]byte, error) {
-	occurrences := observation.Occurrences()
+	snapshot, identity, err := validateSunSpecQualificationSnapshot(observation.snapshot)
+	if err != nil {
+		return nil, fmt.Errorf("SunSpec qualification observation cannot serialize invalid retained snapshot: %w", err)
+	}
+	chain, terminal := sunSpecSnapshotWireChain(snapshot)
+	if !terminal || !reflect.DeepEqual(observation.chain, chain) {
+		return nil, fmt.Errorf("SunSpec qualification observation cannot serialize inconsistent chain")
+	}
+	expectedSampleID := fmt.Sprintf("sunspec-%d-%d", identity.pollGeneration, identity.deadlineIdentity)
+	if observation.sampleID == "" || observation.sampleID != expectedSampleID || observation.identity != identity {
+		return nil, fmt.Errorf("SunSpec qualification observation cannot serialize inconsistent sample identity")
+	}
+	capability := observation.Capability()
+	if !capability.Admitted() || capability.Reason() != SunSpecCapabilityReasonAdmitted || capability.ProfileID() != SunSpecThreePhaseMonitoringCapabilityID {
+		return nil, fmt.Errorf("SunSpec qualification observation cannot serialize non-admitted capability")
+	}
+	flavor := observation.Flavor()
+	if !flavor.Matched() || flavor.Reason() != SunSpecFroniusFlavorReasonMatched || !supportedSunSpecQualificationFlavorID(flavor.FlavorID()) || !reflect.DeepEqual(flavor.Chain(), chain) || !reflect.DeepEqual(flavor.SourceViews(), snapshot.SourceViews()) {
+		return nil, fmt.Errorf("SunSpec qualification observation cannot serialize inconsistent flavor")
+	}
+
+	occurrences := snapshot.Occurrences()
 	encodedOccurrences := make([]sunSpecQualificationOccurrenceJSON, len(occurrences))
 	for index, occurrence := range occurrences {
 		key, hasKey := occurrence.DecoderKey()
@@ -178,36 +200,44 @@ func (observation SunSpecQualificationObservation) MarshalJSON() ([]byte, error)
 			encodedOccurrences[index].DecoderKey = &keyCopy
 		}
 	}
-	views := observation.SourceViews()
+	views := snapshot.SourceViews()
 	encodedViews := make([]sunSpecQualificationLogicalViewJSON, len(views))
 	for index, view := range views {
 		encodedViews[index] = newSunSpecQualificationLogicalViewJSON(view.Record())
 	}
 	return json.Marshal(sunSpecQualificationObservationJSON{
-		Schema:       sunSpecQualificationObservationSchema,
-		CapabilityID: observation.Capability().ProfileID(),
-		FlavorID:     observation.Flavor().FlavorID(),
-		SampleID:     observation.SampleID(),
+		Schema:           sunSpecQualificationObservationSchema,
+		CapabilityID:     capability.ProfileID(),
+		CapabilityReason: capability.Reason(),
+		FlavorID:         flavor.FlavorID(),
+		FlavorReason:     flavor.Reason(),
+		SampleID:         observation.SampleID(),
 		SampleIdentity: sunSpecQualificationSampleIdentityJSON{
-			PollGeneration: observation.identity.pollGeneration, DeadlineIdentity: observation.identity.deadlineIdentity,
+			PollGeneration: identity.pollGeneration, DeadlineIdentity: identity.deadlineIdentity,
 		},
-		Chain:       observation.Chain(),
-		RawWords:    observation.RawWords(),
+		Chain:       append([]SunSpecWireKey(nil), chain...),
+		RawWords:    snapshot.RawWords(),
 		Occurrences: encodedOccurrences,
 		SourceViews: encodedViews,
 	})
 }
 
+func supportedSunSpecQualificationFlavorID(flavorID string) bool {
+	return flavorID == SunSpecFroniusObservedFlavorID || flavorID == SunSpecFroniusObservedFlavorV11ID
+}
+
 type sunSpecQualificationObservationJSON struct {
-	Schema         string                                 `json:"schema"`
-	CapabilityID   string                                 `json:"capability_id"`
-	FlavorID       string                                 `json:"flavor_id"`
-	SampleID       string                                 `json:"sample_id"`
-	SampleIdentity sunSpecQualificationSampleIdentityJSON `json:"sample_identity"`
-	Chain          []SunSpecWireKey                       `json:"chain"`
-	RawWords       []uint16                               `json:"raw_words"`
-	Occurrences    []sunSpecQualificationOccurrenceJSON   `json:"occurrences"`
-	SourceViews    []sunSpecQualificationLogicalViewJSON  `json:"source_views"`
+	Schema           string                                 `json:"schema"`
+	CapabilityID     string                                 `json:"capability_id"`
+	CapabilityReason SunSpecCapabilityReason                `json:"capability_reason"`
+	FlavorID         string                                 `json:"flavor_id"`
+	FlavorReason     SunSpecFroniusFlavorReason             `json:"flavor_reason"`
+	SampleID         string                                 `json:"sample_id"`
+	SampleIdentity   sunSpecQualificationSampleIdentityJSON `json:"sample_identity"`
+	Chain            []SunSpecWireKey                       `json:"chain"`
+	RawWords         []uint16                               `json:"raw_words"`
+	Occurrences      []sunSpecQualificationOccurrenceJSON   `json:"occurrences"`
+	SourceViews      []sunSpecQualificationLogicalViewJSON  `json:"source_views"`
 }
 
 type sunSpecQualificationSampleIdentityJSON struct {
