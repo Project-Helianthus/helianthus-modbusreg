@@ -1,0 +1,20 @@
+{
+  "schema": "helianthus-sunspec-qualification-observation/v1",
+  "capability_id": "sunspec.inverter.three_phase.monitoring@1.0.0",
+  "capability_reason": "ADMITTED",
+  "flavor_id": "sunspec.flavor.fronius.gen24.float.observed@1.1.0",
+  "flavor_reason": "MATCHED",
+  "sample_id": "sunspec-6-700",
+  "sample_identity": {"poll_generation": 6, "deadline_identity": 700},
+  "chain": [
+    {"ModelID": 1, "ModelLength": 65},
+    {"ModelID": 113, "ModelLength": 60},
+    {"ModelID": 120, "ModelLength": 26},
+    {"ModelID": 121, "ModelLength": 30},
+    {"ModelID": 122, "ModelLength": 44},
+    {"ModelID": 123, "ModelLength": 24},
+    {"ModelID": 160, "ModelLength": 88},
+    {"ModelID": 124, "ModelLength": 24},
+    {"ModelID": 65535, "ModelLength": 0}
+  ]
+}
