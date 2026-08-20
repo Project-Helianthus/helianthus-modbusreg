@@ -1,0 +1,16 @@
+{
+  "schema": "helianthus-modbusreg-vendor-evidence/v1",
+  "profile": "growatt",
+  "profile_version": "1.0.0",
+  "public_sources": [
+    {
+      "id": "growatt-candidate-v1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/42da2afdb0fd46bdb4301a847d59096e252bfe00/protocols/modbus/growatt-candidate-evidence-v1.md",
+      "license": "CC0-1.0"
+    }
+  ],
+  "applicability": [
+    "candidate-only; exact product family, firmware branch, address normalization, and detector uniqueness unresolved"
+  ],
+  "license": "CC0-1.0"
+}
