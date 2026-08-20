@@ -22,7 +22,7 @@ type mixedCatalogClosure struct {
 		VendorDocumentationMerge string `json:"vendor_docs_merge"`
 	} `json:"dependencies"`
 	Selection struct {
-		DetectorOption                    string   `json:"detector_option"`
+		SelectionMode                     string   `json:"selection_mode"`
 		MaxSelectedPrimaries              int      `json:"max_selected_primaries"`
 		NoPositiveOutcome                 string   `json:"no_positive_outcome"`
 		MultiplePositiveOutcome           string   `json:"multiple_positive_outcome"`
@@ -73,7 +73,7 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 		t.Fatalf("unexpected dependency closure: %#v", closure.Dependencies)
 	}
 	wantRequirements := []string{"qualified", "active", "default_enabled", "candidate_enabled"}
-	if closure.Selection.DetectorOption != "RequireExclusiveMatch" ||
+	if closure.Selection.SelectionMode != "exclusive" ||
 		closure.Selection.MaxSelectedPrimaries != 1 ||
 		closure.Selection.NoPositiveOutcome != "NO_MATCH" ||
 		closure.Selection.MultiplePositiveOutcome != "INSUFFICIENT_EVIDENCE" ||
@@ -148,7 +148,7 @@ func TestMixedCatalogExclusiveSelectionRejectsUnequalScoreOverlap(t *testing.T) 
 		decision, err := newDetector(t, catalog, candidates...).Detect(
 			context.Background(),
 			detectionReader(t),
-			reg.DetectionOptions{AllowFixtureOnly: true, RequireExclusiveMatch: true},
+			reg.DetectionOptions{AllowFixtureOnly: true},
 		)
 		if err != nil || decision.Outcome() != reg.DetectionAmbiguous ||
 			decision.Reason() != reg.DetectionReasonMultipleMatches ||
@@ -197,7 +197,7 @@ func TestMixedCatalogExclusiveSelectionPreservesEligibilityLifecycle(t *testing.
 	decision, err := detector.Detect(
 		context.Background(),
 		detectionReader(t),
-		reg.DetectionOptions{AllowFixtureOnly: true, RequireExclusiveMatch: true},
+		reg.DetectionOptions{AllowFixtureOnly: true},
 	)
 	if err != nil || decision.Outcome() != reg.DetectionMatched || decision.SelectedProfileID() != eligible.ID() {
 		t.Fatalf("lifecycle decision=(%+v,%v)", decision, err)

@@ -8,7 +8,7 @@
     "vendor_docs_merge": "aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f"
   },
   "selection": {
-    "detector_option": "RequireExclusiveMatch",
+    "selection_mode": "exclusive",
     "max_selected_primaries": 1,
     "no_positive_outcome": "NO_MATCH",
     "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",

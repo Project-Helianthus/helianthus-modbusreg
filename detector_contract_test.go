@@ -395,7 +395,7 @@ func TestDetectorFirmwareComparisonDoesNotUseMachineIntegers(t *testing.T) {
 	}
 }
 
-func TestDetectorRankingIsCatalogOrderIndependentAndTiesAreAmbiguous(t *testing.T) {
+func TestDetectorRejectsEveryMultipleEligibleMatchIndependentOfOrderAndScore(t *testing.T) {
 	first := detectionProfile(t, "example.standard.alpha", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	second := detectionProfile(t, "example.standard.beta", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	firstCandidate := detectionCandidate(t, first, 20, true, false)
@@ -408,8 +408,9 @@ func TestDetectorRankingIsCatalogOrderIndependentAndTiesAreAmbiguous(t *testing.
 		}
 		detector := newDetector(t, catalog, secondCandidate, firstCandidate)
 		decision, err := detector.Detect(context.Background(), detectionReader(t), reg.DetectionOptions{})
-		if err != nil || decision.Outcome() != reg.DetectionMatched ||
-			decision.SelectedProfileID() != first.ID() {
+		if err != nil || decision.Outcome() != reg.DetectionAmbiguous ||
+			decision.Reason() != reg.DetectionReasonMultipleMatches ||
+			decision.SelectedProfileID() != "" {
 			t.Fatalf("permuted selection=(%+v,%v)", decision, err)
 		}
 	}
@@ -422,7 +423,7 @@ func TestDetectorRankingIsCatalogOrderIndependentAndTiesAreAmbiguous(t *testing.
 		reg.DetectionOptions{},
 	)
 	if err != nil || decision.Outcome() != reg.DetectionAmbiguous ||
-		decision.Reason() != reg.DetectionReasonEqualBest ||
+		decision.Reason() != reg.DetectionReasonMultipleMatches ||
 		decision.SelectedProfileID() != "" {
 		t.Fatalf("equal-best decision=(%+v,%v)", decision, err)
 	}
