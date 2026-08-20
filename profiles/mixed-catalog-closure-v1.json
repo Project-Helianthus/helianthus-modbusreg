@@ -1,0 +1,72 @@
+{
+  "schema": "helianthus-modbusreg-mixed-catalog-closure/v1",
+  "milestone": "FMV3-M7-05",
+  "dependencies": {
+    "sunspec_expansion_merge": "7137bf4e3cb5cf84dc581b490fa9c9ddf8ea49f6",
+    "growatt_disposition_merge": "5c76899f6e15c52110e14e33e0cc25fe2f3a452b",
+    "huawei_disposition_merge": "110fe6417b511d8cacfdf22fce5d3d5581672c32",
+    "vendor_docs_merge": "aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f",
+    "mixed_catalog_docs_merge": "736fd599cf0128b32257c178b454114893b5dc57"
+  },
+  "selection": {
+    "selection_mode": "exclusive",
+    "max_selected_primaries": 1,
+    "no_positive_outcome": "NO_MATCH",
+    "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",
+    "serialized_multiple_positive_outcome": "ambiguous",
+    "serialized_multiple_positive_reason": "multiple_matches",
+    "implicit_priority": false,
+    "selection_is_stateless": true,
+    "activation_mutation": false,
+    "eligible_profile_requirements": [
+      "qualified",
+      "active",
+      "default_enabled",
+      "candidate_enabled"
+    ]
+  },
+  "participants": [
+    {
+      "id": "sunspec.direct-inverter",
+      "role": "PRIMARY",
+      "disposition": "CONDITIONAL_CAPABILITY",
+      "runtime_identity": "sunspec.inverter.three_phase.monitoring@1.0.0",
+      "disposition_file": ""
+    },
+    {
+      "id": "fronius.gen24",
+      "role": "POST_PRIMARY_FLAVOR",
+      "disposition": "QUALIFIED_FLAVOR_CLASSIFICATION",
+      "runtime_identity": "sunspec.flavor.fronius.gen24.float.observed@1.0.0,sunspec.flavor.fronius.gen24.float.observed@1.1.0",
+      "disposition_file": ""
+    },
+    {
+      "id": "growatt.direct-inverter",
+      "role": "PRIMARY_CANDIDATE",
+      "disposition": "NO_ADMISSIBLE_PROFILE",
+      "runtime_identity": "",
+      "disposition_file": "profiles/vendor/growatt/disposition.json"
+    },
+    {
+      "id": "huawei.smartlogger",
+      "role": "PRIMARY_CANDIDATE",
+      "disposition": "NO_ADMISSIBLE_PROFILE",
+      "runtime_identity": "",
+      "disposition_file": "profiles/vendor/huawei/smartlogger-disposition.json"
+    },
+    {
+      "id": "huawei.sdongle",
+      "role": "PRIMARY_CANDIDATE",
+      "disposition": "NO_ADMISSIBLE_PROFILE",
+      "runtime_identity": "",
+      "disposition_file": "profiles/vendor/huawei/sdongle-disposition.json"
+    },
+    {
+      "id": "huawei.emma",
+      "role": "PRIMARY_CANDIDATE",
+      "disposition": "NO_ADMISSIBLE_PROFILE",
+      "runtime_identity": "",
+      "disposition_file": "profiles/vendor/huawei/emma-disposition.json"
+    }
+  ]
+}

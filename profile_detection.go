@@ -227,6 +227,7 @@ type DetectionReason string
 const (
 	DetectionReasonSelected             DetectionReason = "selected"
 	DetectionReasonEqualBest            DetectionReason = "equal_best"
+	DetectionReasonMultipleMatches      DetectionReason = "multiple_matches"
 	DetectionReasonLowerScore           DetectionReason = "lower_score"
 	DetectionReasonIdentityMismatch     DetectionReason = "identity_mismatch"
 	DetectionReasonFirmwareMismatch     DetectionReason = "firmware_mismatch"
@@ -574,33 +575,19 @@ func (detector *ProfileDetector) Detect(
 			evidence,
 		))
 	}
-	highest := uint32(0)
-	for _, index := range matched {
-		if evidence[index].Score > highest {
-			highest = evidence[index].Score
-		}
-	}
-	best := make([]int, 0, len(matched))
-	for _, index := range matched {
-		if evidence[index].Score == highest {
-			best = append(best, index)
-		} else {
-			evidence[index].Reason = DetectionReasonLowerScore
-		}
-	}
-	if len(best) != 1 {
-		for _, index := range best {
-			evidence[index].Reason = DetectionReasonEqualBest
+	if len(matched) > 1 {
+		for _, index := range matched {
+			evidence[index].Reason = DetectionReasonMultipleMatches
 		}
 		return detector.finalizeDecision(detector.decision(
 			DetectionAmbiguous,
-			DetectionReasonEqualBest,
+			DetectionReasonMultipleMatches,
 			"",
 			Version{},
 			evidence,
 		))
 	}
-	selected := evidence[best[0]]
+	selected := evidence[matched[0]]
 	return detector.finalizeDecision(detector.decision(
 		DetectionMatched,
 		DetectionReasonSelected,
