@@ -1,0 +1,24 @@
+{
+  "schema": "helianthus-modbusreg-vendor-evidence/v1",
+  "profile": "huawei",
+  "profile_version": "1.0.0",
+  "public_sources": [
+    {
+      "id": "huawei-gateway-candidate-evidence-v1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f/protocols/modbus/huawei-gateway-candidate-evidence-v1.md",
+      "license": "CC0-1.0"
+    },
+    {
+      "id": "modbus-vendor-evidence-v1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f/docs/platform/manifests/modbus-vendor-evidence-v1.json",
+      "license": "CC0-1.0"
+    }
+  ],
+  "applicability": [
+    "SmartLogger documentary candidate huawei.smartlogger.v1",
+    "S-Dongle documentary candidate huawei.sdongle.v1",
+    "EMMA documentary candidate huawei.emma.v1",
+    "candidate evidence only; no detector, catalog, decoder, runtime acquisition, or support admission"
+  ],
+  "license": "CC0-1.0"
+}
