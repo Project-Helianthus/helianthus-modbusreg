@@ -15,6 +15,21 @@
     {"id": 122, "length": 44, "points": 22},
     {"id": 123, "length": 24, "points": 26},
     {"id": 124, "length": 24, "points": 26},
-    {"id": 160, "length": 88, "points": 49}
+    {"id": 160, "length": 88, "points": 49},
+    {"id": 201, "length": 105, "points": 74},
+    {"id": 202, "length": 105, "points": 74},
+    {"id": 203, "length": 105, "points": 74},
+    {"id": 204, "length": 105, "points": 74},
+    {"id": 211, "length": 124, "points": 64},
+    {"id": 212, "length": 124, "points": 64},
+    {"id": 213, "length": 124, "points": 64},
+    {"id": 214, "length": 124, "points": 64},
+    {"id": 302, "length": 5, "points": 7},
+    {"id": 303, "length": 1, "points": 3},
+    {"id": 304, "length": 6, "points": 5},
+    {"id": 305, "length": 36, "points": 8},
+    {"id": 306, "length": 4, "points": 6},
+    {"id": 307, "length": 11, "points": 13},
+    {"id": 308, "length": 4, "points": 6}
   ]
 }

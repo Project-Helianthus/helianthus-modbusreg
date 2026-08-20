@@ -10,6 +10,7 @@ type SunSpecPointType string
 
 const (
 	SunSpecTypeInt16         SunSpecPointType = "int16"
+	SunSpecTypeInt32         SunSpecPointType = "int32"
 	SunSpecTypeUint16        SunSpecPointType = "uint16"
 	SunSpecTypeUint32        SunSpecPointType = "uint32"
 	SunSpecTypeAccumulator32 SunSpecPointType = "acc32"
@@ -90,6 +91,12 @@ func decodeSunSpecValue(def sunSpecPointDefinition, words []uint16, scale *SunSp
 			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotImplemented)
 		}
 		value.signed, value.hasSigned = int64(int16(words[0])), true
+	case SunSpecTypeInt32:
+		raw := uint32(words[0])<<16 | uint32(words[1])
+		if raw == 0x80000000 {
+			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotImplemented)
+		}
+		value.signed, value.hasSigned = int64(int32(raw)), true
 	case SunSpecTypeUint16, SunSpecTypeCount:
 		if words[0] == 0xffff {
 			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotImplemented)
@@ -165,7 +172,7 @@ func decodeSunSpecValue(def sunSpecPointDefinition, words []uint16, scale *SunSp
 		return value
 	}
 	value.state = SunSpecValueValid
-	if def.scaleFactor != "" {
+	if def.scaleFactor != "" || def.fixedScale != nil {
 		return applySunSpecScale(value, scale)
 	}
 	return value

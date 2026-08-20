@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 	"testing"
 )
 
@@ -95,4 +96,86 @@ func joinSunSpecCatalog(values []string) string {
 		result += "," + value
 	}
 	return result
+}
+
+func TestSunSpecExpandedCatalogMatchesEveryPinnedPoint(t *testing.T) {
+	data, err := os.ReadFile("testdata/sunspec/models/v1/expanded_catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	type fixtureSymbol struct {
+		Name  string
+		Value uint64
+	}
+	type fixturePoint struct {
+		Name, Type, Unit, SF string
+		Size                 uint16
+		Mandatory            bool
+		Symbols              []fixtureSymbol
+	}
+	type fixtureGroup struct {
+		Name       string
+		WordLength uint16 `json:"word_length"`
+		Points     []fixturePoint
+	}
+	var fixture struct {
+		SourceCommit   string                `json:"source_commit"`
+		SchemaRevision SunSpecSchemaRevision `json:"schema_revision"`
+		Models         []struct {
+			ID             uint16
+			Points         []fixturePoint
+			RepeatingGroup *fixtureGroup `json:"repeating_group"`
+		}
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.SourceCommit != "7abdf8982d5364f8ae916deee18aac86c11be36d" || fixture.SchemaRevision != testSunSpecModelsRevision || len(fixture.Models) != 15 {
+		t.Fatalf("expanded fixture provenance=%q/%q models=%d", fixture.SourceCommit, fixture.SchemaRevision, len(fixture.Models))
+	}
+	registry, err := NewStandardSunSpecDecoderRegistry(fixture.SchemaRevision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, model := range fixture.Models {
+		expected := append([]fixturePoint(nil), model.Points...)
+		var length uint16
+		for _, point := range model.Points {
+			length += point.Size
+		}
+		if model.RepeatingGroup != nil {
+			length = model.RepeatingGroup.WordLength
+			expected = append(expected, model.RepeatingGroup.Points...)
+		} else {
+			length -= 2
+		}
+		definition, ok := registry.definition(SunSpecDecoderKey{model.ID, length, fixture.SchemaRevision})
+		if !ok || len(definition.points) != len(expected) {
+			t.Fatalf("model %d/%d points=%d ok=%v want=%d", model.ID, length, len(definition.points), ok, len(expected))
+		}
+		for index, want := range expected {
+			got := definition.points[index]
+			scale := got.scaleFactor
+			if got.fixedScale != nil {
+				scale = strconv.FormatInt(int64(*got.fixedScale), 10)
+			}
+			if got.name != want.Name || string(got.pointType) != want.Type || got.size != want.Size || got.unit != want.Unit || scale != want.SF || got.mandatory != want.Mandatory {
+				t.Fatalf("model %d point %d=%#v scale=%q want=%#v", model.ID, index, got, scale, want)
+			}
+			symbols := make(map[uint64]string, len(want.Symbols))
+			for _, symbol := range want.Symbols {
+				symbols[symbol.Value] = symbol.Name
+			}
+			if !reflect.DeepEqual(got.symbols, symbols) && (len(got.symbols) != 0 || len(symbols) != 0) {
+				t.Fatalf("model %d point %s symbols=%v want=%v", model.ID, got.name, got.symbols, symbols)
+			}
+			if model.RepeatingGroup != nil && index >= len(model.Points) {
+				if !got.repeated || got.repeatIndex != 1 || got.groupID != model.RepeatingGroup.Name {
+					t.Fatalf("model %d repeated point=%#v", model.ID, got)
+				}
+			} else if got.repeated || got.repeatIndex != 0 || got.groupID != "" {
+				t.Fatalf("model %d fixed point=%#v", model.ID, got)
+			}
+		}
+	}
 }
