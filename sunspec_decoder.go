@@ -3,6 +3,7 @@ package modbusreg
 import (
 	"fmt"
 	"sort"
+	"sync"
 )
 
 type SunSpecFact struct {
@@ -76,6 +77,11 @@ type SunSpecDecoderRegistry struct {
 	keys        []SunSpecDecoderKey
 }
 
+var standardSunSpecDecoderKeysCache struct {
+	sync.Once
+	keys []SunSpecDecoderKey
+}
+
 func NewStandardSunSpecDecoderRegistry(revision SunSpecSchemaRevision) (SunSpecDecoderRegistry, error) {
 	definitions, err := standardSunSpecModelDefinitions(revision)
 	if err != nil {
@@ -87,20 +93,28 @@ func NewStandardSunSpecDecoderRegistry(revision SunSpecSchemaRevision) (SunSpecD
 			return SunSpecDecoderRegistry{}, fmt.Errorf("SunSpec decoder key is duplicated")
 		}
 		registry.definitions[definition.key] = definition
-		registry.keys = append(registry.keys, definition.key)
 	}
-	for modules := uint32(0); modules <= maxSunSpecMPPTModules; modules++ {
-		registry.keys = append(registry.keys, SunSpecDecoderKey{ModelID: 160, ModelLength: uint16(8 + 20*modules), SchemaRevision: revision})
-	}
-	sort.Slice(registry.keys, func(i, j int) bool {
-		if registry.keys[i].ModelID != registry.keys[j].ModelID {
-			return registry.keys[i].ModelID < registry.keys[j].ModelID
+	standardSunSpecDecoderKeysCache.Do(func() {
+		keys := make([]SunSpecDecoderKey, 0, len(definitions)+3277+89561)
+		for _, definition := range definitions {
+			keys = append(keys, definition.key)
 		}
-		if registry.keys[i].ModelLength != registry.keys[j].ModelLength {
-			return registry.keys[i].ModelLength < registry.keys[j].ModelLength
+		for modules := uint32(0); modules <= maxSunSpecMPPTModules; modules++ {
+			keys = append(keys, SunSpecDecoderKey{ModelID: 160, ModelLength: uint16(8 + 20*modules), SchemaRevision: revision})
 		}
-		return registry.keys[i].SchemaRevision < registry.keys[j].SchemaRevision
+		keys = append(keys, environmentalSunSpecDecoderKeys(revision)...)
+		sort.Slice(keys, func(i, j int) bool {
+			if keys[i].ModelID != keys[j].ModelID {
+				return keys[i].ModelID < keys[j].ModelID
+			}
+			if keys[i].ModelLength != keys[j].ModelLength {
+				return keys[i].ModelLength < keys[j].ModelLength
+			}
+			return keys[i].SchemaRevision < keys[j].SchemaRevision
+		})
+		standardSunSpecDecoderKeysCache.keys = keys
 	})
+	registry.keys = standardSunSpecDecoderKeysCache.keys
 	return registry, nil
 }
 
@@ -112,11 +126,20 @@ func (r SunSpecDecoderRegistry) definition(key SunSpecDecoderKey) (sunSpecModelD
 	if ok {
 		return definition, true
 	}
-	if key.SchemaRevision != r.revision || key.ModelID != 160 {
+	if key.SchemaRevision != r.revision {
 		return sunSpecModelDefinition{}, false
 	}
-	definition, err := mpptSunSpecDefinition(key.SchemaRevision, key.ModelLength)
-	return definition, err == nil
+	var resolved sunSpecModelDefinition
+	var err error
+	switch key.ModelID {
+	case 160:
+		resolved, err = mpptSunSpecDefinition(key.SchemaRevision, key.ModelLength)
+	case 302, 303, 304:
+		resolved, err = environmentalSunSpecDefinition(key.SchemaRevision, key.ModelID, key.ModelLength)
+	default:
+		return sunSpecModelDefinition{}, false
+	}
+	return resolved, err == nil
 }
 
 func (r SunSpecDecoderRegistry) DecodeOccurrence(occurrence SunSpecOccurrence) (SunSpecDecodedModel, error) {
@@ -155,6 +178,9 @@ func (r SunSpecDecoderRegistry) DecodeOccurrence(occurrence SunSpecOccurrence) (
 			if !exists {
 				return SunSpecDecodedModel{}, fmt.Errorf("SunSpec scale factor reference is missing")
 			}
+			scale = &value
+		} else if point.fixedScale != nil {
+			value := SunSpecValue{pointType: SunSpecTypeScaleFactor, state: SunSpecValueValid, signed: int64(*point.fixedScale), hasSigned: true}
 			scale = &value
 		}
 		value := decodeSunSpecValue(point, words[point.offset:point.offset+point.size], scale)

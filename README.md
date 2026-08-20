@@ -13,7 +13,7 @@ conformance. M3-02 adds the bounded, read-only SunSpec phase-one standard-family
 profile and parser. M3-03 records its historical evidence-qualified
 `STANDARD_ONLY` disposition. The generic SunSpec R1-R3 wave now adds the
 bounded model chain and decoder registry, standard Models
-1/101-103/111-113/120-122/124/160, the encoding-neutral three-phase monitoring
+1/101-103/111-113/120-124/160/201-204/211-214/302-308, the encoding-neutral three-phase monitoring
 capability, and one exact experimental Fronius observed flavor. That flavor is
 post-capability classification only: it adds no product qualification,
 acquisition activation, support statement, live result, or write authority.

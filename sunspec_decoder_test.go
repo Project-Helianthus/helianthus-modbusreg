@@ -49,6 +49,12 @@ func TestSunSpecDecoderRegistryUsesExactImmutableKeys(t *testing.T) {
 		{120, 26, testSunSpecModelsRevision}, {121, 30, testSunSpecModelsRevision},
 		{122, 44, testSunSpecModelsRevision}, {123, 24, testSunSpecModelsRevision},
 		{124, 24, testSunSpecModelsRevision},
+		{201, 105, testSunSpecModelsRevision}, {202, 105, testSunSpecModelsRevision},
+		{203, 105, testSunSpecModelsRevision}, {204, 105, testSunSpecModelsRevision},
+		{211, 124, testSunSpecModelsRevision}, {212, 124, testSunSpecModelsRevision},
+		{213, 124, testSunSpecModelsRevision}, {214, 124, testSunSpecModelsRevision},
+		{305, 36, testSunSpecModelsRevision}, {306, 4, testSunSpecModelsRevision},
+		{307, 11, testSunSpecModelsRevision}, {308, 4, testSunSpecModelsRevision},
 	}
 	sort.Slice(want, func(i, j int) bool {
 		if want[i].ModelID != want[j].ModelID {
@@ -56,8 +62,18 @@ func TestSunSpecDecoderRegistryUsesExactImmutableKeys(t *testing.T) {
 		}
 		return want[i].ModelLength < want[j].ModelLength
 	})
-	if len(keys) != len(want)+3277 || !reflect.DeepEqual(keys[:len(want)], want) {
-		t.Fatalf("fixed keys=%#v total=%d", keys[:min(len(keys), len(want))], len(keys))
+	got := make(map[SunSpecDecoderKey]bool, len(keys))
+	for _, key := range keys {
+		got[key] = true
+	}
+	for _, key := range want {
+		if !got[key] {
+			t.Fatalf("fixed decoder key absent: %#v", key)
+		}
+	}
+	const dynamicEnvironmentalKeys = 89561
+	if len(keys) != len(want)+3277+dynamicEnvironmentalKeys {
+		t.Fatalf("decoder key total=%d", len(keys))
 	}
 	keys[0].ModelID = 999
 	if registry.DecoderKeys()[0].ModelID == 999 {

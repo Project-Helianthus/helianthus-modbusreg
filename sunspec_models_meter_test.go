@@ -1,6 +1,10 @@
 package modbusreg
 
-import "testing"
+import (
+	"reflect"
+	"strings"
+	"testing"
+)
 
 func TestSunSpecMeterModelsMatchPinnedCatalogShapes(t *testing.T) {
 	registry, err := NewStandardSunSpecDecoderRegistry(testSunSpecModelsRevision)
@@ -40,7 +44,7 @@ func TestSunSpecMeterIntegerAndFloatEncodingsDecodeEquivalently(t *testing.T) {
 	}
 	integer := modelWords(t, registry, 203, 105, map[string][]uint16{
 		"A": {1234}, "A_SF": {0xffff}, "Hz": {5000}, "Hz_SF": {0xfffe},
-		"W": {0xff85}, "W_SF": {0}, "TotWhExp": {0, 42}, "TotWh_SF": {0}, "Evt": {0, 1 << 2},
+		"W": {0xff85}, "W_SF": {0}, "TotWhExp": {0, 42}, "TotWhImp": {0, 1}, "TotWh_SF": {0}, "Evt": {0, 1 << 2},
 	})
 	decodedInteger, err := registry.DecodeOccurrence(admittedOccurrence(203, 105, integer, 1))
 	if err != nil {
@@ -99,5 +103,42 @@ func TestSunSpecMeterMandatoryAndEventFieldsFailClosed(t *testing.T) {
 	bits, unknown, ok := events.Value.Bitfield()
 	if !ok || bits != 2 || unknown != 2 {
 		t.Fatalf("events bits=%x unknown=%x ok=%v", bits, unknown, ok)
+	}
+}
+
+func TestSunSpecMeterEventSymbolsRemainDistinct(t *testing.T) {
+	want201 := map[uint64]string{
+		2: "Power_Failure", 3: "Under_Voltage", 4: "Low_PF", 5: "Over_Current", 6: "Over_Voltage", 7: "Missing_Sensor",
+		16: "OEM01", 17: "OEM02", 18: "OEM03", 19: "OEM04", 20: "OEM05", 21: "OEM06", 22: "OEM07", 23: "OEM08",
+		24: "OEM09", 25: "OEM10", 26: "OEM11", 27: "OEM12", 28: "OEM13", 29: "OEM14", 30: "OEM15",
+	}
+	if got := meterEventSymbols(201); !reflect.DeepEqual(got, want201) {
+		t.Fatalf("model 201 event symbols=%v", got)
+	}
+	got := meterEventSymbols(203)
+	for bit := uint64(8); bit <= 15; bit++ {
+		if got[bit] != "M_EVENT_Reserved"+string(rune('0'+bit-7)) {
+			t.Fatalf("model 203 reserved bit %d=%q", bit, got[bit])
+		}
+	}
+}
+
+func TestSunSpecMeterFieldsHaveStableSemanticIdentifiers(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(testSunSpecModelsRevision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []SunSpecDecoderKey{
+		{201, 105, testSunSpecModelsRevision}, {202, 105, testSunSpecModelsRevision},
+		{203, 105, testSunSpecModelsRevision}, {204, 105, testSunSpecModelsRevision},
+		{211, 124, testSunSpecModelsRevision}, {212, 124, testSunSpecModelsRevision},
+		{213, 124, testSunSpecModelsRevision}, {214, 124, testSunSpecModelsRevision},
+	} {
+		definition, _ := registry.definition(key)
+		for _, point := range definition.points {
+			if point.offset >= 2 && (point.fieldID == "" || strings.HasPrefix(point.fieldID, "meter.point.")) {
+				t.Fatalf("model %d point %s has fallback field ID %q", key.ModelID, point.name, point.fieldID)
+			}
+		}
 	}
 }

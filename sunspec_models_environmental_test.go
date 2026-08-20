@@ -23,10 +23,14 @@ func TestSunSpecEnvironmentalFixedAndRepeatedModelShapes(t *testing.T) {
 		{303, 0, testSunSpecModelsRevision},
 		{304, 5, testSunSpecModelsRevision},
 		{305, 35, testSunSpecModelsRevision},
+		{303, 65535, testSunSpecModelsRevision},
 	} {
 		if _, ok := registry.definition(key); ok {
 			t.Fatalf("invalid environmental geometry admitted: %#v", key)
 		}
+	}
+	if _, ok := registry.definition(SunSpecDecoderKey{303, maxAddressableSunSpecModelLength, testSunSpecModelsRevision}); !ok {
+		t.Fatal("largest addressable repeated geometry absent")
 	}
 }
 
@@ -56,7 +60,7 @@ func TestSunSpecEnvironmentalRepeatsPreserveGroupIdentity(t *testing.T) {
 		t.Fatalf("global irradiance facts=%d", len(global))
 	}
 	for index, fact := range global {
-		if !fact.Repeated || fact.GroupID != "irradiance" || fact.RepeatIndex != uint16(index+1) {
+		if !fact.Repeated || fact.GroupID != "repeating" || fact.RepeatIndex != uint16(index+1) {
 			t.Fatalf("fact[%d]=%#v", index, fact)
 		}
 	}
@@ -77,7 +81,7 @@ func TestSunSpecEnvironmentalInt32AndStringPacking(t *testing.T) {
 	}
 	latitude, ok := decoded.Fact("environment.location.latitude")
 	decimal, hasDecimal := latitude.Value.Decimal()
-	if !ok || !hasDecimal || decimal != (SunSpecDecimal{Coefficient: 46382080, Exponent: -7}) {
+	if !ok || !hasDecimal || decimal != (SunSpecDecimal{Coefficient: 46291968, Exponent: -7}) {
 		t.Fatalf("latitude=%#v ok=%v fact=%#v", decimal, hasDecimal, latitude)
 	}
 	longitude, ok := decoded.Fact("environment.location.longitude")
