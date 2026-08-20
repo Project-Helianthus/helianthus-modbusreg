@@ -248,8 +248,6 @@ const (
 // DetectionOptions contains per-call policy that cannot alter declarations.
 type DetectionOptions struct {
 	AllowFixtureOnly bool
-	// RequireExclusiveMatch rejects every multi-match before score ranking.
-	RequireExclusiveMatch bool
 }
 
 // DetectionCandidateEvidence is one immutable-decision candidate projection.
@@ -577,7 +575,7 @@ func (detector *ProfileDetector) Detect(
 			evidence,
 		))
 	}
-	if options.RequireExclusiveMatch && len(matched) > 1 {
+	if len(matched) > 1 {
 		for _, index := range matched {
 			evidence[index].Reason = DetectionReasonMultipleMatches
 		}
@@ -589,33 +587,7 @@ func (detector *ProfileDetector) Detect(
 			evidence,
 		))
 	}
-	highest := uint32(0)
-	for _, index := range matched {
-		if evidence[index].Score > highest {
-			highest = evidence[index].Score
-		}
-	}
-	best := make([]int, 0, len(matched))
-	for _, index := range matched {
-		if evidence[index].Score == highest {
-			best = append(best, index)
-		} else {
-			evidence[index].Reason = DetectionReasonLowerScore
-		}
-	}
-	if len(best) != 1 {
-		for _, index := range best {
-			evidence[index].Reason = DetectionReasonEqualBest
-		}
-		return detector.finalizeDecision(detector.decision(
-			DetectionAmbiguous,
-			DetectionReasonEqualBest,
-			"",
-			Version{},
-			evidence,
-		))
-	}
-	selected := evidence[best[0]]
+	selected := evidence[matched[0]]
 	return detector.finalizeDecision(detector.decision(
 		DetectionMatched,
 		DetectionReasonSelected,
