@@ -1,0 +1,82 @@
+{
+  "schema": "helianthus-modbusreg-profile-disposition/v1",
+  "profile": "huawei.emma",
+  "profile_version": "1.0.0",
+  "outcome": "NO_ADMISSIBLE_PROFILE",
+  "evidence": {
+    "packet_id": "HUAWEI-GATEWAYS-V1",
+    "docs_merge_sha": "aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f",
+    "candidate_id": "huawei.emma.v1",
+    "gateway_kind": "EMMA",
+    "documentary_status": "DOCUMENTARY_CANDIDATE",
+    "eligible": false,
+    "missing_discriminators": [
+      "sanitized_model_software_self_entry_fixture",
+      "negative_overlap_with_smartlogger",
+      "live_mei_child_inventory_fixture"
+    ]
+  },
+  "transport_dependency": {
+    "module": "github.com/Project-Helianthus/helianthus-modbus",
+    "merge_sha": "c78030472c24f0f2b849fd30124611157a81f834",
+    "version": "v0.0.0-20260820212315-c78030472c24",
+    "prerequisites": [
+      "modbus.unit-id-zero.v1",
+      "modbus.mei-vendor-cursor.v1",
+      "modbus.mei-object-wrap.v1"
+    ]
+  },
+  "detector": {
+    "registered": false,
+    "executable": false,
+    "required_tuple": [
+      "offering_name",
+      "model_emma_family",
+      "software_version_branch_match",
+      "mei_child_inventory_self_entry_device_id_zero_product_type_hems"
+    ],
+    "forbidden_identity": [
+      "serial_number_30015",
+      "model_register_readability_only",
+      "basic_mei_only",
+      "smarthems_prefix_without_fixture"
+    ],
+    "candidate_ambiguity_outcome": "NO_ADMISSIBLE_PROFILE",
+    "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",
+    "first_match_priority": false
+  },
+  "firmware_gate_count": 2,
+  "negative_fixture_ids": [
+    "emma-cross-branch-r026",
+    "emma-r025-below-minimum"
+  ],
+  "child_enumeration": {
+    "operation": "FC2B_MEI_0E",
+    "executable": false,
+    "unit_target": "0",
+    "read_device_id_code": 3,
+    "start_object_id": 135,
+    "max_children": 247,
+    "limits": {
+      "deadline_ms": 15000,
+      "max_pages": 248,
+      "max_objects": 248,
+      "max_bytes": 65536
+    },
+    "reject": [
+      "cursor_loop",
+      "duplicate_object",
+      "duplicate_device_id",
+      "count_mismatch",
+      "presence_or_count_changed"
+    ]
+  },
+  "decoder_keys": [],
+  "catalog_registered": false,
+  "support_claim": false,
+  "reopen_requires": [
+    "sanitized_model_software_self_entry_fixture",
+    "negative_overlap_with_smartlogger",
+    "live_mei_child_inventory_fixture"
+  ]
+}

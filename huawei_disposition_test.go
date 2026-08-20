@@ -3,6 +3,7 @@ package modbusreg
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"reflect"
 	"regexp"
@@ -12,7 +13,7 @@ import (
 )
 
 const (
-	huaweiDocsMergeSHA = "562f78e0ef8334f90c513a010059c35046b4fdc4"
+	huaweiDocsMergeSHA = "aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f"
 	huaweiModbusMerge  = "c78030472c24f0f2b849fd30124611157a81f834"
 	huaweiModbusPin    = "v0.0.0-20260820212315-c78030472c24"
 )
@@ -47,8 +48,9 @@ func decodeHuaweiObject(t *testing.T, path string) map[string]any {
 	if err := decoder.Decode(&value); err != nil {
 		t.Fatal(err)
 	}
-	if decoder.More() {
-		t.Fatal("multiple JSON values")
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		t.Fatalf("trailing JSON value: %v", err)
 	}
 	return value
 }
@@ -193,8 +195,8 @@ func TestHuaweiGatewayDispositionsFailClosedIndependently(t *testing.T) {
 			}
 
 			detector := huaweiObject(t, record["detector"])
-			requireHuaweiKeys(t, detector, "registered", "executable", "required_tuple", "forbidden_identity", "ambiguity_outcome", "first_match_priority")
-			if detector["registered"] != false || detector["executable"] != false || detector["ambiguity_outcome"] != "INSUFFICIENT_EVIDENCE" || detector["first_match_priority"] != false ||
+			requireHuaweiKeys(t, detector, "registered", "executable", "required_tuple", "forbidden_identity", "candidate_ambiguity_outcome", "multiple_positive_outcome", "first_match_priority")
+			if detector["registered"] != false || detector["executable"] != false || detector["candidate_ambiguity_outcome"] != "NO_ADMISSIBLE_PROFILE" || detector["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || detector["first_match_priority"] != false ||
 				!reflect.DeepEqual(huaweiStringSlice(t, detector["required_tuple"]), expected.requiredTuple) || !reflect.DeepEqual(huaweiStringSlice(t, detector["forbidden_identity"]), expected.forbiddenIdentity) {
 				t.Fatalf("unexpected detector disposition: %#v", detector)
 			}
@@ -206,9 +208,10 @@ func TestHuaweiGatewayDispositionsFailClosedIndependently(t *testing.T) {
 			inventory := huaweiObject(t, record["child_enumeration"])
 			requireHuaweiKeys(t, inventory, "operation", "executable", "unit_target", "read_device_id_code", "start_object_id", "max_children", "limits", "reject")
 			limits := huaweiObject(t, inventory["limits"])
+			requireHuaweiKeys(t, limits, "deadline_ms", "max_pages", "max_objects", "max_bytes")
 			if inventory["operation"] != "FC2B_MEI_0E" || inventory["executable"] != false || inventory["unit_target"] != expected.unitTarget ||
 				huaweiInt(t, inventory["read_device_id_code"]) != 3 || huaweiInt(t, inventory["start_object_id"]) != 135 || huaweiInt(t, inventory["max_children"]) != expected.maxChildren ||
-				huaweiInt(t, limits["max_pages"]) != expected.maxPages || huaweiInt(t, limits["max_objects"]) != expected.maxObjects || huaweiInt(t, limits["max_bytes"]) != expected.maxBytes ||
+				huaweiInt(t, limits["deadline_ms"]) != 15000 || huaweiInt(t, limits["max_pages"]) != expected.maxPages || huaweiInt(t, limits["max_objects"]) != expected.maxObjects || huaweiInt(t, limits["max_bytes"]) != expected.maxBytes ||
 				!reflect.DeepEqual(huaweiStringSlice(t, inventory["reject"]), expected.reject) {
 				t.Fatalf("unexpected child enumeration: %#v", inventory)
 			}
