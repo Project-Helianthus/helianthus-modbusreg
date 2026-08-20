@@ -20,6 +20,7 @@ type mixedCatalogClosure struct {
 		GrowattDispositionMerge  string `json:"growatt_disposition_merge"`
 		HuaweiDispositionMerge   string `json:"huawei_disposition_merge"`
 		VendorDocumentationMerge string `json:"vendor_docs_merge"`
+		MixedCatalogDocsMerge    string `json:"mixed_catalog_docs_merge"`
 	} `json:"dependencies"`
 	Selection struct {
 		SelectionMode                     string   `json:"selection_mode"`
@@ -69,7 +70,8 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 	if closure.Dependencies.SunSpecExpansionMerge != "7137bf4e3cb5cf84dc581b490fa9c9ddf8ea49f6" ||
 		closure.Dependencies.GrowattDispositionMerge != "5c76899f6e15c52110e14e33e0cc25fe2f3a452b" ||
 		closure.Dependencies.HuaweiDispositionMerge != "110fe6417b511d8cacfdf22fce5d3d5581672c32" ||
-		closure.Dependencies.VendorDocumentationMerge != "aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f" {
+		closure.Dependencies.VendorDocumentationMerge != "aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f" ||
+		closure.Dependencies.MixedCatalogDocsMerge != "736fd599cf0128b32257c178b454114893b5dc57" {
 		t.Fatalf("unexpected dependency closure: %#v", closure.Dependencies)
 	}
 	wantRequirements := []string{"qualified", "active", "default_enabled", "candidate_enabled"}
