@@ -227,6 +227,7 @@ type DetectionReason string
 const (
 	DetectionReasonSelected             DetectionReason = "selected"
 	DetectionReasonEqualBest            DetectionReason = "equal_best"
+	DetectionReasonMultipleMatches      DetectionReason = "multiple_matches"
 	DetectionReasonLowerScore           DetectionReason = "lower_score"
 	DetectionReasonIdentityMismatch     DetectionReason = "identity_mismatch"
 	DetectionReasonFirmwareMismatch     DetectionReason = "firmware_mismatch"
@@ -247,6 +248,8 @@ const (
 // DetectionOptions contains per-call policy that cannot alter declarations.
 type DetectionOptions struct {
 	AllowFixtureOnly bool
+	// RequireExclusiveMatch rejects every multi-match before score ranking.
+	RequireExclusiveMatch bool
 }
 
 // DetectionCandidateEvidence is one immutable-decision candidate projection.
@@ -569,6 +572,18 @@ func (detector *ProfileDetector) Detect(
 		return detector.finalizeDecision(detector.decision(
 			DetectionNoMatch,
 			noMatchReason(evidence),
+			"",
+			Version{},
+			evidence,
+		))
+	}
+	if options.RequireExclusiveMatch && len(matched) > 1 {
+		for _, index := range matched {
+			evidence[index].Reason = DetectionReasonMultipleMatches
+		}
+		return detector.finalizeDecision(detector.decision(
+			DetectionAmbiguous,
+			DetectionReasonMultipleMatches,
 			"",
 			Version{},
 			evidence,

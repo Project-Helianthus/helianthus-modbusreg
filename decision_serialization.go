@@ -38,6 +38,7 @@ func validDetectionReason(reason DetectionReason) bool {
 	switch reason {
 	case DetectionReasonSelected,
 		DetectionReasonEqualBest,
+		DetectionReasonMultipleMatches,
 		DetectionReasonLowerScore,
 		DetectionReasonIdentityMismatch,
 		DetectionReasonFirmwareMismatch,
@@ -118,6 +119,7 @@ func validateDetectionEvidence(
 	switch evidence.Reason {
 	case DetectionReasonSelected,
 		DetectionReasonEqualBest,
+		DetectionReasonMultipleMatches,
 		DetectionReasonLowerScore:
 		if gateCount != 3 {
 			return fmt.Errorf("ranked detection evidence lacks complete gates")
@@ -154,6 +156,7 @@ func validateDetectionDecision(
 	}
 	selectedCount := 0
 	equalBestCount := 0
+	multipleMatchCount := 0
 	lowerScoreCount := 0
 	var equalBestScore uint32
 	var selectedScore uint32
@@ -179,6 +182,8 @@ func validateDetectionDecision(
 				return fmt.Errorf("ambiguous candidates do not have equal scores")
 			}
 			equalBestCount++
+		case DetectionReasonMultipleMatches:
+			multipleMatchCount++
 		case DetectionReasonLowerScore:
 			lowerScoreCount++
 		}
@@ -189,7 +194,7 @@ func validateDetectionDecision(
 		if decision.reason != DetectionReasonSelected ||
 			!validIdentity(decision.selectedProfileID) ||
 			!decision.selectedProfileVersion.valid() ||
-			selectedCount != 1 || equalBestCount != 0 {
+			selectedCount != 1 || equalBestCount != 0 || multipleMatchCount != 0 {
 			return fmt.Errorf("matched detection decision is inconsistent")
 		}
 		found := false
@@ -209,25 +214,36 @@ func validateDetectionDecision(
 			}
 		}
 	case DetectionAmbiguous:
-		if decision.reason != DetectionReasonEqualBest ||
-			decision.selectedProfileID != "" ||
-			decision.selectedProfileVersion.valid() ||
-			selectedCount != 0 || equalBestCount < 2 {
+		if decision.selectedProfileID != "" ||
+			decision.selectedProfileVersion.valid() || selectedCount != 0 {
 			return fmt.Errorf("ambiguous detection decision is inconsistent")
 		}
-		for _, evidence := range decision.evidence {
-			if evidence.Reason == DetectionReasonLowerScore &&
-				evidence.Score >= equalBestScore {
-				return fmt.Errorf("ambiguous detection ranking is inconsistent")
+		switch decision.reason {
+		case DetectionReasonEqualBest:
+			if equalBestCount < 2 || multipleMatchCount != 0 {
+				return fmt.Errorf("ambiguous detection decision is inconsistent")
 			}
+			for _, evidence := range decision.evidence {
+				if evidence.Reason == DetectionReasonLowerScore &&
+					evidence.Score >= equalBestScore {
+					return fmt.Errorf("ambiguous detection ranking is inconsistent")
+				}
+			}
+		case DetectionReasonMultipleMatches:
+			if multipleMatchCount < 2 || equalBestCount != 0 || lowerScoreCount != 0 {
+				return fmt.Errorf("exclusive detection decision is inconsistent")
+			}
+		default:
+			return fmt.Errorf("ambiguous detection decision is inconsistent")
 		}
 	case DetectionNoMatch:
 		if decision.reason == DetectionReasonSelected ||
 			decision.reason == DetectionReasonEqualBest ||
+			decision.reason == DetectionReasonMultipleMatches ||
 			decision.reason == DetectionReasonLowerScore ||
 			decision.selectedProfileID != "" ||
 			decision.selectedProfileVersion.valid() ||
-			selectedCount != 0 || equalBestCount != 0 || lowerScoreCount != 0 ||
+			selectedCount != 0 || equalBestCount != 0 || multipleMatchCount != 0 || lowerScoreCount != 0 ||
 			!overallReasonPresent {
 			return fmt.Errorf("no-match detection decision is inconsistent")
 		}

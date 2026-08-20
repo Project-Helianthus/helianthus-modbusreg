@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"reflect"
 	"testing"
@@ -53,8 +54,9 @@ func readMixedCatalogClosure(t *testing.T) mixedCatalogClosure {
 	if err := decoder.Decode(&closure); err != nil {
 		t.Fatal(err)
 	}
-	if decoder.More() {
-		t.Fatal("mixed-catalog closure has trailing JSON")
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		t.Fatalf("mixed-catalog closure has trailing JSON: %v", err)
 	}
 	return closure
 }
