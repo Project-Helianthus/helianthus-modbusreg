@@ -38,10 +38,10 @@ func TestTeslaHSCProfileFailsClosedUntilExplicitlyQualified(t *testing.T) {
 }
 
 func TestTeslaHSCEnvelopesValidateAndRetainOpaquePayload(t *testing.T) {
-	for _, function := range []modbus.FunctionCode{
-		modbus.FunctionVendor100,
-		modbus.FunctionVendor101,
-		modbus.FunctionVendor102,
+	for _, function := range []modbus.PrivateFunctionCode{
+		teslaHSCFunction100,
+		teslaHSCFunction101,
+		teslaHSCFunction102,
 	} {
 		envelope, err := DecodeTeslaHSCEnvelope(function, []byte{2, 0xaa, 0xbb})
 		if err != nil {
@@ -52,21 +52,21 @@ func TestTeslaHSCEnvelopesValidateAndRetainOpaquePayload(t *testing.T) {
 		}
 	}
 	for _, payload := range [][]byte{nil, {1}, {1, 0xaa, 0xbb}} {
-		if _, err := DecodeTeslaHSCEnvelope(modbus.FunctionVendor100, payload); err == nil {
+		if _, err := DecodeTeslaHSCEnvelope(teslaHSCFunction100, payload); err == nil {
 			t.Fatalf("FC100 invalid payload accepted: %x", payload)
 		}
 	}
 }
 
 func TestTeslaHSCExceptionAndRedactedProvenance(t *testing.T) {
-	classification := ClassifyTeslaHSCException(modbus.FunctionVendor101, 4)
+	classification := ClassifyTeslaHSCException(teslaHSCFunction101, 4)
 	if classification != TeslaHSCExceptionCodecFailure {
 		t.Fatalf("exception classification = %q", classification)
 	}
 	provenance := NewTeslaHSCProvenance(
 		TeslaHSCCompatibilityV1,
 		0x10,
-		modbus.FunctionVendor102,
+		teslaHSCFunction102,
 		[]byte("sensitive-fixture-identifier"),
 	)
 	if provenance.PayloadLength() != len("sensitive-fixture-identifier") ||

@@ -16,7 +16,7 @@ const (
 	huaweiDocsMergeSHA = "aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f"
 	huaweiModbusMerge  = "c78030472c24f0f2b849fd30124611157a81f834"
 	huaweiModbusPin    = "v0.0.0-20260820212315-c78030472c24"
-	currentModbusPin   = "v0.1.0"
+	currentModbusPin   = "v0.3.0"
 )
 
 type huaweiFamilyExpectation struct {

@@ -22,7 +22,7 @@ const (
 type TeslaTEDAPIObservationSpec struct {
 	ID       string
 	Profile  TeslaHSCProfile
-	Function modbus.FunctionCode
+	Function modbus.PrivateFunctionCode
 	Payload  []byte
 }
 
