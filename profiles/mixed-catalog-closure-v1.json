@@ -57,7 +57,7 @@
     {
       "id": "huawei.sdongle",
       "role": "PRIMARY_CANDIDATE",
-      "disposition": "NO_ADMISSIBLE_PROFILE",
+      "disposition": "PRE_LIVE_INSUFFICIENT_EVIDENCE",
       "runtime_identity": "",
       "disposition_file": "profiles/vendor/huawei/sdongle-disposition.json"
     },

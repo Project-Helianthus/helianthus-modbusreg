@@ -94,7 +94,7 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 		{"fronius.gen24", "POST_PRIMARY_FLAVOR", "QUALIFIED_FLAVOR_CLASSIFICATION", reg.SunSpecFroniusObservedFlavorID + "," + reg.SunSpecFroniusObservedFlavorV11ID, ""},
 		{"growatt.direct-inverter", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendor/growatt/disposition.json"},
 		{"huawei.smartlogger", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendor/huawei/smartlogger-disposition.json"},
-		{"huawei.sdongle", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendor/huawei/sdongle-disposition.json"},
+		{"huawei.sdongle", "PRIMARY_CANDIDATE", "PRE_LIVE_INSUFFICIENT_EVIDENCE", "", "profiles/vendor/huawei/sdongle-disposition.json"},
 		{"huawei.emma", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendor/huawei/emma-disposition.json"},
 	}
 	if len(closure.Participants) != len(wantParticipants) {
@@ -121,7 +121,7 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 		if err := json.Unmarshal(data, &disposition); err != nil {
 			t.Fatal(err)
 		}
-		if disposition.Outcome != "NO_ADMISSIBLE_PROFILE" || disposition.CatalogRegistered || disposition.SupportClaim {
+		if disposition.Outcome != got.Disposition || disposition.CatalogRegistered || disposition.SupportClaim {
 			t.Fatalf("participant %s became actionable: %#v", got.ID, disposition)
 		}
 	}

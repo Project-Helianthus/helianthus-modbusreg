@@ -11,11 +11,11 @@ func TestHuaweiSDongleDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 		"schema", "profile", "profile_version", "outcome", "evidence", "admission",
 		"protocol_version", "search_sequence", "capacity", "child_enumeration",
 		"private_functions", "decoder_keys", "catalog_registered",
-		"automatic_runtime_admission", "support_claim", "reopen_requires",
+		"automatic_runtime_admission", "support_claim", "qualification_plan",
 	)
 	if record["schema"] != "helianthus-modbusreg-huawei-sdongle-disposition/v1" ||
 		record["profile"] != "huawei.sdongle" || record["profile_version"] != "1.0.0" ||
-		record["outcome"] != "NO_ADMISSIBLE_PROFILE" || record["catalog_registered"] != false ||
+		record["outcome"] != "PRE_LIVE_INSUFFICIENT_EVIDENCE" || record["catalog_registered"] != false ||
 		record["automatic_runtime_admission"] != false || record["support_claim"] != false ||
 		len(record["decoder_keys"].([]any)) != 0 {
 		t.Fatalf("unexpected S-Dongle disposition: %#v", record)
@@ -35,8 +35,9 @@ func TestHuaweiSDongleDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 	}
 
 	admission := huaweiObject(t, record["admission"])
-	requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "models", "firmware_gates", "protocol_gate", "required_tuple", "forbidden_identity", "version_comparison", "multiple_positive_outcome", "first_match_priority")
+	requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "default_denied", "models", "firmware_gates", "protocol_gate", "required_tuple", "forbidden_identity", "version_comparison", "multiple_positive_outcome", "first_match_priority")
 	if huaweiInt(t, admission["unit_id"]) != 100 || admission["registered"] != false || admission["executable"] != false ||
+		admission["default_denied"] != true ||
 		!reflect.DeepEqual(huaweiStringSlice(t, admission["models"]), []string{"SDongleA-05", "SDongleB-03", "SDongleB-06"}) ||
 		!reflect.DeepEqual(huaweiStringSlice(t, admission["firmware_gates"]), []string{"V200R025C00SPC120"}) ||
 		admission["protocol_gate"] != "D5.0" || admission["version_comparison"] != "EXACT_TUPLE_ONLY" ||
@@ -93,8 +94,34 @@ func TestHuaweiSDongleDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 
 	privateFunctions := huaweiObject(t, record["private_functions"])
 	requireHuaweiKeys(t, privateFunctions, "FC0x41", "FC0x17")
-	if privateFunctions["FC0x41"] != "NO_SEND" || privateFunctions["FC0x17"] != "NO_SEND" ||
-		!reflect.DeepEqual(huaweiStringSlice(t, record["reopen_requires"]), missing) {
-		t.Fatalf("unexpected S-Dongle private-function/reopen policy: %#v", record)
+	if privateFunctions["FC0x41"] != "NO_SEND" || privateFunctions["FC0x17"] != "NO_SEND" {
+		t.Fatalf("unexpected S-Dongle private-function policy: %#v", record)
+	}
+
+	plan := huaweiObject(t, record["qualification_plan"])
+	requireHuaweiKeys(t, plan, "status", "read_only", "live_io_performed", "operator_confirmation_required", "required_connection_context", "capture_sequence", "redact", "promotion_outcomes")
+	if plan["status"] != "AWAITING_OPERATOR_ENDPOINTS" || plan["read_only"] != true ||
+		plan["live_io_performed"] != false || plan["operator_confirmation_required"] != true ||
+		!reflect.DeepEqual(huaweiStringSlice(t, plan["required_connection_context"]), []string{
+			"endpoint", "port", "unit_id", "topology",
+		}) ||
+		!reflect.DeepEqual(huaweiStringSlice(t, plan["capture_sequence"]), []string{
+			"basic_mei_identity",
+			"fc03_30068_q2_protocol_version",
+			"fc03_37410_q3_type_search_state_change_sequence_before",
+			"bounded_fc2b_mei0e_code03_object87_child_inventory",
+			"fc03_37429_q1_capacity",
+			"fc03_37410_q3_type_search_state_change_sequence_after",
+			"pairwise_negative_overlap_smartlogger_emma",
+			"sanitized_fixture_replay",
+		}) ||
+		!reflect.DeepEqual(huaweiStringSlice(t, plan["redact"]), []string{
+			"serial_number", "esn", "registration_material", "credentials", "private_endpoint",
+		}) ||
+		!reflect.DeepEqual(huaweiStringSlice(t, plan["promotion_outcomes"]), []string{
+			"PROFILE_ADMITTED", "NO_ADMISSIBLE_PROFILE",
+		}) ||
+		!reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), missing) {
+		t.Fatalf("unexpected S-Dongle qualification plan: %#v", plan)
 	}
 }
