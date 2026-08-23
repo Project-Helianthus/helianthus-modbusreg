@@ -53,7 +53,9 @@ func TestTeslaTEDAPIRegistryFailsClosedForUnqualifiedOrMalformedInput(t *testing
 		t.Fatal(err)
 	}
 	record, _ := registry.Lookup("sample-2")
-	if record.State != TeslaTEDAPIFramingOnly || record.OutboundAllowed {
+	if record.State != TeslaTEDAPIFramingOnly ||
+		record.OperationAdmission != TeslaTEDAPIAdmissionBlockedProfile ||
+		record.OutboundAllowed {
 		t.Fatalf("unqualified record = %#v", record)
 	}
 	if err := registry.Retain(TeslaTEDAPIObservationSpec{
