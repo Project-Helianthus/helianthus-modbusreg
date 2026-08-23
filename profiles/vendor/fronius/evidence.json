@@ -1,0 +1,18 @@
+{
+  "schema": "helianthus-modbusreg-vendor-evidence/v1",
+  "profile": "fronius",
+  "profile_version": "1.0.0",
+  "public_sources": [
+    {
+      "id": "fronius-sunspec-float-v1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/2abcb26a06ffa71149177de2cc2817a24d82081f/protocols/fronius/sunspec-float-v1.md",
+      "license": "CC0-1.0"
+    }
+  ],
+  "applicability": [
+    "Fronius Symo GEN24 10.0 firmware 1.41.11-1",
+    "exact SunSpec V1.1 chain ending in ffff/0",
+    "offline read-only fixture classification only; no live support or write authority"
+  ],
+  "license": "CC0-1.0"
+}
