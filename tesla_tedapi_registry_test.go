@@ -29,8 +29,9 @@ func TestTeslaTEDAPIRegistryRetainsOnlyRedactedOpaqueObservations(t *testing.T) 
 	if !ok {
 		t.Fatal("retained observation missing")
 	}
-	if record.State != TeslaTEDAPIOpaqueQualified || record.PayloadLength != 2 ||
-		record.PayloadDigest == "" || record.OutboundAllowed {
+	if record.State != TeslaTEDAPIOpaqueQualified ||
+		record.OperationAdmission != TeslaTEDAPIAdmissionBlockedNoAdmissibleOperation ||
+		record.PayloadLength != 2 || record.PayloadDigest == "" || record.OutboundAllowed {
 		t.Fatalf("record = %#v", record)
 	}
 }
