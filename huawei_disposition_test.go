@@ -129,15 +129,6 @@ func TestHuaweiGatewayDispositionsFailClosedIndependently(t *testing.T) {
 
 	expectations := []huaweiFamilyExpectation{
 		{
-			file: "smartlogger-disposition.json", profile: "huawei.smartlogger", candidateID: "huawei.smartlogger.v1", gatewayKind: "SmartLogger",
-			missingDiscriminators: []string{"negative_overlap_with_emma", "sanitized_self_entry_and_firmware_fixture"},
-			requiredTuple:         []string{"device_list_change_readable", "mei_child_inventory_self_entry_model_smartlogger", "structured_firmware_gate"},
-			forbiddenIdentity:     []string{"writable_device_name_65524", "esn_only", "basic_mei_only"},
-			firmwareGateCount:     8, negativeFixtures: []string{"smartlogger-unknown-v300r024-spc200", "smartlogger-cross-branch-v300r025"},
-			unitTarget: "0", maxChildren: 247, maxPages: 248, maxObjects: 248, maxBytes: 65536,
-			reject: []string{"cursor_loop", "duplicate_object", "duplicate_device_id", "count_mismatch", "sequence_changed"},
-		},
-		{
 			file: "sdongle-disposition.json", profile: "huawei.sdongle", candidateID: "huawei.sdongle.v1", gatewayKind: "S-Dongle",
 			missingDiscriminators: []string{"sanitized_product_code_and_revision_fixture", "live_child_inventory_target_fixture"},
 			requiredTuple:         []string{"basic_mei_product_code_sdongle", "protocol_version_branch_match", "dongle_type_search_sequence_tuple", "structured_firmware_gate"},

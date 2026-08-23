@@ -1,58 +1,55 @@
 {
-  "schema": "helianthus-modbusreg-profile-disposition/v1",
+  "schema": "helianthus-modbusreg-huawei-smartlogger-disposition/v1",
   "profile": "huawei.smartlogger",
   "profile_version": "1.0.0",
   "outcome": "NO_ADMISSIBLE_PROFILE",
   "evidence": {
-    "packet_id": "HUAWEI-GATEWAYS-V1",
-    "docs_merge_sha": "aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f",
+    "docs_merge_sha": "2abcb26a06ffa71149177de2cc2817a24d82081f",
     "candidate_id": "huawei.smartlogger.v1",
-    "gateway_kind": "SmartLogger",
-    "documentary_status": "DOCUMENTARY_CANDIDATE",
+    "source_license": "CC0-1.0",
     "eligible": false,
-    "missing_discriminators": [
-      "negative_overlap_with_emma",
-      "sanitized_self_entry_and_firmware_fixture"
+    "missing_evidence": [
+      "sanitized_extended_mei_self_entry_fixture",
+      "exact_child_attribute_encoding_fixture",
+      "pairwise_negative_overlap_with_emma_fixture"
     ]
   },
-  "transport_dependency": {
-    "module": "github.com/Project-Helianthus/helianthus-modbus",
-    "merge_sha": "c78030472c24f0f2b849fd30124611157a81f834",
-    "version": "v0.0.0-20260820212315-c78030472c24",
-    "prerequisites": [
-      "modbus.unit-id-zero.v1",
-      "modbus.mei-vendor-cursor.v1",
-      "modbus.mei-object-wrap.v1"
-    ]
-  },
-  "detector": {
+  "admission": {
+    "unit_id": 0,
     "registered": false,
     "executable": false,
     "required_tuple": [
-      "device_list_change_readable",
-      "mei_child_inventory_self_entry_model_smartlogger",
-      "structured_firmware_gate"
+      "fc03_65521_q1_u16_counter_stable",
+      "fc2b_mei0e_code03_object87_inventory",
+      "self_entry_model_smartlogger",
+      "exact_firmware_tuple"
     ],
     "forbidden_identity": [
       "writable_device_name_65524",
-      "esn_only",
-      "basic_mei_only"
+      "esn_40713",
+      "basic_mei_only",
+      "optional_offering_string"
     ],
-    "candidate_ambiguity_outcome": "NO_ADMISSIBLE_PROFILE",
+    "firmware_gates": [
+      "V300R024C10SPC191",
+      "V300R024C10SPC210"
+    ],
+    "version_comparison": "EXACT_TUPLE_ONLY",
     "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",
     "first_match_priority": false
   },
-  "firmware_gate_count": 8,
-  "negative_fixture_ids": [
-    "smartlogger-unknown-v300r024-spc200",
-    "smartlogger-cross-branch-v300r025"
-  ],
+  "change_counter": {
+    "function": "FC03",
+    "offset": 65521,
+    "quantity": 1,
+    "type": "U16",
+    "equal_before_after": true
+  },
   "child_enumeration": {
-    "operation": "FC2B_MEI_0E",
-    "executable": false,
-    "unit_target": "0",
+    "function": "FC2B_MEI_0E",
     "read_device_id_code": 3,
     "start_object_id": 135,
+    "executable": false,
     "max_children": 247,
     "limits": {
       "deadline_ms": 15000,
@@ -63,16 +60,25 @@
     "reject": [
       "cursor_loop",
       "duplicate_object",
-      "duplicate_device_id",
+      "duplicate_child_address",
       "count_mismatch",
-      "sequence_changed"
+      "malformed_attribute",
+      "second_wrap",
+      "change_counter_mismatch",
+      "limit_exhausted"
     ]
+  },
+  "private_functions": {
+    "FC0x41": "NO_SEND",
+    "FC0x17": "NO_SEND"
   },
   "decoder_keys": [],
   "catalog_registered": false,
+  "automatic_runtime_admission": false,
   "support_claim": false,
   "reopen_requires": [
-    "negative_overlap_with_emma",
-    "sanitized_self_entry_and_firmware_fixture"
+    "sanitized_extended_mei_self_entry_fixture",
+    "exact_child_attribute_encoding_fixture",
+    "pairwise_negative_overlap_with_emma_fixture"
   ]
 }
