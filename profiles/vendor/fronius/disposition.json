@@ -1,0 +1,49 @@
+{
+  "schema": "helianthus-modbusreg-sunspec-fronius-audit/v1",
+  "milestone": "REG-SF-01",
+  "outcome": "OFFLINE_PROFILE_ADMITTED",
+  "docs": {
+    "merge_sha": "2abcb26a06ffa71149177de2cc2817a24d82081f",
+    "logical_schema_id": "sunspec.models.v1",
+    "registry_revision": "sunspec.models@7abdf898-v1",
+    "source_commit": "7abdf8982d5364f8ae916deee18aac86c11be36d"
+  },
+  "registry": {
+    "base_sha": "b7248d6c60529fd11c4ea02c9f374dd2dccd6536",
+    "decoder_behavior_changed": false,
+    "exact_model_catalog_verified": true,
+    "unknown_retention_verified": true,
+    "equivalence_103_113_verified": true,
+    "sentinel_handling_verified": true,
+    "executable_evidence": [
+      "TestSunSpecDecoderRegistryUsesExactImmutableKeys",
+      "TestSunSpecChainRetainsOrderedDuplicatesUnknownAndWrongLength",
+      "TestSunSpecModels103And113CanonicalEquivalence",
+      "TestSunSpecValueSentinelsAndExactDecimal",
+      "TestFroniusObservedFlavorV11MatchesOnlyTheModel123Chain"
+    ]
+  },
+  "fronius": {
+    "flavor_id": "sunspec.flavor.fronius.gen24.float.observed@1.1.0",
+    "manufacturer": "Fronius",
+    "model": "Symo GEN24 10.0",
+    "firmware": "1.41.11-1",
+    "chain": [
+      {"ModelID": 1, "ModelLength": 65},
+      {"ModelID": 113, "ModelLength": 60},
+      {"ModelID": 120, "ModelLength": 26},
+      {"ModelID": 121, "ModelLength": 30},
+      {"ModelID": 122, "ModelLength": 44},
+      {"ModelID": 123, "ModelLength": 24},
+      {"ModelID": 160, "ModelLength": 88},
+      {"ModelID": 124, "ModelLength": 24},
+      {"ModelID": 65535, "ModelLength": 0}
+    ],
+    "offline_fixture": "testdata/sunspec/chains/fronius_gen24_float_v1_1.json",
+    "offline_classifier_executable": true,
+    "automatic_runtime_admission": false,
+    "live_qualified": false,
+    "write_authority": false,
+    "support_claim": false
+  }
+}

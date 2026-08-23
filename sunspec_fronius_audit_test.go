@@ -76,9 +76,9 @@ func TestSunSpecFroniusAuditClosesAgainstPinnedRegistry(t *testing.T) {
 	}
 	wantEvidence := []string{
 		"TestSunSpecDecoderRegistryUsesExactImmutableKeys",
-		"TestSunSpecChainRetainsUnknownModel",
-		"TestSunSpecIntegerAndFloatThreePhaseModelsAreEquivalent",
-		"TestSunSpecValueSentinels",
+		"TestSunSpecChainRetainsOrderedDuplicatesUnknownAndWrongLength",
+		"TestSunSpecModels103And113CanonicalEquivalence",
+		"TestSunSpecValueSentinelsAndExactDecimal",
 		"TestFroniusObservedFlavorV11MatchesOnlyTheModel123Chain",
 	}
 	if disposition.Registry.BaseSHA != "b7248d6c60529fd11c4ea02c9f374dd2dccd6536" ||
