@@ -29,12 +29,13 @@ type TeslaTEDAPIObservationSpec struct {
 // TeslaTEDAPIRedactedRecord is safe for gateway/MCP projection. Payload never
 // contains raw bytes; digest and length preserve deterministic replay identity.
 type TeslaTEDAPIRedactedRecord struct {
-	ID              string                   `json:"id"`
-	State           TeslaTEDAPISemanticState `json:"state"`
-	Function        byte                     `json:"function"`
-	PayloadLength   int                      `json:"payload_length"`
-	PayloadDigest   string                   `json:"payload_digest"`
-	OutboundAllowed bool                     `json:"outbound_allowed"`
+	ID                 string                    `json:"id"`
+	State              TeslaTEDAPISemanticState  `json:"state"`
+	OperationAdmission TeslaTEDAPIAdmissionState `json:"operation_admission"`
+	Function           byte                      `json:"function"`
+	PayloadLength      int                       `json:"payload_length"`
+	PayloadDigest      string                    `json:"payload_digest"`
+	OutboundAllowed    bool                      `json:"outbound_allowed"`
 }
 
 // TeslaTEDAPISemanticRegistry is a bounded, concurrent registry of opaque
@@ -68,8 +69,9 @@ func (registry *TeslaTEDAPISemanticRegistry) Retain(spec TeslaTEDAPIObservationS
 		envelope.Function(),
 		envelope.Payload(),
 	)
+	admission := spec.Profile.OperationAdmission()
 	record := TeslaTEDAPIRedactedRecord{
-		ID: spec.ID, State: state, Function: byte(envelope.Function()),
+		ID: spec.ID, State: state, OperationAdmission: admission.State, Function: byte(envelope.Function()),
 		PayloadLength: provenance.PayloadLength(), PayloadDigest: provenance.PayloadDigest(),
 		OutboundAllowed: false,
 	}

@@ -21,6 +21,25 @@ const (
 	TeslaHSCQualifiedReadOnly TeslaHSCDisposition = "qualified_read_only"
 )
 
+// TeslaTEDAPIAdmissionState distinguishes profile qualification from the
+// separate, per-operation wire-admission decision.
+type TeslaTEDAPIAdmissionState string
+
+const (
+	// TeslaTEDAPIAdmissionBlockedProfile denies an unqualified profile.
+	TeslaTEDAPIAdmissionBlockedProfile TeslaTEDAPIAdmissionState = "blocked_profile"
+	// TeslaTEDAPIAdmissionBlockedNoAdmissibleOperation denies a qualified
+	// profile until a later contract proves one particular operation safe.
+	TeslaTEDAPIAdmissionBlockedNoAdmissibleOperation TeslaTEDAPIAdmissionState = "blocked_no_admissible_operation"
+)
+
+// TeslaTEDAPIOperationAdmission is the redacted result of local admission
+// policy. It deliberately carries no request bytes or inferred operation name.
+type TeslaTEDAPIOperationAdmission struct {
+	State           TeslaTEDAPIAdmissionState
+	OutboundAllowed bool
+}
+
 // TeslaHSCProfileConfig is an explicit local flavor configuration. A matching
 // node or a readable frame is not a substitute for this configuration.
 type TeslaHSCProfileConfig struct {
@@ -70,6 +89,18 @@ func (profile TeslaHSCProfile) Disposition() TeslaHSCDisposition {
 // profile. A later typed, read-only operation contract must opt in separately.
 func (TeslaHSCProfile) OutboundAllowed() bool {
 	return false
+}
+
+// OperationAdmission reports that initial profile qualification never itself
+// authorizes an opaque vendor request. A later contract must add a typed,
+// allowlisted operation before this result can become sendable.
+func (profile TeslaHSCProfile) OperationAdmission() TeslaTEDAPIOperationAdmission {
+	if profile.Disposition() != TeslaHSCQualifiedReadOnly {
+		return TeslaTEDAPIOperationAdmission{State: TeslaTEDAPIAdmissionBlockedProfile}
+	}
+	return TeslaTEDAPIOperationAdmission{
+		State: TeslaTEDAPIAdmissionBlockedNoAdmissibleOperation,
+	}
 }
 
 // TeslaHSCEnvelope is a decoded length envelope with uninterpreted inner bytes.
