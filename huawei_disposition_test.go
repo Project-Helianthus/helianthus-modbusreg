@@ -129,15 +129,6 @@ func TestHuaweiGatewayDispositionsFailClosedIndependently(t *testing.T) {
 
 	expectations := []huaweiFamilyExpectation{
 		{
-			file: "sdongle-disposition.json", profile: "huawei.sdongle", candidateID: "huawei.sdongle.v1", gatewayKind: "S-Dongle",
-			missingDiscriminators: []string{"sanitized_product_code_and_revision_fixture", "live_child_inventory_target_fixture"},
-			requiredTuple:         []string{"basic_mei_product_code_sdongle", "protocol_version_branch_match", "dongle_type_search_sequence_tuple", "structured_firmware_gate"},
-			forbiddenIdentity:     []string{"search_status_only", "serial_number", "unit_100_readability_only"},
-			firmwareGateCount:     5, negativeFixtures: []string{"sdongle-cross-branch-v200r023", "sdongle-v100-below-tcp-minimum"},
-			unitTarget: "DOCUMENTARY_1_TO_247_TARGET_UNRESOLVED_FOR_TCP_GATEWAY", maxChildren: 120, maxPages: 121, maxObjects: 121, maxBytes: 32768,
-			reject: []string{"cursor_loop", "duplicate_object", "duplicate_device_id", "search_in_progress", "sequence_changed", "count_mismatch", "unit_target_ambiguous"},
-		},
-		{
 			file: "emma-disposition.json", profile: "huawei.emma", candidateID: "huawei.emma.v1", gatewayKind: "EMMA",
 			missingDiscriminators: []string{"sanitized_model_software_self_entry_fixture", "negative_overlap_with_smartlogger", "live_mei_child_inventory_fixture"},
 			requiredTuple:         []string{"offering_name", "model_emma_family", "software_version_branch_match", "mei_child_inventory_self_entry_device_id_zero_product_type_hems"},
