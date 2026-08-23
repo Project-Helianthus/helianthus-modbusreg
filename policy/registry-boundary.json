@@ -58,7 +58,8 @@
   "vendor_identifiers": [
     "fronius",
     "growatt",
-    "huawei"
+    "huawei",
+    "tesla"
   ],
   "standard_family_vendor_neutral": true,
   "vendor_overlay_requires_public_evidence": true
