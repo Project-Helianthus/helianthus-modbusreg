@@ -9,10 +9,10 @@ import (
 
 func TestTeslaHSCProfileFailsClosedUntilExplicitlyQualified(t *testing.T) {
 	framing, err := NewTeslaHSCProfile(TeslaHSCProfileConfig{
-		Enabled:               true,
-		Node:                  0x10,
-		PassiveCompatible:     true,
-		CompatibilityVersion:  "unknown",
+		Enabled:              true,
+		Node:                 0x10,
+		PassiveCompatible:    true,
+		CompatibilityVersion: "unknown",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -21,10 +21,10 @@ func TestTeslaHSCProfileFailsClosedUntilExplicitlyQualified(t *testing.T) {
 		t.Fatalf("framing profile = %#v", framing)
 	}
 	qualified, err := NewTeslaHSCProfile(TeslaHSCProfileConfig{
-		Enabled:               true,
-		Node:                  0x10,
-		PassiveCompatible:     true,
-		CompatibilityVersion:  TeslaHSCCompatibilityV1,
+		Enabled:              true,
+		Node:                 0x10,
+		PassiveCompatible:    true,
+		CompatibilityVersion: TeslaHSCCompatibilityV1,
 	})
 	if err != nil {
 		t.Fatal(err)
