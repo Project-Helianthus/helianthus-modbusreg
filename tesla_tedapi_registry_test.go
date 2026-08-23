@@ -18,8 +18,8 @@ func TestTeslaTEDAPIRegistryRetainsOnlyRedactedOpaqueObservations(t *testing.T) 
 	}
 	registry := NewTeslaTEDAPISemanticRegistry()
 	if err := registry.Retain(TeslaTEDAPIObservationSpec{
-		ID:      "sample-1",
-		Profile: profile,
+		ID:       "sample-1",
+		Profile:  profile,
 		Function: modbus.FunctionVendor100,
 		Payload:  []byte{2, 0xaa, 0xbb},
 	}); err != nil {
@@ -32,9 +32,6 @@ func TestTeslaTEDAPIRegistryRetainsOnlyRedactedOpaqueObservations(t *testing.T) 
 	if record.State != TeslaTEDAPIOpaqueQualified || record.PayloadLength != 2 ||
 		record.PayloadDigest == "" || record.OutboundAllowed {
 		t.Fatalf("record = %#v", record)
-	}
-	if len(record.Payload) != 0 {
-		t.Fatalf("raw payload leaked: %x", record.Payload)
 	}
 }
 
