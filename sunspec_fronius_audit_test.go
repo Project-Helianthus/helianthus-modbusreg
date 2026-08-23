@@ -43,6 +43,19 @@ type sunSpecFroniusAuditDisposition struct {
 	} `json:"fronius"`
 }
 
+type sunSpecFroniusPublicEvidence struct {
+	Schema         string `json:"schema"`
+	Profile        string `json:"profile"`
+	ProfileVersion string `json:"profile_version"`
+	PublicSources  []struct {
+		ID      string `json:"id"`
+		Locator string `json:"locator"`
+		License string `json:"license"`
+	} `json:"public_sources"`
+	Applicability []string `json:"applicability"`
+	License       string   `json:"license"`
+}
+
 func readSunSpecFroniusAuditDisposition(t *testing.T) sunSpecFroniusAuditDisposition {
 	t.Helper()
 	data, err := os.ReadFile("profiles/vendor/fronius/disposition.json")
@@ -102,5 +115,44 @@ func TestSunSpecFroniusAuditClosesAgainstPinnedRegistry(t *testing.T) {
 		disposition.Fronius.AutomaticRuntimeAdmission || disposition.Fronius.LiveQualified ||
 		disposition.Fronius.WriteAuthority || disposition.Fronius.SupportClaim {
 		t.Fatalf("unexpected Fronius disposition: %#v", disposition.Fronius)
+	}
+}
+
+func TestSunSpecFroniusAuditUsesPublicProtocolEvidence(t *testing.T) {
+	data, err := os.ReadFile("profiles/vendor/fronius/evidence.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	var evidence sunSpecFroniusPublicEvidence
+	if err := decoder.Decode(&evidence); err != nil {
+		t.Fatal(err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		t.Fatalf("trailing JSON value: %v", err)
+	}
+	wantSources := []struct {
+		ID      string `json:"id"`
+		Locator string `json:"locator"`
+		License string `json:"license"`
+	}{
+		{
+			ID:      "fronius-sunspec-float-v1",
+			Locator: "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/2abcb26a06ffa71149177de2cc2817a24d82081f/protocols/fronius/sunspec-float-v1.md",
+			License: "CC0-1.0",
+		},
+	}
+	wantApplicability := []string{
+		"Fronius Symo GEN24 10.0 firmware 1.41.11-1",
+		"exact SunSpec V1.1 chain ending in ffff/0",
+		"offline read-only fixture classification only; no live support or write authority",
+	}
+	if evidence.Schema != "helianthus-modbusreg-vendor-evidence/v1" || evidence.Profile != "fronius" ||
+		evidence.ProfileVersion != "1.0.0" || evidence.License != "CC0-1.0" ||
+		!reflect.DeepEqual(evidence.PublicSources, wantSources) ||
+		!reflect.DeepEqual(evidence.Applicability, wantApplicability) {
+		t.Fatalf("unexpected Fronius public evidence: %#v", evidence)
 	}
 }
