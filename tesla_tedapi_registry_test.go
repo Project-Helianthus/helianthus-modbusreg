@@ -2,8 +2,6 @@ package modbusreg
 
 import (
 	"testing"
-
-	modbus "github.com/Project-Helianthus/helianthus-modbus"
 )
 
 func TestTeslaTEDAPIRegistryRetainsOnlyRedactedOpaqueObservations(t *testing.T) {
@@ -20,7 +18,7 @@ func TestTeslaTEDAPIRegistryRetainsOnlyRedactedOpaqueObservations(t *testing.T) 
 	if err := registry.Retain(TeslaTEDAPIObservationSpec{
 		ID:       "sample-1",
 		Profile:  profile,
-		Function: modbus.FunctionVendor100,
+		Function: teslaHSCFunction100,
 		Payload:  []byte{2, 0xaa, 0xbb},
 	}); err != nil {
 		t.Fatal(err)
@@ -48,7 +46,7 @@ func TestTeslaTEDAPIRegistryFailsClosedForUnqualifiedOrMalformedInput(t *testing
 		t.Fatal(err)
 	}
 	if err := registry.Retain(TeslaTEDAPIObservationSpec{
-		ID: "sample-2", Profile: profile, Function: modbus.FunctionVendor101, Payload: []byte{0},
+		ID: "sample-2", Profile: profile, Function: teslaHSCFunction101, Payload: []byte{0},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +57,7 @@ func TestTeslaTEDAPIRegistryFailsClosedForUnqualifiedOrMalformedInput(t *testing
 		t.Fatalf("unqualified record = %#v", record)
 	}
 	if err := registry.Retain(TeslaTEDAPIObservationSpec{
-		ID: "bad", Profile: profile, Function: modbus.FunctionVendor102, Payload: []byte{1},
+		ID: "bad", Profile: profile, Function: teslaHSCFunction102, Payload: []byte{1},
 	}); err == nil {
 		t.Fatal("malformed payload accepted")
 	}
