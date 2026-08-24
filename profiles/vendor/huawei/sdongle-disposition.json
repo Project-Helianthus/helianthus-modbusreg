@@ -1,59 +1,146 @@
 {
-  "schema": "helianthus-modbusreg-profile-disposition/v1",
+  "schema": "helianthus-modbusreg-huawei-sdongle-disposition/v1",
   "profile": "huawei.sdongle",
   "profile_version": "1.0.0",
-  "outcome": "NO_ADMISSIBLE_PROFILE",
+  "outcome": "PRE_LIVE_INSUFFICIENT_EVIDENCE",
   "evidence": {
-    "packet_id": "HUAWEI-GATEWAYS-V1",
-    "docs_merge_sha": "aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f",
+    "docs_merge_sha": "2d44c22f27c4be0e1de460f63b8330c728a5af8f",
     "candidate_id": "huawei.sdongle.v1",
-    "gateway_kind": "S-Dongle",
-    "documentary_status": "DOCUMENTARY_CANDIDATE",
+    "source_license": "CC0-1.0",
     "eligible": false,
-    "missing_discriminators": [
-      "sanitized_product_code_and_revision_fixture",
-      "live_child_inventory_target_fixture"
-    ]
+    "missing_evidence": [
+      "sanitized_basic_mei_product_model_fixture",
+      "exact_protocol_version_encoding_fixture",
+      "separately_qualified_child_unit_inventory_fixture"
+    ],
+    "live_qualification": {
+      "status": "LIVE_STOPPED_PERSISTENT_NON_RESPONSE",
+      "identification_claim": false,
+      "incompatibility_claim": false,
+      "subsequent_modbus_requests_sent": 0,
+      "attempts": [
+        {
+          "operation": "FC2B_MEI_0E_READ_DEVICE_ID_BASIC",
+          "unit_id": 100,
+          "deadline_ms": 3000,
+          "outcome": "TIMEOUT"
+        },
+        {
+          "operation": "FC2B_MEI_0E_READ_DEVICE_ID_BASIC",
+          "unit_id": 100,
+          "deadline_ms": 10000,
+          "outcome": "TIMEOUT"
+        },
+        {
+          "operation": "FC03_37411_Q1_DEVICE_SEARCH_STATUS",
+          "unit_id": 100,
+          "deadline_ms": 5000,
+          "outcome": "TIMEOUT"
+        }
+      ],
+      "retry_matrix": {
+        "unit_id": 100,
+        "minimum_idle_ms": 5000,
+        "outcome": "ALL_TIMEOUT",
+        "attempts": [
+          {
+            "operation": "FC2B_MEI_0E_READ_DEVICE_ID_BASIC",
+            "unit_id": 100,
+            "deadline_ms": 5000,
+            "outcome": "TIMEOUT"
+          },
+          {
+            "operation": "FC03_37411_Q1_DEVICE_SEARCH_STATUS",
+            "unit_id": 100,
+            "deadline_ms": 5000,
+            "outcome": "TIMEOUT"
+          },
+          {
+            "operation": "FC2B_MEI_0E_READ_DEVICE_ID_BASIC",
+            "unit_id": 100,
+            "deadline_ms": 5000,
+            "outcome": "TIMEOUT"
+          },
+          {
+            "operation": "FC03_37411_Q1_DEVICE_SEARCH_STATUS",
+            "unit_id": 100,
+            "deadline_ms": 5000,
+            "outcome": "TIMEOUT"
+          }
+        ]
+      }
+    }
   },
-  "transport_dependency": {
-    "module": "github.com/Project-Helianthus/helianthus-modbus",
-    "merge_sha": "c78030472c24f0f2b849fd30124611157a81f834",
-    "version": "v0.0.0-20260820212315-c78030472c24",
-    "prerequisites": [
-      "modbus.unit-id-zero.v1",
-      "modbus.mei-vendor-cursor.v1",
-      "modbus.mei-object-wrap.v1"
-    ]
-  },
-  "detector": {
+  "admission": {
+    "unit_id": 100,
     "registered": false,
     "executable": false,
+    "default_denied": true,
+    "models": [
+      "S-DongleA-05",
+      "S-DongleB-03",
+      "S-DongleB-06"
+    ],
+    "firmware_gates": {
+      "offline_candidate": [
+        "V200R025C00SPC120"
+      ],
+      "observed_default_denied": {
+        "model": "S-DongleA-05",
+        "firmware": "V200R022C10SPC312",
+        "minimum_gate": "V200R022C10",
+        "admission": "PRE_LIVE_INSUFFICIENT_EVIDENCE"
+      }
+    },
+    "protocol_gate": "D5.0",
     "required_tuple": [
-      "basic_mei_product_code_sdongle",
-      "protocol_version_branch_match",
-      "dongle_type_search_sequence_tuple",
-      "structured_firmware_gate"
+      "basic_mei_product_identity",
+      "fc03_30068_q2_protocol_version",
+      "fc03_37410_q3_type_search_state_change_sequence",
+      "fc03_37429_q1_capacity",
+      "exact_model_firmware_protocol_tuple"
     ],
     "forbidden_identity": [
+      "unit_100_readability_only",
       "search_status_only",
       "serial_number",
-      "unit_100_readability_only"
+      "basic_mei_only"
     ],
-    "candidate_ambiguity_outcome": "NO_ADMISSIBLE_PROFILE",
+    "version_comparison": "EXACT_TUPLE_ONLY",
     "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",
     "first_match_priority": false
   },
-  "firmware_gate_count": 5,
-  "negative_fixture_ids": [
-    "sdongle-cross-branch-v200r023",
-    "sdongle-v100-below-tcp-minimum"
-  ],
+  "protocol_version": {
+    "function": "FC03",
+    "offset": 30068,
+    "quantity": 2,
+    "type": "U32"
+  },
+  "search_sequence": {
+    "function": "FC03",
+    "offset": 37410,
+    "quantity": 3,
+    "fields": [
+      "type",
+      "search_state",
+      "change_sequence"
+    ],
+    "search_must_be_complete": true,
+    "change_sequence_stable": true
+  },
+  "capacity": {
+    "function": "FC03",
+    "offset": 37429,
+    "quantity": 1,
+    "reconcile_child_count": true
+  },
   "child_enumeration": {
-    "operation": "FC2B_MEI_0E",
-    "executable": false,
-    "unit_target": "DOCUMENTARY_1_TO_247_TARGET_UNRESOLVED_FOR_TCP_GATEWAY",
+    "function": "FC2B_MEI_0E",
     "read_device_id_code": 3,
     "start_object_id": 135,
+    "unit_target": "SEPARATELY_QUALIFIED_CHILD_UNIT_1_TO_247",
+    "gateway_unit_100": "NO_SEND",
+    "executable": false,
     "max_children": 120,
     "limits": {
       "deadline_ms": 15000,
@@ -64,18 +151,53 @@
     "reject": [
       "cursor_loop",
       "duplicate_object",
-      "duplicate_device_id",
-      "search_in_progress",
-      "sequence_changed",
+      "duplicate_child_address",
       "count_mismatch",
-      "unit_target_ambiguous"
+      "search_in_progress",
+      "change_sequence_mismatch",
+      "unit_target_ambiguous",
+      "limit_exhausted"
     ]
+  },
+  "private_functions": {
+    "FC0x41": "NO_SEND",
+    "FC0x17": "NO_SEND"
   },
   "decoder_keys": [],
   "catalog_registered": false,
+  "automatic_runtime_admission": false,
   "support_claim": false,
-  "reopen_requires": [
-    "sanitized_product_code_and_revision_fixture",
-    "live_child_inventory_target_fixture"
-  ]
+  "qualification_plan": {
+    "status": "LIVE_STOPPED_PERSISTENT_NON_RESPONSE",
+    "read_only": true,
+    "live_io_performed": true,
+    "further_live_io": "HARD_STOP",
+    "operator_confirmation_required": true,
+    "required_connection_context": [
+      "endpoint",
+      "port",
+      "unit_id",
+      "topology"
+    ],
+    "capture_sequence": [
+      "basic_mei_identity",
+      "fc03_37411_q1_device_search_status",
+      "bounded_retry_matrix_basic_mei_fc03_37411_unit_100",
+      "hard_stop_after_all_timeouts",
+      "separately_qualified_child_unit_1_to_247_before_extended_mei",
+      "pairwise_negative_overlap_smartlogger_emma",
+      "sanitized_fixture_replay"
+    ],
+    "redact": [
+      "serial_number",
+      "esn",
+      "registration_material",
+      "credentials",
+      "private_endpoint"
+    ],
+    "promotion_outcomes": [
+      "PROFILE_ADMITTED",
+      "NO_ADMISSIBLE_PROFILE"
+    ]
+  }
 }
