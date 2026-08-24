@@ -89,6 +89,16 @@ func huaweiInt(t *testing.T, value any) int {
 	return int(integer)
 }
 
+func TestHuaweiGatewayEvidenceRetainsIndependentFamilyContracts(t *testing.T) {
+	evidence := decodeHuaweiObject(t, "profiles/vendor/huawei/evidence.json")
+	requireHuaweiKeys(t, evidence, "schema", "profile", "profile_version", "public_sources", "applicability", "license")
+	if evidence["schema"] != "helianthus-modbusreg-vendor-evidence/v1" ||
+		evidence["profile"] != "huawei" || evidence["profile_version"] != "1.0.0" ||
+		evidence["license"] != "CC0-1.0" {
+		t.Fatalf("unexpected Huawei evidence identity: %#v", evidence)
+	}
+}
+
 func TestHuaweiEMMAOfflineDispositionIsDefaultDeniedAndPinnedToDocs(t *testing.T) {
 	goMod, err := os.ReadFile("go.mod")
 	if err != nil {
