@@ -1,55 +1,58 @@
 {
-  "schema": "helianthus-modbusreg-profile-disposition/v1",
-  "profile": "huawei.emma",
+  "schema": "helianthus-modbusreg-huawei-emma-disposition/v2",
+  "profile": "huawei.emma.readonly.v1",
   "profile_version": "1.0.0",
-  "outcome": "NO_ADMISSIBLE_PROFILE",
+  "outcome": "OFFLINE_IDENTITY_ADMITTED",
   "evidence": {
-    "packet_id": "HUAWEI-GATEWAYS-V1",
-    "docs_merge_sha": "aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f",
-    "candidate_id": "huawei.emma.v1",
-    "gateway_kind": "EMMA",
-    "documentary_status": "DOCUMENTARY_CANDIDATE",
-    "eligible": false,
-    "missing_discriminators": [
-      "sanitized_model_software_self_entry_fixture",
+    "docs_merge_sha": "fa8838c92f3ce2eac3ad953d7059eccc21be19c7",
+    "candidate_id": "huawei.emma.offline.v1",
+    "canonical_class": "EMMA",
+    "eligible": true,
+    "missing_capability_evidence": [
+      "sanitized_readonly_capability_fixture",
       "negative_overlap_with_smartlogger",
-      "live_mei_child_inventory_fixture"
+      "model_specific_capability_fixture"
     ]
   },
-  "transport_dependency": {
-    "module": "github.com/Project-Helianthus/helianthus-modbus",
-    "merge_sha": "c78030472c24f0f2b849fd30124611157a81f834",
-    "version": "v0.0.0-20260820212315-c78030472c24",
-    "prerequisites": [
-      "modbus.unit-id-zero.v1",
-      "modbus.mei-vendor-cursor.v1",
-      "modbus.mei-object-wrap.v1"
-    ]
-  },
+  "offline_identity_gate_registered": true,
+  "catalog_registered": false,
+  "automatic_runtime_admission": false,
+  "support_claim": false,
   "detector": {
     "registered": false,
-    "executable": false,
+    "executable": true,
+    "default_denied": true,
+    "normalization": "terminal_nul_or_space_only",
+    "model_aliases": [
+      "EMMA-A01",
+      "EMMA-A02"
+    ],
     "required_tuple": [
-      "offering_name",
-      "model_emma_family",
-      "software_version_branch_match",
-      "mei_child_inventory_self_entry_device_id_zero_product_type_hems"
+      "bounded_contextual_offering",
+      "exact_model_alias",
+      "same_branch_firmware_floor"
+    ],
+    "optional_enrichment": [
+      "basic_mei",
+      "extended_mei"
     ],
     "forbidden_identity": [
       "serial_number_30015",
-      "model_register_readability_only",
       "basic_mei_only",
-      "smarthems_prefix_without_fixture"
+      "extended_mei_only",
+      "prefix_or_wildcard_model_match"
     ],
-    "candidate_ambiguity_outcome": "NO_ADMISSIBLE_PROFILE",
     "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",
     "first_match_priority": false
   },
-  "firmware_gate_count": 2,
-  "negative_fixture_ids": [
-    "emma-cross-branch-r026",
-    "emma-r025-below-minimum"
-  ],
+  "firmware_gates": {
+    "V100R024C00": {
+      "minimum_spc": 100
+    },
+    "V100R025C00": {
+      "minimum_spc": 102
+    }
+  },
   "child_enumeration": {
     "operation": "FC2B_MEI_0E",
     "executable": false,
@@ -72,11 +75,9 @@
     ]
   },
   "decoder_keys": [],
-  "catalog_registered": false,
-  "support_claim": false,
   "reopen_requires": [
-    "sanitized_model_software_self_entry_fixture",
+    "sanitized_readonly_capability_fixture",
     "negative_overlap_with_smartlogger",
-    "live_mei_child_inventory_fixture"
+    "model_specific_capability_fixture"
   ]
 }

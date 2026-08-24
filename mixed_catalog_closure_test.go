@@ -95,7 +95,7 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 		{"growatt.direct-inverter", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendor/growatt/disposition.json"},
 		{"huawei.smartlogger", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendor/huawei/smartlogger-disposition.json"},
 		{"huawei.sdongle", "PRIMARY_CANDIDATE", "PRE_LIVE_INSUFFICIENT_EVIDENCE", "", "profiles/vendor/huawei/sdongle-disposition.json"},
-		{"huawei.emma", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendor/huawei/emma-disposition.json"},
+		{"huawei.emma", "PRIMARY_CANDIDATE", "OFFLINE_IDENTITY_ADMITTED", "", "profiles/vendor/huawei/emma-disposition.json"},
 	}
 	if len(closure.Participants) != len(wantParticipants) {
 		t.Fatalf("participants=%d want=%d", len(closure.Participants), len(wantParticipants))
@@ -114,15 +114,21 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 			t.Fatal(err)
 		}
 		var disposition struct {
-			Outcome           string `json:"outcome"`
-			CatalogRegistered bool   `json:"catalog_registered"`
-			SupportClaim      bool   `json:"support_claim"`
+			Outcome                   string `json:"outcome"`
+			CatalogRegistered         bool   `json:"catalog_registered"`
+			AutomaticRuntimeAdmission bool   `json:"automatic_runtime_admission"`
+			OfflineIdentityGate       bool   `json:"offline_identity_gate_registered"`
+			SupportClaim              bool   `json:"support_claim"`
 		}
 		if err := json.Unmarshal(data, &disposition); err != nil {
 			t.Fatal(err)
 		}
-		if disposition.Outcome != got.Disposition || disposition.CatalogRegistered || disposition.SupportClaim {
+		if disposition.Outcome != got.Disposition || disposition.CatalogRegistered ||
+			disposition.AutomaticRuntimeAdmission || disposition.SupportClaim {
 			t.Fatalf("participant %s became actionable: %#v", got.ID, disposition)
+		}
+		if got.ID == "huawei.emma" && !disposition.OfflineIdentityGate {
+			t.Fatalf("participant %s lacks its offline identity gate: %#v", got.ID, disposition)
 		}
 	}
 }
