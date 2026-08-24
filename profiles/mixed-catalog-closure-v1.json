@@ -23,6 +23,20 @@
       "active",
       "default_enabled",
       "candidate_enabled"
+    ],
+    "primary_profile_ids": [
+      "sunspec.direct-inverter",
+      "growatt.direct-inverter",
+      "huawei.smartlogger",
+      "huawei.sdongle",
+      "huawei.emma"
+    ],
+    "post_primary_flavors": [
+      {
+        "id": "fronius.gen24",
+        "primary_profile_id": "sunspec.direct-inverter",
+        "may_select_primary": false
+      }
     ]
   },
   "participants": [
