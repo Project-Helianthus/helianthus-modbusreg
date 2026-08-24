@@ -35,7 +35,7 @@ type mixedCatalogClosure struct {
 		EligibleProfileRequirements       []string `json:"eligible_profile_requirements"`
 		PrimaryProfileIDs                 []string `json:"primary_profile_ids"`
 		PostPrimaryFlavors                []struct {
-			ID              string `json:"id"`
+			ID               string `json:"id"`
 			PrimaryProfileID string `json:"primary_profile_id"`
 			MaySelectPrimary bool   `json:"may_select_primary"`
 		} `json:"post_primary_flavors"`
