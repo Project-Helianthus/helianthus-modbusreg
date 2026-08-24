@@ -285,9 +285,9 @@ func TestHuaweiEMMAOfflineDispositionIsDefaultDeniedAndPinnedToDocs(t *testing.T
 	if detector["registered"] != false || detector["executable"] != true || detector["default_denied"] != true ||
 		detector["normalization"] != "terminal_nul_or_space_only" || detector["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || detector["first_match_priority"] != false ||
 		!reflect.DeepEqual(huaweiStringSlice(t, detector["model_aliases"]), []string{"EMMA-A01", "EMMA-A02"}) ||
-		!reflect.DeepEqual(huaweiStringSlice(t, detector["required_tuple"]), []string{"exact_model_alias", "same_branch_firmware_floor"}) ||
+		!reflect.DeepEqual(huaweiStringSlice(t, detector["required_tuple"]), []string{"bounded_contextual_offering", "exact_model_alias", "same_branch_firmware_floor"}) ||
 		!reflect.DeepEqual(huaweiStringSlice(t, detector["optional_enrichment"]), []string{"basic_mei", "extended_mei"}) ||
-		!reflect.DeepEqual(huaweiStringSlice(t, detector["forbidden_identity"]), []string{"offering_name", "serial_number_30015", "basic_mei_only", "extended_mei_only", "prefix_or_wildcard_model_match"}) {
+		!reflect.DeepEqual(huaweiStringSlice(t, detector["forbidden_identity"]), []string{"serial_number_30015", "basic_mei_only", "extended_mei_only", "prefix_or_wildcard_model_match"}) {
 		t.Fatalf("unexpected detector disposition: %#v", detector)
 	}
 
