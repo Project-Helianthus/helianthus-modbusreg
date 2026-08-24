@@ -5,7 +5,7 @@
   "public_sources": [
     {
       "id": "growatt-candidate-v1",
-      "locator": "https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/42da2afdb0fd46bdb4301a847d59096e252bfe00/protocols/modbus/growatt-candidate-evidence-v1.md",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/6654837a4ec29a3f226a29f701574ee84495ff2f/protocols/growatt/protocol-ii-readonly-v1.md",
       "license": "CC0-1.0"
     }
   ],
