@@ -51,7 +51,7 @@ func TestGrowattDispositionFailsClosedWithoutQualifiedEvidence(t *testing.T) {
 		t.Fatalf("unexpected disposition identity: %#v", record)
 	}
 	if record.Evidence.PacketID != "GROWATT-CANDIDATE-V1" ||
-		record.Evidence.DocsMergeSHA != "42da2afdb0fd46bdb4301a847d59096e252bfe00" ||
+		record.Evidence.DocsMergeSHA != "6654837a4ec29a3f226a29f701574ee84495ff2f" ||
 		record.Evidence.SourceIdentity != "sha256:fac88d609d74ff6b3c9c31ed65370d166d1fb17461e91b4b4855018fe232a320" ||
 		record.Evidence.SourceLicense != "vendor-copyright-inspection-only" ||
 		record.Evidence.PacketDisposition != "HYPOTHESIS" ||
