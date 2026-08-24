@@ -15,6 +15,7 @@ type HuaweiEMMAOfflineReason string
 
 const (
 	HuaweiEMMAOfflineMatched          HuaweiEMMAOfflineReason = "matched"
+	HuaweiEMMAOfflineOfferingMismatch HuaweiEMMAOfflineReason = "offering_mismatch"
 	HuaweiEMMAOfflineModelMismatch    HuaweiEMMAOfflineReason = "model_mismatch"
 	HuaweiEMMAOfflineFirmwareMismatch HuaweiEMMAOfflineReason = "firmware_mismatch"
 )
@@ -48,10 +49,13 @@ func (d HuaweiEMMAOfflineDecision) DefaultDenied() bool { return true }
 
 func (d HuaweiEMMAOfflineDecision) Reason() HuaweiEMMAOfflineReason { return d.reason }
 
-// EvaluateHuaweiEMMAOfflineIdentity classifies only documented EMMA model and
-// firmware strings. It performs no transport work and never enables runtime
+// EvaluateHuaweiEMMAOfflineIdentity classifies a complete documented FC03 EMMA
+// identity tuple. It performs no transport work and never enables runtime
 // admission.
-func EvaluateHuaweiEMMAOfflineIdentity(model, firmware string) HuaweiEMMAOfflineDecision {
+func EvaluateHuaweiEMMAOfflineIdentity(offering, model, firmware string) HuaweiEMMAOfflineDecision {
+	if !isHuaweiEMMAOffering(offering) {
+		return HuaweiEMMAOfflineDecision{reason: HuaweiEMMAOfflineOfferingMismatch}
+	}
 	model = trimHuaweiTerminalPadding(model)
 	if model != "EMMA-A01" && model != "EMMA-A02" {
 		return HuaweiEMMAOfflineDecision{reason: HuaweiEMMAOfflineModelMismatch}
@@ -64,6 +68,19 @@ func EvaluateHuaweiEMMAOfflineIdentity(model, firmware string) HuaweiEMMAOffline
 		model:   model,
 		reason:  HuaweiEMMAOfflineMatched,
 	}
+}
+
+func isHuaweiEMMAOffering(offering string) bool {
+	offering = trimHuaweiTerminalPadding(offering)
+	if len(offering) == 0 || len(offering) > 30 {
+		return false
+	}
+	for _, character := range offering {
+		if character < 0x20 || character > 0x7e {
+			return false
+		}
+	}
+	return true
 }
 
 func trimHuaweiTerminalPadding(value string) string {

@@ -49,6 +49,10 @@ func TestEvaluateHuaweiEMMAOfflineIdentityUsesFiniteAliasesAndBranchFloors(t *te
 			name: "offering non printable ASCII rejects partial tuple", offering: "Smart\nHEMS", model: "EMMA-A02", firmware: "SmartHEMS V100R025C00SPC131",
 			matched: false, reason: HuaweiEMMAOfflineOfferingMismatch,
 		},
+		{
+			name: "offering longer than FC03 field rejects partial tuple", offering: "1234567890123456789012345678901", model: "EMMA-A02", firmware: "SmartHEMS V100R025C00SPC131",
+			matched: false, reason: HuaweiEMMAOfflineOfferingMismatch,
+		},
 	}
 
 	for _, test := range tests {
