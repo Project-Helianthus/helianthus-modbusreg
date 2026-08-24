@@ -4,39 +4,71 @@
   "profile_version": "1.0.0",
   "outcome": "PRE_LIVE_INSUFFICIENT_EVIDENCE",
   "evidence": {
-    "docs_merge_sha": "2abcb26a06ffa71149177de2cc2817a24d82081f",
+    "docs_merge_sha": "2d44c22f27c4be0e1de460f63b8330c728a5af8f",
     "candidate_id": "huawei.sdongle.v1",
     "source_license": "CC0-1.0",
     "eligible": false,
     "missing_evidence": [
       "sanitized_basic_mei_product_model_fixture",
       "exact_protocol_version_encoding_fixture",
-      "tcp_child_inventory_unit_target_fixture"
+      "separately_qualified_child_unit_inventory_fixture"
     ],
     "live_qualification": {
-      "status": "LIVE_STOPPED_MEI_TIMEOUT",
-      "tcp_connectivity": "REACHABLE",
+      "status": "LIVE_STOPPED_PERSISTENT_NON_RESPONSE",
       "identification_claim": false,
       "incompatibility_claim": false,
       "subsequent_modbus_requests_sent": 0,
       "attempts": [
         {
-          "operation": "FC2B_MEI_0E",
+          "operation": "FC2B_MEI_0E_READ_DEVICE_ID_BASIC",
           "unit_id": 100,
-          "read_device_id_code": 1,
-          "object_id": 0,
           "deadline_ms": 3000,
           "outcome": "TIMEOUT"
         },
         {
-          "operation": "FC2B_MEI_0E",
+          "operation": "FC2B_MEI_0E_READ_DEVICE_ID_BASIC",
           "unit_id": 100,
-          "read_device_id_code": 1,
-          "object_id": 0,
           "deadline_ms": 10000,
           "outcome": "TIMEOUT"
+        },
+        {
+          "operation": "FC03_37411_Q1_DEVICE_SEARCH_STATUS",
+          "unit_id": 100,
+          "deadline_ms": 5000,
+          "outcome": "TIMEOUT"
         }
-      ]
+      ],
+      "retry_matrix": {
+        "unit_id": 100,
+        "minimum_idle_ms": 5000,
+        "outcome": "ALL_TIMEOUT",
+        "attempts": [
+          {
+            "operation": "FC2B_MEI_0E_READ_DEVICE_ID_BASIC",
+            "unit_id": 100,
+            "deadline_ms": 5000,
+            "outcome": "TIMEOUT"
+          },
+          {
+            "operation": "FC03_37411_Q1_DEVICE_SEARCH_STATUS",
+            "unit_id": 100,
+            "deadline_ms": 5000,
+            "outcome": "TIMEOUT"
+          },
+          {
+            "operation": "FC2B_MEI_0E_READ_DEVICE_ID_BASIC",
+            "unit_id": 100,
+            "deadline_ms": 5000,
+            "outcome": "TIMEOUT"
+          },
+          {
+            "operation": "FC03_37411_Q1_DEVICE_SEARCH_STATUS",
+            "unit_id": 100,
+            "deadline_ms": 5000,
+            "outcome": "TIMEOUT"
+          }
+        ]
+      }
     }
   },
   "admission": {
@@ -45,13 +77,21 @@
     "executable": false,
     "default_denied": true,
     "models": [
-      "SDongleA-05",
-      "SDongleB-03",
-      "SDongleB-06"
+      "S-DongleA-05",
+      "S-DongleB-03",
+      "S-DongleB-06"
     ],
-    "firmware_gates": [
-      "V200R025C00SPC120"
-    ],
+    "firmware_gates": {
+      "offline_candidate": [
+        "V200R025C00SPC120"
+      ],
+      "observed_default_denied": {
+        "model": "S-DongleA-05",
+        "firmware": "V200R022C10SPC312",
+        "minimum_gate": "V200R022C10",
+        "admission": "PRE_LIVE_INSUFFICIENT_EVIDENCE"
+      }
+    },
     "protocol_gate": "D5.0",
     "required_tuple": [
       "basic_mei_product_identity",
@@ -98,7 +138,8 @@
     "function": "FC2B_MEI_0E",
     "read_device_id_code": 3,
     "start_object_id": 135,
-    "unit_target": "UNQUALIFIED_TCP_UNIT_TARGET",
+    "unit_target": "SEPARATELY_QUALIFIED_CHILD_UNIT_1_TO_247",
+    "gateway_unit_100": "NO_SEND",
     "executable": false,
     "max_children": 120,
     "limits": {
@@ -127,7 +168,7 @@
   "automatic_runtime_admission": false,
   "support_claim": false,
   "qualification_plan": {
-    "status": "LIVE_STOPPED_MEI_TIMEOUT",
+    "status": "LIVE_STOPPED_PERSISTENT_NON_RESPONSE",
     "read_only": true,
     "live_io_performed": true,
     "further_live_io": "HARD_STOP",
@@ -140,12 +181,10 @@
     ],
     "capture_sequence": [
       "basic_mei_identity",
-      "fc03_30068_q2_protocol_version",
-      "fc03_37410_q3_type_search_state_change_sequence_before",
-      "fc03_30050_q15_os_version_after_exact_model_gate",
-      "fc03_37429_q1_capacity_before_inventory",
-      "bounded_fc2b_mei0e_code03_object87_child_inventory_after_exact_tuple_gate",
-      "fc03_37410_q3_type_search_state_change_sequence_after",
+      "fc03_37411_q1_device_search_status",
+      "bounded_retry_matrix_basic_mei_fc03_37411_unit_100",
+      "hard_stop_after_all_timeouts",
+      "separately_qualified_child_unit_1_to_247_before_extended_mei",
       "pairwise_negative_overlap_smartlogger_emma",
       "sanitized_fixture_replay"
     ],

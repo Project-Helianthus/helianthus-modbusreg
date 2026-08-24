@@ -157,7 +157,7 @@ func TestHuaweiSDongleDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 
 	plan := huaweiObject(t, record["qualification_plan"])
 	requireHuaweiKeys(t, plan, "status", "read_only", "live_io_performed", "further_live_io", "operator_confirmation_required", "required_connection_context", "capture_sequence", "redact", "promotion_outcomes")
-	if plan["status"] != "LIVE_STOPPED_MEI_TIMEOUT" || plan["read_only"] != true ||
+	if plan["status"] != "LIVE_STOPPED_PERSISTENT_NON_RESPONSE" || plan["read_only"] != true ||
 		plan["live_io_performed"] != true || plan["further_live_io"] != "HARD_STOP" || plan["operator_confirmation_required"] != true ||
 		!reflect.DeepEqual(huaweiStringSlice(t, plan["required_connection_context"]), []string{
 			"endpoint", "port", "unit_id", "topology",
