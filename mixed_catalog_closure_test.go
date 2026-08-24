@@ -33,6 +33,12 @@ type mixedCatalogClosure struct {
 		SelectionIsStateless              bool     `json:"selection_is_stateless"`
 		ActivationMutation                bool     `json:"activation_mutation"`
 		EligibleProfileRequirements       []string `json:"eligible_profile_requirements"`
+		PrimaryProfileIDs                 []string `json:"primary_profile_ids"`
+		PostPrimaryFlavors                []struct {
+			ID              string `json:"id"`
+			PrimaryProfileID string `json:"primary_profile_id"`
+			MaySelectPrimary bool   `json:"may_select_primary"`
+		} `json:"post_primary_flavors"`
 	} `json:"selection"`
 	Participants []struct {
 		ID              string `json:"id"`
@@ -75,6 +81,13 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 		t.Fatalf("unexpected dependency closure: %#v", closure.Dependencies)
 	}
 	wantRequirements := []string{"qualified", "active", "default_enabled", "candidate_enabled"}
+	wantPrimaryIDs := []string{
+		"sunspec.direct-inverter",
+		"growatt.direct-inverter",
+		"huawei.smartlogger",
+		"huawei.sdongle",
+		"huawei.emma",
+	}
 	if closure.Selection.SelectionMode != "exclusive" ||
 		closure.Selection.MaxSelectedPrimaries != 1 ||
 		closure.Selection.NoPositiveOutcome != "NO_MATCH" ||
@@ -83,7 +96,12 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 		closure.Selection.SerializedMultiplePositiveReason != string(reg.DetectionReasonMultipleMatches) ||
 		closure.Selection.ImplicitPriority || !closure.Selection.SelectionIsStateless ||
 		closure.Selection.ActivationMutation ||
-		!reflect.DeepEqual(closure.Selection.EligibleProfileRequirements, wantRequirements) {
+		!reflect.DeepEqual(closure.Selection.EligibleProfileRequirements, wantRequirements) ||
+		!reflect.DeepEqual(closure.Selection.PrimaryProfileIDs, wantPrimaryIDs) ||
+		len(closure.Selection.PostPrimaryFlavors) != 1 ||
+		closure.Selection.PostPrimaryFlavors[0].ID != "fronius.gen24" ||
+		closure.Selection.PostPrimaryFlavors[0].PrimaryProfileID != "sunspec.direct-inverter" ||
+		closure.Selection.PostPrimaryFlavors[0].MaySelectPrimary {
 		t.Fatalf("unexpected selection policy: %#v", closure.Selection)
 	}
 
@@ -129,6 +147,59 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 		}
 		if got.ID == "huawei.emma" && !disposition.OfflineIdentityGate {
 			t.Fatalf("participant %s lacks its offline identity gate: %#v", got.ID, disposition)
+		}
+	}
+}
+
+func TestMixedCatalogNamedPrimaryFamiliesAreExhaustivelyExclusive(t *testing.T) {
+	closure := readMixedCatalogClosure(t)
+	profiles := make([]reg.ProfileDescriptor, len(closure.Selection.PrimaryProfileIDs))
+	for index, profileID := range closure.Selection.PrimaryProfileIDs {
+		profiles[index] = detectionProfile(t, profileID, "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
+	}
+	catalog, err := reg.NewCatalog(profiles...)
+	if err != nil {
+		t.Fatalf("NewCatalog: %v", err)
+	}
+
+	for mask := 0; mask < 1<<len(profiles); mask++ {
+		candidates := make([]reg.DetectionCandidate, len(profiles))
+		selected := make([]string, 0, len(profiles))
+		for index, profile := range profiles {
+			enabled := mask&(1<<index) != 0
+			candidates[index] = detectionCandidate(t, profile, uint32(100-index), enabled, false)
+			if enabled {
+				selected = append(selected, profile.ID())
+			}
+		}
+		decision, err := newDetector(t, catalog, candidates...).Detect(
+			context.Background(),
+			detectionReader(t),
+			reg.DetectionOptions{},
+		)
+		if err != nil {
+			t.Fatalf("mask %05b: Detect: %v", mask, err)
+		}
+		switch len(selected) {
+		case 0:
+			if decision.Outcome() != reg.DetectionNoMatch || decision.SelectedProfileID() != "" {
+				t.Fatalf("mask %05b: zero-positive decision=%+v", mask, decision)
+			}
+		case 1:
+			if decision.Outcome() != reg.DetectionMatched || decision.SelectedProfileID() != selected[0] {
+				t.Fatalf("mask %05b: one-positive decision=%+v", mask, decision)
+			}
+		default:
+			if decision.Outcome() != reg.DetectionAmbiguous ||
+				decision.Reason() != reg.DetectionReasonMultipleMatches ||
+				decision.SelectedProfileID() != "" {
+				t.Fatalf("mask %05b: overlap decision=%+v", mask, decision)
+			}
+			for _, evidence := range decision.Evidence() {
+				if evidence.Reason == reg.DetectionReasonSelected {
+					t.Fatalf("mask %05b: overlap retained a selected profile: %+v", mask, evidence)
+				}
+			}
 		}
 	}
 }
