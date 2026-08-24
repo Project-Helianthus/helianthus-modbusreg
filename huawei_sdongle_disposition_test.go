@@ -27,11 +27,31 @@ func TestHuaweiSDongleDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 		"tcp_child_inventory_unit_target_fixture",
 	}
 	evidence := huaweiObject(t, record["evidence"])
-	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence")
+	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "live_qualification")
 	if evidence["docs_merge_sha"] != smartLoggerDocsMergeSHA || evidence["candidate_id"] != "huawei.sdongle.v1" ||
 		evidence["source_license"] != "CC0-1.0" || evidence["eligible"] != false ||
 		!reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), missing) {
 		t.Fatalf("unexpected S-Dongle evidence: %#v", evidence)
+	}
+	live := huaweiObject(t, evidence["live_qualification"])
+	requireHuaweiKeys(t, live, "status", "tcp_connectivity", "identification_claim", "incompatibility_claim", "subsequent_modbus_requests_sent", "attempts")
+	if live["status"] != "LIVE_STOPPED_MEI_TIMEOUT" || live["tcp_connectivity"] != "REACHABLE" ||
+		live["identification_claim"] != false || live["incompatibility_claim"] != false ||
+		huaweiInt(t, live["subsequent_modbus_requests_sent"]) != 0 {
+		t.Fatalf("unexpected S-Dongle live qualification: %#v", live)
+	}
+	attempts := live["attempts"].([]any)
+	if len(attempts) != 2 {
+		t.Fatalf("unexpected S-Dongle live attempts: %#v", attempts)
+	}
+	for index, deadline := range []int{3000, 10000} {
+		attempt := huaweiObject(t, attempts[index])
+		requireHuaweiKeys(t, attempt, "operation", "unit_id", "read_device_id_code", "object_id", "deadline_ms", "outcome")
+		if attempt["operation"] != "FC2B_MEI_0E" || huaweiInt(t, attempt["unit_id"]) != 100 ||
+			huaweiInt(t, attempt["read_device_id_code"]) != 1 || huaweiInt(t, attempt["object_id"]) != 0 ||
+			huaweiInt(t, attempt["deadline_ms"]) != deadline || attempt["outcome"] != "TIMEOUT" {
+			t.Fatalf("unexpected S-Dongle live attempt: %#v", attempt)
+		}
 	}
 
 	admission := huaweiObject(t, record["admission"])
@@ -99,9 +119,9 @@ func TestHuaweiSDongleDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 	}
 
 	plan := huaweiObject(t, record["qualification_plan"])
-	requireHuaweiKeys(t, plan, "status", "read_only", "live_io_performed", "operator_confirmation_required", "required_connection_context", "capture_sequence", "redact", "promotion_outcomes")
-	if plan["status"] != "AWAITING_OPERATOR_ENDPOINTS" || plan["read_only"] != true ||
-		plan["live_io_performed"] != false || plan["operator_confirmation_required"] != true ||
+	requireHuaweiKeys(t, plan, "status", "read_only", "live_io_performed", "further_live_io", "operator_confirmation_required", "required_connection_context", "capture_sequence", "redact", "promotion_outcomes")
+	if plan["status"] != "LIVE_STOPPED_MEI_TIMEOUT" || plan["read_only"] != true ||
+		plan["live_io_performed"] != true || plan["further_live_io"] != "HARD_STOP" || plan["operator_confirmation_required"] != true ||
 		!reflect.DeepEqual(huaweiStringSlice(t, plan["required_connection_context"]), []string{
 			"endpoint", "port", "unit_id", "topology",
 		}) ||
