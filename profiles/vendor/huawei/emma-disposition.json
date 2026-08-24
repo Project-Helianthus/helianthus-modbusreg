@@ -28,6 +28,7 @@
       "EMMA-A02"
     ],
     "required_tuple": [
+      "bounded_contextual_offering",
       "exact_model_alias",
       "same_branch_firmware_floor"
     ],
@@ -36,7 +37,6 @@
       "extended_mei"
     ],
     "forbidden_identity": [
-      "offering_name",
       "serial_number_30015",
       "basic_mei_only",
       "extended_mei_only",
