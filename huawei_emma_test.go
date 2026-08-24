@@ -5,9 +5,9 @@ import "testing"
 func TestEvaluateHuaweiEMMAOfflineIdentityUsesFiniteAliasesAndBranchFloors(t *testing.T) {
 	tests := []struct {
 		name, model, firmware string
-		matched                bool
-		variant                string
-		reason                 HuaweiEMMAOfflineReason
+		matched               bool
+		variant               string
+		reason                HuaweiEMMAOfflineReason
 	}{
 		{
 			name: "A01 R024 floor", model: "EMMA-A01", firmware: "SmartHEMS V100R024C00SPC100",
