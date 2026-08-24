@@ -12,7 +12,32 @@
       "sanitized_basic_mei_product_model_fixture",
       "exact_protocol_version_encoding_fixture",
       "tcp_child_inventory_unit_target_fixture"
-    ]
+    ],
+    "live_qualification": {
+      "status": "LIVE_STOPPED_MEI_TIMEOUT",
+      "tcp_connectivity": "REACHABLE",
+      "identification_claim": false,
+      "incompatibility_claim": false,
+      "subsequent_modbus_requests_sent": 0,
+      "attempts": [
+        {
+          "operation": "FC2B_MEI_0E",
+          "unit_id": 100,
+          "read_device_id_code": 1,
+          "object_id": 0,
+          "deadline_ms": 3000,
+          "outcome": "TIMEOUT"
+        },
+        {
+          "operation": "FC2B_MEI_0E",
+          "unit_id": 100,
+          "read_device_id_code": 1,
+          "object_id": 0,
+          "deadline_ms": 10000,
+          "outcome": "TIMEOUT"
+        }
+      ]
+    }
   },
   "admission": {
     "unit_id": 100,
@@ -102,9 +127,10 @@
   "automatic_runtime_admission": false,
   "support_claim": false,
   "qualification_plan": {
-    "status": "AWAITING_OPERATOR_ENDPOINTS",
+    "status": "LIVE_STOPPED_MEI_TIMEOUT",
     "read_only": true,
-    "live_io_performed": false,
+    "live_io_performed": true,
+    "further_live_io": "HARD_STOP",
     "operator_confirmation_required": true,
     "required_connection_context": [
       "endpoint",
