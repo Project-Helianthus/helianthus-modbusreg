@@ -110,7 +110,7 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 	}{
 		{"sunspec.direct-inverter", "PRIMARY", "CONDITIONAL_CAPABILITY", reg.SunSpecThreePhaseMonitoringCapabilityID, ""},
 		{"fronius.gen24", "POST_PRIMARY_FLAVOR", "QUALIFIED_FLAVOR_CLASSIFICATION", reg.SunSpecFroniusObservedFlavorID + "," + reg.SunSpecFroniusObservedFlavorV11ID, ""},
-		{"growatt.direct-inverter", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendor/growatt/disposition.json"},
+		{"growatt.direct-inverter", "PRIMARY_CANDIDATE", "OFFLINE_IDENTITY_ADMITTED", "", "profiles/vendor/growatt/disposition.json"},
 		{"huawei.smartlogger", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendor/huawei/smartlogger-disposition.json"},
 		{"huawei.sdongle", "PRIMARY_CANDIDATE", "PRE_LIVE_INSUFFICIENT_EVIDENCE", "", "profiles/vendor/huawei/sdongle-disposition.json"},
 		{"huawei.emma", "PRIMARY_CANDIDATE", "OFFLINE_IDENTITY_ADMITTED", "", "profiles/vendor/huawei/emma-disposition.json"},
@@ -145,7 +145,7 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 			disposition.AutomaticRuntimeAdmission || disposition.SupportClaim {
 			t.Fatalf("participant %s became actionable: %#v", got.ID, disposition)
 		}
-		if got.ID == "huawei.emma" && !disposition.OfflineIdentityGate {
+		if (got.ID == "huawei.emma" || got.ID == "growatt.direct-inverter") && !disposition.OfflineIdentityGate {
 			t.Fatalf("participant %s lacks its offline identity gate: %#v", got.ID, disposition)
 		}
 	}

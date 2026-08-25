@@ -15,11 +15,13 @@ func TestGrowattDispositionFailsClosedWithoutQualifiedEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	var record struct {
-		Schema         string `json:"schema"`
-		Profile        string `json:"profile"`
-		ProfileVersion string `json:"profile_version"`
-		Outcome        string `json:"outcome"`
-		Evidence       struct {
+		Schema                        string `json:"schema"`
+		Profile                       string `json:"profile"`
+		ProfileVersion                string `json:"profile_version"`
+		Outcome                       string `json:"outcome"`
+		OfflineIdentityGateRegistered bool   `json:"offline_identity_gate_registered"`
+		AutomaticRuntimeAdmission     bool   `json:"automatic_runtime_admission"`
+		Evidence                      struct {
 			PacketID          string `json:"packet_id"`
 			DocsMergeSHA      string `json:"docs_merge_sha"`
 			SourceIdentity    string `json:"source_identity"`
@@ -47,15 +49,16 @@ func TestGrowattDispositionFailsClosedWithoutQualifiedEvidence(t *testing.T) {
 	if record.Schema != "helianthus-modbusreg-profile-disposition/v1" ||
 		record.Profile != "growatt" ||
 		record.ProfileVersion != "1.0.0" ||
-		record.Outcome != "NO_ADMISSIBLE_PROFILE" {
+		record.Outcome != "OFFLINE_IDENTITY_ADMITTED" ||
+		!record.OfflineIdentityGateRegistered || record.AutomaticRuntimeAdmission {
 		t.Fatalf("unexpected disposition identity: %#v", record)
 	}
 	if record.Evidence.PacketID != "GROWATT-CANDIDATE-V1" ||
 		record.Evidence.DocsMergeSHA != "6654837a4ec29a3f226a29f701574ee84495ff2f" ||
 		record.Evidence.SourceIdentity != "sha256:fac88d609d74ff6b3c9c31ed65370d166d1fb17461e91b4b4855018fe232a320" ||
 		record.Evidence.SourceLicense != "vendor-copyright-inspection-only" ||
-		record.Evidence.PacketDisposition != "HYPOTHESIS" ||
-		record.Evidence.Eligible {
+		record.Evidence.PacketDisposition != "DOCUMENTED_OFFLINE_IDENTITY" ||
+		!record.Evidence.Eligible {
 		t.Fatalf("unexpected evidence lock: %#v", record.Evidence)
 	}
 	wantOperations := []struct {
@@ -75,8 +78,8 @@ func TestGrowattDispositionFailsClosedWithoutQualifiedEvidence(t *testing.T) {
 	if len(record.DecoderKeys) != 0 || record.CatalogRegistered || record.SupportClaim {
 		t.Fatalf("non-admission leaked support: keys=%v catalog=%v claim=%v", record.DecoderKeys, record.CatalogRegistered, record.SupportClaim)
 	}
-	wantUnresolved := []string{"exact_product_family", "firmware_branch", "address_normalization", "word_and_byte_order", "detector_uniqueness"}
-	wantReopen := []string{"public_clean_room_fixture", "exact_family_and_firmware_applicability", "verified_zero_based_address_normalization", "declared_word_and_byte_order", "mutually_exclusive_identity_tuple"}
+	wantUnresolved := []string{"automatic_detector_uniqueness", "exact_fc04_telemetry_schema", "runtime_admission_contract"}
+	wantReopen := []string{"mutually_exclusive_identity_tuple", "exact_fc04_telemetry_schema", "explicit_runtime_admission_contract"}
 	if !reflect.DeepEqual(record.Unresolved, wantUnresolved) || !reflect.DeepEqual(record.ReopenRequires, wantReopen) {
 		t.Fatalf("closure conditions unresolved=%v reopen=%v", record.Unresolved, record.ReopenRequires)
 	}
