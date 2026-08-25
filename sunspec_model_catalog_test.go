@@ -74,7 +74,7 @@ func TestSunSpecV2CatalogContainsOnlyCurrentAdmittedModels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("V2 catalog: %v", err)
 	}
-	if len(definitions) != 7 {
+	if len(definitions) != 8 {
 		t.Fatalf("V2 definitions=%d", len(definitions))
 	}
 	want := []SunSpecDecoderKey{
@@ -85,6 +85,7 @@ func TestSunSpecV2CatalogContainsOnlyCurrentAdmittedModels(t *testing.T) {
 		{ModelID: 713, ModelLength: 7, SchemaRevision: SunSpecModelsRevisionV2},
 		{ModelID: 715, ModelLength: 7, SchemaRevision: SunSpecModelsRevisionV2},
 		{ModelID: 802, ModelLength: 62, SchemaRevision: SunSpecModelsRevisionV2},
+		{ModelID: 805, ModelLength: 42, SchemaRevision: SunSpecModelsRevisionV2},
 	}
 	for index, key := range want {
 		if definitions[index].key != key || definitions[index].compatibility {
@@ -102,6 +103,8 @@ func TestSunSpecV2CatalogContainsOnlyCurrentAdmittedModels(t *testing.T) {
 		{ModelID: 801, ModelLength: 1, SchemaRevision: SunSpecModelsRevisionV2},
 		{ModelID: 802, ModelLength: 61, SchemaRevision: SunSpecModelsRevisionV2},
 		{ModelID: 803, ModelLength: 27, SchemaRevision: SunSpecModelsRevisionV2},
+		{ModelID: 805, ModelLength: 41, SchemaRevision: SunSpecModelsRevisionV2},
+		{ModelID: 806, ModelLength: 1, SchemaRevision: SunSpecModelsRevisionV2},
 		{ModelID: 704, ModelLength: 65, SchemaRevision: SunSpecModelsRevisionV2},
 		{ModelID: 712, ModelLength: 14, SchemaRevision: SunSpecModelsRevisionV2},
 	} {

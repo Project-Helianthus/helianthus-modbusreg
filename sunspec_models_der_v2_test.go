@@ -19,7 +19,8 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			"https://github.com/sunspec/models",
 			"90b4a331dcca1d6eac69c1bead952fddcc5852e0",
 			"Models 701/153, 702/50, 703/17, 713/7,",
-			"714 variable geometry, 715/7, 802/62, 803 variable geometry, and 804 variable",
+			"714 variable geometry, 715/7, 802/62, 803 variable geometry, 804 variable",
+			"geometry, and 805/42",
 			"modified by Helianthus",
 			"Apache License",
 			"Version 2.0, January 2004",
@@ -47,6 +48,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			{713, 7, 9, []string{"ID", "L", "WHRtg"}, "Pct_SF"},
 			{715, 7, 7, []string{"ID", "L", "LocRemCtl"}, "OpCtl"},
 			{802, 62, 58, []string{"ID", "L", "AHRtg"}, "W_SF"},
+			{805, 42, 28, []string{"ID", "L", "StrIdx"}, "Tmp_SF"},
 		} {
 			definition, ok := registry.definition(SunSpecDecoderKey{ModelID: want.id, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2})
 			if !ok || len(definition.points) != want.points {
@@ -80,6 +82,39 @@ func TestSunSpecV2BESSBaseRetainsPinnedPointOrderTypesAndScales(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Model 802 signature=%q want=%q", got, want)
+	}
+}
+
+func TestSunSpecV2BESSModuleRetainsPinnedPointOrderTypesAndScales(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, ok := registry.definition(SunSpecDecoderKey{ModelID: 805, ModelLength: 42, SchemaRevision: SunSpecModelsRevisionV2})
+	if !ok {
+		t.Fatal("Model 805/42 definition absent")
+	}
+	want := strings.Split("ID:uint16:1:,L:uint16:1:,StrIdx:uint16:1:,ModIdx:uint16:1:,NCell:uint16:1:,SoC:uint16:1:SoC_SF,DoD:uint16:1:DoD_SF,SoH:uint16:1:SoH_SF,NCyc:uint32:2:,V:uint16:1:V_SF,CellVMax:uint16:1:CellV_SF,CellVMaxCell:uint16:1:,CellVMin:uint16:1:CellV_SF,CellVMinCell:uint16:1:,CellVAvg:uint16:1:CellV_SF,CellTmpMax:int16:1:Tmp_SF,CellTmpMaxCell:uint16:1:,CellTmpMin:int16:1:Tmp_SF,CellTmpMinCell:uint16:1:,CellTmpAvg:int16:1:Tmp_SF,NCellBal:uint16:1:,SN:string:16:,SoC_SF:sunssf:1:,SoH_SF:sunssf:1:,DoD_SF:sunssf:1:,V_SF:sunssf:1:,CellV_SF:sunssf:1:,Tmp_SF:sunssf:1:", ",")
+	got := make([]string, len(definition.points))
+	for index, point := range definition.points {
+		got[index] = fmt.Sprintf("%s:%s:%d:%s", point.name, point.pointType, point.size, point.scaleFactor)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Model 805 signature=%q want=%q", got, want)
+	}
+	words := v2DERModelWords(t, registry, 805, 42, map[string][]uint16{
+		"StrIdx": {1}, "ModIdx": {2}, "NCell": {12}, "SoC": {74}, "SoC_SF": {0},
+		"SN": stringWords("synthetic", 16),
+	})
+	key := SunSpecDecoderKey{ModelID: 805, ModelLength: 42, SchemaRevision: SunSpecModelsRevisionV2}
+	decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 805, ModelLength: 42}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words})
+	if err != nil || !decoded.GeometryValid() || !decoded.Qualifies() {
+		t.Fatalf("Model 805 observed state geometry=%t qualifies=%t err=%v", decoded.GeometryValid(), decoded.Qualifies(), err)
+	}
+	for _, fieldID := range []string{"sunspec.der.v2.805.StrIdx", "sunspec.der.v2.805.ModIdx", "sunspec.der.v2.805.SN"} {
+		if _, ok := decoded.Fact(fieldID); !ok {
+			t.Fatalf("Model 805 observed fact %q absent", fieldID)
+		}
 	}
 }
 
