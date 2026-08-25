@@ -99,6 +99,10 @@ func TestSunSpecV2ChainKeepsCompatibilityAndDERBlocksOpaque(t *testing.T) {
 	words := append([]uint16{1, 65}, make([]uint16, 65)...)
 	words = append(words, 701, 153)
 	words = append(words, make([]uint16, 153)...)
+	words = append(words, 701, 153)
+	words = append(words, make([]uint16, 153)...)
+	words = append(words, 702, 49)
+	words = append(words, make([]uint16, 49)...)
 	for len(words) > 0 {
 		request := chain.NextRequests()[0]
 		chunk := words[:request.WordCount()]
@@ -112,12 +116,17 @@ func TestSunSpecV2ChainKeepsCompatibilityAndDERBlocksOpaque(t *testing.T) {
 		t.Fatal(err)
 	}
 	occurrences := snapshot.Occurrences()
-	if len(occurrences) != 2 || occurrences[0].Disposition != SunSpecChainDispositionUnsupportedLength || occurrences[1].Disposition != SunSpecChainDispositionUnknownModel {
+	if len(occurrences) != 4 || occurrences[0].Disposition != SunSpecChainDispositionUnsupportedLength || occurrences[1].Disposition != SunSpecChainDispositionAdmitted || occurrences[2].Disposition != SunSpecChainDispositionAdmitted || occurrences[3].Disposition != SunSpecChainDispositionUnsupportedLength {
 		t.Fatalf("V2 opaque dispositions=%#v", occurrences)
 	}
-	for _, occurrence := range occurrences {
+	for _, occurrence := range []SunSpecOccurrence{occurrences[0], occurrences[3]} {
 		if _, ok := occurrence.DecoderKey(); ok {
 			t.Fatalf("opaque V2 occurrence has a decoder key: %#v", occurrence)
+		}
+	}
+	for index, occurrence := range occurrences[1:3] {
+		if key, ok := occurrence.DecoderKey(); !ok || key.ModelID != 701 || key.ModelLength != 153 || occurrence.Ordinal != uint32(index+2) {
+			t.Fatalf("exact V2 DER occurrence is not retained: %#v", occurrence)
 		}
 	}
 }

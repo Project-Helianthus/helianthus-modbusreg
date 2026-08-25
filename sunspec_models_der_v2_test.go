@@ -56,3 +56,54 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 		}
 	})
 }
+
+func TestSunSpecV2DERMeasurePreservesScaledUnsignedCounter(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	words := v2DERModelWords(t, registry, 701, 153, map[string][]uint16{
+		"ACType":     {2},
+		"TotWhInj":   {0x8000, 0, 0, 1},
+		"TotWh_SF":   {0xffff},
+		"MnAlrmInfo": {0x0080, 0},
+	})
+	key := SunSpecDecoderKey{ModelID: 701, ModelLength: 153, SchemaRevision: SunSpecModelsRevisionV2}
+	decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{
+		Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 701, ModelLength: 153}, SchemaRevision: SunSpecModelsRevisionV2,
+		Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fact, ok := decoded.Fact("sunspec.der.v2.701.TotWhInj")
+	if !ok {
+		t.Fatal("scaled unsigned counter absent")
+	}
+	decimal, ok := fact.Value.UnsignedDecimal()
+	if !ok || decimal != (SunSpecUnsignedDecimal{Coefficient: 0x8000000000000001, Exponent: -1}) {
+		t.Fatalf("unsigned decimal=%#v present=%v", decimal, ok)
+	}
+}
+
+func v2DERModelWords(t *testing.T, registry SunSpecDecoderRegistry, id, length uint16, values map[string][]uint16) []uint16 {
+	t.Helper()
+	key := SunSpecDecoderKey{ModelID: id, ModelLength: length, SchemaRevision: SunSpecModelsRevisionV2}
+	definition, ok := registry.definition(key)
+	if !ok {
+		t.Fatalf("definition %d/%d absent", id, length)
+	}
+	words := make([]uint16, int(length)+2)
+	words[0], words[1] = id, length
+	for _, point := range definition.points {
+		value, exists := values[point.name]
+		if !exists || point.name == "ID" || point.name == "L" {
+			continue
+		}
+		if len(value) > int(point.size) {
+			t.Fatalf("point %s words=%d exceeds=%d", point.name, len(value), point.size)
+		}
+		copy(words[point.offset:point.offset+point.size], value)
+	}
+	return words
+}
