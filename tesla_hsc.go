@@ -14,6 +14,9 @@ const (
 	// TeslaHSCWCVitalsCompatibilityV1 is the exact operation contract gate for
 	// the bounded WC vitals snapshot. It is not a general firmware claim.
 	TeslaHSCWCVitalsCompatibilityV1 = "wc3_24_44_3"
+	// TeslaHSCSystemInfoCompatibilityV1 is the exact operation contract gate
+	// for the bounded Common system-information snapshot.
+	TeslaHSCSystemInfoCompatibilityV1 = "wc3_24_44_3"
 )
 
 // TeslaHSCProfileName identifies the profile only inside registry selection.
@@ -49,6 +52,9 @@ const (
 	// TeslaTEDAPIAdmissionAllowedWCVitals admits only the explicit bounded WC
 	// vitals operation after all profile and operation gates pass.
 	TeslaTEDAPIAdmissionAllowedWCVitals TeslaTEDAPIAdmissionState = "allowed_wc_vitals"
+	// TeslaTEDAPIAdmissionAllowedCommonSystemInfo admits only the explicit
+	// bounded Common system-information operation after all gates pass.
+	TeslaTEDAPIAdmissionAllowedCommonSystemInfo TeslaTEDAPIAdmissionState = "allowed_common_system_info"
 )
 
 // TeslaTEDAPIOperationAdmission is the redacted result of local admission
@@ -61,11 +67,12 @@ type TeslaTEDAPIOperationAdmission struct {
 // TeslaHSCProfileConfig is an explicit local flavor configuration. A matching
 // node or a readable frame is not a substitute for this configuration.
 type TeslaHSCProfileConfig struct {
-	Enabled                  bool
-	Node                     byte
-	PassiveCompatible        bool
-	CompatibilityVersion     string
-	WCVitalsOperationVersion string
+	Enabled                    bool
+	Node                       byte
+	PassiveCompatible          bool
+	CompatibilityVersion       string
+	WCVitalsOperationVersion   string
+	SystemInfoOperationVersion string
 }
 
 // TeslaHSCProfile retains the immutable profile gate decision.
@@ -358,13 +365,22 @@ func NewTeslaHSCProvenance(
 	}
 }
 
-// EncodeQualifiedFunction denies every outbound Tesla operation until a later
-// typed, proven read-only contract adds an explicit operation allowlist.
+// EncodeQualifiedFunction constructs only an explicitly qualified, bounded
+// read-only operation. Every unknown operation remains no-send.
 func (profile TeslaHSCProfile) EncodeQualifiedFunction(operation string) (modbus.PrivateFunctionRequest, modbus.PrivateFunctionResponsePolicy, error) {
 	if admission := profile.OperationAdmissionFor(operation); !admission.OutboundAllowed {
 		return modbus.PrivateFunctionRequest{}, modbus.PrivateFunctionResponsePolicy{}, fmt.Errorf("tesla HSC operation is not admitted")
 	}
-	request, err := modbus.NewPrivateFunctionRequest(teslaHSCFunction100, teslaFC100WCVitalsRequestPDU)
+	var payload []byte
+	switch operation {
+	case TeslaTEDAPIOperationWCVitalsV1:
+		payload = teslaFC100WCVitalsRequestPDU
+	case TeslaTEDAPIOperationCommonSystemInfoV1:
+		payload = teslaFC100CommonSystemInfoRequestPDU
+	default:
+		return modbus.PrivateFunctionRequest{}, modbus.PrivateFunctionResponsePolicy{}, fmt.Errorf("tesla HSC operation is not admitted")
+	}
+	request, err := modbus.NewPrivateFunctionRequest(teslaHSCFunction100, payload)
 	if err != nil {
 		return modbus.PrivateFunctionRequest{}, modbus.PrivateFunctionResponsePolicy{}, err
 	}
@@ -380,6 +396,18 @@ func (profile TeslaHSCProfile) DecodeQualifiedFunction(operation string, functio
 			return QualifiedFunctionResult{}, fmt.Errorf("tesla HSC operation response function is invalid")
 		}
 		replay, err := DecodeTeslaFC100WCVitalsReplay(payload)
+		if err != nil {
+			return QualifiedFunctionResult{}, err
+		}
+		return QualifiedFunctionResult{Replay: &QualifiedFunctionReplay{
+			Kind: string(replay.Kind), PayloadLength: replay.SnapshotLength, PayloadDigest: replay.SnapshotDigest,
+		}}, nil
+	}
+	if operation == TeslaTEDAPIOperationCommonSystemInfoV1 {
+		if function != teslaHSCFunction100 {
+			return QualifiedFunctionResult{}, fmt.Errorf("tesla HSC operation response function is invalid")
+		}
+		replay, err := DecodeTeslaFC100CommonSystemInfoReplay(payload)
 		if err != nil {
 			return QualifiedFunctionResult{}, err
 		}
