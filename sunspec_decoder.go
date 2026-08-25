@@ -109,7 +109,7 @@ func standardSunSpecDecoderKeys(revision SunSpecSchemaRevision, definitions []su
 	case SunSpecModelsRevisionV1:
 		capacity += 3277 + 89561
 	case SunSpecModelsRevisionV2:
-		capacity += int(maxSunSpecDERPorts) + 1
+		capacity += int(maxSunSpecDERPorts) + 1 + int(maxSunSpecBESSStrings) + 1
 	}
 	keys := make([]SunSpecDecoderKey, 0, capacity)
 	for _, definition := range definitions {
@@ -124,6 +124,9 @@ func standardSunSpecDecoderKeys(revision SunSpecSchemaRevision, definitions []su
 	case SunSpecModelsRevisionV2:
 		for ports := uint32(0); ports <= maxSunSpecDERPorts; ports++ {
 			keys = append(keys, SunSpecDecoderKey{ModelID: 714, ModelLength: uint16(18 + 25*ports), SchemaRevision: revision})
+		}
+		for strings := uint32(0); strings <= maxSunSpecBESSStrings; strings++ {
+			keys = append(keys, SunSpecDecoderKey{ModelID: 803, ModelLength: uint16(26 + 32*strings), SchemaRevision: revision})
 		}
 	}
 	sort.Slice(keys, func(i, j int) bool {
@@ -153,8 +156,17 @@ func (r SunSpecDecoderRegistry) definition(key SunSpecDecoderKey) (sunSpecModelD
 	if key.SchemaRevision != r.revision {
 		return sunSpecModelDefinition{}, false
 	}
-	if key.SchemaRevision == SunSpecModelsRevisionV2 && key.ModelID == 714 {
-		resolved, err := derDCMeasureV2SunSpecDefinition(key.ModelLength)
+	if key.SchemaRevision == SunSpecModelsRevisionV2 {
+		var resolved sunSpecModelDefinition
+		var err error
+		switch key.ModelID {
+		case 714:
+			resolved, err = derDCMeasureV2SunSpecDefinition(key.ModelLength)
+		case 803:
+			resolved, err = bessBankV2SunSpecDefinition(key.ModelLength)
+		default:
+			return sunSpecModelDefinition{}, false
+		}
 		return resolved, err == nil
 	}
 	if key.SchemaRevision != SunSpecModelsRevisionV1 {

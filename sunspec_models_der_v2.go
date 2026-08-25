@@ -3,6 +3,7 @@ package modbusreg
 import "fmt"
 
 const maxSunSpecDERPorts uint32 = (65535 - 18) / 25
+const maxSunSpecBESSStrings uint32 = (65535 - 26) / 32
 
 func derDCMeasureV2SunSpecDefinition(length uint16) (sunSpecModelDefinition, error) {
 	if length < 18 || (uint32(length)-18)%25 != 0 {
@@ -30,6 +31,83 @@ func derDCMeasureV2SunSpecDefinition(length uint16) (sunSpecModelDefinition, err
 		return len(words) == int(length)+2 && len(words) > 4 && words[4] != 0xffff && uint32(length) == 18+25*uint32(words[4])
 	}
 	return d, nil
+}
+
+func bessBankV2SunSpecDefinition(length uint16) (sunSpecModelDefinition, error) {
+	if length < 26 || (uint32(length)-26)%32 != 0 {
+		return sunSpecModelDefinition{}, fmt.Errorf("SunSpec V2 Model 803 geometry is invalid")
+	}
+	strings := (uint32(length) - 26) / 32
+	if strings > maxSunSpecBESSStrings {
+		return sunSpecModelDefinition{}, fmt.Errorf("SunSpec V2 Model 803 string count exceeds geometry")
+	}
+	points := []sunSpecPointDefinition{
+		v2DERPoint("803", "ID", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("803", "L", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("803", "NStr", SunSpecTypeCount, "", "", false),
+		v2DERPoint("803", "NStrCon", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("803", "ModTmpMax", SunSpecTypeInt16, "C", "ModTmp_SF", false),
+		v2DERPoint("803", "ModTmpMaxStr", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("803", "ModTmpMaxMod", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("803", "ModTmpMin", SunSpecTypeInt16, "C", "ModTmp_SF", false),
+		v2DERPoint("803", "ModTmpMinStr", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("803", "ModTmpMinMod", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("803", "ModTmpAvg", SunSpecTypeInt16, "C", "ModTmp_SF", false),
+		v2DERPoint("803", "StrVMax", SunSpecTypeUint16, "V", "V_SF", false),
+		v2DERPoint("803", "StrVMaxStr", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("803", "StrVMin", SunSpecTypeUint16, "V", "V_SF", false),
+		v2DERPoint("803", "StrVMinStr", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("803", "StrVAvg", SunSpecTypeUint16, "V", "V_SF", false),
+		v2DERPoint("803", "StrAMax", SunSpecTypeInt16, "A", "A_SF", false),
+		v2DERPoint("803", "StrAMaxStr", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("803", "StrAMin", SunSpecTypeInt16, "A", "A_SF", false),
+		v2DERPoint("803", "StrAMinStr", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("803", "StrAAvg", SunSpecTypeInt16, "A", "A_SF", false),
+		v2DERPoint("803", "NCellBal", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("803", "CellV_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("803", "ModTmp_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("803", "A_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("803", "SoH_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("803", "SoC_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("803", "V_SF", SunSpecTypeScaleFactor, "", "", false),
+	}
+	for i := uint32(1); i <= strings; i++ {
+		for _, point := range []struct {
+			name string
+			typ  SunSpecPointType
+			unit string
+			sf   string
+		}{
+			{"StrNMod", SunSpecTypeUint16, "", ""}, {"StrSt", SunSpecTypeBitfield32, "", ""},
+			{"StrConFail", SunSpecTypeEnum16, "", ""}, {"StrSoC", SunSpecTypeUint16, "", "SoC_SF"},
+			{"StrSoH", SunSpecTypeUint16, "", "SoH_SF"}, {"StrA", SunSpecTypeInt16, "A", "A_SF"},
+			{"StrCellVMax", SunSpecTypeUint16, "V", "CellV_SF"}, {"StrCellVMaxMod", SunSpecTypeUint16, "", ""},
+			{"StrCellVMin", SunSpecTypeUint16, "V", "CellV_SF"}, {"StrCellVMinMod", SunSpecTypeUint16, "", ""},
+			{"StrCellVAvg", SunSpecTypeUint16, "V", "CellV_SF"}, {"StrModTmpMax", SunSpecTypeInt16, "C", "ModTmp_SF"},
+			{"StrModTmpMaxMod", SunSpecTypeUint16, "", ""}, {"StrModTmpMin", SunSpecTypeInt16, "C", "ModTmp_SF"},
+			{"StrModTmpMinMod", SunSpecTypeUint16, "", ""}, {"StrModTmpAvg", SunSpecTypeInt16, "C", "ModTmp_SF"},
+			{"StrDisRsn", SunSpecTypeEnum16, "", ""}, {"StrConSt", SunSpecTypeBitfield32, "", ""},
+			{"StrEvt1", SunSpecTypeBitfield32, "", ""}, {"StrEvt2", SunSpecTypeBitfield32, "", ""},
+			{"StrEvtVnd1", SunSpecTypeBitfield32, "", ""}, {"StrEvtVnd2", SunSpecTypeBitfield32, "", ""},
+			{"StrSetEna", SunSpecTypeEnum16, "", ""}, {"StrSetCon", SunSpecTypeEnum16, "", ""},
+			{"Pad1", SunSpecTypePad, "", ""}, {"Pad2", SunSpecTypePad, "", ""},
+		} {
+			pointDefinition := v2DERPoint("803", point.name, point.typ, point.unit, point.sf, false)
+			pointDefinition.groupID = "string"
+			pointDefinition.repeatIndex = uint16(i)
+			pointDefinition.repeated = true
+			points = append(points, pointDefinition)
+		}
+	}
+	definitions, err := appendSunSpecDefinition(nil, SunSpecModelsRevisionV2, 803, length, SunSpecTopologyNone, false, points)
+	if err != nil {
+		return sunSpecModelDefinition{}, err
+	}
+	definition := definitions[0]
+	definition.geometry = func(words []uint16) bool {
+		return len(words) == int(length)+2 && len(words) > 2 && words[2] != 0xffff && uint32(length) == 26+32*uint32(words[2])
+	}
+	return definition, nil
 }
 
 func derMeasureACV2SunSpecPoints() []sunSpecPointDefinition {

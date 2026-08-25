@@ -260,3 +260,89 @@ func TestSunSpecV2ChainRetainsFixedBESSBaseBlock(t *testing.T) {
 		t.Fatalf("BESS base occurrence=%#v", occurrences)
 	}
 }
+
+func TestSunSpecV2ChainRetainsDistinctBESSBankOccurrences(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+		SchemaRevision: SunSpecModelsRevisionV2,
+		BaseCandidates: []uint16{40000},
+		Limits:         SunSpecChainLimits{MaxTotalWords: 256, MaxOccurrences: 3},
+		DecoderKeys:    registry.DecoderKeys(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := NewSunSpecChain(plan)
+	id := uint64(1)
+	if _, err := admitNext(t, chain, &id, []uint16{0x5375, 0x6e53}); err != nil {
+		t.Fatal(err)
+	}
+	words := append([]uint16{1, 66}, make([]uint16, 66)...)
+	bankZero := append([]uint16{803, 26}, make([]uint16, 26)...)
+	bankTwo := append([]uint16{803, 90}, make([]uint16, 90)...)
+	bankTwo[2] = 2
+	words = append(words, bankZero...)
+	words = append(words, bankTwo...)
+	for len(words) > 0 {
+		request := chain.NextRequests()[0]
+		chunk := words[:request.WordCount()]
+		words = words[request.WordCount():]
+		if _, err := admitNext(t, chain, &id, chunk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snapshot, err := admitNext(t, chain, &id, []uint16{0xffff, 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	occurrences := snapshot.Occurrences()
+	if len(occurrences) != 3 || occurrences[1].WireKey != (SunSpecWireKey{ModelID: 803, ModelLength: 26}) || occurrences[2].WireKey != (SunSpecWireKey{ModelID: 803, ModelLength: 90}) || occurrences[1].Disposition != SunSpecChainDispositionAdmitted || occurrences[2].Disposition != SunSpecChainDispositionAdmitted || occurrences[1].Ordinal == occurrences[2].Ordinal {
+		t.Fatalf("BESS bank occurrences=%#v", occurrences)
+	}
+}
+
+func TestSunSpecV2ChainKeepsWrongBESSBankGeometryOpaque(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+		SchemaRevision: SunSpecModelsRevisionV2,
+		BaseCandidates: []uint16{40000},
+		Limits:         SunSpecChainLimits{MaxTotalWords: 128, MaxOccurrences: 2},
+		DecoderKeys:    registry.DecoderKeys(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := NewSunSpecChain(plan)
+	id := uint64(1)
+	if _, err := admitNext(t, chain, &id, []uint16{0x5375, 0x6e53}); err != nil {
+		t.Fatal(err)
+	}
+	words := append([]uint16{1, 66}, make([]uint16, 66)...)
+	words = append(words, 803, 27)
+	words = append(words, make([]uint16, 27)...)
+	for len(words) > 0 {
+		request := chain.NextRequests()[0]
+		chunk := words[:request.WordCount()]
+		words = words[request.WordCount():]
+		if _, err := admitNext(t, chain, &id, chunk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snapshot, err := admitNext(t, chain, &id, []uint16{0xffff, 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	occurrences := snapshot.Occurrences()
+	if len(occurrences) != 2 || occurrences[1].Disposition != SunSpecChainDispositionUnsupportedLength {
+		t.Fatalf("wrong V2 803 geometry occurrences=%#v", occurrences)
+	}
+	if _, ok := occurrences[1].DecoderKey(); ok {
+		t.Fatalf("wrong V2 803 geometry has decoder key: %#v", occurrences[1])
+	}
+}
