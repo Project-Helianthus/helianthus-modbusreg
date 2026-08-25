@@ -89,6 +89,38 @@ func TestSunSpecDecoderRegistryUsesExactImmutableKeys(t *testing.T) {
 	}
 }
 
+func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
+	for _, revisions := range [][]SunSpecSchemaRevision{
+		{SunSpecModelsRevisionV1, SunSpecModelsRevisionV2},
+		{SunSpecModelsRevisionV2, SunSpecModelsRevisionV1},
+	} {
+		registries := make(map[SunSpecSchemaRevision]SunSpecDecoderRegistry, len(revisions))
+		for _, revision := range revisions {
+			registry, err := NewStandardSunSpecDecoderRegistry(revision)
+			if err != nil {
+				t.Fatalf("registry %q: %v", revision, err)
+			}
+			registries[revision] = registry
+		}
+		v2Keys := registries[SunSpecModelsRevisionV2].DecoderKeys()
+		wantV2 := []SunSpecDecoderKey{{ModelID: 1, ModelLength: 66, SchemaRevision: SunSpecModelsRevisionV2}}
+		if !reflect.DeepEqual(v2Keys, wantV2) {
+			t.Fatalf("V2 keys=%#v want=%#v", v2Keys, wantV2)
+		}
+		if _, ok := registries[SunSpecModelsRevisionV2].definition(SunSpecDecoderKey{ModelID: 1, ModelLength: 65, SchemaRevision: SunSpecModelsRevisionV2}); ok {
+			t.Fatal("V2 resolved V1 compatibility Common")
+		}
+		if _, ok := registries[SunSpecModelsRevisionV2].definition(SunSpecDecoderKey{ModelID: 701, ModelLength: 153, SchemaRevision: SunSpecModelsRevisionV2}); ok {
+			t.Fatal("V2 resolved a DER model before its split")
+		}
+		for _, key := range registries[SunSpecModelsRevisionV1].DecoderKeys() {
+			if key.SchemaRevision != SunSpecModelsRevisionV1 {
+				t.Fatalf("V1 cache leaked key %#v", key)
+			}
+		}
+	}
+}
+
 func TestSunSpecDecodedModelsAreDefensiveAndReadOnly(t *testing.T) {
 	typ := reflect.TypeFor[SunSpecDecoderRegistry]()
 	for index := 0; index < typ.NumMethod(); index++ {
