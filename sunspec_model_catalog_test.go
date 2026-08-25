@@ -53,6 +53,22 @@ func TestSunSpecModelCatalogMatchesPinnedAuthoritativeShapes(t *testing.T) {
 	}
 }
 
+func TestSunSpecModelCatalogAllowsOnlyFinalAddressableWordAtMaximumExtent(t *testing.T) {
+	points := []sunSpecPointDefinition{
+		sunSpecPoint("Prefix", "test.prefix", SunSpecTypeUint16, 65535, "", "", false, nil, 0),
+		sunSpecPoint("Final", "test.final", SunSpecTypeUint16, 1, "", "", false, nil, 0),
+	}
+	definitions, err := appendSunSpecDefinition(nil, SunSpecModelsRevisionV2, 999, 65534, SunSpecTopologyNone, false, points)
+	if err != nil || len(definitions) != 1 || definitions[0].points[1].offset != 65535 {
+		t.Fatalf("maximum catalog definitions=%#v err=%v", definitions, err)
+	}
+	overflow := append([]sunSpecPointDefinition(nil), points...)
+	overflow[1].size = 2
+	if _, err := appendSunSpecDefinition(nil, SunSpecModelsRevisionV2, 999, 65535, SunSpecTopologyNone, false, overflow); err == nil {
+		t.Fatal("catalog accepted an extent beyond the addressable maximum")
+	}
+}
+
 func TestSunSpecV2CatalogContainsOnlyCurrentAdmittedModels(t *testing.T) {
 	definitions, err := standardSunSpecModelDefinitions(SunSpecModelsRevisionV2)
 	if err != nil {
