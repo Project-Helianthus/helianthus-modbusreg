@@ -47,6 +47,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			{713, 7, 9, []string{"ID", "L", "WHRtg"}, "Pct_SF"},
 			{715, 7, 7, []string{"ID", "L", "LocRemCtl"}, "OpCtl"},
 			{802, 62, 58, []string{"ID", "L", "AHRtg"}, "W_SF"},
+			{805, 42, 28, []string{"ID", "L", "StrIdx"}, "Tmp_SF"},
 		} {
 			definition, ok := registry.definition(SunSpecDecoderKey{ModelID: want.id, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2})
 			if !ok || len(definition.points) != want.points {
