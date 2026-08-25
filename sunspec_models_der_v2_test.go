@@ -147,6 +147,91 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 	}
 }
 
+func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T) {
+	template, err := derTripLVV2NestedTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	words := []uint16{
+		707, 33,
+		0, 0, 0, 1, 2, 0, 0,
+		0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1,
+		0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1,
+	}
+	spans := []SunSpecSourceSpan{
+		{LogicalViewID: 11, PDUOffset: 100, WordCount: 11},
+		{LogicalViewID: 12, PDUOffset: 200, WordCount: 12},
+		{LogicalViewID: 12, PDUOffset: 300, WordCount: 12},
+	}
+	layout, err := buildSunSpecNestedOccurrenceLayout(template, words, spans)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := layout.Entries()
+	if len(entries) != 12 {
+		t.Fatalf("entries=%d want=12", len(entries))
+	}
+	if got := entries[0].Path().Segments(); !reflect.DeepEqual(got, []SunSpecFactPathSegment{
+		{Name: "Crv", Indexed: true, Index: 1}, {Name: "MustTrip"}, {Name: "Pt", Indexed: true, Index: 1}, {Name: "V"},
+	}) {
+		t.Fatalf("first path=%#v", got)
+	}
+	if got := entries[0].SourceRange(); got.OccurrenceOffset() != 11 || got.WordCount() != 1 || !reflect.DeepEqual(got.SourceSpans(), []SunSpecSourceSpan{{LogicalViewID: 12, PDUOffset: 200, WordCount: 1}}) {
+		t.Fatalf("first range=%#v", got)
+	}
+	if got := entries[1].SourceRange(); got.OccurrenceOffset() != 12 || got.WordCount() != 2 || !reflect.DeepEqual(got.SourceSpans(), []SunSpecSourceSpan{{LogicalViewID: 12, PDUOffset: 201, WordCount: 2}}) {
+		t.Fatalf("second range=%#v", got)
+	}
+
+	zeroWords := []uint16{707, 7, 0, 0, 0, 0, 0, 0, 0}
+	zero, err := buildSunSpecNestedOccurrenceLayout(template, zeroWords, []SunSpecSourceSpan{{LogicalViewID: 13, PDUOffset: 0, WordCount: 9}})
+	if err != nil || len(zero.Entries()) != 0 {
+		t.Fatalf("zero geometry err=%v entries=%d", err, len(zero.Entries()))
+	}
+
+	for name, invalid := range map[string]struct {
+		words []uint16
+		spans []SunSpecSourceSpan
+	}{
+		"wrong identifier":         {append([]uint16{708}, words[1:]...), spans},
+		"declared length mismatch": {append([]uint16{707, 32}, words[2:]...), spans},
+		"point count unavailable":  {append([]uint16{707, 33, 0, 0, 0, 0xffff}, words[6:]...), spans},
+		"curve count unavailable":  {append([]uint16{707, 33, 0, 0, 0, 1, 0xffff}, words[7:]...), spans},
+		"partial span coverage":    {words, []SunSpecSourceSpan{{LogicalViewID: 11, PDUOffset: 100, WordCount: 34}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			layout, err := buildSunSpecNestedOccurrenceLayout(template, invalid.words, invalid.spans)
+			if err == nil || len(layout.Entries()) != 0 {
+				t.Fatalf("err=%v entries=%d", err, len(layout.Entries()))
+			}
+		})
+	}
+
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := SunSpecDecoderKey{ModelID: 707, ModelLength: 33, SchemaRevision: SunSpecModelsRevisionV2}
+	if _, ok := registry.definition(key); ok {
+		t.Fatal("Model 707 layout validation created a decoder definition")
+	}
+	if _, err := registry.DecodeOccurrence(SunSpecOccurrence{WireKey: SunSpecWireKey{ModelID: 707, ModelLength: 33}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionUnknownModel, words: words, spans: spans}); err == nil {
+		t.Fatal("Model 707 layout validation decoded an unknown occurrence")
+	}
+	for _, unchanged := range []struct {
+		revision SunSpecSchemaRevision
+		modelID  uint16
+	}{{SunSpecModelsRevisionV1, 707}, {SunSpecModelsRevisionV2, 708}, {SunSpecModelsRevisionV2, 709}} {
+		other, err := NewStandardSunSpecDecoderRegistry(unchanged.revision)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := other.definition(SunSpecDecoderKey{ModelID: unchanged.modelID, ModelLength: 7, SchemaRevision: unchanged.revision}); ok {
+			t.Fatalf("unexpected definition for revision=%q model=%d", unchanged.revision, unchanged.modelID)
+		}
+	}
+}
+
 func TestSunSpecV2BESSBaseRetainsPinnedPointOrderTypesAndScales(t *testing.T) {
 	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
 	if err != nil {
