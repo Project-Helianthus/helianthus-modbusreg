@@ -265,15 +265,16 @@ func (c *SunSpecChain) payload(r SunSpecReadRequest, x LogicalViewRecord) (SunSp
 		d = SunSpecChainDispositionUnsupportedLength
 	}
 	c.occ = append(c.occ, SunSpecOccurrence{
-		Ordinal:        uint32(len(c.occ) + 1),
-		WireKey:        wk,
-		SchemaRevision: c.plan.revision,
-		HeaderOffset:   c.current.header,
-		PayloadOffset:  c.current.header + 2,
-		Disposition:    d,
-		decoderKey:     key,
-		words:          append([]uint16(nil), c.current.words...),
-		spans:          append([]SunSpecSourceSpan(nil), c.current.spans...),
+		Ordinal:             uint32(len(c.occ) + 1),
+		WireKey:             wk,
+		SchemaRevision:      c.plan.revision,
+		HeaderOffset:        c.current.header,
+		PayloadOffset:       c.current.header + 2,
+		Disposition:         d,
+		decoderKey:          key,
+		structuralCandidate: c.plan.structuralCandidate(wk, c.current.words, c.current.spans),
+		words:               append([]uint16(nil), c.current.words...),
+		spans:               append([]SunSpecSourceSpan(nil), c.current.spans...),
 	})
 	c.current = nil
 	return SunSpecChainSnapshot{}, c.queue(nextAddress, nextWords, nextPurpose)

@@ -6,6 +6,35 @@ const maxSunSpecDERPorts uint32 = (65535 - 18) / 25
 const maxSunSpecBESSStrings uint32 = (65535 - 26) / 32
 const maxSunSpecBESSModules uint32 = (65535 - 46) / 16
 
+func sunSpecV2DERTripLVStructuralCandidate(revision SunSpecSchemaRevision, wireKey SunSpecWireKey, words []uint16, spans []SunSpecSourceSpan) *sunSpecStructuralCandidate {
+	if revision != SunSpecModelsRevisionV2 || wireKey.ModelID != 707 || wireKey.ModelLength > 65534 || len(words) != int(wireKey.ModelLength)+2 || len(words) <= 6 || words[0] != wireKey.ModelID || words[1] != wireKey.ModelLength {
+		return nil
+	}
+	points, curves := words[5], words[6]
+	if points == 0xffff || curves == 0xffff {
+		return nil
+	}
+	length := uint64(7) + uint64(curves)*(uint64(4)+9*uint64(points))
+	if length > 65534 || length != uint64(wireKey.ModelLength) || !sunSpecStructuralCandidateSpansCover(spans, uint32(len(words))) {
+		return nil
+	}
+	return &sunSpecStructuralCandidate{modelID: wireKey.ModelID}
+}
+
+func sunSpecStructuralCandidateSpansCover(spans []SunSpecSourceSpan, expected uint32) bool {
+	if len(spans) == 0 {
+		return false
+	}
+	var total uint32
+	for _, span := range spans {
+		if span.LogicalViewID == 0 || span.WordCount == 0 || uint32(span.PDUOffset)+uint32(span.WordCount) > maxSunSpecOccurrenceWords || uint32(span.WordCount) > expected-total {
+			return false
+		}
+		total += uint32(span.WordCount)
+	}
+	return total == expected
+}
+
 func derTripLVV2NestedTemplate() (sunSpecNestedLayoutTemplate, error) {
 	return newSunSpecNestedLayoutTemplate(
 		sunSpecNestedTemplateKey{revision: SunSpecModelsRevisionV2, modelID: 707},

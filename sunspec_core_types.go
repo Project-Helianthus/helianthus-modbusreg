@@ -31,6 +31,12 @@ type SunSpecSourceSpan struct {
 	// by the referenced logical view.
 	PDUOffset, WordCount uint16
 }
+
+// sunSpecStructuralCandidate is private metadata for a complete occurrence
+// whose opted-in structure has been validated. It intentionally carries no
+// decoder, fact, catalog, or public selection surface.
+type sunSpecStructuralCandidate struct{ modelID uint16 }
+
 type SunSpecOccurrence struct {
 	Ordinal                     uint32
 	WireKey                     SunSpecWireKey
@@ -38,6 +44,7 @@ type SunSpecOccurrence struct {
 	HeaderOffset, PayloadOffset uint16
 	Disposition                 SunSpecChainDisposition
 	decoderKey                  *SunSpecDecoderKey
+	structuralCandidate         *sunSpecStructuralCandidate
 	words                       []uint16
 	spans                       []SunSpecSourceSpan
 }
@@ -68,6 +75,10 @@ func cloneOccurrence(o SunSpecOccurrence) SunSpecOccurrence {
 	if o.decoderKey != nil {
 		k := *o.decoderKey
 		o.decoderKey = &k
+	}
+	if o.structuralCandidate != nil {
+		candidate := *o.structuralCandidate
+		o.structuralCandidate = &candidate
 	}
 	return o
 }

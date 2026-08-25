@@ -267,6 +267,63 @@ func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T)
 	}
 }
 
+func TestSunSpecV2DERTripStructuralCandidateRequiresOptInAndExactGeometry(t *testing.T) {
+	words := []uint16{
+		707, 33,
+		0, 0, 0, 1, 2, 0, 0,
+		0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1,
+		0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1,
+	}
+	spans := []SunSpecSourceSpan{{LogicalViewID: 7, PDUOffset: 9, WordCount: uint16(len(words))}}
+	plain, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+		SchemaRevision: SunSpecModelsRevisionV2,
+		BaseCandidates: []uint16{40000},
+		Limits:         SunSpecChainLimits{MaxTotalWords: 64, MaxOccurrences: 2},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if candidate := plain.structuralCandidate(SunSpecWireKey{ModelID: 707, ModelLength: 33}, words, spans); candidate != nil {
+		t.Fatalf("empty opt-in candidate=%#v", candidate)
+	}
+	selected, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+		SchemaRevision:         SunSpecModelsRevisionV2,
+		BaseCandidates:         []uint16{40000},
+		Limits:                 SunSpecChainLimits{MaxTotalWords: 64, MaxOccurrences: 2},
+		StructuralCandidateIDs: []uint16{707},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if candidate := selected.structuralCandidate(SunSpecWireKey{ModelID: 707, ModelLength: 33}, words, spans); candidate == nil {
+		t.Fatal("complete valid Model 707 is not a structural candidate")
+	}
+	for name, invalid := range map[string][]uint16{
+		"wrong revision":        words,
+		"wrong identifier":      append([]uint16{708}, words[1:]...),
+		"wrong declared length": append([]uint16{707, 32}, words[2:]...),
+		"point unavailable":     append([]uint16{707, 33, 0, 0, 0, 0xffff}, words[6:]...),
+		"curve unavailable":     append([]uint16{707, 33, 0, 0, 0, 1, 0xffff}, words[7:]...),
+		"wrong geometry":        append([]uint16{707, 33, 0, 0, 0, 2, 2}, words[7:]...),
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidatePlan := selected
+			if name == "wrong revision" {
+				candidatePlan.revision = SunSpecModelsRevisionV1
+			}
+			if candidate := candidatePlan.structuralCandidate(SunSpecWireKey{ModelID: 707, ModelLength: 33}, invalid, spans); candidate != nil {
+				t.Fatalf("invalid Model 707 candidate=%#v", candidate)
+			}
+		})
+	}
+	if candidate := selected.structuralCandidate(SunSpecWireKey{ModelID: 707, ModelLength: 33}, words, []SunSpecSourceSpan{{LogicalViewID: 7, PDUOffset: 9, WordCount: 34}}); candidate != nil {
+		t.Fatalf("partial coverage candidate=%#v", candidate)
+	}
+	if candidate := selected.structuralCandidate(SunSpecWireKey{ModelID: 707, ModelLength: 65535}, nil, nil); candidate != nil {
+		t.Fatalf("extent-excess candidate=%#v", candidate)
+	}
+}
+
 func TestSunSpecV2BESSBaseRetainsPinnedPointOrderTypesAndScales(t *testing.T) {
 	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
 	if err != nil {

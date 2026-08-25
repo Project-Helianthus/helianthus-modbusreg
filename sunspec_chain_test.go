@@ -58,6 +58,102 @@ func TestSunSpecChainRejectsCrossInstanceReplay(t *testing.T) {
 	}
 }
 
+type sunSpecReadTrace struct {
+	address uint16
+	words   uint16
+	purpose SunSpecReadPurpose
+}
+
+func runV2StructuralCandidateChain(t *testing.T, candidateIDs []uint16) (SunSpecChainSnapshot, []sunSpecReadTrace) {
+	t.Helper()
+	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+		SchemaRevision:         SunSpecModelsRevisionV2,
+		BaseCandidates:         []uint16{40000},
+		Limits:                 SunSpecChainLimits{MaxTotalWords: 256, MaxOccurrences: 4},
+		StructuralCandidateIDs: candidateIDs,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := NewSunSpecChain(plan)
+	id := uint64(1)
+	trace := make([]sunSpecReadTrace, 0, 8)
+	admit := func(words []uint16) (SunSpecChainSnapshot, error) {
+		r := chain.NextRequests()[0]
+		trace = append(trace, sunSpecReadTrace{r.Address(), r.WordCount(), r.Purpose()})
+		snapshot, err := chain.AdmitReplay(r, chainView(t, r, id, words, "fixture"))
+		id++
+		return snapshot, err
+	}
+	if _, err := admit([]uint16{sunSpecSignatureFirst, sunSpecSignatureSecond}); err != nil {
+		t.Fatal(err)
+	}
+	first707 := []uint16{707, 33, 0, 0, 0, 1, 2, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1}
+	second707 := append([]uint16(nil), first707...)
+	stream := append([]uint16(nil), first707...)
+	stream = append(stream, second707...)
+	stream = append(stream, 708, 33)
+	stream = append(stream, make([]uint16, 33)...)
+	stream = append(stream, 709, 39)
+	stream = append(stream, make([]uint16, 39)...)
+	for len(stream) > 0 {
+		r := chain.NextRequests()[0]
+		if len(stream) < int(r.WordCount()) {
+			t.Fatalf("fixture ended before request %#v", r)
+		}
+		chunk := stream[:r.WordCount()]
+		stream = stream[r.WordCount():]
+		if _, err := admit(chunk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snapshot, err := admit([]uint16{sunSpecEndModel, 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snapshot, trace
+}
+
+func TestSunSpecV2StructuralCandidateDoesNotChangeChainBehaviorOrActivateModels(t *testing.T) {
+	plain, plainTrace := runV2StructuralCandidateChain(t, nil)
+	selected, selectedTrace := runV2StructuralCandidateChain(t, []uint16{707})
+	if !reflect.DeepEqual(selectedTrace, plainTrace) {
+		t.Fatalf("candidate changed read trace=%#v plain=%#v", selectedTrace, plainTrace)
+	}
+	if !reflect.DeepEqual(selected.RawWords(), plain.RawWords()) || len(selected.SourceViews()) != len(plain.SourceViews()) {
+		t.Fatal("candidate changed retained raw acquisition evidence")
+	}
+	plainOccurrences, selectedOccurrences := plain.Occurrences(), selected.Occurrences()
+	if len(selectedOccurrences) != 4 || len(plainOccurrences) != len(selectedOccurrences) {
+		t.Fatalf("occurrences plain=%#v selected=%#v", plainOccurrences, selectedOccurrences)
+	}
+	for index, occurrence := range selectedOccurrences {
+		if occurrence.Disposition != SunSpecChainDispositionUnknownModel {
+			t.Fatalf("occurrence %d disposition=%q", index, occurrence.Disposition)
+		}
+		if _, ok := occurrence.DecoderKey(); ok {
+			t.Fatalf("occurrence %d unexpectedly has decoder key", index)
+		}
+		if occurrence.WireKey.ModelID == 707 {
+			if occurrence.structuralCandidate == nil {
+				t.Fatalf("Model 707 occurrence %d lacks candidate", index)
+			}
+			if plainOccurrences[index].structuralCandidate != nil {
+				t.Fatalf("non-opt-in Model 707 occurrence %d has candidate", index)
+			}
+		} else if occurrence.structuralCandidate != nil {
+			t.Fatalf("non-707 model %d became candidate", occurrence.WireKey.ModelID)
+		}
+	}
+	if selectedOccurrences[0].structuralCandidate == selectedOccurrences[1].structuralCandidate {
+		t.Fatal("repeated candidates share sidecar storage")
+	}
+	copy := selected.Occurrences()
+	if copy[0].structuralCandidate == selectedOccurrences[0].structuralCandidate {
+		t.Fatal("candidate sidecar aliases snapshot storage")
+	}
+}
+
 func TestSunSpecChainRetainsOrderedDuplicatesUnknownAndWrongLength(t *testing.T) {
 	c := NewSunSpecChain(chainPlan(t, []uint16{40000}))
 	id := uint64(1)
