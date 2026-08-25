@@ -1,6 +1,7 @@
 package modbusreg
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -18,7 +19,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			"https://github.com/sunspec/models",
 			"90b4a331dcca1d6eac69c1bead952fddcc5852e0",
 			"Models 701/153, 702/50, 703/17, 713/7,",
-			"714 variable geometry, and 715/7",
+			"714 variable geometry, 715/7, and 802/62",
 			"modified by Helianthus",
 			"Apache License",
 			"Version 2.0, January 2004",
@@ -45,6 +46,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			{703, 17, 13, []string{"ID", "L", "ES"}, "Hz_SF"},
 			{713, 7, 9, []string{"ID", "L", "WHRtg"}, "Pct_SF"},
 			{715, 7, 7, []string{"ID", "L", "LocRemCtl"}, "OpCtl"},
+			{802, 62, 58, []string{"ID", "L", "AHRtg"}, "W_SF"},
 		} {
 			definition, ok := registry.definition(SunSpecDecoderKey{ModelID: want.id, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2})
 			if !ok || len(definition.points) != want.points {
@@ -62,6 +64,25 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 	})
 }
 
+func TestSunSpecV2BESSBaseRetainsPinnedPointOrderTypesAndScales(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, ok := registry.definition(SunSpecDecoderKey{ModelID: 802, ModelLength: 62, SchemaRevision: SunSpecModelsRevisionV2})
+	if !ok {
+		t.Fatal("Model 802/62 definition absent")
+	}
+	want := strings.Split("ID:uint16:1:,L:uint16:1:,AHRtg:uint16:1:AHRtg_SF,WHRtg:uint16:1:WHRtg_SF,WChaRteMax:uint16:1:WChaDisChaMax_SF,WDisChaRteMax:uint16:1:WChaDisChaMax_SF,DisChaRte:uint16:1:DisChaRte_SF,SoCMax:uint16:1:SoC_SF,SoCMin:uint16:1:SoC_SF,SocRsvMax:uint16:1:SoC_SF,SoCRsvMin:uint16:1:SoC_SF,SoC:uint16:1:SoC_SF,DoD:uint16:1:DoD_SF,SoH:uint16:1:SoH_SF,NCyc:uint32:2:,ChaSt:enum16:1:,LocRemCtl:enum16:1:,Hb:uint16:1:,CtrlHb:uint16:1:,AlmRst:uint16:1:,Typ:enum16:1:,State:enum16:1:,StateVnd:enum16:1:,WarrDt:uint32:2:,Evt1:bitfield32:2:,Evt2:bitfield32:2:,EvtVnd1:bitfield32:2:,EvtVnd2:bitfield32:2:,V:uint16:1:V_SF,VMax:uint16:1:V_SF,VMin:uint16:1:V_SF,CellVMax:uint16:1:CellV_SF,CellVMaxStr:uint16:1:,CellVMaxMod:uint16:1:,CellVMin:uint16:1:CellV_SF,CellVMinStr:uint16:1:,CellVMinMod:uint16:1:,CellVAvg:uint16:1:CellV_SF,A:int16:1:A_SF,AChaMax:uint16:1:AMax_SF,ADisChaMax:uint16:1:AMax_SF,W:int16:1:W_SF,ReqInvState:enum16:1:,ReqW:int16:1:W_SF,SetOp:enum16:1:,SetInvState:enum16:1:,AHRtg_SF:sunssf:1:,WHRtg_SF:sunssf:1:,WChaDisChaMax_SF:sunssf:1:,DisChaRte_SF:sunssf:1:,SoC_SF:sunssf:1:,DoD_SF:sunssf:1:,SoH_SF:sunssf:1:,V_SF:sunssf:1:,CellV_SF:sunssf:1:,A_SF:sunssf:1:,AMax_SF:sunssf:1:,W_SF:sunssf:1:", ",")
+	got := make([]string, len(definition.points))
+	for index, point := range definition.points {
+		got[index] = fmt.Sprintf("%s:%s:%d:%s", point.name, point.pointType, point.size, point.scaleFactor)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Model 802 signature=%q want=%q", got, want)
+	}
+}
+
 func TestSunSpecV2ControlObservabilityDecodesStateOnly(t *testing.T) {
 	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
 	if err != nil {
@@ -74,6 +95,7 @@ func TestSunSpecV2ControlObservabilityDecodesStateOnly(t *testing.T) {
 	}{
 		{703, 17, map[string][]uint16{"ES": {1}, "ESVHi": {2300}, "V_SF": {0}, "ESHzHi": {5000}, "Hz_SF": {0}}, "sunspec.der.v2.703.ES"},
 		{715, 7, map[string][]uint16{"LocRemCtl": {1}, "DERHb": {0, 7}, "AlarmReset": {1}, "OpCtl": {2}}, "sunspec.der.v2.715.AlarmReset"},
+		{802, 62, map[string][]uint16{"AHRtg": {100}, "AHRtg_SF": {0}, "AlmRst": {1}, "SetOp": {2}, "SetInvState": {3}}, "sunspec.der.v2.802.AlmRst"},
 	} {
 		words := v2DERModelWords(t, registry, want.id, want.length, want.values)
 		key := SunSpecDecoderKey{ModelID: want.id, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2}

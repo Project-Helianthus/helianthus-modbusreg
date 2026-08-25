@@ -122,6 +122,7 @@ func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
 			{ModelID: 703, ModelLength: 17, SchemaRevision: SunSpecModelsRevisionV2},
 			{ModelID: 713, ModelLength: 7, SchemaRevision: SunSpecModelsRevisionV2},
 			{ModelID: 715, ModelLength: 7, SchemaRevision: SunSpecModelsRevisionV2},
+			{ModelID: 802, ModelLength: 62, SchemaRevision: SunSpecModelsRevisionV2},
 		}
 		if len(v2Keys) != len(wantV2Static)+int(maxSunSpecDERPorts)+1 {
 			t.Fatalf("V2 key count=%d", len(v2Keys))
