@@ -110,6 +110,20 @@ func derCapacityV2SunSpecPoints() []sunSpecPointDefinition {
 	return points
 }
 
+func derStorageCapacityV2SunSpecPoints() []sunSpecPointDefinition {
+	return []sunSpecPointDefinition{
+		v2DERPoint("713", "ID", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("713", "L", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("713", "WHRtg", SunSpecTypeUint16, "Wh", "WH_SF", false),
+		v2DERPoint("713", "WHAvail", SunSpecTypeUint16, "Wh", "WH_SF", false),
+		v2DERPoint("713", "SoC", SunSpecTypeUint16, "", "Pct_SF", false),
+		v2DERPoint("713", "SoH", SunSpecTypeUint16, "", "Pct_SF", false),
+		v2DERPoint("713", "Sta", SunSpecTypeEnum16, "", "", false),
+		v2DERPoint("713", "WH_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("713", "Pct_SF", SunSpecTypeScaleFactor, "", "", false),
+	}
+}
+
 func v2DERPoint(model, name string, pointType SunSpecPointType, unit, scale string, mandatory bool) sunSpecPointDefinition {
 	symbols := map[uint64]string(nil)
 	if model == "701" && name == "ACType" {
