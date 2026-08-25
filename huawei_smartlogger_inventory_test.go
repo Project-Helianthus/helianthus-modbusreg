@@ -32,12 +32,12 @@ func TestParseHuaweiSmartLoggerOfflineInventoryAcceptsStableBoundedPages(t *test
 		t.Fatalf("unexpected inventory summary: declared=%d children=%d defaultDenied=%t", inventory.DeclaredChildren(), inventory.ChildCount(), inventory.DefaultDenied())
 	}
 	children := inventory.Children()
-	if len(children) != 2 || children[0].ObjectID() != 0x88 || children[0].Address() != "0" ||
-		children[0].Attribute("model") != "SmartLogger" || children[1].Address() != "1" {
+	if len(children) != 2 || children[0].ObjectID() != 0x89 || children[0].Address() != "1" ||
+		children[0].Attribute("model") != "SUN2000" || children[1].Address() != "2" {
 		t.Fatalf("unexpected parsed children: %#v", children)
 	}
 	children[0] = HuaweiSmartLoggerInventoryChild{}
-	if inventory.Children()[0].Address() != "0" {
+	if inventory.Children()[0].Address() != "1" {
 		t.Fatal("inventory must not expose mutable children")
 	}
 }
