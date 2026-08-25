@@ -1,9 +1,11 @@
 package modbusreg_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -443,6 +445,34 @@ func TestDetectorRejectsEveryMultipleEligibleMatchIndependentOfOrderAndScore(t *
 	malformed, _ := json.Marshal(contradictory)
 	if _, err := reg.UnmarshalDetectionDecision(malformed); err == nil {
 		t.Fatal("contradictory detector contract versions were accepted")
+	}
+}
+
+func TestHistoricalRankedDetectionDecisionFixtureIsByteStable(t *testing.T) {
+	fixture, err := os.ReadFile("testdata/detection/legacy-ranked-ambiguous-v1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision, err := reg.UnmarshalDetectionDecision(fixture)
+	if err != nil {
+		t.Fatalf("UnmarshalDetectionDecision: %v", err)
+	}
+	if decision.Outcome() != reg.DetectionAmbiguous ||
+		decision.Reason() != reg.DetectionReasonEqualBest ||
+		decision.SelectedProfileID() != "" ||
+		decision.SelectedProfileVersion().String() != "" {
+		t.Fatalf("legacy decision=%+v", decision)
+	}
+	evidence := decision.Evidence()
+	if len(evidence) != 3 ||
+		evidence[0].Reason != reg.DetectionReasonEqualBest || evidence[0].Score != 100 ||
+		evidence[1].Reason != reg.DetectionReasonEqualBest || evidence[1].Score != 100 ||
+		evidence[2].Reason != reg.DetectionReasonLowerScore || evidence[2].Score != 50 {
+		t.Fatalf("legacy evidence=%+v", evidence)
+	}
+	reencoded, err := reg.MarshalDetectionDecision(decision)
+	if err != nil || !bytes.Equal(reencoded, fixture) {
+		t.Fatalf("legacy decision round trip changed: %v", err)
 	}
 }
 
