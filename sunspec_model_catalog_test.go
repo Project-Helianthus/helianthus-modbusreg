@@ -53,6 +53,25 @@ func TestSunSpecModelCatalogMatchesPinnedAuthoritativeShapes(t *testing.T) {
 	}
 }
 
+func TestSunSpecV2CatalogContainsOnlyCurrentCommonModel(t *testing.T) {
+	definitions, err := standardSunSpecModelDefinitions(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatalf("V2 catalog: %v", err)
+	}
+	if len(definitions) != 1 {
+		t.Fatalf("V2 definitions=%d", len(definitions))
+	}
+	definition := definitions[0]
+	if definition.key != (SunSpecDecoderKey{ModelID: 1, ModelLength: 66, SchemaRevision: SunSpecModelsRevisionV2}) || definition.compatibility {
+		t.Fatalf("unexpected V2 Common definition: %#v", definition.key)
+	}
+	for _, candidate := range definitions {
+		if candidate.key == (SunSpecDecoderKey{ModelID: 1, ModelLength: 65, SchemaRevision: SunSpecModelsRevisionV2}) {
+			t.Fatal("V1 compatibility Common was admitted under V2")
+		}
+	}
+}
+
 func TestSunSpecPinnedPointOrderAndTypes(t *testing.T) {
 	common := "ID:uint16:1,L:uint16:1,Mn:string:16,Md:string:16,Opt:string:8,Vr:string:8,SN:string:16,DA:uint16:1,Pad:pad:1"
 	integer := "ID:uint16:1,L:uint16:1,A:uint16:1,AphA:uint16:1,AphB:uint16:1,AphC:uint16:1,A_SF:sunssf:1,PPVphAB:uint16:1,PPVphBC:uint16:1,PPVphCA:uint16:1,PhVphA:uint16:1,PhVphB:uint16:1,PhVphC:uint16:1,V_SF:sunssf:1,W:int16:1,W_SF:sunssf:1,Hz:uint16:1,Hz_SF:sunssf:1,VA:int16:1,VA_SF:sunssf:1,VAr:int16:1,VAr_SF:sunssf:1,PF:int16:1,PF_SF:sunssf:1,WH:acc32:2,WH_SF:sunssf:1,DCA:uint16:1,DCA_SF:sunssf:1,DCV:uint16:1,DCV_SF:sunssf:1,DCW:int16:1,DCW_SF:sunssf:1,TmpCab:int16:1,TmpSnk:int16:1,TmpTrns:int16:1,TmpOt:int16:1,Tmp_SF:sunssf:1,St:enum16:1,StVnd:enum16:1,Evt1:bitfield32:2,Evt2:bitfield32:2,EvtVnd1:bitfield32:2,EvtVnd2:bitfield32:2,EvtVnd3:bitfield32:2,EvtVnd4:bitfield32:2"

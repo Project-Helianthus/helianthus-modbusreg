@@ -76,3 +76,48 @@ func TestSunSpecChainPlanRejectsAddressAndAggregateOverflow(t *testing.T) {
 		t.Fatal("address overflow was admitted")
 	}
 }
+
+func TestSunSpecV2ChainKeepsCompatibilityAndDERBlocksOpaque(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+		SchemaRevision: SunSpecModelsRevisionV2,
+		BaseCandidates: []uint16{40000},
+		Limits:         SunSpecChainLimits{MaxTotalWords: 512, MaxOccurrences: 4},
+		DecoderKeys:    registry.DecoderKeys(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := NewSunSpecChain(plan)
+	id := uint64(1)
+	if _, err := admitNext(t, chain, &id, []uint16{0x5375, 0x6e53}); err != nil {
+		t.Fatal(err)
+	}
+	words := append([]uint16{1, 65}, make([]uint16, 65)...)
+	words = append(words, 701, 153)
+	words = append(words, make([]uint16, 153)...)
+	for len(words) > 0 {
+		request := chain.NextRequests()[0]
+		chunk := words[:request.WordCount()]
+		words = words[request.WordCount():]
+		if _, err := admitNext(t, chain, &id, chunk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snapshot, err := admitNext(t, chain, &id, []uint16{0xffff, 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	occurrences := snapshot.Occurrences()
+	if len(occurrences) != 2 || occurrences[0].Disposition != SunSpecChainDispositionUnsupportedLength || occurrences[1].Disposition != SunSpecChainDispositionUnknownModel {
+		t.Fatalf("V2 opaque dispositions=%#v", occurrences)
+	}
+	for _, occurrence := range occurrences {
+		if _, ok := occurrence.DecoderKey(); ok {
+			t.Fatalf("opaque V2 occurrence has a decoder key: %#v", occurrence)
+		}
+	}
+}

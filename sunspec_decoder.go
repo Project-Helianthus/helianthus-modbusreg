@@ -78,8 +78,8 @@ type SunSpecDecoderRegistry struct {
 }
 
 var standardSunSpecDecoderKeysCache struct {
-	sync.Once
-	keys []SunSpecDecoderKey
+	sync.Mutex
+	keys map[SunSpecSchemaRevision][]SunSpecDecoderKey
 }
 
 func NewStandardSunSpecDecoderRegistry(revision SunSpecSchemaRevision) (SunSpecDecoderRegistry, error) {
@@ -94,28 +94,44 @@ func NewStandardSunSpecDecoderRegistry(revision SunSpecSchemaRevision) (SunSpecD
 		}
 		registry.definitions[definition.key] = definition
 	}
-	standardSunSpecDecoderKeysCache.Do(func() {
-		keys := make([]SunSpecDecoderKey, 0, len(definitions)+3277+89561)
-		for _, definition := range definitions {
-			keys = append(keys, definition.key)
-		}
+	registry.keys = standardSunSpecDecoderKeys(revision, definitions)
+	return registry, nil
+}
+
+func standardSunSpecDecoderKeys(revision SunSpecSchemaRevision, definitions []sunSpecModelDefinition) []SunSpecDecoderKey {
+	standardSunSpecDecoderKeysCache.Lock()
+	defer standardSunSpecDecoderKeysCache.Unlock()
+	if keys, ok := standardSunSpecDecoderKeysCache.keys[revision]; ok {
+		return append([]SunSpecDecoderKey(nil), keys...)
+	}
+	capacity := len(definitions)
+	if revision == SunSpecModelsRevisionV1 {
+		capacity += 3277 + 89561
+	}
+	keys := make([]SunSpecDecoderKey, 0, capacity)
+	for _, definition := range definitions {
+		keys = append(keys, definition.key)
+	}
+	if revision == SunSpecModelsRevisionV1 {
 		for modules := uint32(0); modules <= maxSunSpecMPPTModules; modules++ {
 			keys = append(keys, SunSpecDecoderKey{ModelID: 160, ModelLength: uint16(8 + 20*modules), SchemaRevision: revision})
 		}
 		keys = append(keys, environmentalSunSpecDecoderKeys(revision)...)
-		sort.Slice(keys, func(i, j int) bool {
-			if keys[i].ModelID != keys[j].ModelID {
-				return keys[i].ModelID < keys[j].ModelID
-			}
-			if keys[i].ModelLength != keys[j].ModelLength {
-				return keys[i].ModelLength < keys[j].ModelLength
-			}
-			return keys[i].SchemaRevision < keys[j].SchemaRevision
-		})
-		standardSunSpecDecoderKeysCache.keys = keys
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].ModelID != keys[j].ModelID {
+			return keys[i].ModelID < keys[j].ModelID
+		}
+		if keys[i].ModelLength != keys[j].ModelLength {
+			return keys[i].ModelLength < keys[j].ModelLength
+		}
+		return keys[i].SchemaRevision < keys[j].SchemaRevision
 	})
-	registry.keys = standardSunSpecDecoderKeysCache.keys
-	return registry, nil
+	if standardSunSpecDecoderKeysCache.keys == nil {
+		standardSunSpecDecoderKeysCache.keys = make(map[SunSpecSchemaRevision][]SunSpecDecoderKey)
+	}
+	standardSunSpecDecoderKeysCache.keys[revision] = append([]SunSpecDecoderKey(nil), keys...)
+	return append([]SunSpecDecoderKey(nil), keys...)
 }
 
 func (r SunSpecDecoderRegistry) DecoderKeys() []SunSpecDecoderKey {
@@ -127,6 +143,9 @@ func (r SunSpecDecoderRegistry) definition(key SunSpecDecoderKey) (sunSpecModelD
 		return definition, true
 	}
 	if key.SchemaRevision != r.revision {
+		return sunSpecModelDefinition{}, false
+	}
+	if key.SchemaRevision != SunSpecModelsRevisionV1 {
 		return sunSpecModelDefinition{}, false
 	}
 	var resolved sunSpecModelDefinition
