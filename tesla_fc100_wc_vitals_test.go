@@ -2,6 +2,7 @@ package modbusreg
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
@@ -9,11 +10,11 @@ import (
 
 func TestTeslaFC100WCVitalsOperationIsExplicitlyVersionQualified(t *testing.T) {
 	profile, err := NewTeslaHSCProfile(TeslaHSCProfileConfig{
-		Enabled:                     true,
-		Node:                        0x10,
-		PassiveCompatible:           true,
-		CompatibilityVersion:        TeslaHSCCompatibilityV1,
-		WCVitalsOperationVersion:    TeslaHSCWCVitalsCompatibilityV1,
+		Enabled:                  true,
+		Node:                     0x10,
+		PassiveCompatible:        true,
+		CompatibilityVersion:     TeslaHSCCompatibilityV1,
+		WCVitalsOperationVersion: TeslaHSCWCVitalsCompatibilityV1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -43,6 +44,31 @@ func TestTeslaFC100WCVitalsOperationIsExplicitlyVersionQualified(t *testing.T) {
 	}
 	if _, _, err := withoutOperationVersion.EncodeQualifiedFunction(TeslaTEDAPIOperationWCVitalsV1); err == nil {
 		t.Fatal("unversioned profile encoded a vitals request")
+	}
+	registry, err := NewQualifiedFunctionRegistry([]QualifiedFunctionProfile{{
+		Endpoint: "rtu-a", UnitID: profile.Node(), VendorProfile: TeslaHSCProfileName, Codec: profile,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := &qualifiedFunctionTestTransport{}
+	if _, err := registry.Dispatch(context.Background(), transport, QualifiedFunctionSelector{
+		Endpoint: "rtu-a", UnitID: profile.Node(), VendorProfile: TeslaHSCProfileName, Operation: TeslaTEDAPIOperationWCVitalsV1,
+	}); err != nil || transport.calls != 1 {
+		t.Fatalf("qualified dispatch = %v, calls = %d", err, transport.calls)
+	}
+
+	blockedRegistry, err := NewQualifiedFunctionRegistry([]QualifiedFunctionProfile{{
+		Endpoint: "rtu-a", UnitID: withoutOperationVersion.Node(), VendorProfile: TeslaHSCProfileName, Codec: withoutOperationVersion,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockedTransport := &qualifiedFunctionTestTransport{}
+	if _, err := blockedRegistry.Dispatch(context.Background(), blockedTransport, QualifiedFunctionSelector{
+		Endpoint: "rtu-a", UnitID: withoutOperationVersion.Node(), VendorProfile: TeslaHSCProfileName, Operation: TeslaTEDAPIOperationWCVitalsV1,
+	}); err == nil || blockedTransport.calls != 0 {
+		t.Fatalf("unversioned dispatch = %v, calls = %d", err, blockedTransport.calls)
 	}
 }
 
