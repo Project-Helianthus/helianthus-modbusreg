@@ -7,8 +7,8 @@ import (
 	"fmt"
 )
 
-// TeslaTEDAPIOperationWCVitalsV1 identifies the only explicitly qualified
-// FC100 operation in this compatibility contract.
+// TeslaTEDAPIOperationWCVitalsV1 identifies the explicitly qualified FC100
+// WC vitals operation in this compatibility contract.
 const TeslaTEDAPIOperationWCVitalsV1 = "tesla.hsc.fc100.wc_vitals.v1"
 
 var teslaFC100WCVitalsRequestPDU = []byte{0x04, 0x32, 0x02, 0x0a, 0x00}
@@ -36,14 +36,23 @@ func (profile TeslaHSCProfile) OperationAdmissionFor(operation string) TeslaTEDA
 	if profile.Disposition() != TeslaHSCQualifiedReadOnly {
 		return TeslaTEDAPIOperationAdmission{State: TeslaTEDAPIAdmissionBlockedProfile}
 	}
-	if operation != TeslaTEDAPIOperationWCVitalsV1 ||
-		profile.config.WCVitalsOperationVersion != TeslaHSCWCVitalsCompatibilityV1 {
-		return TeslaTEDAPIOperationAdmission{State: TeslaTEDAPIAdmissionBlockedNoAdmissibleOperation}
+	switch operation {
+	case TeslaTEDAPIOperationWCVitalsV1:
+		if profile.config.WCVitalsOperationVersion == TeslaHSCWCVitalsCompatibilityV1 {
+			return TeslaTEDAPIOperationAdmission{
+				State:           TeslaTEDAPIAdmissionAllowedWCVitals,
+				OutboundAllowed: true,
+			}
+		}
+	case TeslaTEDAPIOperationCommonSystemInfoV1:
+		if profile.config.SystemInfoOperationVersion == TeslaHSCSystemInfoCompatibilityV1 {
+			return TeslaTEDAPIOperationAdmission{
+				State:           TeslaTEDAPIAdmissionAllowedCommonSystemInfo,
+				OutboundAllowed: true,
+			}
+		}
 	}
-	return TeslaTEDAPIOperationAdmission{
-		State:           TeslaTEDAPIAdmissionAllowedWCVitals,
-		OutboundAllowed: true,
-	}
+	return TeslaTEDAPIOperationAdmission{State: TeslaTEDAPIAdmissionBlockedNoAdmissibleOperation}
 }
 
 // DecodeTeslaFC100WCVitalsReplay decodes the exact FC100 WC vitals operation
