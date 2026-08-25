@@ -20,7 +20,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			"90b4a331dcca1d6eac69c1bead952fddcc5852e0",
 			"Models 701/153, 702/50, 703/17, 713/7,",
 			"714 variable geometry, 715/7, 802/62, 803 variable geometry, 804 variable",
-			"geometry, 805/42, 806/1, and 807/34",
+			"geometry, 805/42, 806/1, 807/34, and 808/1",
 			"modified by Helianthus",
 			"Apache License",
 			"Version 2.0, January 2004",
@@ -51,6 +51,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			{805, 42, 28, []string{"ID", "L", "StrIdx"}, "Tmp_SF"},
 			{806, 1, 3, []string{"ID", "L", "BatTBD"}, "BatTBD"},
 			{807, 34, 32, []string{"ID", "L", "Idx"}, "Pad1"},
+			{808, 1, 3, []string{"ID", "L", "ModuleTBD"}, "ModuleTBD"},
 		} {
 			definition, ok := registry.definition(SunSpecDecoderKey{ModelID: want.id, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2})
 			if !ok || len(definition.points) != want.points {
@@ -192,6 +193,37 @@ func TestSunSpecV2FlowBatteryStringRetainsObservedStaticBase(t *testing.T) {
 		if _, ok := decoded.Fact(fieldID); ok {
 			t.Fatalf("Model 807 zero-count module field %q materialized", fieldID)
 		}
+	}
+}
+
+func TestSunSpecV2FlowBatteryModuleRetainsObservedStaticBase(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, ok := registry.definition(SunSpecDecoderKey{ModelID: 808, ModelLength: 1, SchemaRevision: SunSpecModelsRevisionV2})
+	if !ok {
+		t.Fatal("Model 808/1 definition absent")
+	}
+	want := []string{"ID:uint16:1::0:false", "L:uint16:1::0:false", "ModuleTBD:uint16:1::0:false"}
+	got := make([]string, len(definition.points))
+	for index, point := range definition.points {
+		got[index] = fmt.Sprintf("%s:%s:%d:%s:%d:%t", point.name, point.pointType, point.size, point.scaleFactor, point.repeatIndex, point.repeated)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Model 808 signature=%q want=%q", got, want)
+	}
+	words := v2DERModelWords(t, registry, 808, 1, map[string][]uint16{"ModuleTBD": {9}})
+	key := SunSpecDecoderKey{ModelID: 808, ModelLength: 1, SchemaRevision: SunSpecModelsRevisionV2}
+	decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 808, ModelLength: 1}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words})
+	if err != nil || !decoded.GeometryValid() || !decoded.Qualifies() {
+		t.Fatalf("Model 808 observed state geometry=%t qualifies=%t err=%v", decoded.GeometryValid(), decoded.Qualifies(), err)
+	}
+	if _, ok := decoded.Fact("sunspec.der.v2.808.ModuleTBD"); !ok {
+		t.Fatal("Model 808 structural observed fact absent")
+	}
+	if _, ok := decoded.Fact("sunspec.der.v2.808.StackTBD"); ok {
+		t.Fatal("Model 808 zero-count stack field materialized")
 	}
 }
 

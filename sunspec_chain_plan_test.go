@@ -380,6 +380,45 @@ func TestSunSpecV2ChainRetainsFixedFlowBatteryStringBlock(t *testing.T) {
 	}
 }
 
+func TestSunSpecV2ChainRetainsFixedFlowBatteryModuleBlock(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+		SchemaRevision: SunSpecModelsRevisionV2,
+		BaseCandidates: []uint16{40000},
+		Limits:         SunSpecChainLimits{MaxTotalWords: 128, MaxOccurrences: 2},
+		DecoderKeys:    registry.DecoderKeys(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := NewSunSpecChain(plan)
+	id := uint64(1)
+	if _, err := admitNext(t, chain, &id, []uint16{0x5375, 0x6e53}); err != nil {
+		t.Fatal(err)
+	}
+	words := append([]uint16{1, 66}, make([]uint16, 66)...)
+	words = append(words, 808, 1, 9)
+	for len(words) > 0 {
+		request := chain.NextRequests()[0]
+		chunk := words[:request.WordCount()]
+		words = words[request.WordCount():]
+		if _, err := admitNext(t, chain, &id, chunk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snapshot, err := admitNext(t, chain, &id, []uint16{0xffff, 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	occurrences := snapshot.Occurrences()
+	if len(occurrences) != 2 || occurrences[1].Disposition != SunSpecChainDispositionAdmitted || occurrences[1].WireKey != (SunSpecWireKey{ModelID: 808, ModelLength: 1}) {
+		t.Fatalf("flow battery module occurrence=%#v", occurrences)
+	}
+}
+
 func TestSunSpecV2ChainRetainsDistinctBESSBankOccurrences(t *testing.T) {
 	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
 	if err != nil {
