@@ -126,7 +126,12 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 		if occurrence.Disposition != SunSpecChainDispositionUnknownModel {
 			t.Fatalf("Model %d disposition=%q", modelID, occurrence.Disposition)
 		}
-		if _, ok := occurrence.DecoderKey(); ok || len(occurrence.Words()) != 9 || len(occurrence.SourceSpans()) == 0 {
+		wantWords := append([]uint16{modelID, 7}, make([]uint16, 7)...)
+		var spanWords uint32
+		for _, span := range occurrence.SourceSpans() {
+			spanWords += uint32(span.WordCount)
+		}
+		if _, ok := occurrence.DecoderKey(); ok || !reflect.DeepEqual(occurrence.Words(), wantWords) || spanWords != uint32(len(wantWords)) {
 			t.Fatalf("Model %d quarantine occurrence=%#v", modelID, occurrence)
 		}
 	}
