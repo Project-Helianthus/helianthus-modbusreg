@@ -20,7 +20,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			"90b4a331dcca1d6eac69c1bead952fddcc5852e0",
 			"Models 701/153, 702/50, 703/17, 713/7,",
 			"714 variable geometry, 715/7, 802/62, 803 variable geometry, 804 variable",
-			"geometry, 805/42, and 806/1",
+			"geometry, 805/42, 806/1, and 807/34",
 			"modified by Helianthus",
 			"Apache License",
 			"Version 2.0, January 2004",
@@ -145,6 +145,53 @@ func TestSunSpecV2FlowBatteryRetainsStructuralObservedState(t *testing.T) {
 	}
 	if _, ok := decoded.Fact("sunspec.der.v2.806.BatTBD"); !ok {
 		t.Fatal("Model 806 structural observed fact absent")
+	}
+}
+
+func TestSunSpecV2FlowBatteryStringRetainsObservedStaticBase(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, ok := registry.definition(SunSpecDecoderKey{ModelID: 807, ModelLength: 34, SchemaRevision: SunSpecModelsRevisionV2})
+	if !ok {
+		t.Fatal("Model 807/34 definition absent")
+	}
+	if len(definition.points) != 32 {
+		t.Fatalf("Model 807 points=%d", len(definition.points))
+	}
+	want := strings.Split("ID:uint16:1:,L:uint16:1:,Idx:uint16:1:,NMod:uint16:1:,NModCon:uint16:1:,ModVMax:uint16:1:ModV_SF,ModVMaxMod:uint16:1:,ModVMin:uint16:1:ModV_SF,ModVMinMod:uint16:1:,ModVAvg:uint16:1:ModV_SF,CellVMax:uint16:1:CellV_SF,CellVMaxMod:uint16:1:,CellVMaxStk:uint16:1:,CellVMin:uint16:1:CellV_SF,CellVMinMod:uint16:1:,CellVMinStk:uint16:1:,CellVAvg:uint16:1:CellV_SF,TmpMax:int16:1:Tmp_SF,TmpMaxMod:uint16:1:,TmpMin:int16:1:Tmp_SF,TmpMinMod:uint16:1:,TmpAvg:int16:1:Tmp_SF,Evt1:bitfield32:2:,Evt2:bitfield32:2:,EvtVnd1:bitfield32:2:,EvtVnd2:bitfield32:2:,ModV_SF:sunssf:1:,CellV_SF:sunssf:1:,Tmp_SF:sunssf:1:,SoC_SF:sunssf:1:,OCV_SF:sunssf:1:,Pad1:pad:1:", ",")
+	got := make([]string, len(definition.points))
+	for index, point := range definition.points {
+		got[index] = fmt.Sprintf("%s:%s:%d:%s", point.name, point.pointType, point.size, point.scaleFactor)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Model 807 signature=%q want=%q", got, want)
+	}
+	for _, point := range definition.points {
+		if point.repeated || point.repeatIndex != 0 {
+			t.Fatalf("Model 807 materialized group point=%#v", point)
+		}
+	}
+	words := v2DERModelWords(t, registry, 807, 34, map[string][]uint16{
+		"Idx": {1}, "NMod": {2}, "NModCon": {1}, "ModVMax": {600}, "ModVMin": {500},
+		"TmpMax": {25}, "TmpMin": {10}, "TmpAvg": {18}, "Evt1": {0x8000, 0},
+		"ModV_SF": {0}, "CellV_SF": {0}, "Tmp_SF": {0}, "SoC_SF": {0}, "OCV_SF": {0},
+	})
+	key := SunSpecDecoderKey{ModelID: 807, ModelLength: 34, SchemaRevision: SunSpecModelsRevisionV2}
+	decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 807, ModelLength: 34}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words})
+	if err != nil || !decoded.GeometryValid() || !decoded.Qualifies() {
+		t.Fatalf("Model 807 observed state geometry=%t qualifies=%t err=%v", decoded.GeometryValid(), decoded.Qualifies(), err)
+	}
+	for _, fieldID := range []string{"sunspec.der.v2.807.Idx", "sunspec.der.v2.807.NMod", "sunspec.der.v2.807.ModVMax", "sunspec.der.v2.807.Evt1"} {
+		if _, ok := decoded.Fact(fieldID); !ok {
+			t.Fatalf("Model 807 observed fact %q absent", fieldID)
+		}
+	}
+	for _, fieldID := range []string{"sunspec.der.v2.807.ModSetEna", "sunspec.der.v2.807.ModSetCon"} {
+		if _, ok := decoded.Fact(fieldID); ok {
+			t.Fatalf("Model 807 zero-count module field %q materialized", fieldID)
+		}
 	}
 }
 
