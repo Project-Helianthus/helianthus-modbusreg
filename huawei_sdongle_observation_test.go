@@ -13,7 +13,7 @@ func TestEvaluateHuaweiSDongleOfflineObservationRecognizesExactDefaultDeniedTupl
 		{
 			name: "A05 current documented tuple",
 			input: HuaweiSDongleOfflineObservation{
-				Model: "S-DongleA-05", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 0,
+				UnitID: 100, Model: "S-DongleA-05", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 0,
 				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 4, ChildCount: 2,
 			},
 			matched: true, variant: "S-DongleA-05", reason: HuaweiSDongleOfflineMatched,
@@ -21,15 +21,23 @@ func TestEvaluateHuaweiSDongleOfflineObservationRecognizesExactDefaultDeniedTupl
 		{
 			name: "A05 observed legacy tuple remains default denied",
 			input: HuaweiSDongleOfflineObservation{
-				Model: "S-DongleA-05\x00 ", Firmware: "V200R022C10SPC312 ", ProtocolMajor: 5, ProtocolMinor: 0,
+				UnitID: 100, Model: "S-DongleA-05\x00 ", Firmware: "V200R022C10SPC312 ", ProtocolMajor: 5, ProtocolMinor: 0,
 				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
 			},
 			matched: true, variant: "S-DongleA-05", reason: HuaweiSDongleOfflineMatched,
 		},
 		{
+			name: "child unit is not a gateway observation",
+			input: HuaweiSDongleOfflineObservation{
+				UnitID: 1, Model: "S-DongleA-05", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 0,
+				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
+			},
+			reason: HuaweiSDongleOfflineUnitMismatch,
+		},
+		{
 			name: "model must be exact",
 			input: HuaweiSDongleOfflineObservation{
-				Model: "S-DongleA-05-Pro", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 0,
+				UnitID: 100, Model: "S-DongleA-05-Pro", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 0,
 				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
 			},
 			reason: HuaweiSDongleOfflineModelMismatch,
@@ -37,7 +45,7 @@ func TestEvaluateHuaweiSDongleOfflineObservationRecognizesExactDefaultDeniedTupl
 		{
 			name: "unsupported firmware",
 			input: HuaweiSDongleOfflineObservation{
-				Model: "S-DongleB-03", Firmware: "V200R025C00SPC121", ProtocolMajor: 5, ProtocolMinor: 0,
+				UnitID: 100, Model: "S-DongleB-03", Firmware: "V200R025C00SPC121", ProtocolMajor: 5, ProtocolMinor: 0,
 				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
 			},
 			reason: HuaweiSDongleOfflineFirmwareMismatch,
@@ -45,7 +53,7 @@ func TestEvaluateHuaweiSDongleOfflineObservationRecognizesExactDefaultDeniedTupl
 		{
 			name: "protocol baseline differs",
 			input: HuaweiSDongleOfflineObservation{
-				Model: "S-DongleB-06", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 1,
+				UnitID: 100, Model: "S-DongleB-06", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 1,
 				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
 			},
 			reason: HuaweiSDongleOfflineProtocolMismatch,
@@ -53,7 +61,7 @@ func TestEvaluateHuaweiSDongleOfflineObservationRecognizesExactDefaultDeniedTupl
 		{
 			name: "search incomplete",
 			input: HuaweiSDongleOfflineObservation{
-				Model: "S-DongleB-06", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 0,
+				UnitID: 100, Model: "S-DongleB-06", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 0,
 				SearchState: 1, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
 			},
 			reason: HuaweiSDongleOfflineSearchIncomplete,
@@ -61,7 +69,7 @@ func TestEvaluateHuaweiSDongleOfflineObservationRecognizesExactDefaultDeniedTupl
 		{
 			name: "sequence changes",
 			input: HuaweiSDongleOfflineObservation{
-				Model: "S-DongleB-06", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 0,
+				UnitID: 100, Model: "S-DongleB-06", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 0,
 				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 8, Capacity: 1, ChildCount: 1,
 			},
 			reason: HuaweiSDongleOfflineSequenceMismatch,
@@ -69,7 +77,7 @@ func TestEvaluateHuaweiSDongleOfflineObservationRecognizesExactDefaultDeniedTupl
 		{
 			name: "child count exceeds capacity",
 			input: HuaweiSDongleOfflineObservation{
-				Model: "S-DongleB-06", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 0,
+				UnitID: 100, Model: "S-DongleB-06", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 0,
 				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 2,
 			},
 			reason: HuaweiSDongleOfflineCapacityMismatch,

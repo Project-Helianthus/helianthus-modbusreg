@@ -6,6 +6,7 @@ type HuaweiSDongleOfflineReason string
 
 const (
 	HuaweiSDongleOfflineMatched          HuaweiSDongleOfflineReason = "matched"
+	HuaweiSDongleOfflineUnitMismatch     HuaweiSDongleOfflineReason = "unit_mismatch"
 	HuaweiSDongleOfflineModelMismatch    HuaweiSDongleOfflineReason = "model_mismatch"
 	HuaweiSDongleOfflineFirmwareMismatch HuaweiSDongleOfflineReason = "firmware_mismatch"
 	HuaweiSDongleOfflineProtocolMismatch HuaweiSDongleOfflineReason = "protocol_mismatch"
@@ -22,6 +23,7 @@ const (
 // HuaweiSDongleOfflineObservation is an already-decoded unit-100 snapshot.
 // It intentionally carries no endpoint, socket, or request details.
 type HuaweiSDongleOfflineObservation struct {
+	UnitID               uint8
 	Model                string
 	Firmware             string
 	ProtocolMajor        uint8
@@ -67,6 +69,9 @@ func (d HuaweiSDongleOfflineDecision) Reason() HuaweiSDongleOfflineReason { retu
 // gateway observation. It performs no Modbus I/O and remains non-actionable
 // even when the documented tuple matches.
 func EvaluateHuaweiSDongleOfflineObservation(observation HuaweiSDongleOfflineObservation) HuaweiSDongleOfflineDecision {
+	if observation.UnitID != 100 {
+		return HuaweiSDongleOfflineDecision{reason: HuaweiSDongleOfflineUnitMismatch}
+	}
 	model := trimHuaweiTerminalPadding(observation.Model)
 	if !isHuaweiSDongleModel(model) {
 		return HuaweiSDongleOfflineDecision{reason: HuaweiSDongleOfflineModelMismatch}
