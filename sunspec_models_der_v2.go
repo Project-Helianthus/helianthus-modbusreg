@@ -6,6 +6,52 @@ const maxSunSpecDERPorts uint32 = (65535 - 18) / 25
 const maxSunSpecBESSStrings uint32 = (65535 - 26) / 32
 const maxSunSpecBESSModules uint32 = (65535 - 46) / 16
 
+func derTripLVV2NestedTemplate() (sunSpecNestedLayoutTemplate, error) {
+	return newSunSpecNestedLayoutTemplate(
+		sunSpecNestedTemplateKey{revision: SunSpecModelsRevisionV2, modelID: 707},
+		[]sunSpecNestedCountSpec{
+			{name: "points", occurrenceWordOffset: 5, unavailable: 0xffff, min: 0, max: 65534},
+			{name: "curves", occurrenceWordOffset: 6, unavailable: 0xffff, min: 0, max: 65534},
+		},
+		sunSpecNestedLayoutGroup{
+			fields: []sunSpecNestedLayoutField{
+				{name: "ID", wordCount: 1}, {name: "L", wordCount: 1},
+				{name: "Ena", wordCount: 1}, {name: "AdptCrvReq", wordCount: 1},
+				{name: "AdptCrvRslt", wordCount: 1}, {name: "NPt", wordCount: 1},
+				{name: "NCrvSet", wordCount: 1}, {name: "V_SF", wordCount: 1},
+				{name: "Tms_SF", wordCount: 1},
+			},
+			children: []sunSpecNestedLayoutGroup{{
+				name: "Crv", repeatCount: "curves", indexBase: 1,
+				fields: []sunSpecNestedLayoutField{{name: "ReadOnly", wordCount: 1}},
+				children: []sunSpecNestedLayoutGroup{
+					{
+						name: "MustTrip", fields: []sunSpecNestedLayoutField{{name: "ActPt", wordCount: 1}},
+						children: []sunSpecNestedLayoutGroup{{
+							name: "Pt", repeatCount: "points", indexBase: 1,
+							fields: []sunSpecNestedLayoutField{{name: "V", wordCount: 1, emit: true}, {name: "Tms", wordCount: 2, emit: true}},
+						}},
+					},
+					{
+						name: "MayTrip", fields: []sunSpecNestedLayoutField{{name: "ActPt", wordCount: 1}},
+						children: []sunSpecNestedLayoutGroup{{
+							name: "Pt", repeatCount: "points", indexBase: 1,
+							fields: []sunSpecNestedLayoutField{{name: "V", wordCount: 1, emit: true}, {name: "Tms", wordCount: 2, emit: true}},
+						}},
+					},
+					{
+						name: "MomCess", fields: []sunSpecNestedLayoutField{{name: "ActPt", wordCount: 1}},
+						children: []sunSpecNestedLayoutGroup{{
+							name: "Pt", repeatCount: "points", indexBase: 1,
+							fields: []sunSpecNestedLayoutField{{name: "V", wordCount: 1, emit: true}, {name: "Tms", wordCount: 2, emit: true}},
+						}},
+					},
+				},
+			}},
+		},
+	)
+}
+
 func derDCMeasureV2SunSpecDefinition(length uint16) (sunSpecModelDefinition, error) {
 	if length < 18 || (uint32(length)-18)%25 != 0 {
 		return sunSpecModelDefinition{}, fmt.Errorf("SunSpec V2 Model 714 geometry is invalid")

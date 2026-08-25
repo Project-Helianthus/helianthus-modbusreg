@@ -171,16 +171,29 @@ func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T)
 	if len(entries) != 12 {
 		t.Fatalf("entries=%d want=12", len(entries))
 	}
-	if got := entries[0].Path().Segments(); !reflect.DeepEqual(got, []SunSpecFactPathSegment{
-		{Name: "Crv", Indexed: true, Index: 1}, {Name: "MustTrip"}, {Name: "Pt", Indexed: true, Index: 1}, {Name: "V"},
-	}) {
-		t.Fatalf("first path=%#v", got)
-	}
-	if got := entries[0].SourceRange(); got.OccurrenceOffset() != 11 || got.WordCount() != 1 || !reflect.DeepEqual(got.SourceSpans(), []SunSpecSourceSpan{{LogicalViewID: 12, PDUOffset: 200, WordCount: 1}}) {
-		t.Fatalf("first range=%#v", got)
-	}
-	if got := entries[1].SourceRange(); got.OccurrenceOffset() != 12 || got.WordCount() != 2 || !reflect.DeepEqual(got.SourceSpans(), []SunSpecSourceSpan{{LogicalViewID: 12, PDUOffset: 201, WordCount: 2}}) {
-		t.Fatalf("second range=%#v", got)
+	for index, want := range []struct {
+		curve              uint32
+		kind               string
+		field              string
+		offset, width, pdu uint32
+	}{
+		{1, "MustTrip", "V", 11, 1, 200}, {1, "MustTrip", "Tms", 12, 2, 201},
+		{1, "MayTrip", "V", 15, 1, 204}, {1, "MayTrip", "Tms", 16, 2, 205},
+		{1, "MomCess", "V", 19, 1, 208}, {1, "MomCess", "Tms", 20, 2, 209},
+		{2, "MustTrip", "V", 24, 1, 301}, {2, "MustTrip", "Tms", 25, 2, 302},
+		{2, "MayTrip", "V", 28, 1, 305}, {2, "MayTrip", "Tms", 29, 2, 306},
+		{2, "MomCess", "V", 32, 1, 309}, {2, "MomCess", "Tms", 33, 2, 310},
+	} {
+		gotPath := entries[index].Path().Segments()
+		wantPath := []SunSpecFactPathSegment{{Name: "Crv", Indexed: true, Index: want.curve}, {Name: want.kind}, {Name: "Pt", Indexed: true, Index: 1}, {Name: want.field}}
+		if !reflect.DeepEqual(gotPath, wantPath) {
+			t.Fatalf("entry %d path=%#v want=%#v", index, gotPath, wantPath)
+		}
+		gotRange := entries[index].SourceRange()
+		wantSpans := []SunSpecSourceSpan{{LogicalViewID: 12, PDUOffset: uint16(want.pdu), WordCount: uint16(want.width)}}
+		if gotRange.OccurrenceOffset() != want.offset || gotRange.WordCount() != want.width || !reflect.DeepEqual(gotRange.SourceSpans(), wantSpans) {
+			t.Fatalf("entry %d range=%#v want offset=%d width=%d spans=%#v", index, gotRange, want.offset, want.width, wantSpans)
+		}
 	}
 
 	zeroWords := []uint16{707, 7, 0, 0, 0, 0, 0, 0, 0}
