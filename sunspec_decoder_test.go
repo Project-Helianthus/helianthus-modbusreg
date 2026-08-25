@@ -120,6 +120,7 @@ func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
 			{ModelID: 701, ModelLength: 153, SchemaRevision: SunSpecModelsRevisionV2},
 			{ModelID: 702, ModelLength: 50, SchemaRevision: SunSpecModelsRevisionV2},
 			{ModelID: 713, ModelLength: 7, SchemaRevision: SunSpecModelsRevisionV2},
+			{ModelID: 714, ModelLength: 18, SchemaRevision: SunSpecModelsRevisionV2},
 		}
 		if !reflect.DeepEqual(v2Keys, wantV2) {
 			t.Fatalf("V2 keys=%#v want=%#v", v2Keys, wantV2)
@@ -127,8 +128,8 @@ func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
 		if _, ok := registries[SunSpecModelsRevisionV2].definition(SunSpecDecoderKey{ModelID: 1, ModelLength: 65, SchemaRevision: SunSpecModelsRevisionV2}); ok {
 			t.Fatal("V2 resolved V1 compatibility Common")
 		}
-		if _, ok := registries[SunSpecModelsRevisionV2].definition(SunSpecDecoderKey{ModelID: 714, ModelLength: 18, SchemaRevision: SunSpecModelsRevisionV2}); ok {
-			t.Fatal("V2 resolved a DER model before its split")
+		if _, ok := registries[SunSpecModelsRevisionV2].definition(SunSpecDecoderKey{ModelID: 714, ModelLength: 19, SchemaRevision: SunSpecModelsRevisionV2}); ok {
+			t.Fatal("V2 resolved a non-geometric DER length")
 		}
 		for _, key := range registries[SunSpecModelsRevisionV1].DecoderKeys() {
 			if key.SchemaRevision != SunSpecModelsRevisionV1 {
