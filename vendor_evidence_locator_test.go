@@ -75,6 +75,12 @@ func TestPublicVendorEvidenceLocatorRejectsPrivateOrSensitiveMaterial(t *testing
 	}
 }
 
+func TestPublicVendorEvidenceLocatorAllowsBenignPublicMetadata(t *testing.T) {
+	if err := validatePublicVendorEvidenceLocator("https://github.com/Project-Helianthus/evidence?author=public"); err != nil {
+		t.Fatalf("benign public locator was rejected: %v", err)
+	}
+}
+
 func vendorEvidencePaths() ([]string, error) {
 	var paths []string
 	err := filepath.WalkDir("profiles/vendor", func(path string, entry fs.DirEntry, err error) error {
@@ -131,7 +137,7 @@ func containsSensitiveLocatorMaterial(value string) bool {
 	value = strings.ToLower(value)
 	for _, marker := range []string{
 		"token", "secret", "password", "credential", "apikey", "api_key",
-		"auth", "session", "signature", "signed", "privatekey", "private_key",
+		"authorization", "session", "signature", "signed", "privatekey", "private_key",
 	} {
 		if strings.Contains(value, marker) {
 			return true
