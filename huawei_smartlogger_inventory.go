@@ -31,6 +31,11 @@ type HuaweiSmartLoggerInventoryPage struct {
 	Objects      []HuaweiSmartLoggerInventoryObject
 }
 
+// HuaweiGatewayInventoryPage is the shared offline extended-MEI page shape for
+// Huawei gateway families. The SmartLogger name remains as a compatibility
+// alias for the first caller.
+type HuaweiGatewayInventoryPage = HuaweiSmartLoggerInventoryPage
+
 // HuaweiSmartLoggerInventoryObject retains a single opaque inventory object
 // until its bounded attribute form has been validated.
 type HuaweiSmartLoggerInventoryObject struct {
@@ -38,11 +43,17 @@ type HuaweiSmartLoggerInventoryObject struct {
 	Value    []byte
 }
 
+// HuaweiGatewayInventoryObject is one shared offline extended-MEI object.
+type HuaweiGatewayInventoryObject = HuaweiSmartLoggerInventoryObject
+
 // HuaweiSmartLoggerInventory is a validated, default-denied child snapshot.
 type HuaweiSmartLoggerInventory struct {
 	declaredChildren int
 	children         []HuaweiSmartLoggerInventoryChild
 }
+
+// HuaweiGatewayInventory is a validated shared offline inventory view.
+type HuaweiGatewayInventory = HuaweiSmartLoggerInventory
 
 func (i HuaweiSmartLoggerInventory) DeclaredChildren() int { return i.declaredChildren }
 
@@ -66,6 +77,9 @@ type HuaweiSmartLoggerInventoryChild struct {
 	featureVersion  string
 	productType     string
 }
+
+// HuaweiGatewayInventoryChild is a non-sensitive shared child view.
+type HuaweiGatewayInventoryChild = HuaweiSmartLoggerInventoryChild
 
 func (c HuaweiSmartLoggerInventoryChild) ObjectID() uint8 { return c.objectID }
 

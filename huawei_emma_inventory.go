@@ -6,11 +6,11 @@ package modbusreg
 type HuaweiEMMAOfflineInventoryInput struct {
 	InventoryGuardBefore uint16
 	InventoryGuardAfter  uint16
-	Pages                []HuaweiSmartLoggerInventoryPage
+	Pages                []HuaweiGatewayInventoryPage
 }
 
 // HuaweiEMMAOfflineInventory is a validated, default-denied inventory view.
-type HuaweiEMMAOfflineInventory = HuaweiSmartLoggerInventory
+type HuaweiEMMAOfflineInventory = HuaweiGatewayInventory
 
 // ParseHuaweiEMMAOfflineInventory validates a supplied EMMA inventory. Only
 // the finite EMMA aliases can be a self entry; a canonical family label or an

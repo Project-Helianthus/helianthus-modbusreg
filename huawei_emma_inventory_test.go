@@ -6,8 +6,8 @@ func TestParseHuaweiEMMAOfflineInventoryAcceptsFiniteSelfAlias(t *testing.T) {
 	inventory, err := ParseHuaweiEMMAOfflineInventory(HuaweiEMMAOfflineInventoryInput{
 		InventoryGuardBefore: 12,
 		InventoryGuardAfter:  12,
-		Pages: []HuaweiSmartLoggerInventoryPage{{
-			Objects: []HuaweiSmartLoggerInventoryObject{
+		Pages: []HuaweiGatewayInventoryPage{{
+			Objects: []HuaweiGatewayInventoryObject{
 				{ObjectID: 0x87, Value: []byte{1}},
 				{ObjectID: 0x88, Value: []byte("1=EMMA-A02;2=SmartHEMS V100R025C00SPC131;5=0")},
 				{ObjectID: 0x89, Value: []byte("1=SUN2000;2=V300R024C10SPC191;5=1")},
@@ -32,7 +32,7 @@ func TestParseHuaweiEMMAOfflineInventoryFailsClosed(t *testing.T) {
 			name: "canonical family token is not an alias",
 			input: HuaweiEMMAOfflineInventoryInput{
 				InventoryGuardBefore: 1, InventoryGuardAfter: 1,
-				Pages: []HuaweiSmartLoggerInventoryPage{{Objects: []HuaweiSmartLoggerInventoryObject{
+				Pages: []HuaweiGatewayInventoryPage{{Objects: []HuaweiGatewayInventoryObject{
 					{ObjectID: 0x87, Value: []byte{0}},
 					{ObjectID: 0x88, Value: []byte("1=EMMA;5=0")},
 				}}},
@@ -42,7 +42,7 @@ func TestParseHuaweiEMMAOfflineInventoryFailsClosed(t *testing.T) {
 			name: "case differs",
 			input: HuaweiEMMAOfflineInventoryInput{
 				InventoryGuardBefore: 1, InventoryGuardAfter: 1,
-				Pages: []HuaweiSmartLoggerInventoryPage{{Objects: []HuaweiSmartLoggerInventoryObject{
+				Pages: []HuaweiGatewayInventoryPage{{Objects: []HuaweiGatewayInventoryObject{
 					{ObjectID: 0x87, Value: []byte{0}},
 					{ObjectID: 0x88, Value: []byte("1=emma-a01;5=0")},
 				}}},
@@ -52,7 +52,7 @@ func TestParseHuaweiEMMAOfflineInventoryFailsClosed(t *testing.T) {
 			name: "inventory guard changes",
 			input: HuaweiEMMAOfflineInventoryInput{
 				InventoryGuardBefore: 1, InventoryGuardAfter: 2,
-				Pages: []HuaweiSmartLoggerInventoryPage{{Objects: []HuaweiSmartLoggerInventoryObject{
+				Pages: []HuaweiGatewayInventoryPage{{Objects: []HuaweiGatewayInventoryObject{
 					{ObjectID: 0x87, Value: []byte{0}},
 					{ObjectID: 0x88, Value: []byte("1=EMMA-A01;5=0")},
 				}}},
