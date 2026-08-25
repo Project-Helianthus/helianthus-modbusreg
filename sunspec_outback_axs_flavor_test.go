@@ -18,6 +18,18 @@ func TestOutBackAXSReadOnlyDecoderSelectsOneExplicitExactInterface(t *testing.T)
 	if !ok || occurrence.WireKey != (SunSpecWireKey{ModelID: OutBackAXSModelInterface, ModelLength: OutBackAXSInterfaceModelWords}) {
 		t.Fatalf("interface occurrence=%#v found=%t", occurrence, ok)
 	}
+	if chain := decision.Chain(); len(chain) != 3 || chain[1] != occurrence.WireKey {
+		t.Fatalf("selected chain=%#v", chain)
+	}
+	model, ok := decision.InterfaceModel()
+	if !ok || model.Key() != (SunSpecDecoderKey{ModelID: OutBackAXSModelInterface, ModelLength: OutBackAXSInterfaceModelWords, SchemaRevision: SunSpecModelsRevisionV1}) {
+		t.Fatalf("interface model=%#v found=%t", model, ok)
+	}
+	model.raw[2] = 99
+	again, ok := decision.InterfaceModel()
+	if !ok || again.RawWords()[2] != 0 {
+		t.Fatal("interface model aliases decision state")
+	}
 	if _, standard := registry.definition(SunSpecDecoderKey{ModelID: OutBackAXSModelInterface, ModelLength: OutBackAXSInterfaceModelWords, SchemaRevision: SunSpecModelsRevisionV1}); standard {
 		t.Fatal("explicit vendor selection extended the standard registry")
 	}
