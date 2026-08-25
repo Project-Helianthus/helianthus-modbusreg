@@ -14,6 +14,7 @@ func TestTeslaHSCOpaqueTerminalProvenanceRetainsOnlySelectedFC101AndFC102Respons
 		function modbus.PrivateFunctionCode
 		payload  []byte
 	}{
+		{name: "fc101_empty", function: teslaHSCFunction101, payload: nil},
 		{name: "fc101", function: teslaHSCFunction101, payload: []byte{0x01}},
 		{name: "fc102", function: teslaHSCFunction102, payload: []byte{0x02, 0x00}},
 	} {

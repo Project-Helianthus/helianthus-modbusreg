@@ -285,6 +285,53 @@ type TeslaHSCProvenance struct {
 	payloadDigest        string
 }
 
+// TeslaHSCOpaqueTerminalProvenance is redacted metadata for one already-
+// correlated FC101 or FC102 normal terminal response. It never retains or
+// exposes raw response bytes.
+type TeslaHSCOpaqueTerminalProvenance struct {
+	function      modbus.PrivateFunctionCode
+	payloadLength int
+	payloadDigest string
+}
+
+// DecodeTeslaHSCOpaqueTerminalProvenance validates one selected opaque terminal
+// exchange and retains only deterministic redacted response metadata. It does
+// not construct a request or grant any outbound admission.
+func DecodeTeslaHSCOpaqueTerminalProvenance(
+	function modbus.PrivateFunctionCode,
+	payloads [][]byte,
+) (TeslaHSCOpaqueTerminalProvenance, error) {
+	if function != teslaHSCFunction101 && function != teslaHSCFunction102 {
+		return TeslaHSCOpaqueTerminalProvenance{}, fmt.Errorf("tesla HSC opaque terminal function is unsupported")
+	}
+	responses, err := DecodeTeslaHSCExchange(function, payloads)
+	if err != nil {
+		return TeslaHSCOpaqueTerminalProvenance{}, err
+	}
+	payload := responses[0].Payload()
+	digest := sha256.Sum256(payload)
+	return TeslaHSCOpaqueTerminalProvenance{
+		function:      function,
+		payloadLength: len(payload),
+		payloadDigest: hex.EncodeToString(digest[:]),
+	}, nil
+}
+
+// Function returns the selected opaque terminal-response function.
+func (provenance TeslaHSCOpaqueTerminalProvenance) Function() modbus.PrivateFunctionCode {
+	return provenance.function
+}
+
+// PayloadLength returns the bounded terminal-response byte count.
+func (provenance TeslaHSCOpaqueTerminalProvenance) PayloadLength() int {
+	return provenance.payloadLength
+}
+
+// PayloadDigest returns the deterministic redacted terminal-response digest.
+func (provenance TeslaHSCOpaqueTerminalProvenance) PayloadDigest() string {
+	return provenance.payloadDigest
+}
+
 // NewTeslaHSCProvenance creates provenance that contains no raw payload bytes.
 func NewTeslaHSCProvenance(
 	compatibilityVersion string,
