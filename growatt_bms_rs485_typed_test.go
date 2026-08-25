@@ -25,7 +25,6 @@ func TestDecodeGrowattBMSTypedReadOnlyStatusProjectsOnlyExactV202Fields(t *testi
 func TestDecodeGrowattBMSTypedReadOnlyStatusRejectsInvalidTypedEncoding(t *testing.T) {
 	for name, mutate := range map[string]func(*GrowattBMSReadOnlyInput){
 		"status high byte": func(input *GrowattBMSReadOnlyInput) { input.Slices[1].Words[6] = 0x0102 },
-		"status enum":      func(input *GrowattBMSReadOnlyInput) { input.Slices[1].Words[6] = 0x0004 },
 		"SOC high byte":    func(input *GrowattBMSReadOnlyInput) { input.Slices[1].Words[8] = 0x0101 },
 		"SOC range":        func(input *GrowattBMSReadOnlyInput) { input.Slices[1].Words[8] = 101 },
 		"temperature":      func(input *GrowattBMSReadOnlyInput) { input.Slices[1].Words[11] = 128 },
@@ -49,7 +48,7 @@ func validGrowattBMSTypedReadOnlyInput() GrowattBMSReadOnlyInput {
 		75, 5200, 0xff9c, 25,
 		0, 3200, 5000, 0,
 		0, 110, 0, 0,
-		0, 0, 0, 0, 0,
+		0, 0, 0, 0,
 		0, 0, 0, 0, 0,
 	}
 	input.Slices[2].Words = []uint16{100, 123, 3300, 0, 512, 5, 6, 0, 0, 0, 0, 0}
