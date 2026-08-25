@@ -77,6 +77,25 @@ func TestGrowattBMSRS485RTUObserverRejectsMismatchedResponse(t *testing.T) {
 	}
 }
 
+func TestGrowattBMSRS485RTUObserverRejectsShortFC03Response(t *testing.T) {
+	words := growattBMSRTUFixtureWords()
+	words[0x0100] = words[0x0100][:11]
+	session := &growattBMSRTUSessionFake{wordsByOffset: words, failAt: -1, mismatchAt: -1}
+	observer, err := NewGrowattBMSRS485RTUObserver(
+		GrowattBMSRevisionTuple{Family: "1xSxxP ESS", FileRevision: "Rev2.01", HeaderVersion: "V2.0", CumulativeRevision: "2.02"},
+		7,
+		session,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := observer.Observe(context.Background())
+	if err == nil || status != (GrowattBMSTypedReadOnlyStatus{}) || len(session.calls) != 3 {
+		t.Fatalf("status/error/calls=%#v/%v/%#v", status, err, session.calls)
+	}
+}
+
 func TestGrowattBMSRS485RTUObserverRejectsInvalidCallerSelectionBeforeRead(t *testing.T) {
 	session := &growattBMSRTUSessionFake{wordsByOffset: growattBMSRTUFixtureWords(), failAt: -1, mismatchAt: -1}
 	if observer, err := NewGrowattBMSRS485RTUObserver(GrowattBMSRevisionTuple{}, 0, session); err == nil || observer != nil || len(session.calls) != 0 {
