@@ -499,6 +499,14 @@ func flowBatteryModuleV2SunSpecPoints() []sunSpecPointDefinition {
 	}
 }
 
+func flowBatteryStackV2SunSpecPoints() []sunSpecPointDefinition {
+	return []sunSpecPointDefinition{
+		v2DERPoint("809", "ID", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("809", "L", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("809", "StackTBD", SunSpecTypeUint16, "", "", false),
+	}
+}
+
 func v2DERPoint(model, name string, pointType SunSpecPointType, unit, scale string, mandatory bool) sunSpecPointDefinition {
 	symbols := map[uint64]string(nil)
 	if model == "701" && name == "ACType" {
