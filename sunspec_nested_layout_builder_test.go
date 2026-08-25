@@ -55,10 +55,10 @@ func syntheticNestedLayoutTemplate(t *testing.T) sunSpecNestedLayoutTemplate {
 }
 
 func syntheticNestedLayoutWords(points, curves uint16) []uint16 {
-	length := uint16(4 + uint32(curves)*(2+3*uint32(points)))
-	words := make([]uint16, int(length)+2)
+	total := uint32(4 + uint32(curves)*(2+3*uint32(points)))
+	words := make([]uint16, total)
 	words[0] = syntheticNestedLayoutModelID
-	words[1] = length
+	words[1] = uint16(total - 2)
 	words[2] = points
 	words[3] = curves
 	return words
@@ -108,7 +108,7 @@ func TestSunSpecNestedLayoutBuildsImmutableSyntheticEntries(t *testing.T) {
 		t.Fatal("layout entries alias immutable layout state")
 	}
 
-	shorter, err := buildSunSpecNestedOccurrenceLayout(template, syntheticNestedLayoutWords(1, 1), []SunSpecSourceSpan{{LogicalViewID: 13, PDUOffset: 0, WordCount: 11}})
+	shorter, err := buildSunSpecNestedOccurrenceLayout(template, syntheticNestedLayoutWords(1, 1), []SunSpecSourceSpan{{LogicalViewID: 13, PDUOffset: 0, WordCount: 9}})
 	if err != nil {
 		t.Fatal(err)
 	}
