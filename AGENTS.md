@@ -9,6 +9,11 @@ projection loss. It does not own sockets, serial ports, Modbus TCP/RTU framing,
 retries, canonical or universal semantics, gateway composition, or private
 consumer bindings.
 
+The universal cross-protocol semantic owner is planned `helianthus-semreg`.
+That repository is not an active dependency or authority until it exists with a
+merged scope. Until then, this registry must keep Modbus-native evidence and
+profiles explicit and must not absorb universal semantic ownership.
+
 Do not create vendor-specific repositories. Keep standard families
 vendor-neutral and limit overlays to proven vendor differences. A detection
 result with multiple eligible matches is `ambiguous/multiple_matches`; score,
