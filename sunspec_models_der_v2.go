@@ -52,6 +52,14 @@ func derTripLVV2NestedTemplate() (sunSpecNestedLayoutTemplate, error) {
 	)
 }
 
+func buildDERTripLVV2NestedLayout(words []uint16, spans []SunSpecSourceSpan) (sunSpecNestedOccurrenceLayout, error) {
+	template, err := derTripLVV2NestedTemplate()
+	if err != nil {
+		return sunSpecNestedOccurrenceLayout{}, err
+	}
+	return buildSunSpecNestedOccurrenceLayout(template, words, spans)
+}
+
 func derDCMeasureV2SunSpecDefinition(length uint16) (sunSpecModelDefinition, error) {
 	if length < 18 || (uint32(length)-18)%25 != 0 {
 		return sunSpecModelDefinition{}, fmt.Errorf("SunSpec V2 Model 714 geometry is invalid")

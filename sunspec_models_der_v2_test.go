@@ -152,6 +152,9 @@ func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if template.key.revision != SunSpecModelsRevisionV2 || template.key.modelID != 707 {
+		t.Fatalf("template key=%#v", template.key)
+	}
 	words := []uint16{
 		707, 33,
 		0, 0, 0, 1, 2, 0, 0,
@@ -163,7 +166,7 @@ func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T)
 		{LogicalViewID: 12, PDUOffset: 200, WordCount: 12},
 		{LogicalViewID: 12, PDUOffset: 300, WordCount: 12},
 	}
-	layout, err := buildSunSpecNestedOccurrenceLayout(template, words, spans)
+	layout, err := buildDERTripLVV2NestedLayout(words, spans)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +200,7 @@ func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T)
 	}
 
 	zeroWords := []uint16{707, 7, 0, 0, 0, 0, 0, 0, 0}
-	zero, err := buildSunSpecNestedOccurrenceLayout(template, zeroWords, []SunSpecSourceSpan{{LogicalViewID: 13, PDUOffset: 0, WordCount: 9}})
+	zero, err := buildDERTripLVV2NestedLayout(zeroWords, []SunSpecSourceSpan{{LogicalViewID: 13, PDUOffset: 0, WordCount: 9}})
 	if err != nil || len(zero.Entries()) != 0 {
 		t.Fatalf("zero geometry err=%v entries=%d", err, len(zero.Entries()))
 	}
@@ -213,7 +216,7 @@ func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T)
 		"partial span coverage":    {words, []SunSpecSourceSpan{{LogicalViewID: 11, PDUOffset: 100, WordCount: 34}}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			layout, err := buildSunSpecNestedOccurrenceLayout(template, invalid.words, invalid.spans)
+			layout, err := buildDERTripLVV2NestedLayout(invalid.words, invalid.spans)
 			if err == nil || len(layout.Entries()) != 0 {
 				t.Fatalf("err=%v entries=%d", err, len(layout.Entries()))
 			}
