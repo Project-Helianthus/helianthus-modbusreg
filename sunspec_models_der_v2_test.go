@@ -145,6 +145,64 @@ func TestSunSpecV2BESSBankRequiresExactDynamicDefinitions(t *testing.T) {
 	}
 }
 
+func TestSunSpecV2BESSStringRequiresExactDynamicDefinitions(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []struct {
+		modules, length uint16
+	}{
+		{0, 46},
+		{2, 78},
+		{4093, 65534},
+	} {
+		key := SunSpecDecoderKey{ModelID: 804, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2}
+		definition, ok := registry.definition(key)
+		if !ok || len(definition.points) == 0 {
+			t.Fatalf("Model 804/%d dynamic definition=%t points=%d", want.length, ok, len(definition.points))
+		}
+		if want.modules == 4093 {
+			continue
+		}
+		words := make([]uint16, int(want.length)+2)
+		words[0], words[1], words[3] = 804, want.length, want.modules
+		spans := []SunSpecSourceSpan{{LogicalViewID: 12, PDUOffset: 0, WordCount: want.length + 2}}
+		decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 804, ModelLength: want.length}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words, spans: spans})
+		if err != nil || !decoded.GeometryValid() || !decoded.Qualifies() {
+			t.Fatalf("Model 804/%d geometry=%t qualifies=%t err=%v", want.length, decoded.GeometryValid(), decoded.Qualifies(), err)
+		}
+		if want.modules == 2 {
+			counts := map[uint16]int{}
+			for _, fact := range decoded.Facts() {
+				if fact.Repeated && fact.GroupID == "module" {
+					counts[fact.RepeatIndex]++
+				}
+			}
+			if counts[1] != 16 || counts[2] != 16 || len(counts) != 2 || !reflect.DeepEqual(decoded.SourceSpans(), spans) {
+				t.Fatalf("Model 804 repeat facts=%v spans=%#v", counts, decoded.SourceSpans())
+			}
+		}
+	}
+	for _, want := range []struct {
+		name          string
+		length, count uint16
+	}{
+		{"count mismatch", 78, 1},
+		{"sentinel", 78, 0xffff},
+	} {
+		t.Run(want.name, func(t *testing.T) {
+			key := SunSpecDecoderKey{ModelID: 804, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2}
+			words := make([]uint16, int(want.length)+2)
+			words[0], words[1], words[3] = 804, want.length, want.count
+			decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 804, ModelLength: want.length}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words})
+			if err != nil || decoded.GeometryValid() || decoded.Qualifies() || len(decoded.Facts()) != 0 || !reflect.DeepEqual(decoded.RawWords(), words) {
+				t.Fatalf("Model 804 %s geometry=%t qualifies=%t facts=%d err=%v", want.name, decoded.GeometryValid(), decoded.Qualifies(), len(decoded.Facts()), err)
+			}
+		})
+	}
+}
+
 func TestSunSpecV2BESSBankRetainsPinnedPointOrderTypesAndScales(t *testing.T) {
 	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
 	if err != nil {
