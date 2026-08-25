@@ -8,8 +8,13 @@ import (
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 )
 
-// TeslaHSCCompatibilityV1 is the initial public profile compatibility gate.
-const TeslaHSCCompatibilityV1 = "tesla_hsc_modbus_v1"
+const (
+	// TeslaHSCCompatibilityV1 is the initial public profile compatibility gate.
+	TeslaHSCCompatibilityV1 = "tesla_hsc_modbus_v1"
+	// TeslaHSCWCVitalsCompatibilityV1 is the exact operation contract gate for
+	// the bounded WC vitals snapshot. It is not a general firmware claim.
+	TeslaHSCWCVitalsCompatibilityV1 = "wc3_24_44_3"
+)
 
 // TeslaHSCProfileName identifies the profile only inside registry selection.
 const TeslaHSCProfileName = "tesla_hsc"
@@ -41,6 +46,9 @@ const (
 	// TeslaTEDAPIAdmissionBlockedNoAdmissibleOperation denies a qualified
 	// profile until a later contract proves one particular operation safe.
 	TeslaTEDAPIAdmissionBlockedNoAdmissibleOperation TeslaTEDAPIAdmissionState = "blocked_no_admissible_operation"
+	// TeslaTEDAPIAdmissionAllowedWCVitals admits only the explicit bounded WC
+	// vitals operation after all profile and operation gates pass.
+	TeslaTEDAPIAdmissionAllowedWCVitals TeslaTEDAPIAdmissionState = "allowed_wc_vitals"
 )
 
 // TeslaTEDAPIOperationAdmission is the redacted result of local admission
@@ -53,10 +61,11 @@ type TeslaTEDAPIOperationAdmission struct {
 // TeslaHSCProfileConfig is an explicit local flavor configuration. A matching
 // node or a readable frame is not a substitute for this configuration.
 type TeslaHSCProfileConfig struct {
-	Enabled              bool
-	Node                 byte
-	PassiveCompatible    bool
-	CompatibilityVersion string
+	Enabled                  bool
+	Node                     byte
+	PassiveCompatible        bool
+	CompatibilityVersion     string
+	WCVitalsOperationVersion string
 }
 
 // TeslaHSCProfile retains the immutable profile gate decision.
@@ -351,14 +360,33 @@ func NewTeslaHSCProvenance(
 
 // EncodeQualifiedFunction denies every outbound Tesla operation until a later
 // typed, proven read-only contract adds an explicit operation allowlist.
-func (TeslaHSCProfile) EncodeQualifiedFunction(string) (modbus.PrivateFunctionRequest, modbus.PrivateFunctionResponsePolicy, error) {
-	return modbus.PrivateFunctionRequest{}, modbus.PrivateFunctionResponsePolicy{}, fmt.Errorf("tesla HSC operation is not admitted")
+func (profile TeslaHSCProfile) EncodeQualifiedFunction(operation string) (modbus.PrivateFunctionRequest, modbus.PrivateFunctionResponsePolicy, error) {
+	if admission := profile.OperationAdmissionFor(operation); !admission.OutboundAllowed {
+		return modbus.PrivateFunctionRequest{}, modbus.PrivateFunctionResponsePolicy{}, fmt.Errorf("tesla HSC operation is not admitted")
+	}
+	request, err := modbus.NewPrivateFunctionRequest(teslaHSCFunction100, teslaFC100WCVitalsRequestPDU)
+	if err != nil {
+		return modbus.PrivateFunctionRequest{}, modbus.PrivateFunctionResponsePolicy{}, err
+	}
+	return request, modbus.DefaultPrivateFunctionResponsePolicy(), nil
 }
 
 // DecodeQualifiedFunction validates only the Tesla profile normal-response
 // contract. It is available to an already selected codec and does not itself
 // grant outbound admission.
-func (TeslaHSCProfile) DecodeQualifiedFunction(_ string, function modbus.PrivateFunctionCode, payload []byte) (QualifiedFunctionResult, error) {
+func (profile TeslaHSCProfile) DecodeQualifiedFunction(operation string, function modbus.PrivateFunctionCode, payload []byte) (QualifiedFunctionResult, error) {
+	if operation == TeslaTEDAPIOperationWCVitalsV1 {
+		if function != teslaHSCFunction100 {
+			return QualifiedFunctionResult{}, fmt.Errorf("tesla HSC operation response function is invalid")
+		}
+		replay, err := DecodeTeslaFC100WCVitalsReplay(payload)
+		if err != nil {
+			return QualifiedFunctionResult{}, err
+		}
+		return QualifiedFunctionResult{Replay: &QualifiedFunctionReplay{
+			Kind: string(replay.Kind), PayloadLength: replay.SnapshotLength, PayloadDigest: replay.SnapshotDigest,
+		}}, nil
+	}
 	response, err := DecodeTeslaHSCResponse(function, payload)
 	if err != nil {
 		return QualifiedFunctionResult{}, err
