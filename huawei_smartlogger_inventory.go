@@ -92,6 +92,12 @@ func (c HuaweiSmartLoggerInventoryChild) Attribute(name string) string {
 // child encoding from supplied pages. Any malformed or incomplete input is
 // rejected without returning a partial inventory.
 func ParseHuaweiSmartLoggerOfflineInventory(input HuaweiSmartLoggerOfflineInventoryInput) (HuaweiSmartLoggerInventory, error) {
+	return parseHuaweiExtendedMEIOfflineInventory(input, func(model string) bool {
+		return model == "SmartLogger"
+	})
+}
+
+func parseHuaweiExtendedMEIOfflineInventory(input HuaweiSmartLoggerOfflineInventoryInput, isSelfEntry func(string) bool) (HuaweiSmartLoggerInventory, error) {
 	if input.ChangeCounterBefore != input.ChangeCounterAfter || len(input.Pages) == 0 || len(input.Pages) > huaweiSmartLoggerInventoryMaxPages {
 		return HuaweiSmartLoggerInventory{}, errHuaweiSmartLoggerInventoryInvalid
 	}
@@ -139,7 +145,7 @@ func ParseHuaweiSmartLoggerOfflineInventory(input HuaweiSmartLoggerOfflineInvent
 				if err != nil {
 					return HuaweiSmartLoggerInventory{}, errHuaweiSmartLoggerInventoryInvalid
 				}
-				if child.model == "SmartLogger" {
+				if isSelfEntry(child.model) {
 					if selfSeen || len(children) != 0 {
 						return HuaweiSmartLoggerInventory{}, errHuaweiSmartLoggerInventoryInvalid
 					}
