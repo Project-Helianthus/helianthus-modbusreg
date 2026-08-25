@@ -31,6 +31,18 @@ func TestGrowattProtocolIIIdentityAcceptsOnlyAnExplicitFC03FixtureProfile(t *tes
 	}
 }
 
+func TestGrowattProtocolIIIdentityAcceptsOnlyTheThreeDeclaredFamilies(t *testing.T) {
+	for _, family := range []string{"MAX", "MID", "MAC"} {
+		t.Run(family, func(t *testing.T) {
+			input := validGrowattProtocolIIIdentityInput()
+			input.Profile.Family = family
+			if _, err := DecodeGrowattProtocolIIIdentity(input); err != nil {
+				t.Fatalf("DecodeGrowattProtocolIIIdentity() family %q error = %v", family, err)
+			}
+		})
+	}
+}
+
 func TestGrowattProtocolIIIdentityRejectsOutOfContractInputs(t *testing.T) {
 	for name, mutate := range map[string]func(*GrowattProtocolIIIdentityInput){
 		"broadcast unit": func(input *GrowattProtocolIIIdentityInput) { input.UnitID = 0 },
