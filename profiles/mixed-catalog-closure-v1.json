@@ -57,7 +57,7 @@
     {
       "id": "growatt.direct-inverter",
       "role": "PRIMARY_CANDIDATE",
-      "disposition": "NO_ADMISSIBLE_PROFILE",
+      "disposition": "OFFLINE_IDENTITY_ADMITTED",
       "runtime_identity": "",
       "disposition_file": "profiles/vendor/growatt/disposition.json"
     },
