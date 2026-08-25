@@ -191,6 +191,33 @@ func DecodeTeslaHSCResponse(
 	return TeslaHSCResponse{function: function, payload: append([]byte(nil), payload...)}, nil
 }
 
+// DecodeTeslaHSCExchange applies the selected Tesla response contract to one
+// completed generic RTU exchange. It consumes only already-correlated normal
+// payloads and never constructs or admits an outbound operation. FC100 may
+// retain its bounded intermediate/result sequence; FC101 and FC102 retain one
+// opaque terminal normal response.
+func DecodeTeslaHSCExchange(
+	function modbus.PrivateFunctionCode,
+	payloads [][]byte,
+) ([]TeslaHSCResponse, error) {
+	if !isTeslaHSCFunction(function) {
+		return nil, fmt.Errorf("tesla HSC function is unsupported")
+	}
+	if len(payloads) == 0 || len(payloads) > 8 ||
+		(function != teslaHSCFunction100 && len(payloads) != 1) {
+		return nil, fmt.Errorf("tesla HSC response count is invalid")
+	}
+	responses := make([]TeslaHSCResponse, 0, len(payloads))
+	for _, payload := range payloads {
+		response, err := DecodeTeslaHSCResponse(function, payload)
+		if err != nil {
+			return nil, err
+		}
+		responses = append(responses, response)
+	}
+	return responses, nil
+}
+
 // Function returns the vendor function identified by this response.
 func (response TeslaHSCResponse) Function() modbus.PrivateFunctionCode {
 	return response.function
