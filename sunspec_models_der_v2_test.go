@@ -19,7 +19,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			"https://github.com/sunspec/models",
 			"90b4a331dcca1d6eac69c1bead952fddcc5852e0",
 			"Models 701/153, 702/50, 703/17, 713/7,",
-			"714 variable geometry, 715/7, 802/62, and 803 variable geometry",
+			"714 variable geometry, 715/7, 802/62, 803 variable geometry, and 804 variable",
 			"modified by Helianthus",
 			"Apache License",
 			"Version 2.0, January 2004",
@@ -140,9 +140,6 @@ func TestSunSpecV2BESSBankRequiresExactDynamicDefinitions(t *testing.T) {
 			}
 		})
 	}
-	if _, ok := registry.definition(SunSpecDecoderKey{ModelID: 804, ModelLength: 46, SchemaRevision: SunSpecModelsRevisionV2}); ok {
-		t.Fatal("Model 804 became available before its separate node")
-	}
 }
 
 func TestSunSpecV2BESSStringRequiresExactDynamicDefinitions(t *testing.T) {
@@ -155,15 +152,11 @@ func TestSunSpecV2BESSStringRequiresExactDynamicDefinitions(t *testing.T) {
 	}{
 		{0, 46},
 		{2, 78},
-		{4093, 65534},
 	} {
 		key := SunSpecDecoderKey{ModelID: 804, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2}
 		definition, ok := registry.definition(key)
 		if !ok || len(definition.points) == 0 {
 			t.Fatalf("Model 804/%d dynamic definition=%t points=%d", want.length, ok, len(definition.points))
-		}
-		if want.modules == 4093 {
-			continue
 		}
 		words := make([]uint16, int(want.length)+2)
 		words[0], words[1], words[3] = 804, want.length, want.modules
@@ -200,6 +193,85 @@ func TestSunSpecV2BESSStringRequiresExactDynamicDefinitions(t *testing.T) {
 				t.Fatalf("Model 804 %s geometry=%t qualifies=%t facts=%d err=%v", want.name, decoded.GeometryValid(), decoded.Qualifies(), len(decoded.Facts()), err)
 			}
 		})
+	}
+}
+
+func TestSunSpecV2BESSStringDecodesFullMaximumOfflineOccurrence(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := SunSpecDecoderKey{ModelID: 804, ModelLength: 65534, SchemaRevision: SunSpecModelsRevisionV2}
+	if _, ok := registry.definition(key); !ok {
+		t.Fatal("Model 804/65534 definition absent")
+	}
+	words := make([]uint16, 65536)
+	words[0], words[1], words[3] = 804, 65534, 4093
+	spans := make([]SunSpecSourceSpan, 0, (len(words)+124)/125)
+	for remaining := len(words); remaining > 0; {
+		count := min(remaining, 125)
+		spans = append(spans, SunSpecSourceSpan{LogicalViewID: uint64(len(spans) + 1), PDUOffset: 0, WordCount: uint16(count)})
+		remaining -= count
+	}
+	decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 804, ModelLength: 65534}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words, spans: spans})
+	if err != nil || !decoded.GeometryValid() || !decoded.Qualifies() {
+		t.Fatalf("Model 804 maximum geometry=%t qualifies=%t err=%v", decoded.GeometryValid(), decoded.Qualifies(), err)
+	}
+	var extent uint32
+	for _, span := range decoded.SourceSpans() {
+		if span.WordCount == 0 || span.WordCount > 125 {
+			t.Fatalf("maximum span=%#v", span)
+		}
+		extent += uint32(span.WordCount)
+	}
+	if len(decoded.SourceSpans()) < 2 || extent != 65536 {
+		t.Fatalf("maximum spans=%d extent=%d", len(decoded.SourceSpans()), extent)
+	}
+	moduleFacts := map[uint16]int{}
+	for _, fact := range decoded.Facts() {
+		if fact.Repeated && fact.GroupID == "module" {
+			moduleFacts[fact.RepeatIndex]++
+		}
+	}
+	if moduleFacts[1] != 16 || moduleFacts[4093] != 16 || len(moduleFacts) != 4093 {
+		t.Fatalf("maximum module facts first=%d last=%d groups=%d", moduleFacts[1], moduleFacts[4093], len(moduleFacts))
+	}
+	if _, ok := registry.definition(SunSpecDecoderKey{ModelID: 803, ModelLength: 26, SchemaRevision: SunSpecModelsRevisionV2}); !ok {
+		t.Fatal("Model 803 lost independent V2 definition")
+	}
+}
+
+func TestSunSpecV2BESSStringRetainsPinnedPointOrderTypesAndScales(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, ok := registry.definition(SunSpecDecoderKey{ModelID: 804, ModelLength: 62, SchemaRevision: SunSpecModelsRevisionV2})
+	if !ok {
+		t.Fatal("Model 804/62 definition absent")
+	}
+	want := strings.Split("ID:uint16:1::0:false,L:uint16:1::0:false,Idx:uint16:1::0:false,NMod:count:1::0:false,St:bitfield32:2::0:false,ConFail:enum16:1::0:false,NCellBal:uint16:1::0:false,SoC:uint16:1:SoC_SF:0:false,DoD:uint16:1:DoD_SF:0:false,NCyc:uint32:2::0:false,SoH:uint16:1:SoH_SF:0:false,A:int16:1:A_SF:0:false,V:uint16:1:V_SF:0:false,CellVMax:uint16:1:CellV_SF:0:false,CellVMaxMod:uint16:1::0:false,CellVMin:uint16:1:CellV_SF:0:false,CellVMinMod:uint16:1::0:false,CellVAvg:uint16:1:CellV_SF:0:false,ModTmpMax:int16:1:ModTmp_SF:0:false,ModTmpMaxMod:uint16:1::0:false,ModTmpMin:int16:1:ModTmp_SF:0:false,ModTmpMinMod:uint16:1::0:false,ModTmpAvg:int16:1:ModTmp_SF:0:false,Pad1:pad:1::0:false,ConSt:bitfield32:2::0:false,Evt1:bitfield32:2::0:false,Evt2:bitfield32:2::0:false,EvtVnd1:bitfield32:2::0:false,EvtVnd2:bitfield32:2::0:false,SetEna:enum16:1::0:false,SetCon:enum16:1::0:false,SoC_SF:sunssf:1::0:false,SoH_SF:sunssf:1::0:false,DoD_SF:sunssf:1::0:false,A_SF:sunssf:1::0:false,V_SF:sunssf:1::0:false,CellV_SF:sunssf:1::0:false,ModTmp_SF:sunssf:1::0:false,Pad2:pad:1::0:false,Pad3:pad:1::0:false,Pad4:pad:1::0:false,ModNCell:uint16:1::1:true,ModSoC:uint16:1:SoC_SF:1:true,ModSoH:uint16:1:SoH_SF:1:true,ModCellVMax:uint16:1:CellV_SF:1:true,ModCellVMaxCell:uint16:1::1:true,ModCellVMin:uint16:1:CellV_SF:1:true,ModCellVMinCell:uint16:1::1:true,ModCellVAvg:uint16:1:CellV_SF:1:true,ModCellTmpMax:int16:1:ModTmp_SF:1:true,ModCellTmpMaxCell:uint16:1::1:true,ModCellTmpMin:int16:1:ModTmp_SF:1:true,ModCellTmpMinCell:uint16:1::1:true,ModCellTmpAvg:int16:1:ModTmp_SF:1:true,Pad5:pad:1::1:true,Pad6:pad:1::1:true,Pad7:pad:1::1:true", ",")
+	got := make([]string, len(definition.points))
+	for index, point := range definition.points {
+		got[index] = fmt.Sprintf("%s:%s:%d:%s:%d:%t", point.name, point.pointType, point.size, point.scaleFactor, point.repeatIndex, point.repeated)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Model 804 signature=%q want=%q", got, want)
+	}
+	words := v2DERModelWords(t, registry, 804, 62, map[string][]uint16{
+		"NMod":   {1},
+		"SetEna": {1},
+		"SetCon": {2},
+	})
+	key := SunSpecDecoderKey{ModelID: 804, ModelLength: 62, SchemaRevision: SunSpecModelsRevisionV2}
+	decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 804, ModelLength: 62}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words})
+	if err != nil || !decoded.GeometryValid() || !decoded.Qualifies() {
+		t.Fatalf("Model 804 observed state geometry=%t qualifies=%t err=%v", decoded.GeometryValid(), decoded.Qualifies(), err)
+	}
+	for _, fieldID := range []string{"sunspec.der.v2.804.Idx", "sunspec.der.v2.804.SetEna", "sunspec.der.v2.804.SetCon"} {
+		if _, ok := decoded.Fact(fieldID); !ok {
+			t.Fatalf("Model 804 observed fact %q absent", fieldID)
+		}
 	}
 }
 
