@@ -75,16 +75,21 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, modelID := range []uint16{707, 708} {
-		if _, ok := registry.definition(SunSpecDecoderKey{ModelID: modelID, ModelLength: 7, SchemaRevision: SunSpecModelsRevisionV2}); ok {
-			t.Fatalf("Model %d must not retain a flat V2 decoder", modelID)
+	quarantined := []struct {
+		modelID, length uint16
+	}{
+		{707, 33}, {708, 33}, {709, 39},
+	}
+	for _, model := range quarantined {
+		if _, ok := registry.definition(SunSpecDecoderKey{ModelID: model.modelID, ModelLength: model.length, SchemaRevision: SunSpecModelsRevisionV2}); ok {
+			t.Fatalf("Model %d must not retain a V2 decoder", model.modelID)
 		}
 	}
 
 	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
 		SchemaRevision: SunSpecModelsRevisionV2,
 		BaseCandidates: []uint16{40000},
-		Limits:         SunSpecChainLimits{MaxTotalWords: 256, MaxOccurrences: 3},
+		Limits:         SunSpecChainLimits{MaxTotalWords: 256, MaxOccurrences: 4},
 		DecoderKeys:    registry.DecoderKeys(),
 	})
 	if err != nil {
@@ -97,9 +102,9 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 	}
 
 	words := append([]uint16{1, 66}, make([]uint16, 66)...)
-	for _, modelID := range []uint16{707, 708} {
-		words = append(words, modelID, 7)
-		words = append(words, make([]uint16, 7)...)
+	for _, model := range quarantined {
+		words = append(words, model.modelID, model.length)
+		words = append(words, make([]uint16, model.length)...)
 	}
 	for len(words) > 0 {
 		request := chain.NextRequests()[0]
@@ -117,22 +122,22 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, modelID := range []uint16{707, 708} {
-		occurrences := snapshot.ByModelID(modelID)
+	for _, model := range quarantined {
+		occurrences := snapshot.ByModelID(model.modelID)
 		if len(occurrences) != 1 {
-			t.Fatalf("Model %d occurrences=%d", modelID, len(occurrences))
+			t.Fatalf("Model %d occurrences=%d", model.modelID, len(occurrences))
 		}
 		occurrence := occurrences[0]
 		if occurrence.Disposition != SunSpecChainDispositionUnknownModel {
-			t.Fatalf("Model %d disposition=%q", modelID, occurrence.Disposition)
+			t.Fatalf("Model %d disposition=%q", model.modelID, occurrence.Disposition)
 		}
-		wantWords := append([]uint16{modelID, 7}, make([]uint16, 7)...)
+		wantWords := append([]uint16{model.modelID, model.length}, make([]uint16, model.length)...)
 		var spanWords uint32
 		for _, span := range occurrence.SourceSpans() {
 			spanWords += uint32(span.WordCount)
 		}
 		if _, ok := occurrence.DecoderKey(); ok || !reflect.DeepEqual(occurrence.Words(), wantWords) || spanWords != uint32(len(wantWords)) {
-			t.Fatalf("Model %d quarantine occurrence=%#v", modelID, occurrence)
+			t.Fatalf("Model %d quarantine occurrence=%#v", model.modelID, occurrence)
 		}
 	}
 
@@ -141,7 +146,7 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, model := range decoded.Models() {
-		if model.Key().ModelID == 707 || model.Key().ModelID == 708 || len(model.Facts()) == 0 && model.Key().ModelID != 1 {
+		if model.Key().ModelID == 707 || model.Key().ModelID == 708 || model.Key().ModelID == 709 || len(model.Facts()) == 0 && model.Key().ModelID != 1 {
 			t.Fatalf("quarantined model was decoded: %#v", model)
 		}
 	}
@@ -235,14 +240,14 @@ func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T)
 		t.Fatal("Model 707 layout validation decoded an unknown occurrence")
 	}
 	for _, unchanged := range []struct {
-		revision SunSpecSchemaRevision
-		modelID  uint16
-	}{{SunSpecModelsRevisionV1, 707}, {SunSpecModelsRevisionV2, 708}, {SunSpecModelsRevisionV2, 709}} {
+		revision        SunSpecSchemaRevision
+		modelID, length uint16
+	}{{SunSpecModelsRevisionV1, 707, 33}, {SunSpecModelsRevisionV2, 708, 33}, {SunSpecModelsRevisionV2, 709, 39}} {
 		other, err := NewStandardSunSpecDecoderRegistry(unchanged.revision)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := other.definition(SunSpecDecoderKey{ModelID: unchanged.modelID, ModelLength: 7, SchemaRevision: unchanged.revision}); ok {
+		if _, ok := other.definition(SunSpecDecoderKey{ModelID: unchanged.modelID, ModelLength: unchanged.length, SchemaRevision: unchanged.revision}); ok {
 			t.Fatalf("unexpected definition for revision=%q model=%d", unchanged.revision, unchanged.modelID)
 		}
 	}
