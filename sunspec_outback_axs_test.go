@@ -37,6 +37,19 @@ func TestOutBackAXSReadOnlyDecoderIsExplicitAndStandardRegistryStaysIsolated(t *
 	if _, ok := decoded.Fact("outback.axs.firmware.major"); !ok {
 		t.Fatal("firmware fact missing")
 	}
+
+	charge := make([]uint16, 25)
+	charge[0], charge[1], charge[2] = 64111, 23, 7
+	decoded, err = decoder.Decode(charge)
+	if err != nil {
+		t.Fatalf("charge decoder.Decode() error = %v", err)
+	}
+	if len(decoded.Facts()) != 0 {
+		t.Fatalf("vendor-scoped raw charge block emitted facts: %#v", decoded.Facts())
+	}
+	if got := decoded.RawWords(); got[2] != 7 {
+		t.Fatalf("vendor-scoped raw charge block was not retained: %#v", got)
+	}
 }
 
 func TestOutBackAXSReadOnlyDecoderFailsClosed(t *testing.T) {
@@ -44,7 +57,7 @@ func TestOutBackAXSReadOnlyDecoderFailsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, words := range [][]uint16{{64110, 281}, {64112, 64}, {64111, 23}} {
+	for _, words := range [][]uint16{{64110, 281}, {64112, 64}, {64111, 22}} {
 		if _, err := decoder.Decode(words); err == nil {
 			t.Fatalf("decoder accepted unsupported or malformed words: %#v", words)
 		}
