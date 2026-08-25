@@ -84,6 +84,9 @@ func TestSunSpecQualificationObservationJSONGoldenAndBoundedReplay(t *testing.T)
 	if err != nil || !bytes.Equal(first, second) {
 		t.Fatalf("qualification JSON is not deterministic: %v", err)
 	}
+	if bytes.Contains(first, []byte("structural_candidate")) {
+		t.Fatal("V1 qualification JSON exposed private structural candidate metadata")
+	}
 	fixture, err := os.ReadFile("testdata/sunspec/qualification/fronius_gen24_float_v1_1.json")
 	if err != nil {
 		t.Fatal(err)

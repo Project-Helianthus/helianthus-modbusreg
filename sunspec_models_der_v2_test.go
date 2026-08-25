@@ -288,8 +288,8 @@ func TestSunSpecV2DERTripStructuralCandidateRequiresOptInAndExactGeometry(t *tes
 	}
 	selected, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
 		SchemaRevision:         SunSpecModelsRevisionV2,
-		BaseCandidates:          []uint16{40000},
-		Limits:                  SunSpecChainLimits{MaxTotalWords: 64, MaxOccurrences: 2},
+		BaseCandidates:         []uint16{40000},
+		Limits:                 SunSpecChainLimits{MaxTotalWords: 64, MaxOccurrences: 2},
 		StructuralCandidateIDs: []uint16{707},
 	})
 	if err != nil {
@@ -318,6 +318,9 @@ func TestSunSpecV2DERTripStructuralCandidateRequiresOptInAndExactGeometry(t *tes
 	}
 	if candidate := selected.structuralCandidate(SunSpecWireKey{ModelID: 707, ModelLength: 33}, words, []SunSpecSourceSpan{{LogicalViewID: 7, PDUOffset: 9, WordCount: 34}}); candidate != nil {
 		t.Fatalf("partial coverage candidate=%#v", candidate)
+	}
+	if candidate := selected.structuralCandidate(SunSpecWireKey{ModelID: 707, ModelLength: 65535}, nil, nil); candidate != nil {
+		t.Fatalf("extent-excess candidate=%#v", candidate)
 	}
 }
 

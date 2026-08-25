@@ -36,6 +36,35 @@ func TestSunSpecChainPlannerRejectsDuplicateBaseCandidates(t *testing.T) {
 	}
 }
 
+func TestSunSpecChainPlanStructuralCandidateOptInIsPrivateAndDoesNotChangeInitialReads(t *testing.T) {
+	base := SunSpecChainPlanSpec{
+		SchemaRevision: SunSpecModelsRevisionV2,
+		BaseCandidates: []uint16{40000},
+		Limits:         SunSpecChainLimits{MaxTotalWords: 128, MaxOccurrences: 3},
+	}
+	plain, err := NewSunSpecChainPlan(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedSpec := base
+	selectedSpec.StructuralCandidateIDs = []uint16{707}
+	selected, err := NewSunSpecChainPlan(selectedSpec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := selected.Requests(), plain.Requests(); len(got) != len(want) || got[0].Address() != want[0].Address() || got[0].WordCount() != want[0].WordCount() || got[0].Purpose() != want[0].Purpose() {
+		t.Fatalf("opt-in initial reads=%#v plain=%#v", got, want)
+	}
+	if _, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+		SchemaRevision:         base.SchemaRevision,
+		BaseCandidates:         base.BaseCandidates,
+		Limits:                 base.Limits,
+		StructuralCandidateIDs: []uint16{707, 707},
+	}); err == nil {
+		t.Fatal("duplicate structural candidate IDs were admitted")
+	}
+}
+
 func TestSunSpecChainPublicRequestsAreReadOnly(t *testing.T) {
 	typ := reflect.TypeFor[SunSpecReadRequest]()
 	for i := 0; i < typ.NumMethod(); i++ {
