@@ -735,6 +735,12 @@ func TestSunSpecV2DERTripHVGeometryIsBoundedAndOfflineOnly(t *testing.T) {
 		if !ok || len(resolved.points) != want.points {
 			t.Fatalf("N=%d definition=%v points=%d", want.curves, ok, len(resolved.points))
 		}
+		if want.curves == 2 {
+			curve := resolved.points[len(resolved.points)-1]
+			if curve.name != "ReadOnly" || curve.pointType != SunSpecTypeEnum16 || curve.groupID != "curve" || !curve.repeated || curve.repeatIndex != 2 {
+				t.Fatalf("Model 708 repeated curve=%#v", curve)
+			}
+		}
 		if uint32(want.curves) == maxSunSpecDERTripHVCurves {
 			continue
 		}
