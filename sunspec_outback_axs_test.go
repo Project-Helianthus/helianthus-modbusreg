@@ -1,6 +1,9 @@
 package modbusreg
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestOutBackAXSReadOnlyDecoderIsExplicitAndStandardRegistryStaysIsolated(t *testing.T) {
 	standard := mustStandardSunSpecRegistry(t)
@@ -29,9 +32,11 @@ func TestOutBackAXSReadOnlyDecoderIsExplicitAndStandardRegistryStaysIsolated(t *
 	if decoded.Key() != (SunSpecDecoderKey{ModelID: 64110, ModelLength: 282, SchemaRevision: SunSpecModelsRevisionV1}) {
 		t.Fatalf("unexpected decoder key: %#v", decoded.Key())
 	}
-	for _, forbidden := range []string{"network", "password", "mac", "config", "control"} {
-		if _, ok := decoded.Fact(forbidden); ok {
-			t.Fatalf("excluded fact leaked: %q", forbidden)
+	for _, fact := range decoded.Facts() {
+		for _, forbidden := range []string{"network", "password", "mac", "config", "control"} {
+			if strings.Contains(fact.FieldID, forbidden) {
+				t.Fatalf("excluded fact leaked: %#v", fact)
+			}
 		}
 	}
 	if _, ok := decoded.Fact("outback.axs.firmware.major"); !ok {
@@ -57,7 +62,7 @@ func TestOutBackAXSReadOnlyDecoderFailsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, words := range [][]uint16{{64110, 281}, {64112, 64}, {64111, 22}} {
+	for _, words := range [][]uint16{{64110, 281}, {64110, 282}, {64112, 64}, {64111, 22}} {
 		if _, err := decoder.Decode(words); err == nil {
 			t.Fatalf("decoder accepted unsupported or malformed words: %#v", words)
 		}
