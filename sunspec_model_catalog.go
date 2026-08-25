@@ -155,7 +155,9 @@ func appendSunSpecDefinition(values []sunSpecModelDefinition, revision SunSpecSc
 		if points[index].size == 0 {
 			return nil, fmt.Errorf("SunSpec point size is zero")
 		}
-		if extent > 65535 || extent+uint32(points[index].size) > 65535 {
+		// Point starts remain uint16. A final one-word point may therefore start
+		// at 65535 and bring an isolated offline extent to exactly 65536 words.
+		if extent > 65535 || extent+uint32(points[index].size) > 65536 {
 			return nil, fmt.Errorf("SunSpec model %d/%d catalog exceeds addressable point offsets", id, length)
 		}
 		points[index].offset = uint16(extent)

@@ -109,7 +109,7 @@ func standardSunSpecDecoderKeys(revision SunSpecSchemaRevision, definitions []su
 	case SunSpecModelsRevisionV1:
 		capacity += 3277 + 89561
 	case SunSpecModelsRevisionV2:
-		capacity += int(maxSunSpecDERPorts) + 1 + int(maxSunSpecBESSStrings) + 1
+		capacity += int(maxSunSpecDERPorts) + 1 + int(maxSunSpecBESSStrings) + 1 + int(maxSunSpecBESSModules) + 1
 	}
 	keys := make([]SunSpecDecoderKey, 0, capacity)
 	for _, definition := range definitions {
@@ -127,6 +127,9 @@ func standardSunSpecDecoderKeys(revision SunSpecSchemaRevision, definitions []su
 		}
 		for strings := uint32(0); strings <= maxSunSpecBESSStrings; strings++ {
 			keys = append(keys, SunSpecDecoderKey{ModelID: 803, ModelLength: uint16(26 + 32*strings), SchemaRevision: revision})
+		}
+		for modules := uint32(0); modules <= maxSunSpecBESSModules; modules++ {
+			keys = append(keys, SunSpecDecoderKey{ModelID: 804, ModelLength: uint16(46 + 16*modules), SchemaRevision: revision})
 		}
 	}
 	sort.Slice(keys, func(i, j int) bool {
@@ -164,6 +167,8 @@ func (r SunSpecDecoderRegistry) definition(key SunSpecDecoderKey) (sunSpecModelD
 			resolved, err = derDCMeasureV2SunSpecDefinition(key.ModelLength)
 		case 803:
 			resolved, err = bessBankV2SunSpecDefinition(key.ModelLength)
+		case 804:
+			resolved, err = bessStringV2SunSpecDefinition(key.ModelLength)
 		default:
 			return sunSpecModelDefinition{}, false
 		}
@@ -209,7 +214,9 @@ func (r SunSpecDecoderRegistry) DecodeOccurrence(occurrence SunSpecOccurrence) (
 		if point.pointType != SunSpecTypeScaleFactor {
 			continue
 		}
-		scales[point.name] = decodeSunSpecValue(point, words[point.offset:point.offset+point.size], nil)
+		start := int(point.offset)
+		end := start + int(point.size)
+		scales[point.name] = decodeSunSpecValue(point, words[start:end], nil)
 	}
 	for _, point := range definition.points {
 		if point.offset < 2 {
@@ -226,7 +233,9 @@ func (r SunSpecDecoderRegistry) DecodeOccurrence(occurrence SunSpecOccurrence) (
 			value := SunSpecValue{pointType: SunSpecTypeScaleFactor, state: SunSpecValueValid, signed: int64(*point.fixedScale), hasSigned: true}
 			scale = &value
 		}
-		value := decodeSunSpecValue(point, words[point.offset:point.offset+point.size], scale)
+		start := int(point.offset)
+		end := start + int(point.size)
+		value := decodeSunSpecValue(point, words[start:end], scale)
 		if point.mandatory && !mandatorySunSpecValueQualifies(value) {
 			model.qualifies = false
 		}
