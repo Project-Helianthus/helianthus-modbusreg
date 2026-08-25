@@ -18,6 +18,7 @@ const (
 	teslaHSCFunction100 modbus.PrivateFunctionCode = 100
 	teslaHSCFunction101 modbus.PrivateFunctionCode = 101
 	teslaHSCFunction102 modbus.PrivateFunctionCode = 102
+	maxTeslaHSCPayload                             = modbus.MaxPDUSize - 1
 )
 
 // TeslaHSCDisposition records whether a configured profile can do more than
@@ -112,20 +113,42 @@ func (profile TeslaHSCProfile) OperationAdmission() TeslaTEDAPIOperationAdmissio
 	}
 }
 
-// TeslaHSCEnvelope is a decoded length envelope with uninterpreted inner bytes.
+// TeslaHSCEnvelope is a decoded exact-length request or FC100 data envelope.
 type TeslaHSCEnvelope struct {
 	function modbus.PrivateFunctionCode
 	payload  []byte
 }
 
-// DecodeTeslaHSCEnvelope validates the one-byte exact length envelope used by
-// all supported HSC vendor functions and retains the nested bytes opaquely.
+// DecodeTeslaHSCEnvelope validates the FC100 data envelope. FC101 and FC102
+// use the exact-length envelope only in the request direction.
 func DecodeTeslaHSCEnvelope(
+	function modbus.PrivateFunctionCode,
+	payload []byte,
+) (TeslaHSCEnvelope, error) {
+	if function != teslaHSCFunction100 {
+		return TeslaHSCEnvelope{}, fmt.Errorf("tesla HSC function is unsupported")
+	}
+	return decodeTeslaHSCExactEnvelope(function, payload)
+}
+
+// DecodeTeslaHSCRequestEnvelope validates the exact-length request envelope
+// used by FC100, FC101, and FC102 without granting outbound admission.
+func DecodeTeslaHSCRequestEnvelope(
 	function modbus.PrivateFunctionCode,
 	payload []byte,
 ) (TeslaHSCEnvelope, error) {
 	if !isTeslaHSCFunction(function) {
 		return TeslaHSCEnvelope{}, fmt.Errorf("tesla HSC function is unsupported")
+	}
+	return decodeTeslaHSCExactEnvelope(function, payload)
+}
+
+func decodeTeslaHSCExactEnvelope(
+	function modbus.PrivateFunctionCode,
+	payload []byte,
+) (TeslaHSCEnvelope, error) {
+	if len(payload) > maxTeslaHSCPayload {
+		return TeslaHSCEnvelope{}, fmt.Errorf("tesla HSC payload exceeds bound")
 	}
 	if len(payload) == 0 {
 		return TeslaHSCEnvelope{}, fmt.Errorf("tesla HSC payload has no length prefix")
@@ -137,6 +160,46 @@ func DecodeTeslaHSCEnvelope(
 		function: function,
 		payload:  append([]byte(nil), payload[1:]...),
 	}, nil
+}
+
+// TeslaHSCResponse is one bounded direction-aware normal response. FC100
+// retains decoded data bytes; FC101 and FC102 retain raw bytes opaquely.
+type TeslaHSCResponse struct {
+	function modbus.PrivateFunctionCode
+	payload  []byte
+}
+
+// DecodeTeslaHSCResponse decodes FC100 data envelopes while retaining FC101
+// and FC102 normal response payloads as bounded opaque bytes.
+func DecodeTeslaHSCResponse(
+	function modbus.PrivateFunctionCode,
+	payload []byte,
+) (TeslaHSCResponse, error) {
+	if !isTeslaHSCFunction(function) {
+		return TeslaHSCResponse{}, fmt.Errorf("tesla HSC function is unsupported")
+	}
+	if len(payload) > maxTeslaHSCPayload {
+		return TeslaHSCResponse{}, fmt.Errorf("tesla HSC response exceeds bound")
+	}
+	if function == teslaHSCFunction100 {
+		envelope, err := DecodeTeslaHSCEnvelope(function, payload)
+		if err != nil {
+			return TeslaHSCResponse{}, err
+		}
+		return TeslaHSCResponse{function: function, payload: envelope.Payload()}, nil
+	}
+	return TeslaHSCResponse{function: function, payload: append([]byte(nil), payload...)}, nil
+}
+
+// Function returns the vendor function identified by this response.
+func (response TeslaHSCResponse) Function() modbus.PrivateFunctionCode {
+	return response.function
+}
+
+// Payload returns independent normal-response bytes under the selected
+// direction contract.
+func (response TeslaHSCResponse) Payload() []byte {
+	return append([]byte(nil), response.payload...)
 }
 
 // Function returns the vendor function identified by this envelope.
@@ -218,15 +281,15 @@ func (TeslaHSCProfile) EncodeQualifiedFunction(string) (modbus.PrivateFunctionRe
 	return modbus.PrivateFunctionRequest{}, modbus.PrivateFunctionResponsePolicy{}, fmt.Errorf("tesla HSC operation is not admitted")
 }
 
-// DecodeQualifiedFunction validates only the Tesla profile envelope and keeps
-// the nested payload opaque. It is available to an already selected codec and
-// does not itself grant outbound admission.
+// DecodeQualifiedFunction validates only the Tesla profile normal-response
+// contract. It is available to an already selected codec and does not itself
+// grant outbound admission.
 func (TeslaHSCProfile) DecodeQualifiedFunction(_ string, function modbus.PrivateFunctionCode, payload []byte) (QualifiedFunctionResult, error) {
-	envelope, err := DecodeTeslaHSCEnvelope(function, payload)
+	response, err := DecodeTeslaHSCResponse(function, payload)
 	if err != nil {
 		return QualifiedFunctionResult{}, err
 	}
-	return QualifiedFunctionResult{Payload: envelope.Payload()}, nil
+	return QualifiedFunctionResult{Payload: response.Payload()}, nil
 }
 
 // PayloadLength returns the retained opaque payload length.

@@ -16,10 +16,11 @@ func TestTeslaTEDAPIRegistryRetainsOnlyRedactedOpaqueObservations(t *testing.T) 
 	}
 	registry := NewTeslaTEDAPISemanticRegistry()
 	if err := registry.Retain(TeslaTEDAPIObservationSpec{
-		ID:       "sample-1",
-		Profile:  profile,
-		Function: teslaHSCFunction100,
-		Payload:  []byte{2, 0xaa, 0xbb},
+		ID:        "sample-1",
+		Profile:   profile,
+		Direction: TeslaTEDAPIResponse,
+		Function:  teslaHSCFunction100,
+		Payload:   []byte{2, 0xaa, 0xbb},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +47,7 @@ func TestTeslaTEDAPIRegistryFailsClosedForUnqualifiedOrMalformedInput(t *testing
 		t.Fatal(err)
 	}
 	if err := registry.Retain(TeslaTEDAPIObservationSpec{
-		ID: "sample-2", Profile: profile, Function: teslaHSCFunction101, Payload: []byte{0},
+		ID: "sample-2", Profile: profile, Direction: TeslaTEDAPIRequest, Function: teslaHSCFunction101, Payload: []byte{0},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +58,7 @@ func TestTeslaTEDAPIRegistryFailsClosedForUnqualifiedOrMalformedInput(t *testing
 		t.Fatalf("unqualified record = %#v", record)
 	}
 	if err := registry.Retain(TeslaTEDAPIObservationSpec{
-		ID: "bad", Profile: profile, Function: teslaHSCFunction102, Payload: []byte{1},
+		ID: "bad", Profile: profile, Direction: TeslaTEDAPIRequest, Function: teslaHSCFunction102, Payload: []byte{1},
 	}); err == nil {
 		t.Fatal("malformed payload accepted")
 	}

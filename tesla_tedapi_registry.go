@@ -10,6 +10,15 @@ import (
 
 const maxTeslaTEDAPIObservations = 64
 
+// TeslaTEDAPIDirection identifies the wire direction needed to select the
+// appropriate opaque envelope contract.
+type TeslaTEDAPIDirection string
+
+const (
+	TeslaTEDAPIRequest  TeslaTEDAPIDirection = "request"
+	TeslaTEDAPIResponse TeslaTEDAPIDirection = "response"
+)
+
 // TeslaTEDAPISemanticState describes the deliberately narrow projection level.
 type TeslaTEDAPISemanticState string
 
@@ -20,10 +29,11 @@ const (
 
 // TeslaTEDAPIObservationSpec is one bounded TEDAPI envelope observation.
 type TeslaTEDAPIObservationSpec struct {
-	ID       string
-	Profile  TeslaHSCProfile
-	Function modbus.PrivateFunctionCode
-	Payload  []byte
+	ID        string
+	Profile   TeslaHSCProfile
+	Direction TeslaTEDAPIDirection
+	Function  modbus.PrivateFunctionCode
+	Payload   []byte
 }
 
 // TeslaTEDAPIRedactedRecord is safe for gateway/MCP projection. Payload never
@@ -32,6 +42,7 @@ type TeslaTEDAPIRedactedRecord struct {
 	ID                 string                    `json:"id"`
 	State              TeslaTEDAPISemanticState  `json:"state"`
 	OperationAdmission TeslaTEDAPIAdmissionState `json:"operation_admission"`
+	Direction          TeslaTEDAPIDirection      `json:"direction"`
 	Function           byte                      `json:"function"`
 	PayloadLength      int                       `json:"payload_length"`
 	PayloadDigest      string                    `json:"payload_digest"`
@@ -50,12 +61,29 @@ func NewTeslaTEDAPISemanticRegistry() *TeslaTEDAPISemanticRegistry {
 	return &TeslaTEDAPISemanticRegistry{records: make(map[string]TeslaTEDAPIRedactedRecord)}
 }
 
-// Retain validates an envelope and atomically retains a redacted projection.
+// Retain validates the direction-selected contract and atomically retains a
+// redacted projection.
 func (registry *TeslaTEDAPISemanticRegistry) Retain(spec TeslaTEDAPIObservationSpec) error {
 	if registry == nil || !validIdentity(spec.ID) {
 		return fmt.Errorf("tesla TEDAPI observation identity is invalid")
 	}
-	envelope, err := DecodeTeslaHSCEnvelope(spec.Function, spec.Payload)
+	var (
+		function modbus.PrivateFunctionCode
+		payload  []byte
+		err      error
+	)
+	switch spec.Direction {
+	case TeslaTEDAPIRequest:
+		var envelope TeslaHSCEnvelope
+		envelope, err = DecodeTeslaHSCRequestEnvelope(spec.Function, spec.Payload)
+		function, payload = envelope.Function(), envelope.Payload()
+	case TeslaTEDAPIResponse:
+		var response TeslaHSCResponse
+		response, err = DecodeTeslaHSCResponse(spec.Function, spec.Payload)
+		function, payload = response.Function(), response.Payload()
+	default:
+		return fmt.Errorf("tesla TEDAPI observation direction is invalid")
+	}
 	if err != nil {
 		return err
 	}
@@ -66,12 +94,12 @@ func (registry *TeslaTEDAPISemanticRegistry) Retain(spec TeslaTEDAPIObservationS
 	provenance := NewTeslaHSCProvenance(
 		TeslaHSCCompatibilityV1,
 		spec.Profile.Node(),
-		envelope.Function(),
-		envelope.Payload(),
+		function,
+		payload,
 	)
 	admission := spec.Profile.OperationAdmission()
 	record := TeslaTEDAPIRedactedRecord{
-		ID: spec.ID, State: state, OperationAdmission: admission.State, Function: byte(envelope.Function()),
+		ID: spec.ID, State: state, OperationAdmission: admission.State, Direction: spec.Direction, Function: byte(function),
 		PayloadLength: provenance.PayloadLength(), PayloadDigest: provenance.PayloadDigest(),
 		OutboundAllowed: false,
 	}
