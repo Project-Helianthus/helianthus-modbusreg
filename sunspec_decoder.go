@@ -15,6 +15,48 @@ type SunSpecFact struct {
 	RepeatIndex uint16
 	Repeated    bool
 	Value       SunSpecValue
+	path        SunSpecFactPath
+	sourceRange SunSpecOccurrenceSourceRange
+	hasLayout   bool
+}
+
+// WithNestedLayout returns a fact carrying optional future nested-layout
+// identity. Existing flat facts remain unchanged until this method is used.
+func (f SunSpecFact) WithNestedLayout(path SunSpecFactPath, sourceRange SunSpecOccurrenceSourceRange) (SunSpecFact, error) {
+	validatedPath, err := NewSunSpecFactPath(path.Segments())
+	if err != nil {
+		return SunSpecFact{}, err
+	}
+	validatedRange, err := NewSunSpecOccurrenceSourceRange(sourceRange.offset, sourceRange.wordCount, sourceRange.spans)
+	if err != nil {
+		return SunSpecFact{}, err
+	}
+	f.path = validatedPath
+	f.sourceRange = validatedRange
+	f.hasLayout = true
+	return f, nil
+}
+
+func (f SunSpecFact) NestedPath() (SunSpecFactPath, bool) {
+	if !f.hasLayout {
+		return SunSpecFactPath{}, false
+	}
+	path, err := NewSunSpecFactPath(f.path.Segments())
+	if err != nil {
+		return SunSpecFactPath{}, false
+	}
+	return path, true
+}
+
+func (f SunSpecFact) OccurrenceSourceRange() (SunSpecOccurrenceSourceRange, bool) {
+	if !f.hasLayout {
+		return SunSpecOccurrenceSourceRange{}, false
+	}
+	rangeValue, err := NewSunSpecOccurrenceSourceRange(f.sourceRange.offset, f.sourceRange.wordCount, f.sourceRange.spans)
+	if err != nil {
+		return SunSpecOccurrenceSourceRange{}, false
+	}
+	return rangeValue, true
 }
 
 type SunSpecDecodedModel struct {
@@ -55,6 +97,10 @@ func (m SunSpecDecodedModel) Fact(fieldID string) (SunSpecFact, bool) {
 func cloneSunSpecFact(fact SunSpecFact) SunSpecFact {
 	fact.Value.raw = append([]uint16(nil), fact.Value.raw...)
 	fact.Value.bitSymbols = append([]string(nil), fact.Value.bitSymbols...)
+	if fact.hasLayout {
+		fact.path.segments = append([]SunSpecFactPathSegment(nil), fact.path.segments...)
+		fact.sourceRange.spans = append([]SunSpecSourceSpan(nil), fact.sourceRange.spans...)
+	}
 	return fact
 }
 
