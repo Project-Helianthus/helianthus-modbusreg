@@ -109,7 +109,7 @@ func standardSunSpecDecoderKeys(revision SunSpecSchemaRevision, definitions []su
 	case SunSpecModelsRevisionV1:
 		capacity += 3277 + 89561
 	case SunSpecModelsRevisionV2:
-		capacity += int(maxSunSpecDERTripLVCurves) + 1 + int(maxSunSpecDERPorts) + 1 + int(maxSunSpecBESSStrings) + 1 + int(maxSunSpecBESSModules) + 1
+		capacity += int(maxSunSpecDERTripLVCurves) + 1 + int(maxSunSpecDERTripHVCurves) + 1 + int(maxSunSpecDERPorts) + 1 + int(maxSunSpecBESSStrings) + 1 + int(maxSunSpecBESSModules) + 1
 	}
 	keys := make([]SunSpecDecoderKey, 0, capacity)
 	for _, definition := range definitions {
@@ -124,6 +124,9 @@ func standardSunSpecDecoderKeys(revision SunSpecSchemaRevision, definitions []su
 	case SunSpecModelsRevisionV2:
 		for curves := uint32(0); curves <= maxSunSpecDERTripLVCurves; curves++ {
 			keys = append(keys, SunSpecDecoderKey{ModelID: 707, ModelLength: uint16(7 + curves), SchemaRevision: revision})
+		}
+		for curves := uint32(0); curves <= maxSunSpecDERTripHVCurves; curves++ {
+			keys = append(keys, SunSpecDecoderKey{ModelID: 708, ModelLength: uint16(7 + curves), SchemaRevision: revision})
 		}
 		for ports := uint32(0); ports <= maxSunSpecDERPorts; ports++ {
 			keys = append(keys, SunSpecDecoderKey{ModelID: 714, ModelLength: uint16(18 + 25*ports), SchemaRevision: revision})
@@ -168,6 +171,8 @@ func (r SunSpecDecoderRegistry) definition(key SunSpecDecoderKey) (sunSpecModelD
 		switch key.ModelID {
 		case 707:
 			resolved, err = derTripLVV2SunSpecDefinition(key.ModelLength)
+		case 708:
+			resolved, err = derTripHVV2SunSpecDefinition(key.ModelLength)
 		case 714:
 			resolved, err = derDCMeasureV2SunSpecDefinition(key.ModelLength)
 		case 803:
