@@ -75,16 +75,21 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, modelID := range []uint16{707, 708} {
-		if _, ok := registry.definition(SunSpecDecoderKey{ModelID: modelID, ModelLength: 7, SchemaRevision: SunSpecModelsRevisionV2}); ok {
-			t.Fatalf("Model %d must not retain a flat V2 decoder", modelID)
+	quarantined := []struct {
+		modelID, length uint16
+	}{
+		{707, 33}, {708, 33}, {709, 39},
+	}
+	for _, model := range quarantined {
+		if _, ok := registry.definition(SunSpecDecoderKey{ModelID: model.modelID, ModelLength: model.length, SchemaRevision: SunSpecModelsRevisionV2}); ok {
+			t.Fatalf("Model %d must not retain a V2 decoder", model.modelID)
 		}
 	}
 
 	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
 		SchemaRevision: SunSpecModelsRevisionV2,
 		BaseCandidates: []uint16{40000},
-		Limits:         SunSpecChainLimits{MaxTotalWords: 256, MaxOccurrences: 3},
+		Limits:         SunSpecChainLimits{MaxTotalWords: 256, MaxOccurrences: 4},
 		DecoderKeys:    registry.DecoderKeys(),
 	})
 	if err != nil {
@@ -97,9 +102,9 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 	}
 
 	words := append([]uint16{1, 66}, make([]uint16, 66)...)
-	for _, modelID := range []uint16{707, 708} {
-		words = append(words, modelID, 7)
-		words = append(words, make([]uint16, 7)...)
+	for _, model := range quarantined {
+		words = append(words, model.modelID, model.length)
+		words = append(words, make([]uint16, model.length)...)
 	}
 	for len(words) > 0 {
 		request := chain.NextRequests()[0]
@@ -117,22 +122,22 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, modelID := range []uint16{707, 708} {
-		occurrences := snapshot.ByModelID(modelID)
+	for _, model := range quarantined {
+		occurrences := snapshot.ByModelID(model.modelID)
 		if len(occurrences) != 1 {
-			t.Fatalf("Model %d occurrences=%d", modelID, len(occurrences))
+			t.Fatalf("Model %d occurrences=%d", model.modelID, len(occurrences))
 		}
 		occurrence := occurrences[0]
 		if occurrence.Disposition != SunSpecChainDispositionUnknownModel {
-			t.Fatalf("Model %d disposition=%q", modelID, occurrence.Disposition)
+			t.Fatalf("Model %d disposition=%q", model.modelID, occurrence.Disposition)
 		}
-		wantWords := append([]uint16{modelID, 7}, make([]uint16, 7)...)
+		wantWords := append([]uint16{model.modelID, model.length}, make([]uint16, model.length)...)
 		var spanWords uint32
 		for _, span := range occurrence.SourceSpans() {
 			spanWords += uint32(span.WordCount)
 		}
 		if _, ok := occurrence.DecoderKey(); ok || !reflect.DeepEqual(occurrence.Words(), wantWords) || spanWords != uint32(len(wantWords)) {
-			t.Fatalf("Model %d quarantine occurrence=%#v", modelID, occurrence)
+			t.Fatalf("Model %d quarantine occurrence=%#v", model.modelID, occurrence)
 		}
 	}
 
@@ -141,8 +146,110 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, model := range decoded.Models() {
-		if model.Key().ModelID == 707 || model.Key().ModelID == 708 || len(model.Facts()) == 0 && model.Key().ModelID != 1 {
+		if model.Key().ModelID == 707 || model.Key().ModelID == 708 || model.Key().ModelID == 709 || len(model.Facts()) == 0 && model.Key().ModelID != 1 {
 			t.Fatalf("quarantined model was decoded: %#v", model)
+		}
+	}
+}
+
+func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T) {
+	template, err := derTripLVV2NestedTemplate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if template.key.revision != SunSpecModelsRevisionV2 || template.key.modelID != 707 {
+		t.Fatalf("template key=%#v", template.key)
+	}
+	words := []uint16{
+		707, 33,
+		0, 0, 0, 1, 2, 0, 0,
+		0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1,
+		0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1,
+	}
+	spans := []SunSpecSourceSpan{
+		{LogicalViewID: 11, PDUOffset: 100, WordCount: 11},
+		{LogicalViewID: 12, PDUOffset: 200, WordCount: 12},
+		{LogicalViewID: 12, PDUOffset: 300, WordCount: 12},
+	}
+	layout, err := buildDERTripLVV2NestedLayout(words, spans)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := layout.Entries()
+	if len(entries) != 12 {
+		t.Fatalf("entries=%d want=12", len(entries))
+	}
+	for index, want := range []struct {
+		curve              uint32
+		kind               string
+		field              string
+		offset, width, pdu uint32
+	}{
+		{1, "MustTrip", "V", 11, 1, 200}, {1, "MustTrip", "Tms", 12, 2, 201},
+		{1, "MayTrip", "V", 15, 1, 204}, {1, "MayTrip", "Tms", 16, 2, 205},
+		{1, "MomCess", "V", 19, 1, 208}, {1, "MomCess", "Tms", 20, 2, 209},
+		{2, "MustTrip", "V", 24, 1, 301}, {2, "MustTrip", "Tms", 25, 2, 302},
+		{2, "MayTrip", "V", 28, 1, 305}, {2, "MayTrip", "Tms", 29, 2, 306},
+		{2, "MomCess", "V", 32, 1, 309}, {2, "MomCess", "Tms", 33, 2, 310},
+	} {
+		gotPath := entries[index].Path().Segments()
+		wantPath := []SunSpecFactPathSegment{{Name: "Crv", Indexed: true, Index: want.curve}, {Name: want.kind}, {Name: "Pt", Indexed: true, Index: 1}, {Name: want.field}}
+		if !reflect.DeepEqual(gotPath, wantPath) {
+			t.Fatalf("entry %d path=%#v want=%#v", index, gotPath, wantPath)
+		}
+		gotRange := entries[index].SourceRange()
+		wantSpans := []SunSpecSourceSpan{{LogicalViewID: 12, PDUOffset: uint16(want.pdu), WordCount: uint16(want.width)}}
+		if gotRange.OccurrenceOffset() != want.offset || gotRange.WordCount() != want.width || !reflect.DeepEqual(gotRange.SourceSpans(), wantSpans) {
+			t.Fatalf("entry %d range=%#v want offset=%d width=%d spans=%#v", index, gotRange, want.offset, want.width, wantSpans)
+		}
+	}
+
+	zeroWords := []uint16{707, 7, 0, 0, 0, 0, 0, 0, 0}
+	zero, err := buildDERTripLVV2NestedLayout(zeroWords, []SunSpecSourceSpan{{LogicalViewID: 13, PDUOffset: 0, WordCount: 9}})
+	if err != nil || len(zero.Entries()) != 0 {
+		t.Fatalf("zero geometry err=%v entries=%d", err, len(zero.Entries()))
+	}
+
+	for name, invalid := range map[string]struct {
+		words []uint16
+		spans []SunSpecSourceSpan
+	}{
+		"wrong identifier":         {append([]uint16{708}, words[1:]...), spans},
+		"declared length mismatch": {append([]uint16{707, 32}, words[2:]...), spans},
+		"count geometry mismatch":  {append([]uint16{707, 33, 0, 0, 0, 2, 2}, words[7:]...), spans},
+		"point count unavailable":  {append([]uint16{707, 33, 0, 0, 0, 0xffff}, words[6:]...), spans},
+		"curve count unavailable":  {append([]uint16{707, 33, 0, 0, 0, 1, 0xffff}, words[7:]...), spans},
+		"partial span coverage":    {words, []SunSpecSourceSpan{{LogicalViewID: 11, PDUOffset: 100, WordCount: 34}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			layout, err := buildDERTripLVV2NestedLayout(invalid.words, invalid.spans)
+			if err == nil || len(layout.Entries()) != 0 {
+				t.Fatalf("err=%v entries=%d", err, len(layout.Entries()))
+			}
+		})
+	}
+
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := SunSpecDecoderKey{ModelID: 707, ModelLength: 33, SchemaRevision: SunSpecModelsRevisionV2}
+	if _, ok := registry.definition(key); ok {
+		t.Fatal("Model 707 layout validation created a decoder definition")
+	}
+	if _, err := registry.DecodeOccurrence(SunSpecOccurrence{WireKey: SunSpecWireKey{ModelID: 707, ModelLength: 33}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionUnknownModel, words: words, spans: spans}); err == nil {
+		t.Fatal("Model 707 layout validation decoded an unknown occurrence")
+	}
+	for _, unchanged := range []struct {
+		revision        SunSpecSchemaRevision
+		modelID, length uint16
+	}{{SunSpecModelsRevisionV1, 707, 33}, {SunSpecModelsRevisionV2, 708, 33}, {SunSpecModelsRevisionV2, 709, 39}} {
+		other, err := NewStandardSunSpecDecoderRegistry(unchanged.revision)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := other.definition(SunSpecDecoderKey{ModelID: unchanged.modelID, ModelLength: unchanged.length, SchemaRevision: unchanged.revision}); ok {
+			t.Fatalf("unexpected definition for revision=%q model=%d", unchanged.revision, unchanged.modelID)
 		}
 	}
 }
