@@ -29,21 +29,21 @@ func derTripLVV2NestedTemplate() (sunSpecNestedLayoutTemplate, error) {
 						name: "MustTrip", fields: []sunSpecNestedLayoutField{{name: "ActPt", wordCount: 1}},
 						children: []sunSpecNestedLayoutGroup{{
 							name: "Pt", repeatCount: "points", indexBase: 1,
-							fields: []sunSpecNestedLayoutField{{name: "V", wordCount: 1, emit: true}, {name: "Tms", wordCount: 2, emit: true}},
+							fields: []sunSpecNestedLayoutField{{name: "V", wordCount: 1, emit: true, hasValueMetadata: true, valueMetadata: sunSpecNestedValueMetadata{pointType: SunSpecTypeUint16, scaleFactor: "V_SF"}}, {name: "Tms", wordCount: 2, emit: true, hasValueMetadata: true, valueMetadata: sunSpecNestedValueMetadata{pointType: SunSpecTypeUint32, scaleFactor: "Tms_SF"}}},
 						}},
 					},
 					{
 						name: "MayTrip", fields: []sunSpecNestedLayoutField{{name: "ActPt", wordCount: 1}},
 						children: []sunSpecNestedLayoutGroup{{
 							name: "Pt", repeatCount: "points", indexBase: 1,
-							fields: []sunSpecNestedLayoutField{{name: "V", wordCount: 1, emit: true}, {name: "Tms", wordCount: 2, emit: true}},
+							fields: []sunSpecNestedLayoutField{{name: "V", wordCount: 1, emit: true, hasValueMetadata: true, valueMetadata: sunSpecNestedValueMetadata{pointType: SunSpecTypeUint16, scaleFactor: "V_SF"}}, {name: "Tms", wordCount: 2, emit: true, hasValueMetadata: true, valueMetadata: sunSpecNestedValueMetadata{pointType: SunSpecTypeUint32, scaleFactor: "Tms_SF"}}},
 						}},
 					},
 					{
 						name: "MomCess", fields: []sunSpecNestedLayoutField{{name: "ActPt", wordCount: 1}},
 						children: []sunSpecNestedLayoutGroup{{
 							name: "Pt", repeatCount: "points", indexBase: 1,
-							fields: []sunSpecNestedLayoutField{{name: "V", wordCount: 1, emit: true}, {name: "Tms", wordCount: 2, emit: true}},
+							fields: []sunSpecNestedLayoutField{{name: "V", wordCount: 1, emit: true, hasValueMetadata: true, valueMetadata: sunSpecNestedValueMetadata{pointType: SunSpecTypeUint16, scaleFactor: "V_SF"}}, {name: "Tms", wordCount: 2, emit: true, hasValueMetadata: true, valueMetadata: sunSpecNestedValueMetadata{pointType: SunSpecTypeUint32, scaleFactor: "Tms_SF"}}},
 						}},
 					},
 				},

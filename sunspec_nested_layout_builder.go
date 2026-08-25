@@ -16,10 +16,17 @@ type sunSpecNestedCountSpec struct {
 	min, max             uint32
 }
 
+type sunSpecNestedValueMetadata struct {
+	pointType   SunSpecPointType
+	scaleFactor string
+}
+
 type sunSpecNestedLayoutField struct {
-	name      string
-	wordCount uint32
-	emit      bool
+	name             string
+	wordCount        uint32
+	emit             bool
+	hasValueMetadata bool
+	valueMetadata    sunSpecNestedValueMetadata
 }
 
 type sunSpecNestedLayoutGroup struct {
@@ -37,8 +44,10 @@ type sunSpecNestedLayoutTemplate struct {
 }
 
 type sunSpecNestedLayoutEntry struct {
-	path        SunSpecFactPath
-	sourceRange SunSpecOccurrenceSourceRange
+	path             SunSpecFactPath
+	sourceRange      SunSpecOccurrenceSourceRange
+	hasValueMetadata bool
+	valueMetadata    sunSpecNestedValueMetadata
 }
 
 func (e sunSpecNestedLayoutEntry) Path() SunSpecFactPath {
@@ -57,6 +66,20 @@ func (e sunSpecNestedLayoutEntry) SourceRange() SunSpecOccurrenceSourceRange {
 	return rangeValue
 }
 
+func (e sunSpecNestedLayoutEntry) PointType() (SunSpecPointType, bool) {
+	if !e.hasValueMetadata {
+		return "", false
+	}
+	return e.valueMetadata.pointType, true
+}
+
+func (e sunSpecNestedLayoutEntry) ScaleFactor() (string, bool) {
+	if !e.hasValueMetadata || e.valueMetadata.scaleFactor == "" {
+		return "", false
+	}
+	return e.valueMetadata.scaleFactor, true
+}
+
 type sunSpecNestedOccurrenceLayout struct {
 	key     sunSpecNestedTemplateKey
 	entries []sunSpecNestedLayoutEntry
@@ -65,7 +88,7 @@ type sunSpecNestedOccurrenceLayout struct {
 func (l sunSpecNestedOccurrenceLayout) Entries() []sunSpecNestedLayoutEntry {
 	out := make([]sunSpecNestedLayoutEntry, len(l.entries))
 	for index, entry := range l.entries {
-		out[index] = sunSpecNestedLayoutEntry{path: entry.Path(), sourceRange: entry.SourceRange()}
+		out[index] = sunSpecNestedLayoutEntry{path: entry.Path(), sourceRange: entry.SourceRange(), hasValueMetadata: entry.hasValueMetadata, valueMetadata: entry.valueMetadata}
 	}
 	return out
 }
@@ -115,6 +138,9 @@ func validateSunSpecNestedLayoutGroup(group sunSpecNestedLayoutGroup, countNames
 	for _, field := range group.fields {
 		if field.name == "" || field.wordCount == 0 {
 			return fmt.Errorf("SunSpec nested layout field is invalid")
+		}
+		if field.hasValueMetadata && (!field.emit || field.valueMetadata.pointType == "") {
+			return fmt.Errorf("SunSpec nested layout metadata is invalid")
 		}
 		if root && field.emit {
 			return fmt.Errorf("SunSpec nested layout root cannot emit a path")
@@ -257,7 +283,7 @@ func (w *sunSpecNestedLayoutWalk) walk(group sunSpecNestedLayoutGroup, parent []
 			if err != nil {
 				return err
 			}
-			*w.entries = append(*w.entries, sunSpecNestedLayoutEntry{path: factPath, sourceRange: sourceRange})
+			*w.entries = append(*w.entries, sunSpecNestedLayoutEntry{path: factPath, sourceRange: sourceRange, hasValueMetadata: field.hasValueMetadata, valueMetadata: field.valueMetadata})
 		}
 		for _, child := range group.children {
 			if err := w.walk(child, path); err != nil {

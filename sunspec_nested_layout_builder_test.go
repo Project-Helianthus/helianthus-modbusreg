@@ -149,3 +149,16 @@ func TestSunSpecNestedLayoutRejectsInvalidOccurrenceWithoutEntries(t *testing.T)
 		})
 	}
 }
+
+func TestSunSpecNestedLayoutRejectsMetadataOnNonEmittingField(t *testing.T) {
+	_, err := newSunSpecNestedLayoutTemplate(
+		sunSpecNestedTemplateKey{revision: syntheticNestedLayoutRevision, modelID: syntheticNestedLayoutModelID},
+		nil,
+		sunSpecNestedLayoutGroup{fields: []sunSpecNestedLayoutField{{
+			name: "ID", wordCount: 1, hasValueMetadata: true, valueMetadata: sunSpecNestedValueMetadata{pointType: SunSpecTypeUint16},
+		}}},
+	)
+	if err == nil {
+		t.Fatal("non-emitting field accepted typed metadata")
+	}
+}
