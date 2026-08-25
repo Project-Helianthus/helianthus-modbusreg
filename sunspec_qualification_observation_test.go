@@ -140,6 +140,32 @@ func TestSunSpecQualificationObservationJSONGoldenAndBoundedReplay(t *testing.T)
 	}
 }
 
+func TestSunSpecQualificationObservationJSONIgnoresPrivateStructuralCandidate(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	baseline, err := NewSunSpecQualificationObservation(registry, qualificationSnapshot(t, registry))
+	if err != nil {
+		t.Fatal(err)
+	}
+	baselineJSON, err := json.Marshal(baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	candidateSnapshot := qualificationSnapshot(t, registry)
+	candidateSnapshot.occurrences[0].structuralCandidate = &sunSpecStructuralCandidate{modelID: 707}
+	candidate, err := NewSunSpecQualificationObservation(registry, candidateSnapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidateJSON, err := json.Marshal(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(candidateJSON, baselineJSON) {
+		t.Fatal("qualification JSON changed when private structural candidate metadata was present")
+	}
+}
+
 func TestSunSpecQualificationObservationRetainsCoalescedTCPProvenance(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
 	baseline, err := NewSunSpecQualificationObservation(registry, qualificationSnapshot(t, registry))
