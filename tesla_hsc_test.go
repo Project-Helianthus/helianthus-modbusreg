@@ -43,7 +43,7 @@ func TestTeslaHSCEnvelopesValidateAndRetainOpaquePayload(t *testing.T) {
 		teslaHSCFunction101,
 		teslaHSCFunction102,
 	} {
-		envelope, err := DecodeTeslaHSCEnvelope(function, []byte{2, 0xaa, 0xbb})
+		envelope, err := DecodeTeslaHSCRequestEnvelope(function, []byte{2, 0xaa, 0xbb})
 		if err != nil {
 			t.Fatalf("function %d: %v", function, err)
 		}
@@ -55,6 +55,9 @@ func TestTeslaHSCEnvelopesValidateAndRetainOpaquePayload(t *testing.T) {
 		if _, err := DecodeTeslaHSCEnvelope(teslaHSCFunction100, payload); err == nil {
 			t.Fatalf("FC100 invalid payload accepted: %x", payload)
 		}
+	}
+	if _, err := DecodeTeslaHSCEnvelope(teslaHSCFunction101, []byte{0}); err == nil {
+		t.Fatal("FC101 response envelope accepted as FC100 data")
 	}
 }
 
