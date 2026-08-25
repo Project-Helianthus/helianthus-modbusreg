@@ -6,6 +6,48 @@ const maxSunSpecDERPorts uint32 = (65535 - 18) / 25
 const maxSunSpecBESSStrings uint32 = (65535 - 26) / 32
 const maxSunSpecBESSModules uint32 = (65535 - 46) / 16
 
+// Model 707 with NCrvSet=65528 has 65537 words including its header. The
+// bounded offline decoder intentionally stops one word earlier.
+const maxSunSpecDERTripLVCurves uint32 = 65534 - 7
+
+func derTripLVV2SunSpecDefinition(length uint16) (sunSpecModelDefinition, error) {
+	if length < 7 {
+		return sunSpecModelDefinition{}, fmt.Errorf("SunSpec V2 Model 707 geometry is invalid")
+	}
+	curves := uint32(length) - 7
+	if curves > maxSunSpecDERTripLVCurves {
+		return sunSpecModelDefinition{}, fmt.Errorf("SunSpec V2 Model 707 curve count exceeds offline geometry")
+	}
+	points := make([]sunSpecPointDefinition, 0, 9+int(curves))
+	points = append(points,
+		v2DERPoint("707", "ID", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("707", "L", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("707", "Ena", SunSpecTypeEnum16, "", "", false),
+		v2DERPoint("707", "AdptCrvReq", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("707", "AdptCrvRslt", SunSpecTypeEnum16, "", "", false),
+		v2DERPoint("707", "NPt", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("707", "NCrvSet", SunSpecTypeCount, "", "", false),
+		v2DERPoint("707", "V_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("707", "Tms_SF", SunSpecTypeScaleFactor, "", "", false),
+	)
+	for curve := uint32(1); curve <= curves; curve++ {
+		point := v2DERPoint("707", "ReadOnly", SunSpecTypeEnum16, "", "", false)
+		point.groupID = "curve"
+		point.repeatIndex = uint16(curve)
+		point.repeated = true
+		points = append(points, point)
+	}
+	definitions, err := appendSunSpecDefinition(nil, SunSpecModelsRevisionV2, 707, length, SunSpecTopologyNone, false, points)
+	if err != nil {
+		return sunSpecModelDefinition{}, err
+	}
+	definition := definitions[0]
+	definition.geometry = func(words []uint16) bool {
+		return len(words) == int(length)+2 && len(words) > 6 && words[6] != 0xffff && uint32(words[6]) <= maxSunSpecDERTripLVCurves && uint32(length) == 7+uint32(words[6])
+	}
+	return definition, nil
+}
+
 func derDCMeasureV2SunSpecDefinition(length uint16) (sunSpecModelDefinition, error) {
 	if length < 18 || (uint32(length)-18)%25 != 0 {
 		return sunSpecModelDefinition{}, fmt.Errorf("SunSpec V2 Model 714 geometry is invalid")
