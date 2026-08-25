@@ -104,7 +104,11 @@ func standardSunSpecDecoderKeys(revision SunSpecSchemaRevision, definitions []su
 	if keys, ok := standardSunSpecDecoderKeysCache.keys[revision]; ok {
 		return append([]SunSpecDecoderKey(nil), keys...)
 	}
-	keys := make([]SunSpecDecoderKey, 0, len(definitions)+3277+89561)
+	capacity := len(definitions)
+	if revision == SunSpecModelsRevisionV1 {
+		capacity += 3277 + 89561
+	}
+	keys := make([]SunSpecDecoderKey, 0, capacity)
 	for _, definition := range definitions {
 		keys = append(keys, definition.key)
 	}
