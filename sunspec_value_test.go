@@ -149,7 +149,7 @@ func TestSunSpecUint64PreservesExactUnsignedScaling(t *testing.T) {
 	definition := sizedSunSpecPoint(SunSpecTypeUint64, 4)
 	definition.scaleFactor = "TotWh_SF"
 
-	value := decodeSunSpecValue(definition, []uint16{0x8000, 0, 0, 1}, &scale)
+	value := decodeSunSpecValue(definition, []uint16{0x8000, 0, 0, 0}, &scale)
 	if value.State() != SunSpecValueValid {
 		t.Fatalf("state=%s", value.State())
 	}
@@ -181,9 +181,9 @@ func TestSunSpecUint64PreservesExactUnsignedScaling(t *testing.T) {
 	}
 
 	for name, invalidScale := range map[string]*SunSpecValue{
-		"missing":      nil,
-		"unavailable":  &SunSpecValue{pointType: SunSpecTypeScaleFactor, state: SunSpecValueNotImplemented},
-		"invalid":      &SunSpecValue{pointType: SunSpecTypeScaleFactor, state: SunSpecValueInvalidEncoding},
+		"missing":     nil,
+		"unavailable": &SunSpecValue{pointType: SunSpecTypeScaleFactor, state: SunSpecValueNotImplemented},
+		"invalid":     &SunSpecValue{pointType: SunSpecTypeScaleFactor, state: SunSpecValueInvalidEncoding},
 	} {
 		t.Run(name, func(t *testing.T) {
 			got := decodeSunSpecValue(definition, []uint16{0, 0, 0, 1}, invalidScale)

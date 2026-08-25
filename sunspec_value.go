@@ -13,6 +13,7 @@ const (
 	SunSpecTypeInt32         SunSpecPointType = "int32"
 	SunSpecTypeUint16        SunSpecPointType = "uint16"
 	SunSpecTypeUint32        SunSpecPointType = "uint32"
+	SunSpecTypeUint64        SunSpecPointType = "uint64"
 	SunSpecTypeAccumulator32 SunSpecPointType = "acc32"
 	SunSpecTypeAccumulator64 SunSpecPointType = "acc64"
 	SunSpecTypeCount         SunSpecPointType = "count"
@@ -39,33 +40,45 @@ type SunSpecDecimal struct {
 	Exponent    int16
 }
 
-type SunSpecValue struct {
-	pointType   SunSpecPointType
-	state       SunSpecValueState
-	raw         []uint16
-	decimal     SunSpecDecimal
-	hasDecimal  bool
-	float32     float32
-	hasFloat    bool
-	signed      int64
-	hasSigned   bool
-	unsigned    uint64
-	hasUnsigned bool
-	text        string
-	hasText     bool
-	enumNumber  uint64
-	enumSymbol  string
-	hasEnum     bool
-	bits        uint64
-	unknown     uint64
-	bitSymbols  []string
-	hasBits     bool
+// SunSpecUnsignedDecimal preserves an unsigned coefficient without narrowing it
+// through a signed or floating-point representation.
+type SunSpecUnsignedDecimal struct {
+	Coefficient uint64
+	Exponent    int16
 }
 
-func (v SunSpecValue) PointType() SunSpecPointType      { return v.pointType }
-func (v SunSpecValue) State() SunSpecValueState         { return v.state }
-func (v SunSpecValue) RawWords() []uint16               { return append([]uint16(nil), v.raw...) }
-func (v SunSpecValue) Decimal() (SunSpecDecimal, bool)  { return v.decimal, v.hasDecimal }
+type SunSpecValue struct {
+	pointType          SunSpecPointType
+	state              SunSpecValueState
+	raw                []uint16
+	decimal            SunSpecDecimal
+	hasDecimal         bool
+	unsignedDecimal    SunSpecUnsignedDecimal
+	hasUnsignedDecimal bool
+	float32            float32
+	hasFloat           bool
+	signed             int64
+	hasSigned          bool
+	unsigned           uint64
+	hasUnsigned        bool
+	text               string
+	hasText            bool
+	enumNumber         uint64
+	enumSymbol         string
+	hasEnum            bool
+	bits               uint64
+	unknown            uint64
+	bitSymbols         []string
+	hasBits            bool
+}
+
+func (v SunSpecValue) PointType() SunSpecPointType     { return v.pointType }
+func (v SunSpecValue) State() SunSpecValueState        { return v.state }
+func (v SunSpecValue) RawWords() []uint16              { return append([]uint16(nil), v.raw...) }
+func (v SunSpecValue) Decimal() (SunSpecDecimal, bool) { return v.decimal, v.hasDecimal }
+func (v SunSpecValue) UnsignedDecimal() (SunSpecUnsignedDecimal, bool) {
+	return v.unsignedDecimal, v.hasUnsignedDecimal
+}
 func (v SunSpecValue) Float32() (float32, bool)         { return v.float32, v.hasFloat }
 func (v SunSpecValue) Signed() (int64, bool)            { return v.signed, v.hasSigned }
 func (v SunSpecValue) Unsigned() (uint64, bool)         { return v.unsigned, v.hasUnsigned }
@@ -105,6 +118,12 @@ func decodeSunSpecValue(def sunSpecPointDefinition, words []uint16, scale *SunSp
 	case SunSpecTypeUint32:
 		raw := uint64(uint32(words[0])<<16 | uint32(words[1]))
 		if raw == math.MaxUint32 {
+			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotImplemented)
+		}
+		value.unsigned, value.hasUnsigned = raw, true
+	case SunSpecTypeUint64:
+		raw := uint64(words[0])<<48 | uint64(words[1])<<32 | uint64(words[2])<<16 | uint64(words[3])
+		if raw == math.MaxUint64 {
 			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotImplemented)
 		}
 		value.unsigned, value.hasUnsigned = raw, true
@@ -201,6 +220,11 @@ func applySunSpecScale(value SunSpecValue, scale *SunSpecValue) SunSpecValue {
 	}
 	coefficient := value.signed
 	if !value.hasSigned {
+		if value.pointType == SunSpecTypeUint64 && value.hasUnsigned {
+			value.unsignedDecimal = SunSpecUnsignedDecimal{Coefficient: value.unsigned, Exponent: int16(scale.signed)}
+			value.hasUnsignedDecimal = true
+			return value
+		}
 		if !value.hasUnsigned || value.unsigned > math.MaxInt64 {
 			value.state = SunSpecValueInvalidEncoding
 			return value
