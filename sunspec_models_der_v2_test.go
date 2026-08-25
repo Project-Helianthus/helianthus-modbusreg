@@ -216,6 +216,7 @@ func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T)
 	}{
 		"wrong identifier":         {append([]uint16{708}, words[1:]...), spans},
 		"declared length mismatch": {append([]uint16{707, 32}, words[2:]...), spans},
+		"count geometry mismatch":  {append([]uint16{707, 33, 0, 0, 0, 2, 2}, words[7:]...), spans},
 		"point count unavailable":  {append([]uint16{707, 33, 0, 0, 0, 0xffff}, words[6:]...), spans},
 		"curve count unavailable":  {append([]uint16{707, 33, 0, 0, 0, 1, 0xffff}, words[7:]...), spans},
 		"partial span coverage":    {words, []SunSpecSourceSpan{{LogicalViewID: 11, PDUOffset: 100, WordCount: 34}}},
