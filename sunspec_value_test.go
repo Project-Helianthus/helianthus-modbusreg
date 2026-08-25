@@ -144,6 +144,61 @@ func TestSunSpecExtendedValueTypesRetainExactState(t *testing.T) {
 	}
 }
 
+func TestSunSpecUint64PreservesExactUnsignedScaling(t *testing.T) {
+	scale := decodeSunSpecValue(sizedSunSpecPoint(SunSpecTypeScaleFactor, 1), []uint16{0xfffe}, nil)
+	definition := sizedSunSpecPoint(SunSpecTypeUint64, 4)
+	definition.scaleFactor = "TotWh_SF"
+
+	value := decodeSunSpecValue(definition, []uint16{0x8000, 0, 0, 1}, &scale)
+	if value.State() != SunSpecValueValid {
+		t.Fatalf("state=%s", value.State())
+	}
+	if raw, ok := value.Unsigned(); !ok || raw != math.MaxInt64+1 {
+		t.Fatalf("unsigned=%d ok=%v", raw, ok)
+	}
+	if _, ok := value.Decimal(); ok {
+		t.Fatal("uint64 scaling was narrowed through signed decimal")
+	}
+	decimal, ok := value.UnsignedDecimal()
+	if !ok || decimal != (SunSpecUnsignedDecimal{Coefficient: math.MaxInt64 + 1, Exponent: -2}) {
+		t.Fatalf("unsigned decimal=%#v ok=%v", decimal, ok)
+	}
+
+	zero := decodeSunSpecValue(definition, []uint16{0, 0, 0, 0}, &scale)
+	if raw, ok := zero.Unsigned(); zero.State() != SunSpecValueValid || !ok || raw != 0 {
+		t.Fatalf("zero=%#v raw=%d ok=%v", zero, raw, ok)
+	}
+	if decimal, ok := zero.UnsignedDecimal(); !ok || decimal != (SunSpecUnsignedDecimal{Coefficient: 0, Exponent: -2}) {
+		t.Fatalf("zero decimal=%#v ok=%v", decimal, ok)
+	}
+
+	allOnes := decodeSunSpecValue(definition, []uint16{0xffff, 0xffff, 0xffff, 0xffff}, &scale)
+	if allOnes.State() != SunSpecValueNotImplemented {
+		t.Fatalf("all-ones state=%s", allOnes.State())
+	}
+	if _, ok := allOnes.UnsignedDecimal(); ok {
+		t.Fatal("all-ones uint64 produced a scaled value")
+	}
+
+	for name, invalidScale := range map[string]*SunSpecValue{
+		"missing":      nil,
+		"unavailable":  &SunSpecValue{pointType: SunSpecTypeScaleFactor, state: SunSpecValueNotImplemented},
+		"invalid":      &SunSpecValue{pointType: SunSpecTypeScaleFactor, state: SunSpecValueInvalidEncoding},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := decodeSunSpecValue(definition, []uint16{0, 0, 0, 1}, invalidScale)
+			if _, ok := got.UnsignedDecimal(); ok {
+				t.Fatalf("invalid scale produced unsigned decimal: %#v", got)
+			}
+		})
+	}
+
+	accumulator := decodeSunSpecValue(sizedSunSpecPoint(SunSpecTypeAccumulator64, 4), []uint16{0, 0, 0, 0}, nil)
+	if accumulator.State() != SunSpecValueNotAccumulated {
+		t.Fatalf("acc64 zero state=%s", accumulator.State())
+	}
+}
+
 func sizedSunSpecPoint(pointType SunSpecPointType, size uint16) sunSpecPointDefinition {
 	return sunSpecPointDefinition{pointType: pointType, size: size}
 }
