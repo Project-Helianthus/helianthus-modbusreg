@@ -84,3 +84,45 @@ func TestSunSpecFactRemainsFlatWithoutNestedPrimitives(t *testing.T) {
 		t.Fatalf("flat fact metadata changed: %#v", fact)
 	}
 }
+
+func TestSunSpecOccurrenceSourceRangeFromSpansSlicesWithoutCoalescing(t *testing.T) {
+	spans := []SunSpecSourceSpan{
+		{LogicalViewID: 11, PDUOffset: 100, WordCount: 2},
+		{LogicalViewID: 11, PDUOffset: 200, WordCount: 2},
+		{LogicalViewID: 12, PDUOffset: 0, WordCount: 2},
+	}
+	rangeValue, err := NewSunSpecOccurrenceSourceRangeFromSpans(1, 5, spans)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []SunSpecSourceSpan{
+		{LogicalViewID: 11, PDUOffset: 101, WordCount: 1},
+		{LogicalViewID: 11, PDUOffset: 200, WordCount: 2},
+		{LogicalViewID: 12, PDUOffset: 0, WordCount: 2},
+	}
+	if !reflect.DeepEqual(rangeValue.SourceSpans(), want) {
+		t.Fatalf("sliced spans=%#v", rangeValue.SourceSpans())
+	}
+	got := rangeValue.SourceSpans()
+	got[0].PDUOffset = 999
+	if rangeValue.SourceSpans()[0].PDUOffset != 101 {
+		t.Fatal("sliced spans alias returned range")
+	}
+
+	for _, invalid := range []struct {
+		offset, words uint32
+		spans         []SunSpecSourceSpan
+	}{
+		{0, 1, nil},
+		{0, 1, []SunSpecSourceSpan{{LogicalViewID: 0, PDUOffset: 0, WordCount: 1}}},
+		{0, 1, []SunSpecSourceSpan{{LogicalViewID: 1, PDUOffset: 0, WordCount: 0}}},
+		{0, 1, []SunSpecSourceSpan{{LogicalViewID: 1, PDUOffset: 65535, WordCount: 2}}},
+		{6, 1, spans},
+		{0, 7, spans},
+		{0, 1, []SunSpecSourceSpan{{LogicalViewID: 1, PDUOffset: 0, WordCount: 65535}, {LogicalViewID: 2, PDUOffset: 0, WordCount: 2}}},
+	} {
+		if _, err := NewSunSpecOccurrenceSourceRangeFromSpans(invalid.offset, invalid.words, invalid.spans); err == nil {
+			t.Fatalf("invalid aggregate accepted: %#v", invalid)
+		}
+	}
+}
