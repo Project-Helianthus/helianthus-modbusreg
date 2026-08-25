@@ -83,6 +83,22 @@ func TestSunSpecV2BESSBaseRetainsPinnedPointOrderTypesAndScales(t *testing.T) {
 	}
 }
 
+func TestSunSpecV2BESSBankRequiresExactDynamicDefinitions(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, length := range []uint16{26, 90, 65530} {
+		key := SunSpecDecoderKey{ModelID: 803, ModelLength: length, SchemaRevision: SunSpecModelsRevisionV2}
+		if _, ok := registry.definition(key); !ok {
+			t.Fatalf("Model 803/%d dynamic definition absent", length)
+		}
+	}
+	if _, ok := registry.definition(SunSpecDecoderKey{ModelID: 804, ModelLength: 46, SchemaRevision: SunSpecModelsRevisionV2}); ok {
+		t.Fatal("Model 804 became available before its separate node")
+	}
+}
+
 func TestSunSpecV2ControlObservabilityDecodesStateOnly(t *testing.T) {
 	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
 	if err != nil {
