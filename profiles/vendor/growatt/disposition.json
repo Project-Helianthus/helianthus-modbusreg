@@ -2,15 +2,17 @@
   "schema": "helianthus-modbusreg-profile-disposition/v1",
   "profile": "growatt",
   "profile_version": "1.0.0",
-  "outcome": "NO_ADMISSIBLE_PROFILE",
+  "outcome": "OFFLINE_IDENTITY_ADMITTED",
   "evidence": {
     "packet_id": "GROWATT-CANDIDATE-V1",
     "docs_merge_sha": "6654837a4ec29a3f226a29f701574ee84495ff2f",
     "source_identity": "sha256:fac88d609d74ff6b3c9c31ed65370d166d1fb17461e91b4b4855018fe232a320",
     "source_license": "vendor-copyright-inspection-only",
-    "packet_disposition": "HYPOTHESIS",
-    "eligible": false
+    "packet_disposition": "DOCUMENTED_OFFLINE_IDENTITY",
+    "eligible": true
   },
+  "offline_identity_gate_registered": true,
+  "automatic_runtime_admission": false,
   "candidate_operations": [
     {"function": 3, "offset": 9, "quantity": 6, "purpose": "firmware_tuple", "executable": false},
     {"function": 3, "offset": 43, "quantity": 1, "purpose": "device_type_code", "executable": false},
@@ -18,20 +20,16 @@
     {"function": 3, "offset": 88, "quantity": 1, "purpose": "protocol_version", "executable": false}
   ],
   "unresolved": [
-    "exact_product_family",
-    "firmware_branch",
-    "address_normalization",
-    "word_and_byte_order",
-    "detector_uniqueness"
+    "automatic_detector_uniqueness",
+    "exact_fc04_telemetry_schema",
+    "runtime_admission_contract"
   ],
   "decoder_keys": [],
   "catalog_registered": false,
   "support_claim": false,
   "reopen_requires": [
-    "public_clean_room_fixture",
-    "exact_family_and_firmware_applicability",
-    "verified_zero_based_address_normalization",
-    "declared_word_and_byte_order",
-    "mutually_exclusive_identity_tuple"
+    "mutually_exclusive_identity_tuple",
+    "exact_fc04_telemetry_schema",
+    "explicit_runtime_admission_contract"
   ]
 }
