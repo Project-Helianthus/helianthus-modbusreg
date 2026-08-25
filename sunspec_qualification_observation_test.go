@@ -144,6 +144,12 @@ func TestSunSpecQualificationObservationRetainsCoalescedTCPProvenance(t *testing
 		t.Fatalf("NewSunSpecQualificationObservation(baseline): %v", err)
 	}
 	snapshot, expected := qualificationSnapshotWithCoalescedTCPView(t, registry)
+	if expected.PhysicalOffset == expected.LogicalOffset ||
+		expected.PhysicalWordCount == expected.LogicalWordCount ||
+		expected.SliceOffset == 0 ||
+		expected.SliceWordCount != expected.LogicalWordCount {
+		t.Fatalf("fixture is not a coalesced TCP slice: %#v", expected)
+	}
 	observation, err := NewSunSpecQualificationObservation(registry, snapshot)
 	if err != nil {
 		t.Fatalf("NewSunSpecQualificationObservation: %v", err)
