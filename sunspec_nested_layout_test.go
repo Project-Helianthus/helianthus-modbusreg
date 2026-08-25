@@ -24,6 +24,9 @@ func TestSunSpecFactPathRetainsOrderedHierarchyWithoutAliasing(t *testing.T) {
 	if path.Segments()[2].Index != 5 {
 		t.Fatal("returned path segments alias the immutable path")
 	}
+	if _, err := NewSunSpecFactPath([]SunSpecFactPathSegment{{Name: "Layer", Indexed: true, Index: 0}}); err != nil {
+		t.Fatalf("zero-based indexed segment rejected: %v", err)
+	}
 	for _, segments := range [][]SunSpecFactPathSegment{
 		nil,
 		{{Name: ""}},

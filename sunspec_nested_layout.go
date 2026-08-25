@@ -5,7 +5,7 @@ import "fmt"
 const maxSunSpecOccurrenceWords uint32 = 65536
 
 // SunSpecFactPathSegment identifies one ordered group in a nested fact path.
-// Indexed distinguishes a named group from a repeated group at a one-based index.
+// Indexed distinguishes a named group from a repeated group with an explicit index.
 type SunSpecFactPathSegment struct {
 	Name    string
 	Index   uint32
@@ -22,9 +22,6 @@ func NewSunSpecFactPath(segments []SunSpecFactPathSegment) (SunSpecFactPath, err
 	for _, segment := range segments {
 		if segment.Name == "" {
 			return SunSpecFactPath{}, fmt.Errorf("SunSpec fact path segment has no name")
-		}
-		if segment.Indexed && segment.Index == 0 {
-			return SunSpecFactPath{}, fmt.Errorf("SunSpec indexed fact path segment has zero index")
 		}
 		if !segment.Indexed && segment.Index != 0 {
 			return SunSpecFactPath{}, fmt.Errorf("SunSpec unindexed fact path segment has an index")
