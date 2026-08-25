@@ -19,7 +19,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			"https://github.com/sunspec/models",
 			"90b4a331dcca1d6eac69c1bead952fddcc5852e0",
 			"Models 701/153, 702/50, 703/17, 713/7,",
-			"714 variable geometry, 715/7, and 802/62",
+			"714 variable geometry, 715/7, 802/62, and 803 variable geometry",
 			"modified by Helianthus",
 			"Apache License",
 			"Version 2.0, January 2004",
@@ -80,6 +80,87 @@ func TestSunSpecV2BESSBaseRetainsPinnedPointOrderTypesAndScales(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Model 802 signature=%q want=%q", got, want)
+	}
+}
+
+func TestSunSpecV2BESSBankRequiresExactDynamicDefinitions(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []struct {
+		strings, length uint16
+		points          int
+	}{
+		{0, 26, 28},
+		{2, 90, 80},
+		{2047, 65530, 28 + 26*2047},
+	} {
+		key := SunSpecDecoderKey{ModelID: 803, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2}
+		definition, ok := registry.definition(key)
+		if !ok || len(definition.points) != want.points {
+			t.Fatalf("Model 803/%d dynamic definition=%t points=%d", want.length, ok, len(definition.points))
+		}
+		if want.strings == 2047 {
+			continue
+		}
+		words := make([]uint16, int(want.length)+2)
+		words[0], words[1], words[2] = 803, want.length, want.strings
+		spans := []SunSpecSourceSpan{{LogicalViewID: 11, PDUOffset: 0, WordCount: want.length + 2}}
+		decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 803, ModelLength: want.length}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words, spans: spans})
+		if err != nil || !decoded.GeometryValid() || !decoded.Qualifies() {
+			t.Fatalf("Model 803/%d geometry=%t qualifies=%t err=%v", want.length, decoded.GeometryValid(), decoded.Qualifies(), err)
+		}
+		if want.strings == 2 {
+			counts := map[uint16]int{}
+			for _, fact := range decoded.Facts() {
+				if fact.Repeated && fact.GroupID == "string" {
+					counts[fact.RepeatIndex]++
+				}
+			}
+			if counts[1] != 26 || counts[2] != 26 || len(counts) != 2 || !reflect.DeepEqual(decoded.SourceSpans(), spans) {
+				t.Fatalf("Model 803 repeat facts=%v spans=%#v", counts, decoded.SourceSpans())
+			}
+		}
+	}
+	for _, want := range []struct {
+		name          string
+		length, count uint16
+	}{
+		{"count mismatch", 90, 1},
+		{"sentinel", 90, 0xffff},
+	} {
+		t.Run(want.name, func(t *testing.T) {
+			key := SunSpecDecoderKey{ModelID: 803, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2}
+			words := make([]uint16, int(want.length)+2)
+			words[0], words[1], words[2] = 803, want.length, want.count
+			decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 803, ModelLength: want.length}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words})
+			if err != nil || decoded.GeometryValid() || decoded.Qualifies() || len(decoded.Facts()) != 0 || !reflect.DeepEqual(decoded.RawWords(), words) {
+				t.Fatalf("Model 803 %s geometry=%t qualifies=%t facts=%d err=%v", want.name, decoded.GeometryValid(), decoded.Qualifies(), len(decoded.Facts()), err)
+			}
+		})
+	}
+	if _, ok := registry.definition(SunSpecDecoderKey{ModelID: 804, ModelLength: 46, SchemaRevision: SunSpecModelsRevisionV2}); ok {
+		t.Fatal("Model 804 became available before its separate node")
+	}
+}
+
+func TestSunSpecV2BESSBankRetainsPinnedPointOrderTypesAndScales(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, ok := registry.definition(SunSpecDecoderKey{ModelID: 803, ModelLength: 58, SchemaRevision: SunSpecModelsRevisionV2})
+	if !ok {
+		t.Fatal("Model 803/58 definition absent")
+	}
+	want := strings.Split("ID:uint16:1::0:false,L:uint16:1::0:false,NStr:count:1::0:false,NStrCon:uint16:1::0:false,ModTmpMax:int16:1:ModTmp_SF:0:false,ModTmpMaxStr:uint16:1::0:false,ModTmpMaxMod:uint16:1::0:false,ModTmpMin:int16:1:ModTmp_SF:0:false,ModTmpMinStr:uint16:1::0:false,ModTmpMinMod:uint16:1::0:false,ModTmpAvg:int16:1:ModTmp_SF:0:false,StrVMax:uint16:1:V_SF:0:false,StrVMaxStr:uint16:1::0:false,StrVMin:uint16:1:V_SF:0:false,StrVMinStr:uint16:1::0:false,StrVAvg:uint16:1:V_SF:0:false,StrAMax:int16:1:A_SF:0:false,StrAMaxStr:uint16:1::0:false,StrAMin:int16:1:A_SF:0:false,StrAMinStr:uint16:1::0:false,StrAAvg:int16:1:A_SF:0:false,NCellBal:uint16:1::0:false,CellV_SF:sunssf:1::0:false,ModTmp_SF:sunssf:1::0:false,A_SF:sunssf:1::0:false,SoH_SF:sunssf:1::0:false,SoC_SF:sunssf:1::0:false,V_SF:sunssf:1::0:false,StrNMod:uint16:1::1:true,StrSt:bitfield32:2::1:true,StrConFail:enum16:1::1:true,StrSoC:uint16:1:SoC_SF:1:true,StrSoH:uint16:1:SoH_SF:1:true,StrA:int16:1:A_SF:1:true,StrCellVMax:uint16:1:CellV_SF:1:true,StrCellVMaxMod:uint16:1::1:true,StrCellVMin:uint16:1:CellV_SF:1:true,StrCellVMinMod:uint16:1::1:true,StrCellVAvg:uint16:1:CellV_SF:1:true,StrModTmpMax:int16:1:ModTmp_SF:1:true,StrModTmpMaxMod:uint16:1::1:true,StrModTmpMin:int16:1:ModTmp_SF:1:true,StrModTmpMinMod:uint16:1::1:true,StrModTmpAvg:int16:1:ModTmp_SF:1:true,StrDisRsn:enum16:1::1:true,StrConSt:bitfield32:2::1:true,StrEvt1:bitfield32:2::1:true,StrEvt2:bitfield32:2::1:true,StrEvtVnd1:bitfield32:2::1:true,StrEvtVnd2:bitfield32:2::1:true,StrSetEna:enum16:1::1:true,StrSetCon:enum16:1::1:true,Pad1:pad:1::1:true,Pad2:pad:1::1:true", ",")
+	got := make([]string, len(definition.points))
+	for index, point := range definition.points {
+		got[index] = fmt.Sprintf("%s:%s:%d:%s:%d:%t", point.name, point.pointType, point.size, point.scaleFactor, point.repeatIndex, point.repeated)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Model 803 signature=%q want=%q", got, want)
 	}
 }
 
