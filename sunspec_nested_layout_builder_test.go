@@ -84,6 +84,12 @@ func TestSunSpecNestedLayoutBuildsImmutableSyntheticEntries(t *testing.T) {
 	if len(entries) != 8 {
 		t.Fatalf("entries=%d", len(entries))
 	}
+	if _, ok := entries[0].PointType(); ok {
+		t.Fatal("legacy synthetic entry unexpectedly has typed metadata")
+	}
+	if _, ok := entries[0].ScaleFactor(); ok {
+		t.Fatal("legacy synthetic entry unexpectedly has a scale factor")
+	}
 	path := entries[0].Path()
 	if !reflect.DeepEqual(path.Segments(), []SunSpecFactPathSegment{
 		{Name: "Crv", Indexed: true, Index: 1},
@@ -141,5 +147,18 @@ func TestSunSpecNestedLayoutRejectsInvalidOccurrenceWithoutEntries(t *testing.T)
 				t.Fatalf("invalid occurrence returned layout=%#v err=%v", layout, err)
 			}
 		})
+	}
+}
+
+func TestSunSpecNestedLayoutRejectsMetadataOnNonEmittingField(t *testing.T) {
+	_, err := newSunSpecNestedLayoutTemplate(
+		sunSpecNestedTemplateKey{revision: syntheticNestedLayoutRevision, modelID: syntheticNestedLayoutModelID},
+		nil,
+		sunSpecNestedLayoutGroup{fields: []sunSpecNestedLayoutField{{
+			name: "ID", wordCount: 1, hasValueMetadata: true, valueMetadata: sunSpecNestedValueMetadata{pointType: SunSpecTypeUint16},
+		}}},
+	)
+	if err == nil {
+		t.Fatal("non-emitting field accepted typed metadata")
 	}
 }

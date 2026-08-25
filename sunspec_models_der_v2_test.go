@@ -184,13 +184,15 @@ func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T)
 		kind               string
 		field              string
 		offset, width, pdu uint32
+		pointType          SunSpecPointType
+		scaleFactor        string
 	}{
-		{1, "MustTrip", "V", 11, 1, 200}, {1, "MustTrip", "Tms", 12, 2, 201},
-		{1, "MayTrip", "V", 15, 1, 204}, {1, "MayTrip", "Tms", 16, 2, 205},
-		{1, "MomCess", "V", 19, 1, 208}, {1, "MomCess", "Tms", 20, 2, 209},
-		{2, "MustTrip", "V", 24, 1, 301}, {2, "MustTrip", "Tms", 25, 2, 302},
-		{2, "MayTrip", "V", 28, 1, 305}, {2, "MayTrip", "Tms", 29, 2, 306},
-		{2, "MomCess", "V", 32, 1, 309}, {2, "MomCess", "Tms", 33, 2, 310},
+		{1, "MustTrip", "V", 11, 1, 200, SunSpecTypeUint16, "V_SF"}, {1, "MustTrip", "Tms", 12, 2, 201, SunSpecTypeUint32, "Tms_SF"},
+		{1, "MayTrip", "V", 15, 1, 204, SunSpecTypeUint16, "V_SF"}, {1, "MayTrip", "Tms", 16, 2, 205, SunSpecTypeUint32, "Tms_SF"},
+		{1, "MomCess", "V", 19, 1, 208, SunSpecTypeUint16, "V_SF"}, {1, "MomCess", "Tms", 20, 2, 209, SunSpecTypeUint32, "Tms_SF"},
+		{2, "MustTrip", "V", 24, 1, 301, SunSpecTypeUint16, "V_SF"}, {2, "MustTrip", "Tms", 25, 2, 302, SunSpecTypeUint32, "Tms_SF"},
+		{2, "MayTrip", "V", 28, 1, 305, SunSpecTypeUint16, "V_SF"}, {2, "MayTrip", "Tms", 29, 2, 306, SunSpecTypeUint32, "Tms_SF"},
+		{2, "MomCess", "V", 32, 1, 309, SunSpecTypeUint16, "V_SF"}, {2, "MomCess", "Tms", 33, 2, 310, SunSpecTypeUint32, "Tms_SF"},
 	} {
 		gotPath := entries[index].Path().Segments()
 		wantPath := []SunSpecFactPathSegment{{Name: "Crv", Indexed: true, Index: want.curve}, {Name: want.kind}, {Name: "Pt", Indexed: true, Index: 1}, {Name: want.field}}
@@ -202,6 +204,17 @@ func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T)
 		if gotRange.OccurrenceOffset() != want.offset || gotRange.WordCount() != want.width || !reflect.DeepEqual(gotRange.SourceSpans(), wantSpans) {
 			t.Fatalf("entry %d range=%#v want offset=%d width=%d spans=%#v", index, gotRange, want.offset, want.width, wantSpans)
 		}
+		if gotType, ok := entries[index].PointType(); !ok || gotType != want.pointType {
+			t.Fatalf("entry %d point type=%q ok=%v want=%q", index, gotType, ok, want.pointType)
+		}
+		if gotScale, ok := entries[index].ScaleFactor(); !ok || gotScale != want.scaleFactor {
+			t.Fatalf("entry %d scale factor=%q ok=%v want=%q", index, gotScale, ok, want.scaleFactor)
+		}
+	}
+	entries[0].valueMetadata.pointType = SunSpecTypeInt16
+	again := layout.Entries()
+	if got, ok := again[0].PointType(); !ok || got != SunSpecTypeUint16 {
+		t.Fatalf("entry metadata aliases layout state: %q ok=%v", got, ok)
 	}
 
 	zeroWords := []uint16{707, 7, 0, 0, 0, 0, 0, 0, 0}
