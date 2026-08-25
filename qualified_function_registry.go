@@ -21,10 +21,19 @@ type QualifiedFunctionSelector struct {
 	Operation     string
 }
 
-// QualifiedFunctionResult retains bytes accepted by the selected codec only.
-// The registry does not infer fields, units, or operation semantics.
+// QualifiedFunctionReplay is a generic redacted result available when a
+// selected codec intentionally withholds response bytes.
+type QualifiedFunctionReplay struct {
+	Kind          string
+	PayloadLength int
+	PayloadDigest string
+}
+
+// QualifiedFunctionResult retains only the representation selected by the
+// codec. The registry does not infer fields, units, or operation semantics.
 type QualifiedFunctionResult struct {
 	Payload []byte
+	Replay  *QualifiedFunctionReplay
 }
 
 // QualifiedFunctionCodec owns construction and normal-response decoding for
@@ -115,6 +124,10 @@ func (registry *QualifiedFunctionRegistry) Dispatch(
 			return nil, err
 		}
 		result.Payload = append([]byte(nil), result.Payload...)
+		if result.Replay != nil {
+			replay := *result.Replay
+			result.Replay = &replay
+		}
 		results = append(results, result)
 	}
 	return results, nil

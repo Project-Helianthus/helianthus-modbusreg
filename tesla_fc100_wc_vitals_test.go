@@ -52,10 +52,15 @@ func TestTeslaFC100WCVitalsOperationIsExplicitlyVersionQualified(t *testing.T) {
 		t.Fatal(err)
 	}
 	transport := &qualifiedFunctionTestTransport{}
-	if _, err := registry.Dispatch(context.Background(), transport, QualifiedFunctionSelector{
+	results, err := registry.Dispatch(context.Background(), transport, QualifiedFunctionSelector{
 		Endpoint: "rtu-a", UnitID: profile.Node(), VendorProfile: TeslaHSCProfileName, Operation: TeslaTEDAPIOperationWCVitalsV1,
-	}); err != nil || transport.calls != 1 {
+	})
+	if err != nil || transport.calls != 1 {
 		t.Fatalf("qualified dispatch = %v, calls = %d", err, transport.calls)
+	}
+	if len(results) != 1 || len(results[0].Payload) != 0 || results[0].Replay == nil ||
+		results[0].Replay.Kind != string(TeslaFC100WCVitalsIntermediate) {
+		t.Fatalf("echo result = %#v", results)
 	}
 
 	blockedRegistry, err := NewQualifiedFunctionRegistry([]QualifiedFunctionProfile{{
@@ -69,6 +74,34 @@ func TestTeslaFC100WCVitalsOperationIsExplicitlyVersionQualified(t *testing.T) {
 		Endpoint: "rtu-a", UnitID: withoutOperationVersion.Node(), VendorProfile: TeslaHSCProfileName, Operation: TeslaTEDAPIOperationWCVitalsV1,
 	}); err == nil || blockedTransport.calls != 0 {
 		t.Fatalf("unversioned dispatch = %v, calls = %d", err, blockedTransport.calls)
+	}
+}
+
+func TestTeslaFC100WCVitalsDispatchRetainsTerminalOnlyAsRedactedReplay(t *testing.T) {
+	profile, err := NewTeslaHSCProfile(TeslaHSCProfileConfig{
+		Enabled: true, Node: 0x10, PassiveCompatible: true, CompatibilityVersion: TeslaHSCCompatibilityV1,
+		WCVitalsOperationVersion: TeslaHSCWCVitalsCompatibilityV1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry, err := NewQualifiedFunctionRegistry([]QualifiedFunctionProfile{{
+		Endpoint: "rtu-a", UnitID: profile.Node(), VendorProfile: TeslaHSCProfileName, Codec: profile,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := &qualifiedFunctionTestTransport{responsePayloads: [][]byte{{0x08, 0x32, 0x06, 0x12, 0x04, 0x0a, 0x02, 0x08, 0x01}}}
+	results, err := registry.Dispatch(context.Background(), transport, QualifiedFunctionSelector{
+		Endpoint: "rtu-a", UnitID: profile.Node(), VendorProfile: TeslaHSCProfileName, Operation: TeslaTEDAPIOperationWCVitalsV1,
+	})
+	if err != nil || len(results) != 1 || len(results[0].Payload) != 0 || results[0].Replay == nil {
+		t.Fatalf("terminal dispatch = %#v, %v", results, err)
+	}
+	replay := results[0].Replay
+	if replay.Kind != string(TeslaFC100WCVitalsTerminal) || replay.PayloadLength != 2 ||
+		replay.PayloadDigest != "fb8da7eb5b1b399e7321179dac9e9f65773d7331e1e30554e3911e4325e1ef19" {
+		t.Fatalf("terminal replay = %#v", replay)
 	}
 }
 

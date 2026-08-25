@@ -379,9 +379,13 @@ func (profile TeslaHSCProfile) DecodeQualifiedFunction(operation string, functio
 		if function != teslaHSCFunction100 {
 			return QualifiedFunctionResult{}, fmt.Errorf("tesla HSC operation response function is invalid")
 		}
-		if _, err := DecodeTeslaFC100WCVitalsReplay(payload); err != nil {
+		replay, err := DecodeTeslaFC100WCVitalsReplay(payload)
+		if err != nil {
 			return QualifiedFunctionResult{}, err
 		}
+		return QualifiedFunctionResult{Replay: &QualifiedFunctionReplay{
+			Kind: string(replay.Kind), PayloadLength: replay.SnapshotLength, PayloadDigest: replay.SnapshotDigest,
+		}}, nil
 	}
 	response, err := DecodeTeslaHSCResponse(function, payload)
 	if err != nil {

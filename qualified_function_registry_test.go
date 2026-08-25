@@ -132,20 +132,33 @@ func (codec *qualifiedFunctionTestCodec) DecodeQualifiedFunction(operation strin
 }
 
 type qualifiedFunctionTestTransport struct {
-	calls    int
-	requests []modbus.PrivateFunctionRequest
+	calls            int
+	requests         []modbus.PrivateFunctionRequest
+	responsePayloads [][]byte
 }
 
 func (transport *qualifiedFunctionTestTransport) Exchange(_ context.Context, unitID byte, request modbus.PrivateFunctionRequest, _ modbus.PrivateFunctionResponsePolicy) ([]modbus.RTUPrivateFunctionResponseADU, error) {
 	transport.calls++
 	transport.requests = append(transport.requests, request)
-	frame, err := modbus.EncodeRTUPrivateFunctionADU(unitID, request)
-	if err != nil {
-		return nil, err
+	payloads := transport.responsePayloads
+	if payloads == nil {
+		payloads = [][]byte{request.Payload()}
 	}
-	response, err := modbus.DecodeRTUPrivateFunctionResponseADU(unitID, request, frame)
-	if err != nil {
-		return nil, err
+	responses := make([]modbus.RTUPrivateFunctionResponseADU, 0, len(payloads))
+	for _, payload := range payloads {
+		responseRequest, err := modbus.NewPrivateFunctionRequest(request.FunctionCode(), payload)
+		if err != nil {
+			return nil, err
+		}
+		frame, err := modbus.EncodeRTUPrivateFunctionADU(unitID, responseRequest)
+		if err != nil {
+			return nil, err
+		}
+		response, err := modbus.DecodeRTUPrivateFunctionResponseADU(unitID, request, frame)
+		if err != nil {
+			return nil, err
+		}
+		responses = append(responses, response)
 	}
-	return []modbus.RTUPrivateFunctionResponseADU{response}, nil
+	return responses, nil
 }
