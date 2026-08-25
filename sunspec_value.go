@@ -168,17 +168,11 @@ func decodeSunSpecValue(def sunSpecPointDefinition, words []uint16, scale *SunSp
 		if bits == math.MaxUint16 {
 			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotImplemented)
 		}
-		if bits > math.MaxInt16 {
-			return value
-		}
 		setSunSpecBitfield(&value, bits, def, 15)
 	case SunSpecTypeBitfield32:
 		bits := uint64(uint32(words[0])<<16 | uint32(words[1]))
 		if bits == math.MaxUint32 {
 			return invalidSunSpecValue(def.pointType, words, SunSpecValueNotImplemented)
-		}
-		if bits > math.MaxInt32 {
-			return value
 		}
 		setSunSpecBitfield(&value, bits, def, 31)
 	case SunSpecTypeString:
@@ -199,7 +193,7 @@ func decodeSunSpecValue(def sunSpecPointDefinition, words []uint16, scale *SunSp
 
 func setSunSpecBitfield(value *SunSpecValue, bits uint64, def sunSpecPointDefinition, width uint64) {
 	value.bits, value.unknown, value.hasBits = bits, bits&^def.knownMask, true
-	for bit := uint64(0); bit < width; bit++ {
+	for bit := uint64(0); bit <= width; bit++ {
 		mask := uint64(1) << bit
 		if bits&mask != 0 && def.knownMask&mask != 0 && def.symbols[bit] != "" {
 			value.bitSymbols = append(value.bitSymbols, def.symbols[bit])
