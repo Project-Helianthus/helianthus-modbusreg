@@ -4,7 +4,7 @@
 
 The V2 offline decoder definitions for Models 701/153, 702/50, 703/17, 713/7,
 714 variable geometry, 715/7, 802/62, 803 variable geometry, 804 variable
-geometry, and 805/42 in
+geometry, 805/42, and 806/1 in
 `sunspec_models_der_v2.go` are derived from the SunSpec model catalogue:
 
 - Project: `SunSpec/models`
