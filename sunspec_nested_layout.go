@@ -64,6 +64,55 @@ func NewSunSpecOccurrenceSourceRange(offset, wordCount uint32, spans []SunSpecSo
 	return SunSpecOccurrenceSourceRange{offset: offset, wordCount: wordCount, spans: append([]SunSpecSourceSpan(nil), spans...)}, nil
 }
 
+// NewSunSpecOccurrenceSourceRangeFromSpans selects an occurrence-relative
+// range from a complete ordered occurrence without coalescing physical spans.
+func NewSunSpecOccurrenceSourceRangeFromSpans(offset, wordCount uint32, spans []SunSpecSourceSpan) (SunSpecOccurrenceSourceRange, error) {
+	if len(spans) == 0 {
+		return SunSpecOccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence has no source spans")
+	}
+	var total uint32
+	for _, span := range spans {
+		if span.LogicalViewID == 0 || span.WordCount == 0 || uint32(span.PDUOffset)+uint32(span.WordCount) > maxSunSpecOccurrenceWords {
+			return SunSpecOccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence source span is outside bounds")
+		}
+		if total > maxSunSpecOccurrenceWords-uint32(span.WordCount) {
+			return SunSpecOccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence extent exceeds bounds")
+		}
+		total += uint32(span.WordCount)
+	}
+	if wordCount == 0 || offset >= total || wordCount > total-offset {
+		return SunSpecOccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence source range is outside aggregate")
+	}
+
+	end := offset + wordCount
+	cursor := uint32(0)
+	selected := make([]SunSpecSourceSpan, 0, len(spans))
+	for _, span := range spans {
+		spanStart := cursor
+		spanEnd := cursor + uint32(span.WordCount)
+		cursor = spanEnd
+		if spanEnd <= offset {
+			continue
+		}
+		if spanStart >= end {
+			break
+		}
+		start := uint32(0)
+		if offset > spanStart {
+			start = offset - spanStart
+		}
+		finish := uint32(span.WordCount)
+		if end < spanEnd {
+			finish = end - spanStart
+		}
+		part := span
+		part.PDUOffset = uint16(uint32(span.PDUOffset) + start)
+		part.WordCount = uint16(finish - start)
+		selected = append(selected, part)
+	}
+	return NewSunSpecOccurrenceSourceRange(offset, wordCount, selected)
+}
+
 func (r SunSpecOccurrenceSourceRange) OccurrenceOffset() uint32 { return r.offset }
 func (r SunSpecOccurrenceSourceRange) WordCount() uint32        { return r.wordCount }
 func (r SunSpecOccurrenceSourceRange) SourceSpans() []SunSpecSourceSpan {
