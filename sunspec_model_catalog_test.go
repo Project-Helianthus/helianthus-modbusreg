@@ -111,7 +111,7 @@ func TestSunSpecV2CatalogContainsOnlyCurrentAdmittedModels(t *testing.T) {
 		{ModelID: 806, ModelLength: 2, SchemaRevision: SunSpecModelsRevisionV2},
 		{ModelID: 807, ModelLength: 33, SchemaRevision: SunSpecModelsRevisionV2},
 		{ModelID: 808, ModelLength: 2, SchemaRevision: SunSpecModelsRevisionV2},
-		{ModelID: 809, ModelLength: 1, SchemaRevision: SunSpecModelsRevisionV2},
+		{ModelID: 809, ModelLength: 2, SchemaRevision: SunSpecModelsRevisionV2},
 		{ModelID: 704, ModelLength: 65, SchemaRevision: SunSpecModelsRevisionV2},
 		{ModelID: 712, ModelLength: 14, SchemaRevision: SunSpecModelsRevisionV2},
 	} {
