@@ -76,6 +76,25 @@ func TestTeslaHSCResponseDecodingKeepsFC101And102Raw(t *testing.T) {
 	}
 }
 
+func TestTeslaHSCQualifiedFunctionKeepsFC101And102NormalResponsesRaw(t *testing.T) {
+	profile := testTeslaDirectionalProfile(t)
+	for _, test := range []struct {
+		function modbus.PrivateFunctionCode
+		payload  []byte
+	}{
+		{function: teslaHSCFunction101, payload: []byte{1}},
+		{function: teslaHSCFunction102, payload: []byte{2, 0}},
+	} {
+		result, err := profile.DecodeQualifiedFunction("offline-replay", test.function, test.payload)
+		if err != nil {
+			t.Fatalf("function %d: %v", test.function, err)
+		}
+		if got := result.Payload; !bytes.Equal(got, test.payload) {
+			t.Fatalf("function %d payload = %x, want %x", test.function, got, test.payload)
+		}
+	}
+}
+
 func TestTeslaTEDAPIRegistryRequiresDirectionAndPreservesRawResponse(t *testing.T) {
 	profile := testTeslaDirectionalProfile(t)
 	registry := NewTeslaTEDAPISemanticRegistry()
