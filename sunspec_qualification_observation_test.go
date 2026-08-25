@@ -137,6 +137,91 @@ func TestSunSpecQualificationObservationJSONGoldenAndBoundedReplay(t *testing.T)
 	}
 }
 
+func TestSunSpecQualificationObservationRetainsCoalescedTCPProvenance(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	snapshot, expected := qualificationSnapshotWithCoalescedTCPView(t, registry)
+	observation, err := NewSunSpecQualificationObservation(registry, snapshot)
+	if err != nil {
+		t.Fatalf("NewSunSpecQualificationObservation: %v", err)
+	}
+	if !observation.Capability().Admitted() ||
+		observation.Flavor().FlavorID() != SunSpecFroniusObservedFlavorV11ID {
+		t.Fatalf("terminal qualification changed: capability=%#v flavor=%#v", observation.Capability(), observation.Flavor())
+	}
+	first, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatalf("json.Marshal(first): %v", err)
+	}
+	second, err := json.Marshal(observation)
+	if err != nil || !bytes.Equal(first, second) {
+		t.Fatalf("qualification JSON is not deterministic: %v", err)
+	}
+	var encoded serializedQualificationObservation
+	if err := json.Unmarshal(first, &encoded); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	var found *serializedLogicalView
+	for index := range encoded.SourceViews {
+		view := &encoded.SourceViews[index]
+		if view.LogicalViewID == expected.LogicalViewID {
+			found = view
+			break
+		}
+	}
+	if found == nil ||
+		found.WireResponseID != expected.WireResponseID ||
+		found.PhysicalRequestID != expected.PhysicalRequestID ||
+		found.PhysicalOffset != expected.PhysicalOffset ||
+		found.PhysicalWordCount != expected.PhysicalWordCount ||
+		found.LogicalOffset != expected.LogicalOffset ||
+		found.LogicalWordCount != expected.LogicalWordCount ||
+		found.SliceOffset != expected.SliceOffset ||
+		found.SliceWordCount != expected.SliceWordCount ||
+		!bytes.Equal(found.WireResponseBytes, expected.WireResponseBytes) {
+		t.Fatalf("serialized coalesced source=%#v want=%#v", found, expected)
+	}
+	spanFound := false
+	for _, occurrence := range observation.Occurrences() {
+		for _, span := range occurrence.SourceSpans() {
+			if span.LogicalViewID == expected.LogicalViewID {
+				spanFound = true
+				if span.PDUOffset != expected.SliceOffset {
+					t.Fatalf("coalesced occurrence span=%#v want slice offset=%d", span, expected.SliceOffset)
+				}
+			}
+		}
+	}
+	if !spanFound {
+		t.Fatal("coalesced source has no occurrence span")
+	}
+	replay, err := observation.Replay()
+	if err != nil {
+		t.Fatalf("Replay: %v", err)
+	}
+	replayedFound := false
+	for _, view := range replay.SourceViews() {
+		record := view.Record()
+		if record.LogicalViewID != expected.LogicalViewID {
+			continue
+		}
+		replayedFound = true
+		if record.PhysicalOffset != expected.PhysicalOffset ||
+			record.PhysicalWordCount != expected.PhysicalWordCount ||
+			record.LogicalOffset != expected.LogicalOffset ||
+			record.LogicalWordCount != expected.LogicalWordCount ||
+			record.SliceOffset != expected.SliceOffset ||
+			record.SliceWordCount != expected.SliceWordCount ||
+			record.WireResponseID != expected.WireResponseID ||
+			record.PhysicalRequestID != expected.PhysicalRequestID ||
+			!bytes.Equal(record.WireResponseBytes, expected.WireResponseBytes) {
+			t.Fatalf("replayed coalesced source=%#v want=%#v", record, expected)
+		}
+	}
+	if !replayedFound {
+		t.Fatal("replay omitted coalesced source")
+	}
+}
+
 func TestSunSpecQualificationObservationJSONRejectsZeroValue(t *testing.T) {
 	if _, err := json.Marshal(SunSpecQualificationObservation{}); err == nil {
 		t.Fatal("zero qualification observation unexpectedly marshaled")
@@ -279,4 +364,28 @@ func qualificationSnapshotWithOccurrences(t *testing.T, registry SunSpecDecoderR
 		snapshot.sources[index].DeadlineIdentity = 700
 	}
 	return snapshot
+}
+
+func qualificationSnapshotWithCoalescedTCPView(t *testing.T, registry SunSpecDecoderRegistry) (SunSpecChainSnapshot, LogicalViewRecord) {
+	t.Helper()
+	snapshot := qualificationSnapshot(t, registry)
+	for occurrenceIndex := range snapshot.occurrences {
+		for spanIndex, span := range snapshot.occurrences[occurrenceIndex].spans {
+			for sourceIndex := range snapshot.sources {
+				source := snapshot.sources[sourceIndex]
+				if source.LogicalViewID != span.LogicalViewID || source.LogicalOffset == 0 {
+					continue
+				}
+				source.PhysicalOffset = source.LogicalOffset - 1
+				source.PhysicalWordCount = source.LogicalWordCount + 2
+				source.SliceOffset = 1
+				source.SliceWordCount = source.LogicalWordCount
+				snapshot.sources[sourceIndex] = source
+				snapshot.occurrences[occurrenceIndex].spans[spanIndex].PDUOffset = source.SliceOffset
+				return snapshot, source
+			}
+		}
+	}
+	t.Fatal("qualification snapshot has no source view")
+	return SunSpecChainSnapshot{}, LogicalViewRecord{}
 }
