@@ -17,8 +17,10 @@ type sunSpecNestedCountSpec struct {
 }
 
 type sunSpecNestedValueMetadata struct {
-	pointType   SunSpecPointType
-	scaleFactor string
+	fieldID, pointName, unit string
+	pointType                SunSpecPointType
+	scaleFactor              string
+	symbols                  map[uint64]string
 }
 
 type sunSpecNestedLayoutField struct {
@@ -88,9 +90,24 @@ type sunSpecNestedOccurrenceLayout struct {
 func (l sunSpecNestedOccurrenceLayout) Entries() []sunSpecNestedLayoutEntry {
 	out := make([]sunSpecNestedLayoutEntry, len(l.entries))
 	for index, entry := range l.entries {
-		out[index] = sunSpecNestedLayoutEntry{path: entry.Path(), sourceRange: entry.SourceRange(), hasValueMetadata: entry.hasValueMetadata, valueMetadata: entry.valueMetadata}
+		out[index] = cloneSunSpecNestedLayoutEntry(entry)
 	}
 	return out
+}
+
+func cloneSunSpecNestedOccurrenceLayout(layout sunSpecNestedOccurrenceLayout) sunSpecNestedOccurrenceLayout {
+	return sunSpecNestedOccurrenceLayout{key: layout.key, entries: layout.Entries()}
+}
+
+func cloneSunSpecNestedLayoutEntry(entry sunSpecNestedLayoutEntry) sunSpecNestedLayoutEntry {
+	metadata := entry.valueMetadata
+	metadata.symbols = cloneSunSpecSymbols(metadata.symbols)
+	return sunSpecNestedLayoutEntry{
+		path:             entry.Path(),
+		sourceRange:      entry.SourceRange(),
+		hasValueMetadata: entry.hasValueMetadata,
+		valueMetadata:    metadata,
+	}
 }
 
 func newSunSpecNestedLayoutTemplate(key sunSpecNestedTemplateKey, counts []sunSpecNestedCountSpec, root sunSpecNestedLayoutGroup) (sunSpecNestedLayoutTemplate, error) {
@@ -142,9 +159,6 @@ func validateSunSpecNestedLayoutGroup(group sunSpecNestedLayoutGroup, countNames
 		if field.hasValueMetadata && (!field.emit || field.valueMetadata.pointType == "") {
 			return fmt.Errorf("SunSpec nested layout metadata is invalid")
 		}
-		if root && field.emit {
-			return fmt.Errorf("SunSpec nested layout root cannot emit a path")
-		}
 	}
 	for _, child := range group.children {
 		if err := validateSunSpecNestedLayoutGroup(child, countNames, false, depth+1); err != nil {
@@ -156,6 +170,9 @@ func validateSunSpecNestedLayoutGroup(group sunSpecNestedLayoutGroup, countNames
 
 func cloneSunSpecNestedLayoutGroup(group sunSpecNestedLayoutGroup) sunSpecNestedLayoutGroup {
 	group.fields = append([]sunSpecNestedLayoutField(nil), group.fields...)
+	for index := range group.fields {
+		group.fields[index].valueMetadata.symbols = cloneSunSpecSymbols(group.fields[index].valueMetadata.symbols)
+	}
 	group.children = append([]sunSpecNestedLayoutGroup(nil), group.children...)
 	for index := range group.children {
 		group.children[index] = cloneSunSpecNestedLayoutGroup(group.children[index])

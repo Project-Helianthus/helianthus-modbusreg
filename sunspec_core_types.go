@@ -34,8 +34,11 @@ type SunSpecSourceSpan struct {
 
 // sunSpecStructuralCandidate is private metadata for a complete occurrence
 // whose opted-in structure has been validated. It intentionally carries no
-// decoder, fact, catalog, or public selection surface.
-type sunSpecStructuralCandidate struct{ modelID uint16 }
+// decoder, catalog, or public selection surface.
+type sunSpecStructuralCandidate struct {
+	modelID uint16
+	layout  sunSpecNestedOccurrenceLayout
+}
 
 type SunSpecOccurrence struct {
 	Ordinal                     uint32
@@ -78,6 +81,7 @@ func cloneOccurrence(o SunSpecOccurrence) SunSpecOccurrence {
 	}
 	if o.structuralCandidate != nil {
 		candidate := *o.structuralCandidate
+		candidate.layout = cloneSunSpecNestedOccurrenceLayout(candidate.layout)
 		o.structuralCandidate = &candidate
 	}
 	return o

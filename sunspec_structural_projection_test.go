@@ -55,7 +55,7 @@ func TestProjectSunSpecStructuralFactsProjectsOnlyRetained707Candidates(t *testi
 	if voltage.FieldID != "sunspec.der.v2.707.Crv.MustTrip.Pt.V" || voltage.Unit != "VNomPct" || voltage.Required {
 		t.Fatalf("voltage fact=%#v", voltage)
 	}
-	if decimal, ok := voltage.Value.Decimal(); !ok || decimal.Coefficient != 1 || decimal.Exponent != 0 {
+	if decimal, ok := voltage.Value.Decimal(); !ok || decimal.Coefficient != 0 || decimal.Exponent != 0 {
 		t.Fatalf("voltage value=%#v", voltage.Value)
 	}
 	if elapsed.FieldID != "sunspec.der.v2.707.Crv.MustTrip.Pt.Tms" || elapsed.Unit != "Secs" {
@@ -101,7 +101,7 @@ func TestProjectSunSpecStructuralFactsKeepsInvalidScaleRaw(t *testing.T) {
 		if !ok || !reflect.DeepEqual(path.Segments(), []SunSpecFactPathSegment{{Name: "Crv", Indexed: true, Index: 1}, {Name: "MustTrip"}, {Name: "Pt", Indexed: true, Index: 1}, {Name: "V"}}) {
 			continue
 		}
-		if fact.Value.State() != SunSpecValueNotImplemented || len(fact.Value.RawWords()) != 1 || fact.Value.RawWords()[0] != 1 {
+		if fact.Value.State() != SunSpecValueNotImplemented || len(fact.Value.RawWords()) != 1 || fact.Value.RawWords()[0] != 0 {
 			t.Fatalf("scaled voltage did not retain raw unavailable state: %#v", fact.Value)
 		}
 		if _, ok := fact.Value.Decimal(); ok {

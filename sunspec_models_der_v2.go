@@ -15,24 +15,14 @@ func sunSpecV2DERTripLVStructuralCandidate(revision SunSpecSchemaRevision, wireK
 		return nil
 	}
 	length := uint64(7) + uint64(curves)*(uint64(4)+9*uint64(points))
-	if length > 65534 || length != uint64(wireKey.ModelLength) || !sunSpecStructuralCandidateSpansCover(spans, uint32(len(words))) {
+	if length > 65534 || length != uint64(wireKey.ModelLength) {
 		return nil
 	}
-	return &sunSpecStructuralCandidate{modelID: wireKey.ModelID}
-}
-
-func sunSpecStructuralCandidateSpansCover(spans []SunSpecSourceSpan, expected uint32) bool {
-	if len(spans) == 0 {
-		return false
+	layout, err := buildDERTripLVV2StructuralProjectionLayout(words, spans)
+	if err != nil {
+		return nil
 	}
-	var total uint32
-	for _, span := range spans {
-		if span.LogicalViewID == 0 || span.WordCount == 0 || uint32(span.PDUOffset)+uint32(span.WordCount) > maxSunSpecOccurrenceWords || uint32(span.WordCount) > expected-total {
-			return false
-		}
-		total += uint32(span.WordCount)
-	}
-	return total == expected
+	return &sunSpecStructuralCandidate{modelID: wireKey.ModelID, layout: layout}
 }
 
 func derTripLVV2NestedTemplate() (sunSpecNestedLayoutTemplate, error) {
@@ -87,6 +77,55 @@ func buildDERTripLVV2NestedLayout(words []uint16, spans []SunSpecSourceSpan) (su
 		return sunSpecNestedOccurrenceLayout{}, err
 	}
 	return buildSunSpecNestedOccurrenceLayout(template, words, spans)
+}
+
+func buildDERTripLVV2StructuralProjectionLayout(words []uint16, spans []SunSpecSourceSpan) (sunSpecNestedOccurrenceLayout, error) {
+	template, err := derTripLVV2StructuralProjectionTemplate()
+	if err != nil {
+		return sunSpecNestedOccurrenceLayout{}, err
+	}
+	return buildSunSpecNestedOccurrenceLayout(template, words, spans)
+}
+
+func derTripLVV2StructuralProjectionTemplate() (sunSpecNestedLayoutTemplate, error) {
+	field := func(fieldID, name string, pointType SunSpecPointType, wordCount uint32, unit, scaleFactor string, symbols map[uint64]string) sunSpecNestedLayoutField {
+		return sunSpecNestedLayoutField{
+			name: name, wordCount: wordCount, emit: true, hasValueMetadata: true,
+			valueMetadata: sunSpecNestedValueMetadata{fieldID: fieldID, pointName: name, unit: unit, pointType: pointType, scaleFactor: scaleFactor, symbols: cloneSunSpecSymbols(symbols)},
+		}
+	}
+	enaSymbols := map[uint64]string{0: "DISABLED", 1: "ENABLED"}
+	resultSymbols := map[uint64]string{0: "IN_PROGRESS", 1: "COMPLETED", 2: "FAILED"}
+	readOnlySymbols := map[uint64]string{0: "RW", 1: "R"}
+	return newSunSpecNestedLayoutTemplate(
+		sunSpecNestedTemplateKey{revision: SunSpecModelsRevisionV2, modelID: 707},
+		[]sunSpecNestedCountSpec{
+			{name: "points", occurrenceWordOffset: 5, unavailable: 0xffff, min: 0, max: 65534},
+			{name: "curves", occurrenceWordOffset: 6, unavailable: 0xffff, min: 0, max: 65534},
+		},
+		sunSpecNestedLayoutGroup{
+			fields: []sunSpecNestedLayoutField{
+				field("sunspec.der.v2.707.ID", "ID", SunSpecTypeUint16, 1, "", "", nil),
+				field("sunspec.der.v2.707.L", "L", SunSpecTypeUint16, 1, "", "", nil),
+				field("sunspec.der.v2.707.Ena", "Ena", SunSpecTypeEnum16, 1, "", "", enaSymbols),
+				field("sunspec.der.v2.707.AdptCrvReq", "AdptCrvReq", SunSpecTypeUint16, 1, "", "", nil),
+				field("sunspec.der.v2.707.AdptCrvRslt", "AdptCrvRslt", SunSpecTypeEnum16, 1, "", "", resultSymbols),
+				field("sunspec.der.v2.707.NPt", "NPt", SunSpecTypeUint16, 1, "", "", nil),
+				field("sunspec.der.v2.707.NCrvSet", "NCrvSet", SunSpecTypeUint16, 1, "", "", nil),
+				field("sunspec.der.v2.707.V_SF", "V_SF", SunSpecTypeScaleFactor, 1, "", "", nil),
+				field("sunspec.der.v2.707.Tms_SF", "Tms_SF", SunSpecTypeScaleFactor, 1, "", "", nil),
+			},
+			children: []sunSpecNestedLayoutGroup{{
+				name: "Crv", repeatCount: "curves", indexBase: 1,
+				fields: []sunSpecNestedLayoutField{field("sunspec.der.v2.707.Crv.ReadOnly", "ReadOnly", SunSpecTypeEnum16, 1, "", "", readOnlySymbols)},
+				children: []sunSpecNestedLayoutGroup{
+					{name: "MustTrip", fields: []sunSpecNestedLayoutField{field("sunspec.der.v2.707.Crv.MustTrip.ActPt", "ActPt", SunSpecTypeUint16, 1, "", "", nil)}, children: []sunSpecNestedLayoutGroup{{name: "Pt", repeatCount: "points", indexBase: 1, fields: []sunSpecNestedLayoutField{field("sunspec.der.v2.707.Crv.MustTrip.Pt.V", "V", SunSpecTypeUint16, 1, "VNomPct", "V_SF", nil), field("sunspec.der.v2.707.Crv.MustTrip.Pt.Tms", "Tms", SunSpecTypeUint32, 2, "Secs", "Tms_SF", nil)}}}},
+					{name: "MayTrip", fields: []sunSpecNestedLayoutField{field("sunspec.der.v2.707.Crv.MayTrip.ActPt", "ActPt", SunSpecTypeUint16, 1, "", "", nil)}, children: []sunSpecNestedLayoutGroup{{name: "Pt", repeatCount: "points", indexBase: 1, fields: []sunSpecNestedLayoutField{field("sunspec.der.v2.707.Crv.MayTrip.Pt.V", "V", SunSpecTypeUint16, 1, "VNomPct", "V_SF", nil), field("sunspec.der.v2.707.Crv.MayTrip.Pt.Tms", "Tms", SunSpecTypeUint32, 2, "Secs", "Tms_SF", nil)}}}},
+					{name: "MomCess", fields: []sunSpecNestedLayoutField{field("sunspec.der.v2.707.Crv.MomCess.ActPt", "ActPt", SunSpecTypeUint16, 1, "", "", nil)}, children: []sunSpecNestedLayoutGroup{{name: "Pt", repeatCount: "points", indexBase: 1, fields: []sunSpecNestedLayoutField{field("sunspec.der.v2.707.Crv.MomCess.Pt.V", "V", SunSpecTypeUint16, 1, "VNomPct", "V_SF", nil), field("sunspec.der.v2.707.Crv.MomCess.Pt.Tms", "Tms", SunSpecTypeUint32, 2, "Secs", "Tms_SF", nil)}}}},
+				},
+			}},
+		},
+	)
 }
 
 func derDCMeasureV2SunSpecDefinition(length uint16) (sunSpecModelDefinition, error) {
