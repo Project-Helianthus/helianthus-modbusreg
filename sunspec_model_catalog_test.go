@@ -74,9 +74,19 @@ func TestSunSpecV2CatalogContainsOnlyCurrentAdmittedModels(t *testing.T) {
 			t.Fatalf("unexpected V2 definition %d: %#v", index, definitions[index].key)
 		}
 	}
-	for _, candidate := range definitions {
-		if candidate.key == (SunSpecDecoderKey{ModelID: 1, ModelLength: 65, SchemaRevision: SunSpecModelsRevisionV2}) {
-			t.Fatal("V1 compatibility Common was admitted under V2")
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []SunSpecDecoderKey{
+		{ModelID: 1, ModelLength: 65, SchemaRevision: SunSpecModelsRevisionV2},
+		{ModelID: 703, ModelLength: 16, SchemaRevision: SunSpecModelsRevisionV2},
+		{ModelID: 715, ModelLength: 8, SchemaRevision: SunSpecModelsRevisionV2},
+		{ModelID: 704, ModelLength: 65, SchemaRevision: SunSpecModelsRevisionV2},
+		{ModelID: 712, ModelLength: 14, SchemaRevision: SunSpecModelsRevisionV2},
+	} {
+		if _, ok := registry.definition(key); ok {
+			t.Fatalf("V2 admitted excluded tuple %#v", key)
 		}
 	}
 }
