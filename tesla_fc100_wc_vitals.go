@@ -22,8 +22,8 @@ const (
 	TeslaFC100WCVitalsTerminal     TeslaFC100WCVitalsReplayKind = "terminal"
 )
 
-// TeslaFC100WCVitalsReplay is a bounded redacted result of the typed response
-// container decoder. Snapshot values and raw bytes are intentionally omitted.
+// TeslaFC100WCVitalsReplay is a bounded redacted result of the terminal-body
+// decoder. Snapshot values and raw bytes are intentionally omitted.
 type TeslaFC100WCVitalsReplay struct {
 	Kind           TeslaFC100WCVitalsReplayKind
 	SnapshotLength int
@@ -66,14 +66,10 @@ func DecodeTeslaFC100WCVitalsReplay(payload []byte) (TeslaFC100WCVitalsReplay, e
 	if err != nil {
 		return TeslaFC100WCVitalsReplay{}, fmt.Errorf("tesla WC vitals message: %w", err)
 	}
-	vitals, err := decodeExactLengthDelimitedField(vitalsResponse, 1)
-	if err != nil {
-		return TeslaFC100WCVitalsReplay{}, fmt.Errorf("tesla WC vitals response: %w", err)
-	}
-	digest := sha256.Sum256(vitals)
+	digest := sha256.Sum256(vitalsResponse)
 	return TeslaFC100WCVitalsReplay{
 		Kind:           TeslaFC100WCVitalsTerminal,
-		SnapshotLength: len(vitals),
+		SnapshotLength: len(vitalsResponse),
 		SnapshotDigest: hex.EncodeToString(digest[:]),
 	}, nil
 }

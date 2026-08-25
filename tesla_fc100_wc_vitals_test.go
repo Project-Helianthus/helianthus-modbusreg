@@ -93,7 +93,7 @@ func TestTeslaFC100WCVitalsDispatchRetainsTerminalOnlyAsRedactedReplay(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	transport := &qualifiedFunctionTestTransport{responsePayloads: [][]byte{{0x08, 0x32, 0x06, 0x12, 0x04, 0x0a, 0x02, 0x08, 0x01}}}
+	transport := &qualifiedFunctionTestTransport{responsePayloads: [][]byte{{0x06, 0x32, 0x04, 0x12, 0x02, 0x08, 0x01}}}
 	results, err := registry.Dispatch(context.Background(), transport, QualifiedFunctionSelector{
 		Endpoint: "rtu-a", UnitID: profile.Node(), VendorProfile: TeslaHSCProfileName, Operation: TeslaTEDAPIOperationWCVitalsV1,
 	})
@@ -116,7 +116,7 @@ func TestTeslaFC100WCVitalsReplayClassifiesEchoAndBoundedTerminal(t *testing.T) 
 		t.Fatalf("echo = %#v", echo)
 	}
 
-	terminal, err := DecodeTeslaFC100WCVitalsReplay([]byte{0x06, 0x32, 0x04, 0x12, 0x02, 0x0a, 0x00})
+	terminal, err := DecodeTeslaFC100WCVitalsReplay([]byte{0x04, 0x32, 0x02, 0x12, 0x00})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestTeslaFC100WCVitalsReplayClassifiesEchoAndBoundedTerminal(t *testing.T) 
 	}
 
 	for _, payload := range [][]byte{
-		{0x06, 0x32, 0x04, 0x12, 0x02, 0x12, 0x00},
+		{0x06, 0x32, 0x04, 0x0a, 0x02, 0x12, 0x00},
 		{0x07, 0x32, 0x04, 0x12, 0x02, 0x0a, 0x00, 0x00},
 		{0x06, 0x32, 0x04, 0x12, 0x02, 0x0a},
 	} {
