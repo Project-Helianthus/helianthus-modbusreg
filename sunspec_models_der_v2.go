@@ -454,6 +454,43 @@ func flowBatteryV2SunSpecPoints() []sunSpecPointDefinition {
 	}
 }
 
+func flowBatteryStringV2SunSpecPoints() []sunSpecPointDefinition {
+	return []sunSpecPointDefinition{
+		v2DERPoint("807", "ID", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("807", "L", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("807", "Idx", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("807", "NMod", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("807", "NModCon", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("807", "ModVMax", SunSpecTypeUint16, "V", "ModV_SF", false),
+		v2DERPoint("807", "ModVMaxMod", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("807", "ModVMin", SunSpecTypeUint16, "V", "ModV_SF", false),
+		v2DERPoint("807", "ModVMinMod", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("807", "ModVAvg", SunSpecTypeUint16, "V", "ModV_SF", false),
+		v2DERPoint("807", "CellVMax", SunSpecTypeUint16, "V", "CellV_SF", false),
+		v2DERPoint("807", "CellVMaxMod", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("807", "CellVMaxStk", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("807", "CellVMin", SunSpecTypeUint16, "V", "CellV_SF", false),
+		v2DERPoint("807", "CellVMinMod", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("807", "CellVMinStk", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("807", "CellVAvg", SunSpecTypeUint16, "V", "CellV_SF", false),
+		v2DERPoint("807", "TmpMax", SunSpecTypeInt16, "C", "Tmp_SF", false),
+		v2DERPoint("807", "TmpMaxMod", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("807", "TmpMin", SunSpecTypeInt16, "C", "Tmp_SF", false),
+		v2DERPoint("807", "TmpMinMod", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("807", "TmpAvg", SunSpecTypeInt16, "C", "Tmp_SF", false),
+		v2DERPoint("807", "Evt1", SunSpecTypeBitfield32, "", "", false),
+		v2DERPoint("807", "Evt2", SunSpecTypeBitfield32, "", "", false),
+		v2DERPoint("807", "EvtVnd1", SunSpecTypeBitfield32, "", "", false),
+		v2DERPoint("807", "EvtVnd2", SunSpecTypeBitfield32, "", "", false),
+		v2DERPoint("807", "ModV_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("807", "CellV_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("807", "Tmp_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("807", "SoC_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("807", "OCV_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("807", "Pad1", SunSpecTypePad, "", "", false),
+	}
+}
+
 func v2DERPoint(model, name string, pointType SunSpecPointType, unit, scale string, mandatory bool) sunSpecPointDefinition {
 	symbols := map[uint64]string(nil)
 	if model == "701" && name == "ACType" {
