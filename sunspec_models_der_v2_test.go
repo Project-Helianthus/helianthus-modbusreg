@@ -87,6 +87,49 @@ func TestSunSpecV2DERMeasurePreservesScaledUnsignedCounter(t *testing.T) {
 	}
 }
 
+func TestSunSpecV2DERStoragePreservesValueOrderAndScale(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	words := v2DERModelWords(t, registry, 713, 7, map[string][]uint16{
+		"WHRtg":   {100},
+		"WHAvail": {50},
+		"SoC":     {75},
+		"SoH":     {95},
+		"Sta":     {3},
+		"WH_SF":   {0},
+		"Pct_SF":  {0xffff},
+	})
+	key := SunSpecDecoderKey{ModelID: 713, ModelLength: 7, SchemaRevision: SunSpecModelsRevisionV2}
+	decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{
+		Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 713, ModelLength: 7}, SchemaRevision: SunSpecModelsRevisionV2,
+		Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []struct {
+		field       string
+		coefficient int64
+		exponent    int16
+	}{
+		{"sunspec.der.v2.713.WHRtg", 100, 0},
+		{"sunspec.der.v2.713.WHAvail", 50, 0},
+		{"sunspec.der.v2.713.SoC", 75, -1},
+		{"sunspec.der.v2.713.SoH", 95, -1},
+	} {
+		fact, ok := decoded.Fact(want.field)
+		if !ok {
+			t.Fatalf("fact %q absent", want.field)
+		}
+		value, ok := fact.Value.Decimal()
+		if !ok || value != (SunSpecDecimal{Coefficient: want.coefficient, Exponent: want.exponent}) {
+			t.Fatalf("fact %q decimal=%#v present=%v", want.field, value, ok)
+		}
+	}
+}
+
 func v2DERModelWords(t *testing.T, registry SunSpecDecoderRegistry, id, length uint16, values map[string][]uint16) []uint16 {
 	t.Helper()
 	key := SunSpecDecoderKey{ModelID: id, ModelLength: length, SchemaRevision: SunSpecModelsRevisionV2}
