@@ -12,7 +12,7 @@ import (
 func TestTeslaFC100WCVitalsRTUSessionAdapterUsesCorrelatedSession(t *testing.T) {
 	session := &teslaFC100WCVitalsSessionFake{responsePayloads: [][]byte{
 		{0x04, 0x32, 0x02, 0x0a, 0x00},
-		{0x06, 0x32, 0x04, 0x12, 0x02, 0x0a, 0x00},
+		{0x06, 0x32, 0x04, 0x12, 0x02, 0x08, 0x01},
 	}}
 	adapter, err := NewTeslaFC100WCVitalsRTUSessionAdapter(testTeslaFC100WCVitalsQualifiedProfile(t), session)
 	if err != nil {

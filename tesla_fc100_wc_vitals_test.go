@@ -3,6 +3,8 @@ package modbusreg
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"testing"
 
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
@@ -91,7 +93,7 @@ func TestTeslaFC100WCVitalsDispatchRetainsTerminalOnlyAsRedactedReplay(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	transport := &qualifiedFunctionTestTransport{responsePayloads: [][]byte{{0x08, 0x32, 0x06, 0x12, 0x04, 0x0a, 0x02, 0x08, 0x01}}}
+	transport := &qualifiedFunctionTestTransport{responsePayloads: [][]byte{{0x06, 0x32, 0x04, 0x12, 0x02, 0x08, 0x01}}}
 	results, err := registry.Dispatch(context.Background(), transport, QualifiedFunctionSelector{
 		Endpoint: "rtu-a", UnitID: profile.Node(), VendorProfile: TeslaHSCProfileName, Operation: TeslaTEDAPIOperationWCVitalsV1,
 	})
@@ -114,7 +116,7 @@ func TestTeslaFC100WCVitalsReplayClassifiesEchoAndBoundedTerminal(t *testing.T) 
 		t.Fatalf("echo = %#v", echo)
 	}
 
-	terminal, err := DecodeTeslaFC100WCVitalsReplay([]byte{0x06, 0x32, 0x04, 0x12, 0x02, 0x0a, 0x00})
+	terminal, err := DecodeTeslaFC100WCVitalsReplay([]byte{0x04, 0x32, 0x02, 0x12, 0x00})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,12 +126,27 @@ func TestTeslaFC100WCVitalsReplayClassifiesEchoAndBoundedTerminal(t *testing.T) 
 	}
 
 	for _, payload := range [][]byte{
-		{0x06, 0x32, 0x04, 0x12, 0x02, 0x12, 0x00},
+		{0x06, 0x32, 0x04, 0x0a, 0x02, 0x12, 0x00},
 		{0x07, 0x32, 0x04, 0x12, 0x02, 0x0a, 0x00, 0x00},
 		{0x06, 0x32, 0x04, 0x12, 0x02, 0x0a},
 	} {
 		if _, err := DecodeTeslaFC100WCVitalsReplay(payload); err == nil {
 			t.Fatalf("malformed terminal accepted: %x", payload)
+		}
+	}
+}
+
+func TestTeslaFC100WCVitalsReplayRetainsCompleteOpaqueTerminalBody(t *testing.T) {
+	for _, body := range [][]byte{{0x08, 0x01}, {0x00, 0x00}} {
+		payload := append([]byte{byte(len(body) + 4), 0x32, byte(len(body) + 2), 0x12, byte(len(body))}, body...)
+		replay, err := DecodeTeslaFC100WCVitalsReplay(payload)
+		if err != nil {
+			t.Fatalf("opaque terminal body %x: %v", body, err)
+		}
+		digest := sha256.Sum256(body)
+		if replay.Kind != TeslaFC100WCVitalsTerminal || replay.SnapshotLength != len(body) ||
+			replay.SnapshotDigest != hex.EncodeToString(digest[:]) {
+			t.Fatalf("opaque terminal body %x replay = %#v", body, replay)
 		}
 	}
 }

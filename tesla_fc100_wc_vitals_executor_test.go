@@ -11,7 +11,7 @@ func TestTeslaFC100WCVitalsExecutorUsesOneQualifiedInjectedExchange(t *testing.T
 	profile := testTeslaFC100WCVitalsQualifiedProfile(t)
 	exchanger := &qualifiedFunctionTestTransport{responsePayloads: [][]byte{
 		{0x04, 0x32, 0x02, 0x0a, 0x00},
-		{0x06, 0x32, 0x04, 0x12, 0x02, 0x0a, 0x00},
+		{0x06, 0x32, 0x04, 0x12, 0x02, 0x08, 0x01},
 	}}
 	executor, err := NewTeslaFC100WCVitalsExecutor(profile, exchanger)
 	if err != nil {
@@ -34,7 +34,7 @@ func TestTeslaFC100WCVitalsExecutorUsesOneQualifiedInjectedExchange(t *testing.T
 	}
 	if len(replays) != 2 || replays[0].Kind != TeslaFC100WCVitalsIntermediate ||
 		replays[1].Kind != TeslaFC100WCVitalsTerminal ||
-		replays[1].SnapshotLength != 0 || replays[1].SnapshotDigest == "" {
+		replays[1].SnapshotLength != 2 || replays[1].SnapshotDigest == "" {
 		t.Fatalf("redacted replays = %#v", replays)
 	}
 }
@@ -55,7 +55,7 @@ func TestTeslaFC100WCVitalsExecutorFailsClosedBeforeOrAfterInjectedExchange(t *t
 	}
 
 	profile := testTeslaFC100WCVitalsQualifiedProfile(t)
-	badExchanger := &qualifiedFunctionTestTransport{responsePayloads: [][]byte{{0x06, 0x32, 0x04, 0x12, 0x02, 0x12, 0x00}}}
+	badExchanger := &qualifiedFunctionTestTransport{responsePayloads: [][]byte{{0x06, 0x32, 0x04, 0x0a, 0x02, 0x12, 0x00}}}
 	executor, err := NewTeslaFC100WCVitalsExecutor(profile, badExchanger)
 	if err != nil {
 		t.Fatal(err)
