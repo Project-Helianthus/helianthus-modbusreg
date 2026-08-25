@@ -2,7 +2,10 @@ package modbusreg
 
 import "fmt"
 
-const SunSpecModelsRevisionV1 SunSpecSchemaRevision = "sunspec.models@7abdf898-v1"
+const (
+	SunSpecModelsRevisionV1 SunSpecSchemaRevision = "sunspec.models@7abdf898-v1"
+	SunSpecModelsRevisionV2 SunSpecSchemaRevision = "sunspec.models@90b4a331-v2"
+)
 
 type SunSpecTopology string
 
@@ -33,9 +36,25 @@ type sunSpecModelDefinition struct {
 }
 
 func standardSunSpecModelDefinitions(revision SunSpecSchemaRevision) ([]sunSpecModelDefinition, error) {
-	if revision != SunSpecModelsRevisionV1 {
+	switch revision {
+	case SunSpecModelsRevisionV1:
+		return standardSunSpecModelDefinitionsV1(revision)
+	case SunSpecModelsRevisionV2:
+		return standardSunSpecModelDefinitionsV2(revision)
+	default:
 		return nil, fmt.Errorf("SunSpec schema revision is unsupported")
 	}
+}
+
+func standardSunSpecModelDefinitionsV2(revision SunSpecSchemaRevision) ([]sunSpecModelDefinition, error) {
+	definitions, err := appendSunSpecDefinition(nil, revision, 1, 66, SunSpecTopologyNone, false, commonSunSpecPoints())
+	if err != nil {
+		return nil, err
+	}
+	return definitions, nil
+}
+
+func standardSunSpecModelDefinitionsV1(revision SunSpecSchemaRevision) ([]sunSpecModelDefinition, error) {
 	common := commonSunSpecPoints()
 	definitions := make([]sunSpecModelDefinition, 0, 27)
 	var err error

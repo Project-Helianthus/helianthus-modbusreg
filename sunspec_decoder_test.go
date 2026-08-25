@@ -90,10 +90,22 @@ func TestSunSpecDecoderRegistryUsesExactImmutableKeys(t *testing.T) {
 }
 
 func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
+	standardSunSpecDecoderKeysCache.Lock()
+	priorCache := standardSunSpecDecoderKeysCache.keys
+	standardSunSpecDecoderKeysCache.keys = nil
+	standardSunSpecDecoderKeysCache.Unlock()
+	t.Cleanup(func() {
+		standardSunSpecDecoderKeysCache.Lock()
+		standardSunSpecDecoderKeysCache.keys = priorCache
+		standardSunSpecDecoderKeysCache.Unlock()
+	})
 	for _, revisions := range [][]SunSpecSchemaRevision{
 		{SunSpecModelsRevisionV1, SunSpecModelsRevisionV2},
 		{SunSpecModelsRevisionV2, SunSpecModelsRevisionV1},
 	} {
+		standardSunSpecDecoderKeysCache.Lock()
+		standardSunSpecDecoderKeysCache.keys = nil
+		standardSunSpecDecoderKeysCache.Unlock()
 		registries := make(map[SunSpecSchemaRevision]SunSpecDecoderRegistry, len(revisions))
 		for _, revision := range revisions {
 			registry, err := NewStandardSunSpecDecoderRegistry(revision)
@@ -117,6 +129,40 @@ func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
 			if key.SchemaRevision != SunSpecModelsRevisionV1 {
 				t.Fatalf("V1 cache leaked key %#v", key)
 			}
+		}
+	}
+	standardSunSpecDecoderKeysCache.Lock()
+	standardSunSpecDecoderKeysCache.keys = nil
+	standardSunSpecDecoderKeysCache.Unlock()
+	const workers = 32
+	errors := make(chan error, workers)
+	var wait sync.WaitGroup
+	for worker := 0; worker < workers; worker++ {
+		wait.Add(1)
+		go func(worker int) {
+			defer wait.Done()
+			revision := SunSpecModelsRevisionV1
+			if worker%2 == 1 {
+				revision = SunSpecModelsRevisionV2
+			}
+			registry, err := NewStandardSunSpecDecoderRegistry(revision)
+			if err != nil {
+				errors <- err
+				return
+			}
+			for _, key := range registry.DecoderKeys() {
+				if key.SchemaRevision != revision {
+					errors <- errUnexpectedConcurrentDecode
+					return
+				}
+			}
+		}(worker)
+	}
+	wait.Wait()
+	close(errors)
+	for err := range errors {
+		if err != nil {
+			t.Fatal(err)
 		}
 	}
 }
