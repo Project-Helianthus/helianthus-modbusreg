@@ -152,6 +152,11 @@ func TestSunSpecV2StructuralCandidateDoesNotChangeChainBehaviorOrActivateModels(
 	if copy[0].structuralCandidate == selectedOccurrences[0].structuralCandidate {
 		t.Fatal("candidate sidecar aliases snapshot storage")
 	}
+	copy[0].structuralCandidate.layout.entries[0].path.segments[0].Name = "mutated"
+	again := selected.Occurrences()
+	if again[0].structuralCandidate.layout.entries[0].path.segments[0].Name == "mutated" {
+		t.Fatal("candidate layout aliases snapshot storage")
+	}
 }
 
 func TestSunSpecChainRetainsOrderedDuplicatesUnknownAndWrongLength(t *testing.T) {
