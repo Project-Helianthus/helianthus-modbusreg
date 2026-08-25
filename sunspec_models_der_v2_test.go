@@ -16,7 +16,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			"SunSpec/models",
 			"https://github.com/sunspec/models",
 			"90b4a331dcca1d6eac69c1bead952fddcc5852e0",
-			"Models 701/153 and 702/50",
+			"Models 701/153, 702/50, and 713/7",
 			"modified by Helianthus",
 			"Apache License",
 			"Version 2.0, January 2004",
@@ -40,6 +40,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 		}{
 			{701, 153, 72, []string{"ID", "L", "ACType"}, "MnAlrmInfo"},
 			{702, 50, 51, []string{"ID", "L", "WMaxRtg"}, "S_SF"},
+			{713, 7, 9, []string{"ID", "L", "WHRtg"}, "Pct_SF"},
 		} {
 			definition, ok := registry.definition(SunSpecDecoderKey{ModelID: want.id, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2})
 			if !ok || len(definition.points) != want.points {
