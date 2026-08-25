@@ -3,6 +3,8 @@ package modbusreg
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"testing"
 
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
@@ -130,6 +132,21 @@ func TestTeslaFC100WCVitalsReplayClassifiesEchoAndBoundedTerminal(t *testing.T) 
 	} {
 		if _, err := DecodeTeslaFC100WCVitalsReplay(payload); err == nil {
 			t.Fatalf("malformed terminal accepted: %x", payload)
+		}
+	}
+}
+
+func TestTeslaFC100WCVitalsReplayRetainsCompleteOpaqueTerminalBody(t *testing.T) {
+	for _, body := range [][]byte{{0x08, 0x01}, {0x00, 0x00}} {
+		payload := append([]byte{byte(len(body) + 4), 0x32, byte(len(body) + 2), 0x12, byte(len(body))}, body...)
+		replay, err := DecodeTeslaFC100WCVitalsReplay(payload)
+		if err != nil {
+			t.Fatalf("opaque terminal body %x: %v", body, err)
+		}
+		digest := sha256.Sum256(body)
+		if replay.Kind != TeslaFC100WCVitalsTerminal || replay.SnapshotLength != len(body) ||
+			replay.SnapshotDigest != hex.EncodeToString(digest[:]) {
+			t.Fatalf("opaque terminal body %x replay = %#v", body, replay)
 		}
 	}
 }
