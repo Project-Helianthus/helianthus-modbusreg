@@ -64,6 +64,7 @@ func standardSunSpecModelDefinitionsV2(revision SunSpecSchemaRevision) ([]sunSpe
 		{805, 42, bessModuleV2SunSpecPoints()},
 		{806, 1, flowBatteryV2SunSpecPoints()},
 		{807, 34, flowBatteryStringV2SunSpecPoints()},
+		{808, 1, flowBatteryModuleV2SunSpecPoints()},
 	} {
 		definitions, err = appendSunSpecDefinition(definitions, revision, model.id, model.length, SunSpecTopologyNone, false, model.points)
 		if err != nil {
