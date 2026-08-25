@@ -173,3 +173,50 @@ func TestSunSpecV2ChainKeepsWrongDERPortGeometryOpaque(t *testing.T) {
 		t.Fatalf("wrong V2 714 geometry has decoder key: %#v", occurrences[1])
 	}
 }
+
+func TestSunSpecV2ChainRetainsFixedControlObservabilityBlocks(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+		SchemaRevision: SunSpecModelsRevisionV2,
+		BaseCandidates: []uint16{40000},
+		Limits:         SunSpecChainLimits{MaxTotalWords: 128, MaxOccurrences: 3},
+		DecoderKeys:    registry.DecoderKeys(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := NewSunSpecChain(plan)
+	id := uint64(1)
+	if _, err := admitNext(t, chain, &id, []uint16{0x5375, 0x6e53}); err != nil {
+		t.Fatal(err)
+	}
+	words := append([]uint16{1, 66}, make([]uint16, 66)...)
+	words = append(words, 703, 17)
+	words = append(words, make([]uint16, 17)...)
+	words = append(words, 715, 7)
+	words = append(words, make([]uint16, 7)...)
+	for len(words) > 0 {
+		request := chain.NextRequests()[0]
+		chunk := words[:request.WordCount()]
+		words = words[request.WordCount():]
+		if _, err := admitNext(t, chain, &id, chunk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snapshot, err := admitNext(t, chain, &id, []uint16{0xffff, 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	occurrences := snapshot.Occurrences()
+	if len(occurrences) != 3 || occurrences[1].Disposition != SunSpecChainDispositionAdmitted || occurrences[2].Disposition != SunSpecChainDispositionAdmitted {
+		t.Fatalf("fixed control observability dispositions=%#v", occurrences)
+	}
+	for index, want := range []SunSpecWireKey{{ModelID: 703, ModelLength: 17}, {ModelID: 715, ModelLength: 7}} {
+		if occurrences[index+1].WireKey != want {
+			t.Fatalf("occurrence %d=%#v want=%#v", index+1, occurrences[index+1].WireKey, want)
+		}
+	}
+}

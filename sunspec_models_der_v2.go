@@ -142,6 +142,24 @@ func derCapacityV2SunSpecPoints() []sunSpecPointDefinition {
 	return points
 }
 
+func derEnterServiceV2SunSpecPoints() []sunSpecPointDefinition {
+	return []sunSpecPointDefinition{
+		v2DERPoint("703", "ID", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("703", "L", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("703", "ES", SunSpecTypeEnum16, "", "", false),
+		v2DERPoint("703", "ESVHi", SunSpecTypeUint16, "V", "V_SF", false),
+		v2DERPoint("703", "ESVLo", SunSpecTypeUint16, "V", "V_SF", false),
+		v2DERPoint("703", "ESHzHi", SunSpecTypeUint32, "Hz", "Hz_SF", false),
+		v2DERPoint("703", "ESHzLo", SunSpecTypeUint32, "Hz", "Hz_SF", false),
+		v2DERPoint("703", "ESDlyTms", SunSpecTypeUint32, "", "", false),
+		v2DERPoint("703", "ESRndTms", SunSpecTypeUint32, "", "", false),
+		v2DERPoint("703", "ESRmpTms", SunSpecTypeUint32, "", "", false),
+		v2DERPoint("703", "ESDlyRemTms", SunSpecTypeUint32, "", "", false),
+		v2DERPoint("703", "V_SF", SunSpecTypeScaleFactor, "", "", false),
+		v2DERPoint("703", "Hz_SF", SunSpecTypeScaleFactor, "", "", false),
+	}
+}
+
 func derStorageCapacityV2SunSpecPoints() []sunSpecPointDefinition {
 	return []sunSpecPointDefinition{
 		v2DERPoint("713", "ID", SunSpecTypeUint16, "", "", true),
@@ -153,6 +171,18 @@ func derStorageCapacityV2SunSpecPoints() []sunSpecPointDefinition {
 		v2DERPoint("713", "Sta", SunSpecTypeEnum16, "", "", false),
 		v2DERPoint("713", "WH_SF", SunSpecTypeScaleFactor, "", "", false),
 		v2DERPoint("713", "Pct_SF", SunSpecTypeScaleFactor, "", "", false),
+	}
+}
+
+func derControlV2SunSpecPoints() []sunSpecPointDefinition {
+	return []sunSpecPointDefinition{
+		v2DERPoint("715", "ID", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("715", "L", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("715", "LocRemCtl", SunSpecTypeEnum16, "", "", false),
+		v2DERPoint("715", "DERHb", SunSpecTypeUint32, "", "", false),
+		v2DERPoint("715", "ControllerHb", SunSpecTypeUint32, "", "", false),
+		v2DERPoint("715", "AlarmReset", SunSpecTypeUint16, "", "", false),
+		v2DERPoint("715", "OpCtl", SunSpecTypeEnum16, "", "", false),
 	}
 }
 

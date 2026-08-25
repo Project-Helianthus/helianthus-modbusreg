@@ -17,7 +17,8 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			"SunSpec/models",
 			"https://github.com/sunspec/models",
 			"90b4a331dcca1d6eac69c1bead952fddcc5852e0",
-			"Models 701/153, 702/50, 713/7, and 714 variable geometry",
+			"Models 701/153, 702/50, 703/17, 713/7,",
+			"714 variable geometry, and 715/7",
 			"modified by Helianthus",
 			"Apache License",
 			"Version 2.0, January 2004",
@@ -41,7 +42,9 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 		}{
 			{701, 153, 72, []string{"ID", "L", "ACType"}, "MnAlrmInfo"},
 			{702, 50, 51, []string{"ID", "L", "WMaxRtg"}, "S_SF"},
+			{703, 17, 13, []string{"ID", "L", "ES"}, "Hz_SF"},
 			{713, 7, 9, []string{"ID", "L", "WHRtg"}, "Pct_SF"},
+			{715, 7, 7, []string{"ID", "L", "LocRemCtl"}, "OpCtl"},
 		} {
 			definition, ok := registry.definition(SunSpecDecoderKey{ModelID: want.id, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2})
 			if !ok || len(definition.points) != want.points {
@@ -57,6 +60,31 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestSunSpecV2ControlObservabilityDecodesStateOnly(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []struct {
+		id, length uint16
+		values     map[string][]uint16
+		field      string
+	}{
+		{703, 17, map[string][]uint16{"ES": {1}, "ESVHi": {2300}, "V_SF": {0}, "ESHzHi": {5000}, "Hz_SF": {0}}, "sunspec.der.v2.703.ES"},
+		{715, 7, map[string][]uint16{"LocRemCtl": {1}, "DERHb": {0, 7}, "AlarmReset": {1}, "OpCtl": {2}}, "sunspec.der.v2.715.AlarmReset"},
+	} {
+		words := v2DERModelWords(t, registry, want.id, want.length, want.values)
+		key := SunSpecDecoderKey{ModelID: want.id, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2}
+		decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: want.id, ModelLength: want.length}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words})
+		if err != nil || !decoded.GeometryValid() || !decoded.Qualifies() {
+			t.Fatalf("Model %d/%d decode geometry=%v qualifies=%v err=%v", want.id, want.length, decoded.GeometryValid(), decoded.Qualifies(), err)
+		}
+		if _, ok := decoded.Fact(want.field); !ok {
+			t.Fatalf("Model %d missing observed fact %q", want.id, want.field)
+		}
+	}
 }
 
 func TestSunSpecV2DERMeasurePreservesScaledUnsignedCounter(t *testing.T) {

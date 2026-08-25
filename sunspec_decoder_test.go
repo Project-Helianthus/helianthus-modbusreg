@@ -115,22 +115,37 @@ func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
 			registries[revision] = registry
 		}
 		v2Keys := registries[SunSpecModelsRevisionV2].DecoderKeys()
-		wantV2 := []SunSpecDecoderKey{
+		wantV2Static := []SunSpecDecoderKey{
 			{ModelID: 1, ModelLength: 66, SchemaRevision: SunSpecModelsRevisionV2},
 			{ModelID: 701, ModelLength: 153, SchemaRevision: SunSpecModelsRevisionV2},
 			{ModelID: 702, ModelLength: 50, SchemaRevision: SunSpecModelsRevisionV2},
+			{ModelID: 703, ModelLength: 17, SchemaRevision: SunSpecModelsRevisionV2},
 			{ModelID: 713, ModelLength: 7, SchemaRevision: SunSpecModelsRevisionV2},
-			{ModelID: 714, ModelLength: 18, SchemaRevision: SunSpecModelsRevisionV2},
+			{ModelID: 715, ModelLength: 7, SchemaRevision: SunSpecModelsRevisionV2},
 		}
-		staticKeys := wantV2[:len(wantV2)-1]
-		if len(v2Keys) != len(staticKeys)+int(maxSunSpecDERPorts)+1 || !reflect.DeepEqual(v2Keys[:len(staticKeys)], staticKeys) {
-			t.Fatalf("V2 key count=%d static=%#v", len(v2Keys), v2Keys[:len(wantV2)])
+		if len(v2Keys) != len(wantV2Static)+int(maxSunSpecDERPorts)+1 {
+			t.Fatalf("V2 key count=%d", len(v2Keys))
 		}
-		if first := v2Keys[len(staticKeys)]; first != wantV2[len(wantV2)-1] {
-			t.Fatalf("V2 first dynamic key=%#v", first)
+		static := make(map[SunSpecDecoderKey]bool, len(wantV2Static))
+		for _, key := range wantV2Static {
+			static[key] = true
 		}
-		if last := v2Keys[len(v2Keys)-1]; last != (SunSpecDecoderKey{ModelID: 714, ModelLength: 65518, SchemaRevision: SunSpecModelsRevisionV2}) {
-			t.Fatalf("V2 last dynamic key=%#v", last)
+		dynamic := 0
+		for _, key := range v2Keys {
+			if key.ModelID == 714 {
+				if key.ModelLength < 18 || (key.ModelLength-18)%25 != 0 {
+					t.Fatalf("V2 dynamic key=%#v", key)
+				}
+				dynamic++
+				continue
+			}
+			if !static[key] {
+				t.Fatalf("unexpected V2 static key=%#v", key)
+			}
+			delete(static, key)
+		}
+		if dynamic != int(maxSunSpecDERPorts)+1 || len(static) != 0 {
+			t.Fatalf("V2 dynamic=%d missing static=%#v", dynamic, static)
 		}
 		if _, ok := registries[SunSpecModelsRevisionV2].definition(SunSpecDecoderKey{ModelID: 1, ModelLength: 65, SchemaRevision: SunSpecModelsRevisionV2}); ok {
 			t.Fatal("V2 resolved V1 compatibility Common")
