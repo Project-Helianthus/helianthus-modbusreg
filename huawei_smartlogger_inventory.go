@@ -104,7 +104,7 @@ func ParseHuaweiSmartLoggerOfflineInventory(input HuaweiSmartLoggerOfflineInvent
 		children         []HuaweiSmartLoggerInventoryChild
 		selfSeen         bool
 		wrapped          bool
-		objectCount      int
+		recordCount      int
 		byteCount        int
 	)
 
@@ -113,13 +113,12 @@ func ParseHuaweiSmartLoggerOfflineInventory(input HuaweiSmartLoggerOfflineInvent
 			return HuaweiSmartLoggerInventory{}, errHuaweiSmartLoggerInventoryInvalid
 		}
 		for _, object := range page.Objects {
-			if objectCount == huaweiSmartLoggerInventoryMaxObjects || object.ObjectID != expectedObjectID {
+			if object.ObjectID != expectedObjectID {
 				return HuaweiSmartLoggerInventory{}, errHuaweiSmartLoggerInventoryInvalid
 			}
 			if _, alreadySeen := seenObjects[object.ObjectID]; alreadySeen {
 				return HuaweiSmartLoggerInventory{}, errHuaweiSmartLoggerInventoryInvalid
 			}
-			objectCount++
 			seenObjects[object.ObjectID] = struct{}{}
 			if len(object.Value) > huaweiSmartLoggerInventoryMaxBytes-byteCount-2 {
 				return HuaweiSmartLoggerInventory{}, errHuaweiSmartLoggerInventoryInvalid
@@ -132,6 +131,10 @@ func ParseHuaweiSmartLoggerOfflineInventory(input HuaweiSmartLoggerOfflineInvent
 				}
 				declaredChildren = int(object.Value[0])
 			} else {
+				if recordCount == huaweiSmartLoggerInventoryMaxObjects {
+					return HuaweiSmartLoggerInventory{}, errHuaweiSmartLoggerInventoryInvalid
+				}
+				recordCount++
 				child, err := parseHuaweiSmartLoggerInventoryChild(object)
 				if err != nil {
 					return HuaweiSmartLoggerInventory{}, errHuaweiSmartLoggerInventoryInvalid

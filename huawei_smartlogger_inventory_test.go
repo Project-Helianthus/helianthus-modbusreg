@@ -94,3 +94,24 @@ func TestParseHuaweiSmartLoggerOfflineInventoryFailsClosed(t *testing.T) {
 		})
 	}
 }
+
+func TestParseHuaweiSmartLoggerOfflineInventoryAcceptsDocumentedMaximumChildren(t *testing.T) {
+	objects := []HuaweiSmartLoggerInventoryObject{
+		{ObjectID: 0x87, Value: []byte{247}},
+		{ObjectID: 0x88, Value: []byte("1=SmartLogger;5=0")},
+	}
+	for address := 1; address <= 247; address++ {
+		objects = append(objects, HuaweiSmartLoggerInventoryObject{
+			ObjectID: uint8(0x88 + address),
+			Value:    []byte("1=SUN2000;5=" + string(rune('a'+(address%26))) + string(rune('A'+(address/26)%26)) + string(rune('0'+(address%10)))),
+		})
+	}
+	inventory, err := ParseHuaweiSmartLoggerOfflineInventory(HuaweiSmartLoggerOfflineInventoryInput{
+		ChangeCounterBefore: 3,
+		ChangeCounterAfter:  3,
+		Pages:               []HuaweiSmartLoggerInventoryPage{{Objects: objects}},
+	})
+	if err != nil || inventory.DeclaredChildren() != 247 || inventory.ChildCount() != 247 {
+		t.Fatalf("maximum inventory=(declared=%d children=%d) err=%v", inventory.DeclaredChildren(), inventory.ChildCount(), err)
+	}
+}
