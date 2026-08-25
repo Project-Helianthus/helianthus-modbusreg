@@ -25,7 +25,7 @@ func DecodeTeslaFC100TEDAPI(payload []byte) (TeslaFC100TEDAPI, error) {
 	}
 	message := envelope.Payload()
 	if len(message) == 0 {
-		return TeslaFC100TEDAPI{}, fmt.Errorf("Tesla FC100 TEDAPI message is empty")
+		return TeslaFC100TEDAPI{}, fmt.Errorf("tesla FC100 TEDAPI message is empty")
 	}
 	key, consumed, err := decodeTeslaTEDAPIKey(message)
 	if err != nil {
@@ -34,7 +34,7 @@ func DecodeTeslaFC100TEDAPI(payload []byte) (TeslaFC100TEDAPI, error) {
 	field := key >> 3
 	wireType := uint8(key & 0x07)
 	if consumed == 0 || field == 0 || wireType > 5 {
-		return TeslaFC100TEDAPI{}, fmt.Errorf("Tesla FC100 TEDAPI key is invalid")
+		return TeslaFC100TEDAPI{}, fmt.Errorf("tesla FC100 TEDAPI key is invalid")
 	}
 	digest := sha256.Sum256(message)
 	return TeslaFC100TEDAPI{
@@ -49,14 +49,14 @@ func decodeTeslaTEDAPIKey(message []byte) (uint64, int, error) {
 	var value uint64
 	for index, byteValue := range message {
 		if index == 10 || (index == 9 && byteValue > 1) {
-			return 0, 0, fmt.Errorf("Tesla FC100 TEDAPI key overflows")
+			return 0, 0, fmt.Errorf("tesla FC100 TEDAPI key overflows")
 		}
 		value |= uint64(byteValue&0x7f) << (7 * index)
 		if byteValue&0x80 == 0 {
 			return value, index + 1, nil
 		}
 	}
-	return 0, 0, fmt.Errorf("Tesla FC100 TEDAPI key is truncated")
+	return 0, 0, fmt.Errorf("tesla FC100 TEDAPI key is truncated")
 }
 
 // MessageLength returns the bounded nested-message length.
