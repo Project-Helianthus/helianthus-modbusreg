@@ -34,7 +34,7 @@ func TestTeslaFC100TEDAPISummarizesOrderedBoundedWireEntries(t *testing.T) {
 		0x08, 0x96, 0x01, // field 1, varint
 		0x12, 0x02, 0xaa, 0xbb, // field 2, length-delimited
 		0x1d, 0x01, 0x02, 0x03, 0x04, // field 3, fixed32
-		0x23, // field 4, start group
+		0x23,       // field 4, start group
 		0x28, 0x01, // field 5, varint inside group
 		0x24, // field 4, end group
 	}
@@ -67,9 +67,9 @@ func TestTeslaFC100TEDAPIRejectsMalformedOrOverCountedWireSummary(t *testing.T) 
 	}
 	for _, message := range [][]byte{
 		{0x12, 0x02, 0xaa}, // truncated length-delimited value
-		{0x09, 0x01}, // truncated fixed64 value
-		{0x0c}, // unpaired end group
-		{0x0b, 0x14}, // mismatched group boundaries
+		{0x09, 0x01},       // truncated fixed64 value
+		{0x0c},             // unpaired end group
+		{0x0b, 0x14},       // mismatched group boundaries
 		overCountMessage,
 	} {
 		payload := append([]byte{byte(len(message))}, message...)
