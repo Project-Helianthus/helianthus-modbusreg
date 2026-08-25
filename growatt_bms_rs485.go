@@ -55,7 +55,7 @@ func (GrowattBMSReadOnlyObservation) OutboundAllowed() bool { return false }
 // DecodeGrowattBMSReadOnlyObservation validates the four individually bounded
 // FC03 slices permitted by the Growatt BMS read-only contract.
 func DecodeGrowattBMSReadOnlyObservation(input GrowattBMSReadOnlyInput) (GrowattBMSReadOnlyObservation, error) {
-	if input.UnitID == 0 || input.Function != FunctionReadHoldingRegisters ||
+	if input.UnitID == 0 || input.UnitID > 247 || input.Function != FunctionReadHoldingRegisters ||
 		input.Revision != (GrowattBMSRevisionTuple{
 			Family: growattBMSFamily, FileRevision: growattBMSFileRevision,
 			HeaderVersion: growattBMSHeaderVersion, CumulativeRevision: growattBMSCumulativeRevision,

@@ -28,7 +28,8 @@ func TestGrowattBMSReadOnlyObservationRetainsOnlyExactDeclaredSlices(t *testing.
 
 func TestGrowattBMSReadOnlyObservationRejectsAnythingOutsideTheFourSlices(t *testing.T) {
 	for name, mutate := range map[string]func(*GrowattBMSReadOnlyInput){
-		"broadcast": func(input *GrowattBMSReadOnlyInput) { input.UnitID = 0 },
+		"broadcast":     func(input *GrowattBMSReadOnlyInput) { input.UnitID = 0 },
+		"reserved unit": func(input *GrowattBMSReadOnlyInput) { input.UnitID = 248 },
 		"other function": func(input *GrowattBMSReadOnlyInput) {
 			input.Function = FunctionReadInputRegisters
 		},
