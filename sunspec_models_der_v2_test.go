@@ -18,7 +18,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			"SunSpec/models",
 			"https://github.com/sunspec/models",
 			"90b4a331dcca1d6eac69c1bead952fddcc5852e0",
-			"Models 701/153, 702/50, 703/17, 707 variable geometry, 713/7,",
+			"Models 701/153, 702/50, 703/17, 707 variable geometry, 708 variable geometry, 713/7,",
 			"714 variable geometry, 715/7, 802/62, 803 variable geometry, 804 variable",
 			"geometry, 805/42, 806/1, 807/34, 808/1, and 809/1",
 			"modified by Helianthus",
@@ -701,6 +701,96 @@ func TestSunSpecV2DERTripLVGeometryIsBoundedAndOfflineOnly(t *testing.T) {
 	}
 	if _, ok := registry.definition(SunSpecDecoderKey{ModelID: 707, ModelLength: 65535, SchemaRevision: SunSpecModelsRevisionV2}); ok {
 		t.Fatal("over-boundary Model 707 must remain opaque")
+	}
+}
+
+func TestSunSpecV2DERTripHVGeometryIsBoundedAndOfflineOnly(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, ok := registry.definition(SunSpecDecoderKey{ModelID: 708, ModelLength: 7, SchemaRevision: SunSpecModelsRevisionV2})
+	if !ok {
+		t.Fatal("Model 708/7 definition absent")
+	}
+	wantBase := strings.Split("ID:uint16:1:,L:uint16:1:,Ena:enum16:1:,AdptCrvReq:uint16:1:,AdptCrvRslt:enum16:1:,NPt:uint16:1:,NCrvSet:count:1:,V_SF:sunssf:1:,Tms_SF:sunssf:1:", ",")
+	gotBase := make([]string, len(definition.points))
+	for index, point := range definition.points {
+		gotBase[index] = fmt.Sprintf("%s:%s:%d:%s", point.name, point.pointType, point.size, point.scaleFactor)
+	}
+	if !reflect.DeepEqual(gotBase, wantBase) {
+		t.Fatalf("Model 708 base=%q want=%q", gotBase, wantBase)
+	}
+
+	for _, want := range []struct {
+		curves, length uint16
+		points, facts  int
+	}{
+		{0, 7, 9, 7},
+		{2, 9, 11, 9},
+		{uint16(maxSunSpecDERTripHVCurves), 65534, 65536, 65534},
+	} {
+		key := SunSpecDecoderKey{ModelID: 708, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2}
+		resolved, ok := registry.definition(key)
+		if !ok || len(resolved.points) != want.points {
+			t.Fatalf("N=%d definition=%v points=%d", want.curves, ok, len(resolved.points))
+		}
+		if uint32(want.curves) == maxSunSpecDERTripHVCurves {
+			continue
+		}
+		words := make([]uint16, int(want.length)+2)
+		words[0], words[1], words[6] = 708, want.length, want.curves
+		decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 708, ModelLength: want.length}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words, spans: []SunSpecSourceSpan{{LogicalViewID: 8, PDUOffset: 0, WordCount: want.length + 2}}})
+		if err != nil || !decoded.GeometryValid() || len(decoded.Facts()) != want.facts {
+			t.Fatalf("N=%d geometry=%v facts=%d err=%v", want.curves, decoded.GeometryValid(), len(decoded.Facts()), err)
+		}
+	}
+
+	for _, want := range []struct {
+		name          string
+		length, count uint16
+	}{
+		{name: "count mismatch", length: 9, count: 1},
+		{name: "unavailable count", length: 9, count: 0xffff},
+		{name: "partial curve group", length: 8, count: 2},
+	} {
+		t.Run(want.name, func(t *testing.T) {
+			key := SunSpecDecoderKey{ModelID: 708, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2}
+			words := make([]uint16, int(want.length)+2)
+			words[0], words[1], words[6] = 708, want.length, want.count
+			spans := []SunSpecSourceSpan{{LogicalViewID: 8, PDUOffset: 0, WordCount: want.length + 2}}
+			decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 708, ModelLength: want.length}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words, spans: spans})
+			if err != nil || decoded.GeometryValid() || decoded.Qualifies() || len(decoded.Facts()) != 0 || !reflect.DeepEqual(decoded.RawWords(), words) || !reflect.DeepEqual(decoded.SourceSpans(), spans) {
+				t.Fatalf("geometry=%v qualifies=%t facts=%d err=%v", decoded.GeometryValid(), decoded.Qualifies(), len(decoded.Facts()), err)
+			}
+		})
+	}
+
+	maxKey := SunSpecDecoderKey{ModelID: 708, ModelLength: 65534, SchemaRevision: SunSpecModelsRevisionV2}
+	words := make([]uint16, 65536)
+	words[0], words[1], words[6] = 708, 65534, uint16(maxSunSpecDERTripHVCurves)
+	spans := make([]SunSpecSourceSpan, 0, (len(words)+124)/125)
+	for remaining := len(words); remaining > 0; {
+		count := min(remaining, 125)
+		spans = append(spans, SunSpecSourceSpan{LogicalViewID: uint64(len(spans) + 1), PDUOffset: 0, WordCount: uint16(count)})
+		remaining -= count
+	}
+	decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 708, ModelLength: 65534}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &maxKey, words: words, spans: spans})
+	if err != nil || !decoded.GeometryValid() || !decoded.Qualifies() || len(decoded.Facts()) != 65534 {
+		t.Fatalf("maximum geometry=%t qualifies=%t facts=%d err=%v", decoded.GeometryValid(), decoded.Qualifies(), len(decoded.Facts()), err)
+	}
+	var extent uint32
+	for _, span := range decoded.SourceSpans() {
+		if span.WordCount == 0 || span.WordCount > 125 {
+			t.Fatalf("maximum span=%#v", span)
+		}
+		extent += uint32(span.WordCount)
+	}
+	if extent != 65536 {
+		t.Fatalf("maximum span extent=%d", extent)
+	}
+	if _, ok := registry.definition(SunSpecDecoderKey{ModelID: 708, ModelLength: 65535, SchemaRevision: SunSpecModelsRevisionV2}); ok {
+		t.Fatal("over-boundary Model 708 must remain opaque")
 	}
 }
 
