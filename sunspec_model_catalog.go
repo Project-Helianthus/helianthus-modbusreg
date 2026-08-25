@@ -57,6 +57,7 @@ func standardSunSpecModelDefinitionsV2(revision SunSpecSchemaRevision) ([]sunSpe
 	}{
 		{701, 153, derMeasureACV2SunSpecPoints()},
 		{702, 50, derCapacityV2SunSpecPoints()},
+		{713, 7, derStorageCapacityV2SunSpecPoints()},
 	} {
 		definitions, err = appendSunSpecDefinition(definitions, revision, model.id, model.length, SunSpecTopologyNone, false, model.points)
 		if err != nil {

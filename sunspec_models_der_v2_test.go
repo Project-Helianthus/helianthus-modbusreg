@@ -16,7 +16,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			"SunSpec/models",
 			"https://github.com/sunspec/models",
 			"90b4a331dcca1d6eac69c1bead952fddcc5852e0",
-			"Models 701/153 and 702/50",
+			"Models 701/153, 702/50, and 713/7",
 			"modified by Helianthus",
 			"Apache License",
 			"Version 2.0, January 2004",
@@ -40,6 +40,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 		}{
 			{701, 153, 72, []string{"ID", "L", "ACType"}, "MnAlrmInfo"},
 			{702, 50, 51, []string{"ID", "L", "WMaxRtg"}, "S_SF"},
+			{713, 7, 9, []string{"ID", "L", "WHRtg"}, "Pct_SF"},
 		} {
 			definition, ok := registry.definition(SunSpecDecoderKey{ModelID: want.id, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2})
 			if !ok || len(definition.points) != want.points {
@@ -83,6 +84,49 @@ func TestSunSpecV2DERMeasurePreservesScaledUnsignedCounter(t *testing.T) {
 	decimal, ok := fact.Value.UnsignedDecimal()
 	if !ok || decimal != (SunSpecUnsignedDecimal{Coefficient: 0x8000000000000001, Exponent: -1}) {
 		t.Fatalf("unsigned decimal=%#v present=%v", decimal, ok)
+	}
+}
+
+func TestSunSpecV2DERStoragePreservesValueOrderAndScale(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	words := v2DERModelWords(t, registry, 713, 7, map[string][]uint16{
+		"WHRtg":   {100},
+		"WHAvail": {50},
+		"SoC":     {75},
+		"SoH":     {95},
+		"Sta":     {3},
+		"WH_SF":   {0},
+		"Pct_SF":  {0xffff},
+	})
+	key := SunSpecDecoderKey{ModelID: 713, ModelLength: 7, SchemaRevision: SunSpecModelsRevisionV2}
+	decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{
+		Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 713, ModelLength: 7}, SchemaRevision: SunSpecModelsRevisionV2,
+		Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []struct {
+		field       string
+		coefficient int64
+		exponent    int16
+	}{
+		{"sunspec.der.v2.713.WHRtg", 100, 0},
+		{"sunspec.der.v2.713.WHAvail", 50, 0},
+		{"sunspec.der.v2.713.SoC", 75, -1},
+		{"sunspec.der.v2.713.SoH", 95, -1},
+	} {
+		fact, ok := decoded.Fact(want.field)
+		if !ok {
+			t.Fatalf("fact %q absent", want.field)
+		}
+		value, ok := fact.Value.Decimal()
+		if !ok || value != (SunSpecDecimal{Coefficient: want.coefficient, Exponent: want.exponent}) {
+			t.Fatalf("fact %q decimal=%#v present=%v", want.field, value, ok)
+		}
 	}
 }
 
