@@ -2,6 +2,7 @@ package modbusreg
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -16,7 +17,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			"SunSpec/models",
 			"https://github.com/sunspec/models",
 			"90b4a331dcca1d6eac69c1bead952fddcc5852e0",
-			"Models 701/153, 702/50, and 713/7",
+			"Models 701/153, 702/50, 713/7, and 714 variable geometry",
 			"modified by Helianthus",
 			"Apache License",
 			"Version 2.0, January 2004",
@@ -127,6 +128,65 @@ func TestSunSpecV2DERStoragePreservesValueOrderAndScale(t *testing.T) {
 		if !ok || value != (SunSpecDecimal{Coefficient: want.coefficient, Exponent: want.exponent}) {
 			t.Fatalf("fact %q decimal=%#v present=%v", want.field, value, ok)
 		}
+	}
+}
+
+func TestSunSpecV2DERPortGeometryIsBoundedAndRawOnlyOnMismatch(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []struct {
+		ports, length uint16
+		points, facts int
+	}{
+		{0, 18, 13, 11},
+		{2, 68, 35, 33},
+		{uint16(maxSunSpecDERPorts), 65518, 13 + 11*int(maxSunSpecDERPorts), 11 + 11*int(maxSunSpecDERPorts)},
+	} {
+		definition, ok := registry.definition(SunSpecDecoderKey{ModelID: 714, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2})
+		if !ok || len(definition.points) != want.points {
+			t.Fatalf("N=%d definition=%v points=%d", want.ports, ok, len(definition.points))
+		}
+		if uint32(want.ports) == maxSunSpecDERPorts {
+			continue
+		}
+		words := make([]uint16, int(want.length)+2)
+		words[0], words[1], words[4] = 714, want.length, want.ports
+		key := SunSpecDecoderKey{ModelID: 714, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2}
+		decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 714, ModelLength: want.length}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words, spans: []SunSpecSourceSpan{{LogicalViewID: 7, PDUOffset: 0, WordCount: want.length + 2}}})
+		if err != nil || !decoded.GeometryValid() || len(decoded.Facts()) != want.facts {
+			t.Fatalf("N=%d geometry=%v facts=%d err=%v", want.ports, decoded.GeometryValid(), len(decoded.Facts()), err)
+		}
+		if want.ports == 2 {
+			ports := 0
+			for _, fact := range decoded.Facts() {
+				if fact.Repeated && fact.GroupID == "port" && fact.RepeatIndex >= 1 && fact.RepeatIndex <= 2 {
+					ports++
+				}
+			}
+			if ports != 22 || len(decoded.SourceSpans()) != 1 {
+				t.Fatalf("repeated facts=%d spans=%#v", ports, decoded.SourceSpans())
+			}
+		}
+	}
+	for _, want := range []struct {
+		name          string
+		length, ports uint16
+	}{
+		{name: "count mismatch", length: 68, ports: 1},
+		{name: "sentinel", length: 68, ports: 0xffff},
+		{name: "partial port group", length: 43, ports: 2},
+	} {
+		t.Run(want.name, func(t *testing.T) {
+			words := make([]uint16, int(want.length)+2)
+			words[0], words[1], words[4] = 714, want.length, want.ports
+			key := SunSpecDecoderKey{ModelID: 714, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2}
+			decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 714, ModelLength: want.length}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words})
+			if err != nil || decoded.GeometryValid() || decoded.Qualifies() || len(decoded.Facts()) != 0 || !reflect.DeepEqual(decoded.RawWords(), words) {
+				t.Fatalf("geometry=%v qualifies=%v facts=%d err=%v", decoded.GeometryValid(), decoded.Qualifies(), len(decoded.Facts()), err)
+			}
+		})
 	}
 }
 
