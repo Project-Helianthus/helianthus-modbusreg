@@ -51,6 +51,18 @@ func standardSunSpecModelDefinitionsV2(revision SunSpecSchemaRevision) ([]sunSpe
 	if err != nil {
 		return nil, err
 	}
+	for _, model := range []struct {
+		id, length uint16
+		points     []sunSpecPointDefinition
+	}{
+		{701, 153, derMeasureACV2SunSpecPoints()},
+		{702, 50, derCapacityV2SunSpecPoints()},
+	} {
+		definitions, err = appendSunSpecDefinition(definitions, revision, model.id, model.length, SunSpecTopologyNone, false, model.points)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return definitions, nil
 }
 

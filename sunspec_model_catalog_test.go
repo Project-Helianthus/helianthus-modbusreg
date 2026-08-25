@@ -53,17 +53,23 @@ func TestSunSpecModelCatalogMatchesPinnedAuthoritativeShapes(t *testing.T) {
 	}
 }
 
-func TestSunSpecV2CatalogContainsOnlyCurrentCommonModel(t *testing.T) {
+func TestSunSpecV2CatalogContainsOnlyCurrentAdmittedModels(t *testing.T) {
 	definitions, err := standardSunSpecModelDefinitions(SunSpecModelsRevisionV2)
 	if err != nil {
 		t.Fatalf("V2 catalog: %v", err)
 	}
-	if len(definitions) != 1 {
+	if len(definitions) != 3 {
 		t.Fatalf("V2 definitions=%d", len(definitions))
 	}
-	definition := definitions[0]
-	if definition.key != (SunSpecDecoderKey{ModelID: 1, ModelLength: 66, SchemaRevision: SunSpecModelsRevisionV2}) || definition.compatibility {
-		t.Fatalf("unexpected V2 Common definition: %#v", definition.key)
+	want := []SunSpecDecoderKey{
+		{ModelID: 1, ModelLength: 66, SchemaRevision: SunSpecModelsRevisionV2},
+		{ModelID: 701, ModelLength: 153, SchemaRevision: SunSpecModelsRevisionV2},
+		{ModelID: 702, ModelLength: 50, SchemaRevision: SunSpecModelsRevisionV2},
+	}
+	for index, key := range want {
+		if definitions[index].key != key || definitions[index].compatibility {
+			t.Fatalf("unexpected V2 definition %d: %#v", index, definitions[index].key)
+		}
 	}
 	for _, candidate := range definitions {
 		if candidate.key == (SunSpecDecoderKey{ModelID: 1, ModelLength: 65, SchemaRevision: SunSpecModelsRevisionV2}) {

@@ -98,13 +98,15 @@ func TestSunSpecValueFloatEnumBitfieldAndStringAreLossless(t *testing.T) {
 
 func TestSunSpecBitfield32DomainBoundary(t *testing.T) {
 	definition := sizedSunSpecPoint(SunSpecTypeBitfield32, 2)
+	definition.knownMask = uint64(1) << 31
+	definition.symbols = map[uint64]string{31: "HIGH_FLAG"}
 	valid := decodeSunSpecValue(definition, []uint16{0x7fff, 0xffff}, nil)
 	if bits, unknown, ok := valid.Bitfield(); valid.State() != SunSpecValueValid || !ok || bits != 0x7fffffff || unknown != 0x7fffffff {
 		t.Fatalf("valid boundary state=%s bits=%x unknown=%x ok=%v", valid.State(), bits, unknown, ok)
 	}
-	invalid := decodeSunSpecValue(definition, []uint16{0x8000, 0}, nil)
-	if _, _, ok := invalid.Bitfield(); invalid.State() != SunSpecValueInvalidEncoding || ok || !reflect.DeepEqual(invalid.RawWords(), []uint16{0x8000, 0}) {
-		t.Fatalf("invalid boundary=%#v", invalid)
+	high := decodeSunSpecValue(definition, []uint16{0x8000, 0}, nil)
+	if bits, unknown, ok := high.Bitfield(); high.State() != SunSpecValueValid || !ok || bits != 0x80000000 || unknown != 0 || !reflect.DeepEqual(high.BitfieldSymbols(), []string{"HIGH_FLAG"}) {
+		t.Fatalf("high boundary state=%s bits=%x unknown=%x symbols=%v ok=%v", high.State(), bits, unknown, high.BitfieldSymbols(), ok)
 	}
 	sentinel := decodeSunSpecValue(definition, []uint16{0xffff, 0xffff}, nil)
 	if sentinel.State() != SunSpecValueNotImplemented || !reflect.DeepEqual(sentinel.RawWords(), []uint16{0xffff, 0xffff}) {
@@ -129,14 +131,15 @@ func TestSunSpecExtendedValueTypesRetainExactState(t *testing.T) {
 		t.Fatalf("count sentinel state=%s", got.State())
 	}
 	definition := sizedSunSpecPoint(SunSpecTypeBitfield16, 1)
-	definition.knownMask = 0x000f
+	definition.knownMask = 0x800f
+	definition.symbols = map[uint64]string{15: "HIGH_FLAG"}
 	valid := decodeSunSpecValue(definition, []uint16{0x4011}, nil)
 	if bits, unknown, ok := valid.Bitfield(); valid.State() != SunSpecValueValid || !ok || bits != 0x4011 || unknown != 0x4010 {
 		t.Fatalf("bitfield16 state=%s bits=%x unknown=%x ok=%v", valid.State(), bits, unknown, ok)
 	}
-	invalid := decodeSunSpecValue(definition, []uint16{0x8000}, nil)
-	if invalid.State() != SunSpecValueInvalidEncoding || !reflect.DeepEqual(invalid.RawWords(), []uint16{0x8000}) {
-		t.Fatalf("bitfield16 invalid boundary=%#v", invalid)
+	high := decodeSunSpecValue(definition, []uint16{0x8000}, nil)
+	if bits, unknown, ok := high.Bitfield(); high.State() != SunSpecValueValid || !ok || bits != 0x8000 || unknown != 0 || !reflect.DeepEqual(high.BitfieldSymbols(), []string{"HIGH_FLAG"}) {
+		t.Fatalf("bitfield16 high boundary state=%s bits=%x unknown=%x symbols=%v ok=%v", high.State(), bits, unknown, high.BitfieldSymbols(), ok)
 	}
 	sentinel := decodeSunSpecValue(definition, []uint16{0xffff}, nil)
 	if sentinel.State() != SunSpecValueNotImplemented {
