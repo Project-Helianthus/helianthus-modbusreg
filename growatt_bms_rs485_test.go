@@ -28,7 +28,10 @@ func TestGrowattBMSReadOnlyObservationRetainsOnlyExactDeclaredSlices(t *testing.
 
 func TestGrowattBMSReadOnlyObservationRejectsAnythingOutsideTheFourSlices(t *testing.T) {
 	for name, mutate := range map[string]func(*GrowattBMSReadOnlyInput){
-		"broadcast":      func(input *GrowattBMSReadOnlyInput) { input.UnitID = 0 },
+		"broadcast": func(input *GrowattBMSReadOnlyInput) { input.UnitID = 0 },
+		"other function": func(input *GrowattBMSReadOnlyInput) {
+			input.Function = FunctionReadInputRegisters
+		},
 		"other revision": func(input *GrowattBMSReadOnlyInput) { input.Revision.HeaderVersion = "V2.1" },
 		"missing slice":  func(input *GrowattBMSReadOnlyInput) { input.Slices = input.Slices[:3] },
 		"coalesced range": func(input *GrowattBMSReadOnlyInput) {
@@ -53,7 +56,8 @@ func TestGrowattBMSReadOnlyObservationRejectsAnythingOutsideTheFourSlices(t *tes
 
 func validGrowattBMSReadOnlyInput() GrowattBMSReadOnlyInput {
 	return GrowattBMSReadOnlyInput{
-		UnitID: 1,
+		UnitID:   1,
+		Function: FunctionReadHoldingRegisters,
 		Revision: GrowattBMSRevisionTuple{
 			Family: "1xSxxP ESS", FileRevision: "Rev2.01", HeaderVersion: "V2.0", CumulativeRevision: "2.02",
 		},
