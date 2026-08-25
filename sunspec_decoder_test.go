@@ -129,15 +129,22 @@ func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
 			{ModelID: 808, ModelLength: 1, SchemaRevision: SunSpecModelsRevisionV2},
 			{ModelID: 809, ModelLength: 1, SchemaRevision: SunSpecModelsRevisionV2},
 		}
-		if len(v2Keys) != len(wantV2Static)+int(maxSunSpecDERPorts)+1+int(maxSunSpecBESSStrings)+1+int(maxSunSpecBESSModules)+1 {
+		if len(v2Keys) != len(wantV2Static)+int(maxSunSpecDERTripLVCurves)+1+int(maxSunSpecDERPorts)+1+int(maxSunSpecBESSStrings)+1+int(maxSunSpecBESSModules)+1 {
 			t.Fatalf("V2 key count=%d", len(v2Keys))
 		}
 		static := make(map[SunSpecDecoderKey]bool, len(wantV2Static))
 		for _, key := range wantV2Static {
 			static[key] = true
 		}
-		dynamicDER, dynamicBESSBanks, dynamicBESSStrings := 0, 0, 0
+		dynamicTripLV, dynamicDER, dynamicBESSBanks, dynamicBESSStrings := 0, 0, 0, 0
 		for _, key := range v2Keys {
+			if key.ModelID == 707 {
+				if key.ModelLength < 7 || uint32(key.ModelLength)-7 > maxSunSpecDERTripLVCurves {
+					t.Fatalf("V2 Model 707 dynamic key=%#v", key)
+				}
+				dynamicTripLV++
+				continue
+			}
 			if key.ModelID == 714 {
 				if key.ModelLength < 18 || (key.ModelLength-18)%25 != 0 {
 					t.Fatalf("V2 dynamic key=%#v", key)
@@ -164,8 +171,11 @@ func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
 			}
 			delete(static, key)
 		}
-		if dynamicDER != int(maxSunSpecDERPorts)+1 || dynamicBESSBanks != int(maxSunSpecBESSStrings)+1 || dynamicBESSStrings != int(maxSunSpecBESSModules)+1 || len(static) != 0 {
-			t.Fatalf("V2 DER dynamic=%d BESS banks=%d strings=%d missing static=%#v", dynamicDER, dynamicBESSBanks, dynamicBESSStrings, static)
+		if dynamicTripLV != int(maxSunSpecDERTripLVCurves)+1 || dynamicDER != int(maxSunSpecDERPorts)+1 || dynamicBESSBanks != int(maxSunSpecBESSStrings)+1 || dynamicBESSStrings != int(maxSunSpecBESSModules)+1 || len(static) != 0 {
+			t.Fatalf("V2 Model 707=%d DER=%d BESS banks=%d strings=%d missing static=%#v", dynamicTripLV, dynamicDER, dynamicBESSBanks, dynamicBESSStrings, static)
+		}
+		if _, ok := registries[SunSpecModelsRevisionV2].definition(SunSpecDecoderKey{ModelID: 707, ModelLength: 65535, SchemaRevision: SunSpecModelsRevisionV2}); ok {
+			t.Fatal("V2 resolved Model 707 above the offline extent boundary")
 		}
 		if _, ok := registries[SunSpecModelsRevisionV2].definition(SunSpecDecoderKey{ModelID: 1, ModelLength: 65, SchemaRevision: SunSpecModelsRevisionV2}); ok {
 			t.Fatal("V2 resolved V1 compatibility Common")
