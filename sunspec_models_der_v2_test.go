@@ -20,7 +20,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			"90b4a331dcca1d6eac69c1bead952fddcc5852e0",
 			"Models 701/153, 702/50, 703/17, 713/7,",
 			"714 variable geometry, 715/7, 802/62, 803 variable geometry, 804 variable",
-			"geometry, and 805/42",
+			"geometry, 805/42, and 806/1",
 			"modified by Helianthus",
 			"Apache License",
 			"Version 2.0, January 2004",
@@ -49,6 +49,7 @@ func TestSunSpecV2DERDefinitionsAndApacheNotice(t *testing.T) {
 			{715, 7, 7, []string{"ID", "L", "LocRemCtl"}, "OpCtl"},
 			{802, 62, 58, []string{"ID", "L", "AHRtg"}, "W_SF"},
 			{805, 42, 28, []string{"ID", "L", "StrIdx"}, "Tmp_SF"},
+			{806, 1, 3, []string{"ID", "L", "BatTBD"}, "BatTBD"},
 		} {
 			definition, ok := registry.definition(SunSpecDecoderKey{ModelID: want.id, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2})
 			if !ok || len(definition.points) != want.points {
@@ -115,6 +116,34 @@ func TestSunSpecV2BESSModuleRetainsPinnedPointOrderTypesAndScales(t *testing.T) 
 		if _, ok := decoded.Fact(fieldID); !ok {
 			t.Fatalf("Model 805 observed fact %q absent", fieldID)
 		}
+	}
+}
+
+func TestSunSpecV2FlowBatteryRetainsStructuralObservedState(t *testing.T) {
+	registry, err := NewStandardSunSpecDecoderRegistry(SunSpecModelsRevisionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, ok := registry.definition(SunSpecDecoderKey{ModelID: 806, ModelLength: 1, SchemaRevision: SunSpecModelsRevisionV2})
+	if !ok {
+		t.Fatal("Model 806/1 definition absent")
+	}
+	want := []string{"ID:uint16:1::0:false", "L:uint16:1::0:false", "BatTBD:uint16:1::0:false"}
+	got := make([]string, len(definition.points))
+	for index, point := range definition.points {
+		got[index] = fmt.Sprintf("%s:%s:%d:%s:%d:%t", point.name, point.pointType, point.size, point.scaleFactor, point.repeatIndex, point.repeated)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Model 806 signature=%q want=%q", got, want)
+	}
+	words := v2DERModelWords(t, registry, 806, 1, map[string][]uint16{"BatTBD": {7}})
+	key := SunSpecDecoderKey{ModelID: 806, ModelLength: 1, SchemaRevision: SunSpecModelsRevisionV2}
+	decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 806, ModelLength: 1}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words})
+	if err != nil || !decoded.GeometryValid() || !decoded.Qualifies() {
+		t.Fatalf("Model 806 observed state geometry=%t qualifies=%t err=%v", decoded.GeometryValid(), decoded.Qualifies(), err)
+	}
+	if _, ok := decoded.Fact("sunspec.der.v2.806.BatTBD"); !ok {
+		t.Fatal("Model 806 structural observed fact absent")
 	}
 }
 

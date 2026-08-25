@@ -446,6 +446,14 @@ func bessModuleV2SunSpecPoints() []sunSpecPointDefinition {
 	}
 }
 
+func flowBatteryV2SunSpecPoints() []sunSpecPointDefinition {
+	return []sunSpecPointDefinition{
+		v2DERPoint("806", "ID", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("806", "L", SunSpecTypeUint16, "", "", true),
+		v2DERPoint("806", "BatTBD", SunSpecTypeUint16, "", "", false),
+	}
+}
+
 func v2DERPoint(model, name string, pointType SunSpecPointType, unit, scale string, mandatory bool) sunSpecPointDefinition {
 	symbols := map[uint64]string(nil)
 	if model == "701" && name == "ACType" {
