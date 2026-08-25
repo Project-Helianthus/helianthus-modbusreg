@@ -33,7 +33,7 @@ func DecodeTeslaFC100TEDAPI(payload []byte) (TeslaFC100TEDAPI, error) {
 	}
 	field := key >> 3
 	wireType := uint8(key & 0x07)
-	if consumed == 0 || field == 0 || wireType > 5 {
+	if consumed == 0 || field == 0 || field > (1<<29)-1 || wireType > 5 {
 		return TeslaFC100TEDAPI{}, fmt.Errorf("tesla FC100 TEDAPI key is invalid")
 	}
 	digest := sha256.Sum256(message)
