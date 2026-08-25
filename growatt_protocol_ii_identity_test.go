@@ -43,6 +43,13 @@ func TestGrowattProtocolIIIdentityAcceptsOnlyTheThreeDeclaredFamilies(t *testing
 	}
 }
 
+func TestGrowattProtocolIIIdentityZeroValueAccessorsAreSafe(t *testing.T) {
+	var observation GrowattProtocolIIIdentityObservation
+	if observation.DeviceType() != 0 || observation.ModelBuild() != [2]uint16{} || observation.ProtocolVersion() != 0 {
+		t.Fatalf("zero-value accessors returned non-zero observation: %#v", observation)
+	}
+}
+
 func TestGrowattProtocolIIIdentityRejectsOutOfContractInputs(t *testing.T) {
 	for name, mutate := range map[string]func(*GrowattProtocolIIIdentityInput){
 		"broadcast unit": func(input *GrowattProtocolIIIdentityInput) { input.UnitID = 0 },

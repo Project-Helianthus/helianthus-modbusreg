@@ -35,10 +35,13 @@ type GrowattProtocolIIIdentityInput struct {
 // snapshot. It does not create a detector, standard registry match, catalog
 // entry, runtime activation, telemetry publication, or write authority.
 type GrowattProtocolIIIdentityObservation struct {
-	unitID       byte
-	profile      GrowattProtocolIIIdentityProfile
-	slices       []GrowattProtocolIIIdentitySlice
-	firmwareText string
+	unitID          byte
+	profile         GrowattProtocolIIIdentityProfile
+	slices          []GrowattProtocolIIIdentitySlice
+	firmwareText    string
+	deviceType      uint16
+	modelBuild      [2]uint16
+	protocolVersion uint16
 }
 
 func (o GrowattProtocolIIIdentityObservation) UnitID() byte { return o.unitID }
@@ -48,16 +51,10 @@ func (o GrowattProtocolIIIdentityObservation) Profile() GrowattProtocolIIIdentit
 func (o GrowattProtocolIIIdentityObservation) Slices() []GrowattProtocolIIIdentitySlice {
 	return cloneGrowattProtocolIIIdentitySlices(o.slices)
 }
-func (o GrowattProtocolIIIdentityObservation) FirmwareText() string { return o.firmwareText }
-func (o GrowattProtocolIIIdentityObservation) DeviceType() uint16 {
-	return o.slices[1].Words[0]
-}
-func (o GrowattProtocolIIIdentityObservation) ModelBuild() [2]uint16 {
-	return [2]uint16{o.slices[2].Words[0], o.slices[2].Words[1]}
-}
-func (o GrowattProtocolIIIdentityObservation) ProtocolVersion() uint16 {
-	return o.slices[3].Words[0]
-}
+func (o GrowattProtocolIIIdentityObservation) FirmwareText() string    { return o.firmwareText }
+func (o GrowattProtocolIIIdentityObservation) DeviceType() uint16      { return o.deviceType }
+func (o GrowattProtocolIIIdentityObservation) ModelBuild() [2]uint16   { return o.modelBuild }
+func (o GrowattProtocolIIIdentityObservation) ProtocolVersion() uint16 { return o.protocolVersion }
 
 // OutboundAllowed is permanently false: identity evidence cannot authorize a
 // control operation or another Modbus request.
@@ -92,10 +89,13 @@ func DecodeGrowattProtocolIIIdentity(input GrowattProtocolIIIdentityInput) (Grow
 	}
 
 	return GrowattProtocolIIIdentityObservation{
-		unitID:       input.UnitID,
-		profile:      input.Profile,
-		slices:       cloneGrowattProtocolIIIdentitySlices(input.Slices),
-		firmwareText: firmware,
+		unitID:          input.UnitID,
+		profile:         input.Profile,
+		slices:          cloneGrowattProtocolIIIdentitySlices(input.Slices),
+		firmwareText:    firmware,
+		deviceType:      input.Slices[1].Words[0],
+		modelBuild:      [2]uint16{input.Slices[2].Words[0], input.Slices[2].Words[1]},
+		protocolVersion: input.Slices[3].Words[0],
 	}, nil
 }
 
