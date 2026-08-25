@@ -1,5 +1,37 @@
 package modbusreg
 
+import "fmt"
+
+const maxSunSpecDERPorts uint32 = (65535 - 18) / 25
+
+func derDCMeasureV2SunSpecDefinition(length uint16) (sunSpecModelDefinition, error) {
+	if length < 18 || (uint32(length)-18)%25 != 0 {
+		return sunSpecModelDefinition{}, fmt.Errorf("SunSpec V2 Model 714 geometry is invalid")
+	}
+	ports := (uint32(length) - 18) / 25
+	if ports > maxSunSpecDERPorts {
+		return sunSpecModelDefinition{}, fmt.Errorf("SunSpec V2 Model 714 port count exceeds geometry")
+	}
+	points := []sunSpecPointDefinition{v2DERPoint("714", "ID", SunSpecTypeUint16, "", "", true), v2DERPoint("714", "L", SunSpecTypeUint16, "", "", true), v2DERPoint("714", "PrtAlrms", SunSpecTypeBitfield32, "", "", false), v2DERPoint("714", "NPrt", SunSpecTypeCount, "", "", false), v2DERPoint("714", "DCA", SunSpecTypeInt16, "A", "DCA_SF", false), v2DERPoint("714", "DCW", SunSpecTypeInt16, "W", "DCW_SF", false), v2DERPoint("714", "DCWhInj", SunSpecTypeUint64, "Wh", "DCWH_SF", false), v2DERPoint("714", "DCWhAbs", SunSpecTypeUint64, "Wh", "DCWH_SF", false), v2DERPoint("714", "DCA_SF", SunSpecTypeScaleFactor, "", "", false), v2DERPoint("714", "DCV_SF", SunSpecTypeScaleFactor, "", "", false), v2DERPoint("714", "DCW_SF", SunSpecTypeScaleFactor, "", "", false), v2DERPoint("714", "DCWH_SF", SunSpecTypeScaleFactor, "", "", false), v2DERPoint("714", "Tmp_SF", SunSpecTypeScaleFactor, "", "", false)}
+	for i := uint32(1); i <= ports; i++ {
+		for _, p := range []sunSpecPointDefinition{v2DERPoint("714", "PrtTyp", SunSpecTypeEnum16, "", "", false), v2DERPoint("714", "ID", SunSpecTypeUint16, "", "", false), v2DERStringPoint("714", "IDStr", 8), v2DERPoint("714", "DCA", SunSpecTypeInt16, "A", "DCA_SF", false), v2DERPoint("714", "DCV", SunSpecTypeUint16, "V", "DCV_SF", false), v2DERPoint("714", "DCW", SunSpecTypeInt16, "W", "DCW_SF", false), v2DERPoint("714", "DCWhInj", SunSpecTypeUint64, "Wh", "DCWH_SF", false), v2DERPoint("714", "DCWhAbs", SunSpecTypeUint64, "Wh", "DCWH_SF", false), v2DERPoint("714", "Tmp", SunSpecTypeInt16, "C", "Tmp_SF", false), v2DERPoint("714", "DCSta", SunSpecTypeEnum16, "", "", false), v2DERPoint("714", "DCAlrm", SunSpecTypeBitfield32, "", "", false)} {
+			p.groupID = "port"
+			p.repeatIndex = uint16(i)
+			p.repeated = true
+			points = append(points, p)
+		}
+	}
+	defs, err := appendSunSpecDefinition(nil, SunSpecModelsRevisionV2, 714, length, SunSpecTopologyNone, false, points)
+	if err != nil {
+		return sunSpecModelDefinition{}, err
+	}
+	d := defs[0]
+	d.geometry = func(words []uint16) bool {
+		return len(words) == int(length)+2 && len(words) > 4 && words[4] != 0xffff && uint32(length) == 18+25*uint32(words[4])
+	}
+	return d, nil
+}
+
 func derMeasureACV2SunSpecPoints() []sunSpecPointDefinition {
 	points := []sunSpecPointDefinition{
 		v2DERPoint("701", "ID", SunSpecTypeUint16, "", "", true),
@@ -130,6 +162,12 @@ func v2DERPoint(model, name string, pointType SunSpecPointType, unit, scale stri
 		symbols = map[uint64]string{0: "SINGLE_PHASE", 1: "SPLIT_PHASE", 2: "THREE_PHASE"}
 	}
 	return sunSpecPoint(name, "sunspec.der.v2."+model+"."+name, pointType, v2DERPointWords(pointType), unit, scale, mandatory, symbols, sunSpecKnownMask(symbols))
+}
+
+func v2DERStringPoint(model, name string, words uint16) sunSpecPointDefinition {
+	point := v2DERPoint(model, name, SunSpecTypeString, "", "", false)
+	point.size = words
+	return point
 }
 
 func v2DERPointWords(pointType SunSpecPointType) uint16 {
