@@ -139,13 +139,21 @@ func TestSunSpecQualificationObservationJSONGoldenAndBoundedReplay(t *testing.T)
 
 func TestSunSpecQualificationObservationRetainsCoalescedTCPProvenance(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
+	baseline, err := NewSunSpecQualificationObservation(registry, qualificationSnapshot(t, registry))
+	if err != nil {
+		t.Fatalf("NewSunSpecQualificationObservation(baseline): %v", err)
+	}
 	snapshot, expected := qualificationSnapshotWithCoalescedTCPView(t, registry)
 	observation, err := NewSunSpecQualificationObservation(registry, snapshot)
 	if err != nil {
 		t.Fatalf("NewSunSpecQualificationObservation: %v", err)
 	}
 	if !observation.Capability().Admitted() ||
-		observation.Flavor().FlavorID() != SunSpecFroniusObservedFlavorV11ID {
+		observation.Capability().Reason() != baseline.Capability().Reason() ||
+		observation.Capability().ProfileID() != baseline.Capability().ProfileID() ||
+		observation.Flavor().FlavorID() != SunSpecFroniusObservedFlavorV11ID ||
+		observation.Flavor().Reason() != baseline.Flavor().Reason() ||
+		!reflect.DeepEqual(observation.Chain(), baseline.Chain()) {
 		t.Fatalf("terminal qualification changed: capability=%#v flavor=%#v", observation.Capability(), observation.Flavor())
 	}
 	first, err := json.Marshal(observation)
