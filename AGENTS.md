@@ -31,13 +31,28 @@ than wholesale-replacing state.
    conformance check before pushing. Include exact commands and results in the
    pull request.
 5. Open a linked pull request stating scope, native evidence, tests,
-   documentation-gate impact, and residual risk.
+   documentation-gate impact, any required companion documentation PR, and
+   residual risk.
 6. Resolve valid P0-P2 findings, then obtain a fresh exact-HEAD
    `NO_BLOCKING_FINDINGS` review verdict. P3/P4 findings are triaged as fix,
    backlog, or by design.
 7. Squash merge only after all applicable checks and gates are green and the
    exact-HEAD blocker review is clear. Verify remote `main`, issue, PR, and
    branch state, then stop at the requested boundary.
+
+## Documentation and evidence gate
+
+Profile, codec, detector, qualification, native-decoding, capability,
+projection-loss, or exported-behavior changes require a public documentation
+and evidence update in
+https://github.com/Project-Helianthus/helianthus-docs-modbus. Open the companion
+documentation PR in the same delivery cycle and merge it first or together with
+the code PR. A missing, red, or blocking companion gate prevents this repository
+from merging.
+
+Documentation-only instruction changes that establish no protocol or profile
+claim may record the gate as not applicable. Publish only redacted,
+redistributable evidence and keep hypotheses distinct from qualified behavior.
 
 ## Safety and public boundaries
 
