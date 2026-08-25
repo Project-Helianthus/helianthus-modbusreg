@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestGrowattDispositionFailsClosedWithoutQualifiedEvidence(t *testing.T) {
+func TestGrowattProtocolIIDispositionAdmitsOnlyOfflineIdentity(t *testing.T) {
 	data, err := os.ReadFile("profiles/vendor/growatt/disposition.json")
 	if err != nil {
 		t.Fatal(err)
