@@ -9,7 +9,7 @@ import (
 )
 
 func TestGrowattBMSRS485RTUObserverReadsExactSlicesInOrder(t *testing.T) {
-	session := &growattBMSRTUSessionFake{wordsByOffset: growattBMSRTUFixtureWords()}
+	session := &growattBMSRTUSessionFake{wordsByOffset: growattBMSRTUFixtureWords(), failAt: -1, mismatchAt: -1}
 	observer, err := NewGrowattBMSRS485RTUObserver(
 		GrowattBMSRevisionTuple{Family: "1xSxxP ESS", FileRevision: "Rev2.01", HeaderVersion: "V2.0", CumulativeRevision: "2.02"},
 		7,
@@ -33,6 +33,9 @@ func TestGrowattBMSRS485RTUObserverReadsExactSlicesInOrder(t *testing.T) {
 			if got[index] != want[index] {
 				t.Fatalf("calls=%#v", got)
 			}
+			if session.functions[index] != modbus.FunctionReadHoldingRegisters {
+				t.Fatalf("functions=%#v", session.functions)
+			}
 		}
 	}
 	if session.unitID != 7 {
@@ -41,7 +44,7 @@ func TestGrowattBMSRS485RTUObserverReadsExactSlicesInOrder(t *testing.T) {
 }
 
 func TestGrowattBMSRS485RTUObserverStopsWithoutPartialStatus(t *testing.T) {
-	session := &growattBMSRTUSessionFake{wordsByOffset: growattBMSRTUFixtureWords(), failAt: 1}
+	session := &growattBMSRTUSessionFake{wordsByOffset: growattBMSRTUFixtureWords(), failAt: 1, mismatchAt: -1}
 	observer, err := NewGrowattBMSRS485RTUObserver(
 		GrowattBMSRevisionTuple{Family: "1xSxxP ESS", FileRevision: "Rev2.01", HeaderVersion: "V2.0", CumulativeRevision: "2.02"},
 		7,
@@ -58,7 +61,7 @@ func TestGrowattBMSRS485RTUObserverStopsWithoutPartialStatus(t *testing.T) {
 }
 
 func TestGrowattBMSRS485RTUObserverRejectsMismatchedResponse(t *testing.T) {
-	session := &growattBMSRTUSessionFake{wordsByOffset: growattBMSRTUFixtureWords(), mismatchAt: 2}
+	session := &growattBMSRTUSessionFake{wordsByOffset: growattBMSRTUFixtureWords(), failAt: -1, mismatchAt: 2}
 	observer, err := NewGrowattBMSRS485RTUObserver(
 		GrowattBMSRevisionTuple{Family: "1xSxxP ESS", FileRevision: "Rev2.01", HeaderVersion: "V2.0", CumulativeRevision: "2.02"},
 		7,
@@ -75,7 +78,7 @@ func TestGrowattBMSRS485RTUObserverRejectsMismatchedResponse(t *testing.T) {
 }
 
 func TestGrowattBMSRS485RTUObserverRejectsInvalidCallerSelectionBeforeRead(t *testing.T) {
-	session := &growattBMSRTUSessionFake{wordsByOffset: growattBMSRTUFixtureWords()}
+	session := &growattBMSRTUSessionFake{wordsByOffset: growattBMSRTUFixtureWords(), failAt: -1, mismatchAt: -1}
 	if observer, err := NewGrowattBMSRS485RTUObserver(GrowattBMSRevisionTuple{}, 0, session); err == nil || observer != nil || len(session.calls) != 0 {
 		t.Fatalf("observer/error/calls=%#v/%v/%#v", observer, err, session.calls)
 	}
@@ -84,6 +87,7 @@ func TestGrowattBMSRS485RTUObserverRejectsInvalidCallerSelectionBeforeRead(t *te
 type growattBMSRTUSessionFake struct {
 	wordsByOffset map[uint16][]uint16
 	calls         [][2]uint16
+	functions     []modbus.FunctionCode
 	unitID        byte
 	failAt        int
 	mismatchAt    int
@@ -96,6 +100,7 @@ func (session *growattBMSRTUSessionFake) ReadHolding(
 ) (modbus.ReadRegistersResponse, error) {
 	session.unitID = unitID
 	session.calls = append(session.calls, [2]uint16{request.Offset(), request.Quantity()})
+	session.functions = append(session.functions, request.Function())
 	index := len(session.calls) - 1
 	if index == session.failAt {
 		return modbus.ReadRegistersResponse{}, errors.New("correlated read failed")
