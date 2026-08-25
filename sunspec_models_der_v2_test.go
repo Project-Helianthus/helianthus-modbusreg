@@ -668,8 +668,9 @@ func TestSunSpecV2DERTripLVGeometryIsBoundedAndOfflineOnly(t *testing.T) {
 			key := SunSpecDecoderKey{ModelID: 707, ModelLength: want.length, SchemaRevision: SunSpecModelsRevisionV2}
 			words := make([]uint16, int(want.length)+2)
 			words[0], words[1], words[6] = 707, want.length, want.count
-			decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 707, ModelLength: want.length}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words})
-			if err != nil || decoded.GeometryValid() || decoded.Qualifies() || len(decoded.Facts()) != 0 || !reflect.DeepEqual(decoded.RawWords(), words) {
+			spans := []SunSpecSourceSpan{{LogicalViewID: 7, PDUOffset: 0, WordCount: want.length + 2}}
+			decoded, err := registry.DecodeOccurrence(SunSpecOccurrence{Ordinal: 1, WireKey: SunSpecWireKey{ModelID: 707, ModelLength: want.length}, SchemaRevision: SunSpecModelsRevisionV2, Disposition: SunSpecChainDispositionAdmitted, decoderKey: &key, words: words, spans: spans})
+			if err != nil || decoded.GeometryValid() || decoded.Qualifies() || len(decoded.Facts()) != 0 || !reflect.DeepEqual(decoded.RawWords(), words) || !reflect.DeepEqual(decoded.SourceSpans(), spans) {
 				t.Fatalf("geometry=%v qualifies=%v facts=%d err=%v", decoded.GeometryValid(), decoded.Qualifies(), len(decoded.Facts()), err)
 			}
 		})
