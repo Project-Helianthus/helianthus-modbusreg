@@ -59,6 +59,12 @@ func TestTeslaGen3HSCNativeOperationRecordAllowsOpaqueFC101AndFC102(t *testing.T
 func TestTeslaGen3HSCNativeOperationRecordRejectsInvalidPayloadAndContext(t *testing.T) {
 	if _, err := NewTeslaGen3HSCNativeOperationRecord(TeslaGen3HSCNativeOperationRecordConfig{
 		Profile: TeslaHSCProfileName, ProfileVersion: TeslaHSCCompatibilityV1,
+		Function: 101, Direction: TeslaGen3HSCRequestDirection, Outcome: TeslaGen3HSCExceptionOutcome,
+	}); err == nil {
+		t.Fatal("accepted exception request")
+	}
+	if _, err := NewTeslaGen3HSCNativeOperationRecord(TeslaGen3HSCNativeOperationRecordConfig{
+		Profile: TeslaHSCProfileName, ProfileVersion: TeslaHSCCompatibilityV1,
 		Function: 100, Direction: TeslaGen3HSCResponseDirection, Outcome: TeslaGen3HSCNormalOutcome,
 	}); err == nil {
 		t.Fatal("accepted unqualified FC100 context")

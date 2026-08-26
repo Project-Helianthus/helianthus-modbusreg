@@ -61,6 +61,9 @@ func NewTeslaGen3HSCNativeOperationRecord(config TeslaGen3HSCNativeOperationReco
 	if config.Outcome != TeslaGen3HSCNormalOutcome && config.Outcome != TeslaGen3HSCExceptionOutcome {
 		return TeslaGen3HSCNativeOperationRecord{}, fmt.Errorf("tesla Gen3 HSC outcome is invalid")
 	}
+	if config.Direction == TeslaGen3HSCRequestDirection && config.Outcome == TeslaGen3HSCExceptionOutcome {
+		return TeslaGen3HSCNativeOperationRecord{}, fmt.Errorf("tesla Gen3 HSC exception must be a response")
+	}
 	if len(config.Payload) > maxTeslaHSCPayload {
 		return TeslaGen3HSCNativeOperationRecord{}, fmt.Errorf("tesla Gen3 HSC native payload exceeds bound")
 	}
