@@ -66,16 +66,21 @@ type TeslaFC100OperationNames struct {
 }
 
 var teslaFC100OperationNames = map[TeslaFC100Operation]TeslaFC100OperationNames{
-	TeslaFC100OperationCommonSystemInfo:      {"CommonAPIGetSystemInfo", "CommonSystemInfo", []string{"device_id", "din", "firmware_version", "system_update", "device_type"}},
-	TeslaFC100OperationCommonWifiScan:        {"CommonAPIWifiScan", "WifiScanResponse", []string{"wifi_networks", "ssid", "rssi_value", "rssi", "security_type"}},
-	TeslaFC100OperationWCGetVitals:           {"GetVitals", "WCVitals", nil},
-	TeslaFC100OperationWCGetLifetimeStats:    {"GetLifetimeStats", "WCLifetimeStats", []string{"uptime_s", "alert_count", "contactor_cycles", "contactor_cycles_loaded", "connector_cycles", "thermal_foldbacks", "avg_startup_temp_c", "charge_starts", "charging_time_s", "charging_energy"}},
-	TeslaFC100OperationWCGetConfig:           {"GetConfig", "WCConfig", []string{"settings", "wifi_config", "wifi", "meters", "charge_schedule", "ocpp_settings", "vehicle_to_home"}},
-	TeslaFC100OperationWCGetSystemInfo:       {"GetSystemInfo", "WCGenealogy", []string{"region", "handle_type", "hardware_features"}},
-	TeslaFC100OperationWCGetLoadSharingState: {"GetLoadSharingNetworkState", "WCLoadSharingNetworkState", []string{"devices", "leader_state", "settings", "status", "limits"}},
-	TeslaFC100OperationWCGetPPU:              {"GetPpuSettings", "WCPpuConfig", []string{"session_reporting_mode"}},
-	TeslaFC100OperationWCGetProvisional:      {"GetProvisionalOperationalParams", "WCProvisionalOperationalParams", []string{"limit_current_max_amps", "limit_timeout_s", "inhibit_charging", "configured_current_limit_amps"}},
-	TeslaFC100OperationWCGetOperational:      {"GetOperationalSettings", "WCOperationalSettingsConfig", []string{"operational_mode", "emit_increased_telemetry"}},
+	TeslaFC100OperationCommonSystemInfo:         {"CommonAPIGetSystemInfo", "CommonSystemInfo", []string{"device_id", "din", "firmware_version", "system_update", "device_type"}},
+	TeslaFC100OperationCommonWifiScan:           {"CommonAPIWifiScan", "WifiScanResponse", []string{"wifi_networks", "ssid", "rssi_value", "rssi", "security_type"}},
+	TeslaFC100OperationWCGetVitals:              {"GetVitals", "WCVitals", nil},
+	TeslaFC100OperationWCGetLifetimeStats:       {"GetLifetimeStats", "WCLifetimeStats", []string{"uptime_s", "alert_count", "contactor_cycles", "contactor_cycles_loaded", "connector_cycles", "thermal_foldbacks", "avg_startup_temp_c", "charge_starts", "charging_time_s", "charging_energy"}},
+	TeslaFC100OperationWCGetConfig:              {"GetConfig", "WCConfig", []string{"settings", "wifi_config", "wifi", "meters", "charge_schedule", "ocpp_settings", "vehicle_to_home"}},
+	TeslaFC100OperationWCGetSystemInfo:          {"GetSystemInfo", "WCGenealogy", []string{"region", "handle_type", "hardware_features"}},
+	TeslaFC100OperationWCGetLoadSharingState:    {"GetLoadSharingNetworkState", "WCLoadSharingNetworkState", []string{"devices", "leader_state", "settings", "status", "limits"}},
+	TeslaFC100OperationWCGetPPU:                 {"GetPpuSettings", "WCPpuConfig", []string{"session_reporting_mode"}},
+	TeslaFC100OperationWCGetProvisional:         {"GetProvisionalOperationalParams", "WCProvisionalOperationalParams", []string{"limit_current_max_amps", "limit_timeout_s", "inhibit_charging", "configured_current_limit_amps"}},
+	TeslaFC100OperationWCGetOperational:         {"GetOperationalSettings", "WCOperationalSettingsConfig", []string{"operational_mode", "emit_increased_telemetry"}},
+	TeslaFC100OperationWCGetAccessControl:       {"GetAccessControlSettings", "WCAccessControlEntry", []string{"vin", "name", "model", "model_year", "drive_type"}},
+	TeslaFC100OperationWCConfigureAccessControl: {"ConfigureAccessControlSettings", "WCAccessControlEntry", []string{"operation", "vin", "name"}},
+	TeslaFC100OperationWCGetRecentVehicles:      {"GetRecentVehicles", "RecentVehicles", []string{"recent_vehicles", "vin"}},
+	TeslaFC100OperationWCGetOCPPSecurity:        {"GetOcppSecurityParameter", "OcppSecurityParameter", []string{"security_parameter_type", "security_parameter"}},
+	TeslaFC100OperationNeurioConfigureCTs:       {"NeurioMeterAPIConfigureCts", "ConfigureCtsResponse", []string{"serial", "ct_config", "location", "real_power_scale_factor"}},
 }
 
 // TeslaFC100RecoveredNames returns independent recovered names for one

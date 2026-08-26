@@ -74,3 +74,12 @@ func TestTeslaFC100OperationFoundationRejectsInvalidTerminalSequences(t *testing
 		}
 	}
 }
+
+func TestTeslaFC100RecoveredNamesCoverAccessVehiclesAndOCPP(t *testing.T) {
+	for _, operation := range []TeslaFC100Operation{TeslaFC100OperationWCGetAccessControl, TeslaFC100OperationWCConfigureAccessControl, TeslaFC100OperationWCGetRecentVehicles, TeslaFC100OperationWCGetOCPPSecurity, TeslaFC100OperationNeurioConfigureCTs} {
+		names, ok := TeslaFC100RecoveredNames(operation)
+		if !ok || names.Request == "" || names.Response == "" || len(names.Fields) == 0 {
+			t.Fatalf("missing recovered names for %s: %#v", operation, names)
+		}
+	}
+}
