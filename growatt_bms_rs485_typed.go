@@ -53,8 +53,8 @@ func (status GrowattBMSTypedReadOnlyStatus) NativeObservation() GrowattBMSReadOn
 	}
 }
 
-// OutboundAllowed is permanently false. Typed observation data cannot
-// authorize a BMS request or a control operation.
+// OutboundAllowed is false for this typed observation. A separate exact
+// operation contract owns any BMS request or control decision.
 func (GrowattBMSTypedReadOnlyStatus) OutboundAllowed() bool { return false }
 
 // DecodeGrowattBMSTypedReadOnlyStatus decodes only the field definitions
