@@ -71,6 +71,16 @@ func TestTeslaGen3HSCProfileRequiresEveryCapability(t *testing.T) {
 			if err != nil || profile.ExchangeEligible() {
 				t.Fatalf("profile=%#v err=%v", profile, err)
 			}
+			candidateConfig := config
+			candidateConfig.Version = "25.1.0"
+			candidate, err := NewTeslaGen3HSCProfile(candidateConfig)
+			wantDisposition := TeslaGen3HSCVersionUnknown
+			if denied == "enabled" {
+				wantDisposition = TeslaGen3HSCVersionCompatibleCandidate
+			}
+			if err != nil || candidate.VersionDisposition() != wantDisposition || candidate.ExchangeEligible() {
+				t.Fatalf("candidate=%#v err=%v", candidate, err)
+			}
 		})
 	}
 }

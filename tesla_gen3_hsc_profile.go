@@ -47,7 +47,9 @@ func NewTeslaGen3HSCProfile(config TeslaGen3HSCProfileConfig) (TeslaGen3HSCProfi
 		case "24.28.3", "24.44.3":
 			disposition = TeslaGen3HSCVersionKnownObservation
 		default:
-			disposition = TeslaGen3HSCVersionCompatibleCandidate
+			if config.ActivationCapable && config.PrivateFunctionCapable && config.OperationCapable {
+				disposition = TeslaGen3HSCVersionCompatibleCandidate
+			}
 		}
 	}
 	return TeslaGen3HSCProfile{config: config, disposition: disposition}, nil
