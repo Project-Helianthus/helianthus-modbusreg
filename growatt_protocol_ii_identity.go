@@ -58,8 +58,8 @@ func (o GrowattProtocolIIIdentityObservation) DeviceType() uint16      { return 
 func (o GrowattProtocolIIIdentityObservation) ModelBuild() [2]uint16   { return o.modelBuild }
 func (o GrowattProtocolIIIdentityObservation) ProtocolVersion() uint16 { return o.protocolVersion }
 
-// OutboundAllowed is permanently false: identity evidence cannot authorize a
-// control operation or another Modbus request.
+// OutboundAllowed is false for this identity observation. It cannot authorize
+// a separate Modbus request; an operation-specific contract owns that decision.
 func (GrowattProtocolIIIdentityObservation) OutboundAllowed() bool { return false }
 
 // DecodeGrowattProtocolIIIdentity validates the five individually bounded
