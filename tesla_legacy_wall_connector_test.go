@@ -90,3 +90,23 @@ func TestTeslaLegacyWallConnectorRejectsMalformedFramesBeforeReplay(t *testing.T
 		}
 	}
 }
+
+func TestTeslaLegacyWallConnectorRoundTripsMaximumEscapedMessage(t *testing.T) {
+	payload := bytes.Repeat([]byte{0xc0}, maxTeslaLegacyWallConnectorMessage-3)
+	wire, err := EncodeTeslaLegacyWallConnectorFrame(
+		TeslaLegacyCommand{Prefix: 0xfc, Opcode: 0xa1}, payload,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wire) <= maxTeslaLegacyWallConnectorMessage+2 {
+		t.Fatalf("wire length=%d does not exercise escape expansion", len(wire))
+	}
+	frame, err := DecodeTeslaLegacyWallConnectorFrame(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(frame.Payload(), payload) {
+		t.Fatalf("payload=%x want=%x", frame.Payload(), payload)
+	}
+}

@@ -92,7 +92,7 @@ type TeslaLegacyWallConnectorFrame struct {
 func DecodeTeslaLegacyWallConnectorFrame(
 	wire []byte,
 ) (TeslaLegacyWallConnectorFrame, error) {
-	if len(wire) < 5 || len(wire) > maxTeslaLegacyWallConnectorMessage+2 {
+	if len(wire) < 5 || len(wire) > maxTeslaLegacyWallConnectorMessage*2+2 {
 		return TeslaLegacyWallConnectorFrame{}, fmt.Errorf("tesla legacy Wall Connector frame size is invalid")
 	}
 	if wire[0] != 0xc0 || wire[len(wire)-1] != 0xc0 {
