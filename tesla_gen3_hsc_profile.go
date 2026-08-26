@@ -1,6 +1,11 @@
 package modbusreg
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
+
+const maxTeslaGen3HSCVersionEvidence = 252
 
 // TeslaGen3HSCVersionDisposition is the evidence state of a Gen3 version.
 type TeslaGen3HSCVersionDisposition string
@@ -13,8 +18,11 @@ const (
 
 // TeslaGen3HSCProfileConfig declares independently evaluated Gen3 predicates.
 type TeslaGen3HSCProfileConfig struct {
-	Enabled                bool
-	Version                string
+	Enabled bool
+	Version string
+	// VersionEvidence is the bounded native version payload associated with Version.
+	// It is retained byte-for-byte; callers may use an empty value when none exists.
+	VersionEvidence        []byte
 	ActivationCapable      bool
 	PrivateFunctionCapable bool
 	OperationCapable       bool
@@ -28,9 +36,14 @@ type TeslaGen3HSCProfile struct {
 
 // NewTeslaGen3HSCProfile creates a distinct Gen3 capability profile.
 func NewTeslaGen3HSCProfile(config TeslaGen3HSCProfileConfig) (TeslaGen3HSCProfile, error) {
+	if len(config.VersionEvidence) > maxTeslaGen3HSCVersionEvidence {
+		return TeslaGen3HSCProfile{}, fmt.Errorf("tesla Gen3 HSC version evidence exceeds %d bytes", maxTeslaGen3HSCVersionEvidence)
+	}
+	config.VersionEvidence = append([]byte(nil), config.VersionEvidence...)
 	disposition := TeslaGen3HSCVersionUnknown
-	if strings.TrimSpace(config.Version) != "" {
-		switch config.Version {
+	version := strings.TrimSpace(config.Version)
+	if version != "" {
+		switch version {
 		case "24.28.3", "24.44.3":
 			disposition = TeslaGen3HSCVersionKnownObservation
 		default:
@@ -38,6 +51,14 @@ func NewTeslaGen3HSCProfile(config TeslaGen3HSCProfileConfig) (TeslaGen3HSCProfi
 		}
 	}
 	return TeslaGen3HSCProfile{config: config, disposition: disposition}, nil
+}
+
+// Version returns the supplied version label without discarding native context.
+func (profile TeslaGen3HSCProfile) Version() string { return profile.config.Version }
+
+// VersionEvidence returns a defensive copy of the bounded native version payload.
+func (profile TeslaGen3HSCProfile) VersionEvidence() []byte {
+	return append([]byte(nil), profile.config.VersionEvidence...)
 }
 
 // VersionDisposition returns the separate version-evidence state.
