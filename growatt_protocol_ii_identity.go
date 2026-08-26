@@ -39,6 +39,7 @@ type GrowattProtocolIIIdentityObservation struct {
 	profile         GrowattProtocolIIIdentityProfile
 	slices          []GrowattProtocolIIIdentitySlice
 	firmwareText    string
+	serialText      string
 	deviceType      uint16
 	modelBuild      [2]uint16
 	protocolVersion uint16
@@ -52,6 +53,7 @@ func (o GrowattProtocolIIIdentityObservation) Slices() []GrowattProtocolIIIdenti
 	return cloneGrowattProtocolIIIdentitySlices(o.slices)
 }
 func (o GrowattProtocolIIIdentityObservation) FirmwareText() string    { return o.firmwareText }
+func (o GrowattProtocolIIIdentityObservation) SerialText() string      { return o.serialText }
 func (o GrowattProtocolIIIdentityObservation) DeviceType() uint16      { return o.deviceType }
 func (o GrowattProtocolIIIdentityObservation) ModelBuild() [2]uint16   { return o.modelBuild }
 func (o GrowattProtocolIIIdentityObservation) ProtocolVersion() uint16 { return o.protocolVersion }
@@ -60,7 +62,7 @@ func (o GrowattProtocolIIIdentityObservation) ProtocolVersion() uint16 { return 
 // control operation or another Modbus request.
 func (GrowattProtocolIIIdentityObservation) OutboundAllowed() bool { return false }
 
-// DecodeGrowattProtocolIIIdentity validates the four individually bounded
+// DecodeGrowattProtocolIIIdentity validates the five individually bounded
 // FC03 identity slices allowed by the Protocol II v1.24 TL3-X contract.
 func DecodeGrowattProtocolIIIdentity(input GrowattProtocolIIIdentityInput) (GrowattProtocolIIIdentityObservation, error) {
 	if input.UnitID == 0 || input.UnitID == 255 || input.Function != FunctionReadHoldingRegisters ||
@@ -68,7 +70,7 @@ func DecodeGrowattProtocolIIIdentity(input GrowattProtocolIIIdentityInput) (Grow
 		return GrowattProtocolIIIdentityObservation{}, fmt.Errorf("growatt Protocol II identity is invalid")
 	}
 
-	want := [...]struct{ offset, words uint16 }{{9, 6}, {43, 1}, {82, 2}, {88, 1}}
+	want := [...]struct{ offset, words uint16 }{{9, 6}, {23, 5}, {43, 1}, {82, 2}, {88, 1}}
 	if len(input.Slices) != len(want) {
 		return GrowattProtocolIIIdentityObservation{}, fmt.Errorf("growatt Protocol II identity slice count is invalid")
 	}
@@ -78,12 +80,16 @@ func DecodeGrowattProtocolIIIdentity(input GrowattProtocolIIIdentityInput) (Grow
 			return GrowattProtocolIIIdentityObservation{}, fmt.Errorf("growatt Protocol II identity slice %d is invalid", index)
 		}
 	}
-	if input.Slices[1].Words[0] != input.Profile.DeviceType ||
-		[2]uint16{input.Slices[2].Words[0], input.Slices[2].Words[1]} != input.Profile.ModelBuild ||
-		input.Slices[3].Words[0] != input.Profile.ProtocolVersion {
+	if input.Slices[2].Words[0] != input.Profile.DeviceType ||
+		[2]uint16{input.Slices[3].Words[0], input.Slices[3].Words[1]} != input.Profile.ModelBuild ||
+		input.Slices[4].Words[0] != input.Profile.ProtocolVersion {
 		return GrowattProtocolIIIdentityObservation{}, fmt.Errorf("growatt Protocol II identity tuple disagrees with caller profile")
 	}
 	firmware, err := growattProtocolIIASCII(input.Slices[0].Words)
+	if err != nil {
+		return GrowattProtocolIIIdentityObservation{}, err
+	}
+	serial, err := growattProtocolIIASCII(input.Slices[1].Words)
 	if err != nil {
 		return GrowattProtocolIIIdentityObservation{}, err
 	}
@@ -93,9 +99,10 @@ func DecodeGrowattProtocolIIIdentity(input GrowattProtocolIIIdentityInput) (Grow
 		profile:         input.Profile,
 		slices:          cloneGrowattProtocolIIIdentitySlices(input.Slices),
 		firmwareText:    firmware,
-		deviceType:      input.Slices[1].Words[0],
-		modelBuild:      [2]uint16{input.Slices[2].Words[0], input.Slices[2].Words[1]},
-		protocolVersion: input.Slices[3].Words[0],
+		serialText:      serial,
+		deviceType:      input.Slices[2].Words[0],
+		modelBuild:      [2]uint16{input.Slices[3].Words[0], input.Slices[3].Words[1]},
+		protocolVersion: input.Slices[4].Words[0],
 	}, nil
 }
 

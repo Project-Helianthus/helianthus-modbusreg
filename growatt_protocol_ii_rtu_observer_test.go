@@ -52,7 +52,7 @@ func TestGrowattProtocolIIIdentityRTUObserverStopsOnFirstFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if observation, err := observer.Observe(context.Background()); err == nil || observation != (GrowattProtocolIIIdentityObservation{}) || len(session.calls) != 3 {
+	if observation, err := observer.Observe(context.Background()); err == nil || observation.UnitID() != 0 || len(observation.Slices()) != 0 || len(session.calls) != 3 {
 		t.Fatalf("observation/err/calls=%#v/%v/%#v", observation, err, session.calls)
 	}
 }
