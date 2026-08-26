@@ -34,4 +34,16 @@ func TestTeslaFC100WCLoadSharingStateIsVersionQualifiedAndAtomic(t *testing.T) {
 			t.Fatalf("invalid dispatch = %#v, %v", results, err)
 		}
 	}
+	ungated, err := NewTeslaHSCProfile(TeslaHSCProfileConfig{Enabled: true, Node: 0x10, PassiveCompatible: true, CompatibilityVersion: TeslaHSCCompatibilityV1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockedRegistry, err := NewQualifiedFunctionRegistry([]QualifiedFunctionProfile{{Endpoint: "rtu-a", UnitID: ungated.Node(), VendorProfile: TeslaHSCProfileName, Codec: ungated}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockedTransport := &qualifiedFunctionTestTransport{}
+	if _, err := blockedRegistry.Dispatch(context.Background(), blockedTransport, selector); err == nil || blockedTransport.calls != 0 {
+		t.Fatalf("ungated dispatch = %v, calls = %d", err, blockedTransport.calls)
+	}
 }

@@ -59,6 +59,10 @@ func (profile TeslaHSCProfile) OperationAdmissionFor(operation string) TeslaTEDA
 		if profile.config.WCSystemInfoOperationVersion == TeslaHSCWCSystemInfoCompatibilityV1 {
 			return TeslaTEDAPIOperationAdmission{State: TeslaTEDAPIAdmissionAllowedWCSystemInfo, OutboundAllowed: true}
 		}
+	case TeslaTEDAPIOperationWCLoadSharingStateV1:
+		if profile.config.WCLoadSharingStateOperationVersion == TeslaHSCWCLoadSharingStateCompatibilityV1 {
+			return TeslaTEDAPIOperationAdmission{State: TeslaTEDAPIAdmissionAllowedWCLoadSharingState, OutboundAllowed: true}
+		}
 	}
 	return TeslaTEDAPIOperationAdmission{State: TeslaTEDAPIAdmissionBlockedNoAdmissibleOperation}
 }
