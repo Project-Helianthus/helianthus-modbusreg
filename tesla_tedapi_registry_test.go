@@ -1,10 +1,11 @@
 package modbusreg
 
 import (
+	"bytes"
 	"testing"
 )
 
-func TestTeslaTEDAPIRegistryRetainsOnlyRedactedOpaqueObservations(t *testing.T) {
+func TestTeslaTEDAPIRegistryRetainsNativeOpaqueObservations(t *testing.T) {
 	profile, err := NewTeslaHSCProfile(TeslaHSCProfileConfig{
 		Enabled:              true,
 		Node:                 0x10,
@@ -30,8 +31,13 @@ func TestTeslaTEDAPIRegistryRetainsOnlyRedactedOpaqueObservations(t *testing.T) 
 	}
 	if record.State != TeslaTEDAPIOpaqueQualified ||
 		record.OperationAdmission != TeslaTEDAPIAdmissionBlockedNoAdmissibleOperation ||
-		record.PayloadLength != 2 || record.PayloadDigest == "" || record.OutboundAllowed {
+		!bytes.Equal(record.Payload(), []byte{0xaa, 0xbb}) || record.OutboundAllowed {
 		t.Fatalf("record = %#v", record)
+	}
+	payload := record.Payload()
+	payload[0] = 0
+	if !bytes.Equal(record.Payload(), []byte{0xaa, 0xbb}) {
+		t.Fatalf("record payload was not copied: %x", record.Payload())
 	}
 }
 
