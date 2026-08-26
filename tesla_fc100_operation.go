@@ -56,6 +56,36 @@ const (
 
 type teslaFC100OperationSpec struct{ family, requestTag, responseTag uint64 }
 
+// TeslaFC100OperationNames provides recovered 24.44.3 message names and the
+// field names established for each terminal body. Unknown wire fields remain
+// retained in TeslaFC100OperationResult.Body.
+type TeslaFC100OperationNames struct {
+	Request  string
+	Response string
+	Fields   []string
+}
+
+var teslaFC100OperationNames = map[TeslaFC100Operation]TeslaFC100OperationNames{
+	TeslaFC100OperationCommonSystemInfo:      {"CommonAPIGetSystemInfo", "CommonSystemInfo", []string{"device_id", "din", "firmware_version", "system_update", "device_type"}},
+	TeslaFC100OperationCommonWifiScan:        {"CommonAPIWifiScan", "WifiScanResponse", []string{"wifi_networks", "ssid", "rssi_value", "rssi", "security_type"}},
+	TeslaFC100OperationWCGetVitals:           {"GetVitals", "WCVitals", nil},
+	TeslaFC100OperationWCGetLifetimeStats:    {"GetLifetimeStats", "WCLifetimeStats", []string{"uptime_s", "alert_count", "contactor_cycles", "contactor_cycles_loaded", "connector_cycles", "thermal_foldbacks", "avg_startup_temp_c", "charge_starts", "charging_time_s", "charging_energy"}},
+	TeslaFC100OperationWCGetConfig:           {"GetConfig", "WCConfig", []string{"settings", "wifi_config", "wifi", "meters", "charge_schedule", "ocpp_settings", "vehicle_to_home"}},
+	TeslaFC100OperationWCGetSystemInfo:       {"GetSystemInfo", "WCGenealogy", []string{"region", "handle_type", "hardware_features"}},
+	TeslaFC100OperationWCGetLoadSharingState: {"GetLoadSharingNetworkState", "WCLoadSharingNetworkState", []string{"devices", "leader_state", "settings", "status", "limits"}},
+	TeslaFC100OperationWCGetPPU:              {"GetPpuSettings", "WCPpuConfig", []string{"session_reporting_mode"}},
+	TeslaFC100OperationWCGetProvisional:      {"GetProvisionalOperationalParams", "WCProvisionalOperationalParams", []string{"limit_current_max_amps", "limit_timeout_s", "inhibit_charging", "configured_current_limit_amps"}},
+	TeslaFC100OperationWCGetOperational:      {"GetOperationalSettings", "WCOperationalSettingsConfig", []string{"operational_mode", "emit_increased_telemetry"}},
+}
+
+// TeslaFC100RecoveredNames returns independent recovered names for one
+// complete FC100 operation. It returns false for pairs with no field names yet.
+func TeslaFC100RecoveredNames(operation TeslaFC100Operation) (TeslaFC100OperationNames, bool) {
+	names, ok := teslaFC100OperationNames[operation]
+	names.Fields = append([]string(nil), names.Fields...)
+	return names, ok
+}
+
 var teslaFC100OperationSpecs = map[TeslaFC100Operation]teslaFC100OperationSpec{
 	TeslaFC100OperationCommonSystemInfo: {4, 2, 3}, TeslaFC100OperationCommonPerformUpdate: {4, 6, 7}, TeslaFC100OperationCommonFactoryReset: {4, 8, 9}, TeslaFC100OperationCommonWifiScan: {4, 10, 11}, TeslaFC100OperationCommonConfigureWifi: {4, 12, 13}, TeslaFC100OperationCommonCheckForUpdate: {4, 14, 15}, TeslaFC100OperationCommonClearUpdate: {4, 16, 17}, TeslaFC100OperationCommonPrepareRegistration: {4, 36, 37},
 	TeslaFC100OperationWCGetVitals: {6, 1, 2}, TeslaFC100OperationWCGetLifetimeStats: {6, 3, 4}, TeslaFC100OperationWCGetConfig: {6, 5, 6}, TeslaFC100OperationWCConfigureSettings: {6, 7, 8}, TeslaFC100OperationWCGetSystemInfo: {6, 9, 10}, TeslaFC100OperationWCGetLoadSharingState: {6, 11, 12}, TeslaFC100OperationWCSetLoadSharingOperation: {6, 17, 18}, TeslaFC100OperationWCConfigureLoadSharing: {6, 19, 20}, TeslaFC100OperationWCConfigurePPU: {6, 21, 22}, TeslaFC100OperationWCGetPPU: {6, 23, 24}, TeslaFC100OperationWCSetProvisional: {6, 25, 26}, TeslaFC100OperationWCGetProvisional: {6, 27, 28}, TeslaFC100OperationWCGetAccessControl: {6, 29, 30}, TeslaFC100OperationWCConfigureAccessControl: {6, 31, 32}, TeslaFC100OperationWCGetRecentVehicles: {6, 33, 34}, TeslaFC100OperationWCPushPPUAuthorization: {6, 35, 36}, TeslaFC100OperationWCConfigureChargeSchedule: {6, 37, 38}, TeslaFC100OperationWCPushChargeCommand: {6, 39, 40}, TeslaFC100OperationWCConfigureThirdPartyVehicle: {6, 41, 42}, TeslaFC100OperationWCConfigureHomeSiteController: {6, 43, 44}, TeslaFC100OperationWCConfigureOCPP: {6, 45, 46}, TeslaFC100OperationWCSetOCPPSecurity: {6, 47, 48}, TeslaFC100OperationWCGetOCPPSecurity: {6, 49, 50}, TeslaFC100OperationWCConfigureOperational: {6, 51, 52}, TeslaFC100OperationWCGetOperational: {6, 53, 54}, TeslaFC100OperationWCConfigureCountryCode: {6, 55, 56},
