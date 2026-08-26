@@ -45,6 +45,38 @@ func TestTeslaLegacyWallConnectorCodecPreservesNativeFrames(t *testing.T) {
 		!bytes.Equal(record.Payload(), []byte{0xc0, 0xdb}) {
 		t.Fatalf("record=%#v", record)
 	}
+	payload := record.Payload()
+	payload[0] = 0
+	if !bytes.Equal(record.Payload(), []byte{0xc0, 0xdb}) {
+		t.Fatalf("record payload was not copied: %x", record.Payload())
+	}
+}
+
+func TestTeslaLegacyWallConnectorNamesOnlyDocumentedLinkCommands(t *testing.T) {
+	tests := []struct {
+		command TeslaLegacyCommand
+		want    TeslaLegacyOperation
+	}{
+		{TeslaLegacyCommand{Prefix: 0xfc, Opcode: 0xe1}, TeslaLegacyOperationPrimaryDiscovery},
+		{TeslaLegacyCommand{Prefix: 0xfb, Opcode: 0xe2}, TeslaLegacyOperationSecondaryDiscovery},
+		{TeslaLegacyCommand{Prefix: 0xfd, Opcode: 0xe2}, TeslaLegacyOperationSecondaryDiscovery},
+		{TeslaLegacyCommand{Prefix: 0xfb, Opcode: 0xe0}, TeslaLegacyOperationPrimaryHeartbeat},
+		{TeslaLegacyCommand{Prefix: 0xfd, Opcode: 0xe0}, TeslaLegacyOperationSecondaryHeartbeat},
+		{TeslaLegacyCommand{Prefix: 0xfc, Opcode: 0xa3}, TeslaLegacyOperationUnknown},
+	}
+	for _, test := range tests {
+		wire, err := EncodeTeslaLegacyWallConnectorFrame(test.command, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		frame, err := DecodeTeslaLegacyWallConnectorFrame(wire)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if frame.Operation() != test.want {
+			t.Fatalf("command=%#v operation=%q want=%q", test.command, frame.Operation(), test.want)
+		}
+	}
 }
 
 func TestTeslaLegacyWallConnectorRejectsMalformedFramesBeforeReplay(t *testing.T) {
@@ -58,4 +90,3 @@ func TestTeslaLegacyWallConnectorRejectsMalformedFramesBeforeReplay(t *testing.T
 		}
 	}
 }
-
