@@ -36,33 +36,32 @@ type TeslaTEDAPIObservationSpec struct {
 	Payload   []byte
 }
 
-// TeslaTEDAPIRedactedRecord is safe for gateway/MCP projection. Payload never
-// contains raw bytes; digest and length preserve deterministic replay identity.
-type TeslaTEDAPIRedactedRecord struct {
+// TeslaTEDAPINativeRecord retains one bounded native TEDAPI payload.
+type TeslaTEDAPINativeRecord struct {
 	ID                 string                    `json:"id"`
 	State              TeslaTEDAPISemanticState  `json:"state"`
 	OperationAdmission TeslaTEDAPIAdmissionState `json:"operation_admission"`
 	Direction          TeslaTEDAPIDirection      `json:"direction"`
 	Function           byte                      `json:"function"`
 	PayloadLength      int                       `json:"payload_length"`
-	PayloadDigest      string                    `json:"payload_digest"`
 	OutboundAllowed    bool                      `json:"outbound_allowed"`
+	payload            []byte
 }
 
 // TeslaTEDAPISemanticRegistry is a bounded, concurrent registry of opaque
 // observations. It does not decode fields or declare a control operation.
 type TeslaTEDAPISemanticRegistry struct {
 	mu      sync.RWMutex
-	records map[string]TeslaTEDAPIRedactedRecord
+	records map[string]TeslaTEDAPINativeRecord
 }
 
 // NewTeslaTEDAPISemanticRegistry constructs an empty bounded registry.
 func NewTeslaTEDAPISemanticRegistry() *TeslaTEDAPISemanticRegistry {
-	return &TeslaTEDAPISemanticRegistry{records: make(map[string]TeslaTEDAPIRedactedRecord)}
+	return &TeslaTEDAPISemanticRegistry{records: make(map[string]TeslaTEDAPINativeRecord)}
 }
 
-// Retain validates the direction-selected contract and atomically retains a
-// redacted projection.
+// Retain validates the direction-selected contract and atomically retains the
+// complete bounded native payload.
 func (registry *TeslaTEDAPISemanticRegistry) Retain(spec TeslaTEDAPIObservationSpec) error {
 	if registry == nil || !validIdentity(spec.ID) {
 		return fmt.Errorf("tesla TEDAPI observation identity is invalid")
@@ -91,17 +90,10 @@ func (registry *TeslaTEDAPISemanticRegistry) Retain(spec TeslaTEDAPIObservationS
 	if spec.Profile.Disposition() == TeslaHSCQualifiedReadOnly {
 		state = TeslaTEDAPIOpaqueQualified
 	}
-	provenance := NewTeslaHSCProvenance(
-		TeslaHSCCompatibilityV1,
-		spec.Profile.Node(),
-		function,
-		payload,
-	)
 	admission := spec.Profile.OperationAdmission()
-	record := TeslaTEDAPIRedactedRecord{
+	record := TeslaTEDAPINativeRecord{
 		ID: spec.ID, State: state, OperationAdmission: admission.State, Direction: spec.Direction, Function: byte(function),
-		PayloadLength: provenance.PayloadLength(), PayloadDigest: provenance.PayloadDigest(),
-		OutboundAllowed: false,
+		PayloadLength: len(payload), OutboundAllowed: false, payload: append([]byte(nil), payload...),
 	}
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
@@ -112,28 +104,36 @@ func (registry *TeslaTEDAPISemanticRegistry) Retain(spec TeslaTEDAPIObservationS
 	return nil
 }
 
-// Lookup returns an independent redacted record.
-func (registry *TeslaTEDAPISemanticRegistry) Lookup(id string) (TeslaTEDAPIRedactedRecord, bool) {
+// Lookup returns an independent native record.
+func (registry *TeslaTEDAPISemanticRegistry) Lookup(id string) (TeslaTEDAPINativeRecord, bool) {
 	if registry == nil {
-		return TeslaTEDAPIRedactedRecord{}, false
+		return TeslaTEDAPINativeRecord{}, false
 	}
 	registry.mu.RLock()
 	record, ok := registry.records[id]
 	registry.mu.RUnlock()
-	return record, ok
+	return cloneTeslaTEDAPINativeRecord(record), ok
 }
 
-// List returns redacted records in deterministic identity order.
-func (registry *TeslaTEDAPISemanticRegistry) List() []TeslaTEDAPIRedactedRecord {
+// List returns native records in deterministic identity order.
+func (registry *TeslaTEDAPISemanticRegistry) List() []TeslaTEDAPINativeRecord {
 	if registry == nil {
 		return nil
 	}
 	registry.mu.RLock()
-	values := make([]TeslaTEDAPIRedactedRecord, 0, len(registry.records))
+	values := make([]TeslaTEDAPINativeRecord, 0, len(registry.records))
 	for _, record := range registry.records {
-		values = append(values, record)
+		values = append(values, cloneTeslaTEDAPINativeRecord(record))
 	}
 	registry.mu.RUnlock()
 	sort.Slice(values, func(i, j int) bool { return values[i].ID < values[j].ID })
 	return values
+}
+
+// Payload returns an independent copy of the exact native payload.
+func (record TeslaTEDAPINativeRecord) Payload() []byte { return append([]byte(nil), record.payload...) }
+
+func cloneTeslaTEDAPINativeRecord(record TeslaTEDAPINativeRecord) TeslaTEDAPINativeRecord {
+	record.payload = append([]byte(nil), record.payload...)
+	return record
 }
