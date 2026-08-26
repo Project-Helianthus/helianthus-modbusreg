@@ -7,6 +7,11 @@ import (
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 )
 
+// TeslaHSCFC100OperationCompatibilityV1 identifies the firmware-scoped
+// operation inventory. It is intentionally distinct from the generic HSC
+// profile compatibility identifier.
+const TeslaHSCFC100OperationCompatibilityV1 = "wc3_24_44_3"
+
 // TeslaFC100Operation names one version-scoped FC100 request/response pair.
 // It does not assign meanings to an opaque request or response body.
 type TeslaFC100Operation string
@@ -79,7 +84,7 @@ type TeslaFC100OperationResult struct {
 // matrix-confirmed request pair. The caller supplies opaque body bytes when a
 // field-level schema is not fixed by the compatibility contract.
 func BuildTeslaFC100OperationRequest(version string, operation TeslaFC100Operation, body []byte) (modbus.PrivateFunctionRequest, error) {
-	if version != TeslaHSCCompatibilityV1 {
+	if version != TeslaHSCFC100OperationCompatibilityV1 {
 		return modbus.PrivateFunctionRequest{}, fmt.Errorf("tesla FC100 operation compatibility is unsupported")
 	}
 	spec, ok := teslaFC100OperationSpecs[operation]
@@ -101,7 +106,7 @@ func BuildTeslaFC100OperationRequest(version string, operation TeslaFC100Operati
 
 // DecodeTeslaFC100OperationSequence classifies one bounded FC100 normal-response sequence. Generic Modbus exceptions are deliberately not converted into TEDAPI application errors.
 func DecodeTeslaFC100OperationSequence(version string, operation TeslaFC100Operation, requestPayload []byte, payloads [][]byte) ([]TeslaFC100OperationResult, error) {
-	if version != TeslaHSCCompatibilityV1 {
+	if version != TeslaHSCFC100OperationCompatibilityV1 {
 		return nil, fmt.Errorf("tesla FC100 operation compatibility is unsupported")
 	}
 	spec, ok := teslaFC100OperationSpecs[operation]
