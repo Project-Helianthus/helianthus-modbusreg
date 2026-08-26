@@ -39,6 +39,18 @@ func TestDecodeGrowattBMSTypedReadOnlyStatusRejectsInvalidTypedEncoding(t *testi
 	}
 }
 
+func TestGrowattBMSTypedStatusRetainsNativeObservation(t *testing.T) {
+	input := validGrowattBMSTypedReadOnlyInput()
+	status, err := DecodeGrowattBMSTypedReadOnlyStatus(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	native := status.NativeObservation()
+	if native.UnitID() != input.UnitID || native.Revision() != input.Revision || len(native.Slices()) != len(input.Slices) {
+		t.Fatalf("native observation = %#v", native)
+	}
+}
+
 func validGrowattBMSTypedReadOnlyInput() GrowattBMSReadOnlyInput {
 	input := validGrowattBMSReadOnlyInput()
 	input.Slices[0].Words = []uint16{0x0102, 0x0304, 0, 0, 0, 0, 0}
