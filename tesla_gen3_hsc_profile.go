@@ -1,0 +1,76 @@
+package modbusreg
+
+import (
+	"fmt"
+	"strings"
+)
+
+const maxTeslaGen3HSCVersionEvidence = 252
+
+// TeslaGen3HSCVersionDisposition is the evidence state of a Gen3 version.
+type TeslaGen3HSCVersionDisposition string
+
+const (
+	TeslaGen3HSCVersionKnownObservation    TeslaGen3HSCVersionDisposition = "known_observation"
+	TeslaGen3HSCVersionCompatibleCandidate TeslaGen3HSCVersionDisposition = "compatible_candidate"
+	TeslaGen3HSCVersionUnknown             TeslaGen3HSCVersionDisposition = "unknown"
+)
+
+// TeslaGen3HSCProfileConfig declares independently evaluated Gen3 predicates.
+type TeslaGen3HSCProfileConfig struct {
+	Enabled bool
+	Version string
+	// VersionEvidence is the bounded native version payload associated with Version.
+	// It is retained byte-for-byte; callers may use an empty value when none exists.
+	VersionEvidence        []byte
+	ActivationCapable      bool
+	PrivateFunctionCapable bool
+	OperationCapable       bool
+}
+
+// TeslaGen3HSCProfile never derives a capability from a version label alone.
+type TeslaGen3HSCProfile struct {
+	config      TeslaGen3HSCProfileConfig
+	disposition TeslaGen3HSCVersionDisposition
+}
+
+// NewTeslaGen3HSCProfile creates a distinct Gen3 capability profile.
+func NewTeslaGen3HSCProfile(config TeslaGen3HSCProfileConfig) (TeslaGen3HSCProfile, error) {
+	if len(config.VersionEvidence) > maxTeslaGen3HSCVersionEvidence {
+		return TeslaGen3HSCProfile{}, fmt.Errorf("tesla Gen3 HSC version evidence exceeds %d bytes", maxTeslaGen3HSCVersionEvidence)
+	}
+	config.VersionEvidence = append([]byte(nil), config.VersionEvidence...)
+	disposition := TeslaGen3HSCVersionUnknown
+	version := strings.TrimSpace(config.Version)
+	if version != "" {
+		switch version {
+		case "24.28.3", "24.44.3", "wc3_24_28_3", "wc3_24_44_3":
+			disposition = TeslaGen3HSCVersionKnownObservation
+		default:
+			if config.ActivationCapable && config.PrivateFunctionCapable && config.OperationCapable {
+				disposition = TeslaGen3HSCVersionCompatibleCandidate
+			}
+		}
+	}
+	return TeslaGen3HSCProfile{config: config, disposition: disposition}, nil
+}
+
+// Version returns the supplied version label without discarding native context.
+func (profile TeslaGen3HSCProfile) Version() string { return profile.config.Version }
+
+// VersionEvidence returns a defensive copy of the bounded native version payload.
+func (profile TeslaGen3HSCProfile) VersionEvidence() []byte {
+	return append([]byte(nil), profile.config.VersionEvidence...)
+}
+
+// VersionDisposition returns the separate version-evidence state.
+func (profile TeslaGen3HSCProfile) VersionDisposition() TeslaGen3HSCVersionDisposition {
+	return profile.disposition
+}
+
+// ExchangeEligible requires every independently declared Gen3 predicate.
+func (profile TeslaGen3HSCProfile) ExchangeEligible() bool {
+	return profile.config.Enabled && profile.disposition != TeslaGen3HSCVersionUnknown &&
+		profile.config.ActivationCapable && profile.config.PrivateFunctionCapable &&
+		profile.config.OperationCapable
+}
