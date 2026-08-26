@@ -33,8 +33,10 @@ func TestTeslaFC100RequestMatrixValidatesStructuredAndOpaqueBodies(t *testing.T)
 		{"C12 enabled", TeslaFC100OperationCommonConfigureWifi, []byte{0x08, 0x01}, false},
 		{"C12 wifi string", TeslaFC100OperationCommonConfigureWifi, []byte{0x12, 0x03, 0x0a, 0x01, 'x'}, false},
 		{"C12 malformed nested", TeslaFC100OperationCommonConfigureWifi, []byte{0x12, 0x01, 0x0a}, true},
+		{"C12 unknown group retained", TeslaFC100OperationCommonConfigureWifi, []byte{0x08, 0x01, 0x1b, 0x20, 0x01, 0x1c}, false},
 		{"opaque malformed", TeslaFC100OperationWCConfigureSettings, []byte{0x80}, true},
 		{"opaque unknown retained", TeslaFC100OperationWCConfigureSettings, []byte{0x7a, 0x02, 0xaa, 0xbb}, false},
+		{"opaque over FC100 bound", TeslaFC100OperationWCConfigureSettings, bytes.Repeat([]byte{0x08, 0x01}, 126), true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			matrix, err := ValidateTeslaFC100RequestMatrix(TeslaHSCFC100OperationCompatibilityV1, test.operation, test.body)

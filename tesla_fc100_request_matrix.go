@@ -39,6 +39,9 @@ func ValidateTeslaFC100RequestMatrix(version string, operation TeslaFC100Operati
 	if _, ok := teslaFC100OperationSpecs[operation]; !ok {
 		return TeslaFC100RequestMatrix{}, fmt.Errorf("tesla FC100 request matrix operation is unsupported")
 	}
+	if _, err := BuildTeslaFC100OperationRequest(version, operation, body); err != nil {
+		return TeslaFC100RequestMatrix{}, fmt.Errorf("tesla FC100 request matrix bound: %w", err)
+	}
 	if _, empty := teslaFC100EmptyRequestOperations[operation]; empty {
 		if len(body) != 0 {
 			return TeslaFC100RequestMatrix{}, fmt.Errorf("tesla FC100 fixed request has a body")
@@ -137,8 +140,14 @@ func decodeTeslaFC100RequestField(input []byte) (teslaFC100RequestField, int, er
 		offset += width
 		result.value = append([]byte(nil), input[offset:offset+int(length)]...)
 		offset += int(length)
-	case 3, 4:
-		return teslaFC100RequestField{}, 0, fmt.Errorf("groups are not accepted in a structured request")
+	case 3:
+		width, err := skipTeslaFC100RequestGroup(input[offset:], field)
+		if err != nil {
+			return teslaFC100RequestField{}, 0, err
+		}
+		offset += width
+	case 4:
+		return teslaFC100RequestField{}, 0, fmt.Errorf("unexpected protobuf end group")
 	case 5:
 		if len(input)-offset < 4 {
 			return teslaFC100RequestField{}, 0, fmt.Errorf("fixed32 value is truncated")
@@ -146,6 +155,33 @@ func decodeTeslaFC100RequestField(input []byte) (teslaFC100RequestField, int, er
 		offset += 4
 	}
 	return result, offset, nil
+}
+
+func skipTeslaFC100RequestGroup(input []byte, groupField uint64) (int, error) {
+	offset := 0
+	for offset < len(input) {
+		key, keyWidth, err := decodeTeslaFC100Varint(input[offset:])
+		if err != nil {
+			return 0, err
+		}
+		field := key >> 3
+		wireType := uint8(key & 0x07)
+		if field == 0 || wireType > 5 {
+			return 0, fmt.Errorf("protobuf group key is invalid")
+		}
+		if wireType == 4 {
+			if field != groupField {
+				return 0, fmt.Errorf("protobuf group boundary is invalid")
+			}
+			return offset + keyWidth, nil
+		}
+		_, width, err := decodeTeslaFC100RequestField(input[offset:])
+		if err != nil {
+			return 0, err
+		}
+		offset += width
+	}
+	return 0, fmt.Errorf("protobuf group boundary is truncated")
 }
 
 func validateTeslaFC100WifiScanRequest(fields []teslaFC100RequestField) error {
