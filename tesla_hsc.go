@@ -439,6 +439,25 @@ func (profile TeslaHSCProfile) DecodeQualifiedFunction(operation string, functio
 	return QualifiedFunctionResult{Payload: response.Payload()}, nil
 }
 
+func (profile TeslaHSCProfile) DecodeQualifiedFunctionSequence(operation string, function modbus.PrivateFunctionCode, payloads [][]byte) ([]QualifiedFunctionResult, error) {
+	if operation != TeslaTEDAPIOperationWCLifetimeV1 || function != teslaHSCFunction100 {
+		return nil, fmt.Errorf("tesla HSC operation response sequence is invalid")
+	}
+	replays, err := DecodeTeslaFC100WCLifetimeReplaySequence(payloads)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]QualifiedFunctionResult, len(replays))
+	for i, replay := range replays {
+		results[i] = QualifiedFunctionResult{Replay: &QualifiedFunctionReplay{Kind: string(replay.Kind), PayloadLength: replay.SnapshotLength, PayloadDigest: replay.SnapshotDigest}}
+	}
+	return results, nil
+}
+
+func (TeslaHSCProfile) HandlesQualifiedFunctionSequence(operation string) bool {
+	return operation == TeslaTEDAPIOperationWCLifetimeV1
+}
+
 // PayloadLength returns the retained opaque payload length.
 func (provenance TeslaHSCProvenance) PayloadLength() int {
 	return provenance.payloadLength

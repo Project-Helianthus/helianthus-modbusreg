@@ -61,3 +61,21 @@ func TestTeslaFC100WCLifetimeReplaySequenceIsBoundedAndOpaque(t *testing.T) {
 		}
 	}
 }
+
+func TestTeslaFC100WCLifetimeDispatchRejectsInvalidCompleteSequence(t *testing.T) {
+	profile, err := NewTeslaHSCProfile(TeslaHSCProfileConfig{Enabled: true, Node: 0x10, PassiveCompatible: true, CompatibilityVersion: TeslaHSCCompatibilityV1, WCLifetimeOperationVersion: TeslaHSCWCLifetimeCompatibilityV1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry, err := NewQualifiedFunctionRegistry([]QualifiedFunctionProfile{{Endpoint: "rtu-a", UnitID: profile.Node(), VendorProfile: TeslaHSCProfileName, Codec: profile}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, payloads := range [][][]byte{{{0x06, 0x32, 0x04, 0x22, 0x02, 0x08, 0x01}, {0x04, 0x32, 0x02, 0x1a, 0x00}}, {{0x06, 0x32, 0x04, 0x1a, 0x02, 0x08, 0x01}}} {
+		transport := &qualifiedFunctionTestTransport{responsePayloads: payloads}
+		results, err := registry.Dispatch(context.Background(), transport, QualifiedFunctionSelector{Endpoint: "rtu-a", UnitID: profile.Node(), VendorProfile: TeslaHSCProfileName, Operation: TeslaTEDAPIOperationWCLifetimeV1})
+		if err == nil || len(results) != 0 {
+			t.Fatalf("invalid dispatch = %#v, %v", results, err)
+		}
+	}
+}
