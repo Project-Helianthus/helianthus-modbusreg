@@ -12,8 +12,10 @@ func TestTeslaGen3HSCProfileSeparatesKnownCandidateAndUnknownVersions(t *testing
 		disposition TeslaGen3HSCVersionDisposition
 		eligible    bool
 	}{
-		{name: "first known observation", version: "24.28.3", disposition: TeslaGen3HSCVersionKnownObservation, eligible: true},
-		{name: "second known observation", version: "24.44.3", disposition: TeslaGen3HSCVersionKnownObservation, eligible: true},
+		{name: "first raw known observation", version: "24.28.3", disposition: TeslaGen3HSCVersionKnownObservation, eligible: true},
+		{name: "second raw known observation", version: "24.44.3", disposition: TeslaGen3HSCVersionKnownObservation, eligible: true},
+		{name: "first documented profile", version: "wc3_24_28_3", disposition: TeslaGen3HSCVersionKnownObservation, eligible: true},
+		{name: "second documented profile", version: "wc3_24_44_3", disposition: TeslaGen3HSCVersionKnownObservation, eligible: true},
 		{name: "candidate", version: "25.1.0", disposition: TeslaGen3HSCVersionCompatibleCandidate, eligible: true},
 		{name: "whitespace unknown", version: " \t", disposition: TeslaGen3HSCVersionUnknown},
 	}

@@ -44,7 +44,7 @@ func NewTeslaGen3HSCProfile(config TeslaGen3HSCProfileConfig) (TeslaGen3HSCProfi
 	version := strings.TrimSpace(config.Version)
 	if version != "" {
 		switch version {
-		case "24.28.3", "24.44.3":
+		case "24.28.3", "24.44.3", "wc3_24_28_3", "wc3_24_44_3":
 			disposition = TeslaGen3HSCVersionKnownObservation
 		default:
 			if config.ActivationCapable && config.PrivateFunctionCapable && config.OperationCapable {
