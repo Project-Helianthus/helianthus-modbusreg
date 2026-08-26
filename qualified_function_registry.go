@@ -43,6 +43,11 @@ type QualifiedFunctionCodec interface {
 	DecodeQualifiedFunction(string, modbus.PrivateFunctionCode, []byte) (QualifiedFunctionResult, error)
 }
 
+type qualifiedFunctionSequenceCodec interface {
+	HandlesQualifiedFunctionSequence(string) bool
+	DecodeQualifiedFunctionSequence(string, modbus.PrivateFunctionCode, [][]byte) ([]QualifiedFunctionResult, error)
+}
+
 // QualifiedFunctionProfile binds one codec to one endpoint and unit identity.
 type QualifiedFunctionProfile struct {
 	Endpoint      string
@@ -113,6 +118,13 @@ func (registry *QualifiedFunctionRegistry) Dispatch(
 	if err != nil {
 		return nil, err
 	}
+	if codec, ok := selected.Codec.(qualifiedFunctionSequenceCodec); ok && codec.HandlesQualifiedFunctionSequence(selector.Operation) {
+		results, err := codec.DecodeQualifiedFunctionSequence(selector.Operation, request.FunctionCode(), responsePayloads(responses))
+		if err != nil {
+			return nil, err
+		}
+		return cloneQualifiedFunctionResults(results), nil
+	}
 	results := make([]QualifiedFunctionResult, 0, len(responses))
 	for _, response := range responses {
 		result, err := selected.Codec.DecodeQualifiedFunction(
@@ -123,12 +135,27 @@ func (registry *QualifiedFunctionRegistry) Dispatch(
 		if err != nil {
 			return nil, err
 		}
-		result.Payload = append([]byte(nil), result.Payload...)
-		if result.Replay != nil {
-			replay := *result.Replay
-			result.Replay = &replay
-		}
 		results = append(results, result)
 	}
-	return results, nil
+	return cloneQualifiedFunctionResults(results), nil
+}
+
+func responsePayloads(responses []modbus.RTUPrivateFunctionResponseADU) [][]byte {
+	payloads := make([][]byte, len(responses))
+	for i := range responses {
+		payloads[i] = responses[i].Payload()
+	}
+	return payloads
+}
+func cloneQualifiedFunctionResults(results []QualifiedFunctionResult) []QualifiedFunctionResult {
+	copied := make([]QualifiedFunctionResult, len(results))
+	for i := range results {
+		copied[i] = results[i]
+		copied[i].Payload = append([]byte(nil), results[i].Payload...)
+		if results[i].Replay != nil {
+			replay := *results[i].Replay
+			copied[i].Replay = &replay
+		}
+	}
+	return copied
 }

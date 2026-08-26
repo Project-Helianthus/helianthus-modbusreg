@@ -17,6 +17,9 @@ const (
 	// TeslaHSCSystemInfoCompatibilityV1 is the exact operation contract gate
 	// for the bounded Common system-information snapshot.
 	TeslaHSCSystemInfoCompatibilityV1 = "wc3_24_44_3"
+	// TeslaHSCWCLifetimeCompatibilityV1 is the exact operation contract gate for
+	// the bounded WC lifetime snapshot.
+	TeslaHSCWCLifetimeCompatibilityV1 = "wc3_24_44_3"
 )
 
 // TeslaHSCProfileName identifies the profile only inside registry selection.
@@ -55,6 +58,7 @@ const (
 	// TeslaTEDAPIAdmissionAllowedCommonSystemInfo admits only the explicit
 	// bounded Common system-information operation after all gates pass.
 	TeslaTEDAPIAdmissionAllowedCommonSystemInfo TeslaTEDAPIAdmissionState = "allowed_common_system_info"
+	TeslaTEDAPIAdmissionAllowedWCLifetime       TeslaTEDAPIAdmissionState = "allowed_wc_lifetime"
 )
 
 // TeslaTEDAPIOperationAdmission is the redacted result of local admission
@@ -73,6 +77,7 @@ type TeslaHSCProfileConfig struct {
 	CompatibilityVersion       string
 	WCVitalsOperationVersion   string
 	SystemInfoOperationVersion string
+	WCLifetimeOperationVersion string
 }
 
 // TeslaHSCProfile retains the immutable profile gate decision.
@@ -377,6 +382,8 @@ func (profile TeslaHSCProfile) EncodeQualifiedFunction(operation string) (modbus
 		payload = teslaFC100WCVitalsRequestPDU
 	case TeslaTEDAPIOperationCommonSystemInfoV1:
 		payload = teslaFC100CommonSystemInfoRequestPDU
+	case TeslaTEDAPIOperationWCLifetimeV1:
+		payload = teslaFC100WCLifetimeRequestPDU
 	default:
 		return modbus.PrivateFunctionRequest{}, modbus.PrivateFunctionResponsePolicy{}, fmt.Errorf("tesla HSC operation is not admitted")
 	}
@@ -415,11 +422,40 @@ func (profile TeslaHSCProfile) DecodeQualifiedFunction(operation string, functio
 			Kind: string(replay.Kind), PayloadLength: replay.SnapshotLength, PayloadDigest: replay.SnapshotDigest,
 		}}, nil
 	}
+	if operation == TeslaTEDAPIOperationWCLifetimeV1 {
+		if function != teslaHSCFunction100 {
+			return QualifiedFunctionResult{}, fmt.Errorf("tesla HSC operation response function is invalid")
+		}
+		replay, err := DecodeTeslaFC100WCLifetimeReplay(payload)
+		if err != nil {
+			return QualifiedFunctionResult{}, err
+		}
+		return QualifiedFunctionResult{Replay: &QualifiedFunctionReplay{Kind: string(replay.Kind), PayloadLength: replay.SnapshotLength, PayloadDigest: replay.SnapshotDigest}}, nil
+	}
 	response, err := DecodeTeslaHSCResponse(function, payload)
 	if err != nil {
 		return QualifiedFunctionResult{}, err
 	}
 	return QualifiedFunctionResult{Payload: response.Payload()}, nil
+}
+
+func (profile TeslaHSCProfile) DecodeQualifiedFunctionSequence(operation string, function modbus.PrivateFunctionCode, payloads [][]byte) ([]QualifiedFunctionResult, error) {
+	if operation != TeslaTEDAPIOperationWCLifetimeV1 || function != teslaHSCFunction100 {
+		return nil, fmt.Errorf("tesla HSC operation response sequence is invalid")
+	}
+	replays, err := DecodeTeslaFC100WCLifetimeReplaySequence(payloads)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]QualifiedFunctionResult, len(replays))
+	for i, replay := range replays {
+		results[i] = QualifiedFunctionResult{Replay: &QualifiedFunctionReplay{Kind: string(replay.Kind), PayloadLength: replay.SnapshotLength, PayloadDigest: replay.SnapshotDigest}}
+	}
+	return results, nil
+}
+
+func (TeslaHSCProfile) HandlesQualifiedFunctionSequence(operation string) bool {
+	return operation == TeslaTEDAPIOperationWCLifetimeV1
 }
 
 // PayloadLength returns the retained opaque payload length.

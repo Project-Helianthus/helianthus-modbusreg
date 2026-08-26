@@ -51,6 +51,10 @@ func (profile TeslaHSCProfile) OperationAdmissionFor(operation string) TeslaTEDA
 				OutboundAllowed: true,
 			}
 		}
+	case TeslaTEDAPIOperationWCLifetimeV1:
+		if profile.config.WCLifetimeOperationVersion == TeslaHSCWCLifetimeCompatibilityV1 {
+			return TeslaTEDAPIOperationAdmission{State: TeslaTEDAPIAdmissionAllowedWCLifetime, OutboundAllowed: true}
+		}
 	}
 	return TeslaTEDAPIOperationAdmission{State: TeslaTEDAPIAdmissionBlockedNoAdmissibleOperation}
 }
