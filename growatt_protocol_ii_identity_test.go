@@ -14,6 +14,9 @@ func TestGrowattProtocolIIIdentityAcceptsOnlyAnExplicitFC03FixtureProfile(t *tes
 	if got := observation.FirmwareText(); got != "FW-1" {
 		t.Fatalf("FirmwareText() = %q, want %q", got, "FW-1")
 	}
+	if got := observation.SerialText(); got != "SN-0001" {
+		t.Fatalf("SerialText() = %q, want %q", got, "SN-0001")
+	}
 	if got := observation.DeviceType(); got != 0x1234 {
 		t.Fatalf("DeviceType() = %#x, want %#x", got, uint16(0x1234))
 	}
@@ -66,9 +69,9 @@ func TestGrowattProtocolIIIdentityRejectsOutOfContractInputs(t *testing.T) {
 		"serial range": func(input *GrowattProtocolIIIdentityInput) {
 			input.Slices[0] = GrowattProtocolIIIdentitySlice{Offset: 23, Words: make([]uint16, 6)}
 		},
-		"wrong device type": func(input *GrowattProtocolIIIdentityInput) { input.Slices[1].Words[0] = 0xbeef },
-		"wrong model build": func(input *GrowattProtocolIIIdentityInput) { input.Slices[2].Words[1] = 0xbeef },
-		"wrong protocol":    func(input *GrowattProtocolIIIdentityInput) { input.Slices[3].Words[0] = 0x0123 },
+		"wrong device type": func(input *GrowattProtocolIIIdentityInput) { input.Slices[2].Words[0] = 0xbeef },
+		"wrong model build": func(input *GrowattProtocolIIIdentityInput) { input.Slices[3].Words[1] = 0xbeef },
+		"wrong protocol":    func(input *GrowattProtocolIIIdentityInput) { input.Slices[4].Words[0] = 0x0123 },
 		"interior nul": func(input *GrowattProtocolIIIdentityInput) {
 			input.Slices[0].Words[0] = 0x4600
 			input.Slices[0].Words[1] = 0x5731
@@ -97,6 +100,7 @@ func validGrowattProtocolIIIdentityInput() GrowattProtocolIIIdentityInput {
 		},
 		Slices: []GrowattProtocolIIIdentitySlice{
 			{Offset: 9, Words: []uint16{0x4657, 0x2d31, 0, 0, 0, 0}},
+			{Offset: 23, Words: []uint16{0x534e, 0x2d30, 0x3030, 0x3100, 0}},
 			{Offset: 43, Words: []uint16{0x1234}},
 			{Offset: 82, Words: []uint16{0x4d41, 0x5831}},
 			{Offset: 88, Words: []uint16{0x0124}},
