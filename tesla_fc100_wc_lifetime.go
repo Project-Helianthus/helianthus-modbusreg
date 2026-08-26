@@ -66,5 +66,8 @@ func DecodeTeslaFC100WCLifetimeReplaySequence(payloads [][]byte) ([]TeslaFC100WC
 		}
 		results = append(results, replay)
 	}
+	if !seenTerminal {
+		return nil, fmt.Errorf("tesla WC lifetime response has no terminal")
+	}
 	return results, nil
 }

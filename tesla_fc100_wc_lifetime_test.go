@@ -78,4 +78,9 @@ func TestTeslaFC100WCLifetimeDispatchRejectsInvalidCompleteSequence(t *testing.T
 			t.Fatalf("invalid dispatch = %#v, %v", results, err)
 		}
 	}
+	transport := &qualifiedFunctionTestTransport{responsePayloads: [][]byte{{0x04, 0x32, 0x02, 0x1a, 0x00}}}
+	results, err := registry.Dispatch(context.Background(), transport, QualifiedFunctionSelector{Endpoint: "rtu-a", UnitID: profile.Node(), VendorProfile: TeslaHSCProfileName, Operation: TeslaTEDAPIOperationWCLifetimeV1})
+	if err == nil || len(results) != 0 {
+		t.Fatalf("echo-only dispatch = %#v, %v", results, err)
+	}
 }
