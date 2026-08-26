@@ -95,6 +95,12 @@ var teslaFC100OperationNames = map[TeslaFC100Operation]TeslaFC100OperationNames{
 	TeslaFC100OperationWCConfigureHomeSiteController: {"ConfigureHomeSiteController", "ConfigureHomeSiteControllerResponse", []string{"din", "modbus_node_id", "vehicle_to_home"}},
 	TeslaFC100OperationWCSetOCPPSecurity:             {"SetOcppSecurityParameter", "SetOcppSecurityParameterResponse", []string{"security_parameter_type", "security_parameter"}},
 	TeslaFC100OperationWCConfigureCountryCode:        {"ConfigureCountryCodeSettings", "ConfigureCountryCodeSettingsResponse", []string{"country"}},
+	TeslaFC100OperationCommonClearUpdate:             {"CommonAPIClearUpdate", "ClearUpdateResponse", nil},
+	TeslaFC100OperationWCConfigureLoadSharing:        {"ConfigureLoadSharingSettings", "ConfigureLoadSharingSettingsResponse", []string{"settings"}},
+	TeslaFC100OperationWCSetProvisional:              {"SetProvisionalOperationalParams", "SetProvisionalOperationalParamsResponse", []string{"prov_op_params"}},
+	TeslaFC100OperationWCConfigureThirdPartyVehicle:  {"ConfigureThirdPartyVehicleMode", "ConfigureThirdPartyVehicleModeResponse", []string{"third_party_vehicle_mode"}},
+	TeslaFC100OperationWCConfigureOCPP:               {"ConfigureOcppSettings", "ConfigureOcppSettingsResponse", []string{"settings"}},
+	TeslaFC100OperationWCConfigureOperational:        {"ConfigureOperationalSettings", "ConfigureOperationalSettingsResponse", []string{"operational_settings_config"}},
 }
 
 // TeslaFC100RecoveredNames returns independent recovered names for one

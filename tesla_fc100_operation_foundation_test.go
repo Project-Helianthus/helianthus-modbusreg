@@ -83,3 +83,12 @@ func TestTeslaFC100RecoveredNamesCoverAccessVehiclesAndOCPP(t *testing.T) {
 		}
 	}
 }
+
+func TestTeslaFC100RecoveredNamesCoverEveryAcceptedOperation(t *testing.T) {
+	for operation := range teslaFC100OperationSpecs {
+		names, ok := TeslaFC100RecoveredNames(operation)
+		if !ok || names.Request == "" || names.Response == "" {
+			t.Fatalf("missing recovered operation name for %s", operation)
+		}
+	}
+}
