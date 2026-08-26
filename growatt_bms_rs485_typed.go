@@ -15,6 +15,7 @@ const (
 // of the exact 1xSxxP ESS V2.02 four-slice input. All unlisted words remain
 // available only through the separate opaque read-only observation.
 type GrowattBMSTypedReadOnlyStatus struct {
+	nativeObservation           *GrowattBMSReadOnlyObservation
 	Revision                    GrowattBMSRevisionTuple
 	MCUSoftwareVersion          string
 	GaugeVersion                string
@@ -36,6 +37,20 @@ type GrowattBMSTypedReadOnlyStatus struct {
 	FloatingPackVoltageVolts    float64
 	CumulativeChargeAmpHours    float64
 	CumulativeDischargeAmpHours float64
+}
+
+// NativeObservation returns the validated caller-selected unit, revision, and
+// exact FC03 slices that produced this typed status. The returned value owns
+// independent slice storage.
+func (status GrowattBMSTypedReadOnlyStatus) NativeObservation() GrowattBMSReadOnlyObservation {
+	if status.nativeObservation == nil {
+		return GrowattBMSReadOnlyObservation{}
+	}
+	return GrowattBMSReadOnlyObservation{
+		unitID:   status.nativeObservation.unitID,
+		revision: status.nativeObservation.revision,
+		slices:   cloneGrowattBMSReadOnlySlices(status.nativeObservation.slices),
+	}
 }
 
 // OutboundAllowed is permanently false. Typed observation data cannot
@@ -73,6 +88,7 @@ func DecodeGrowattBMSTypedReadOnlyStatus(input GrowattBMSReadOnlyInput) (Growatt
 		return GrowattBMSTypedReadOnlyStatus{}, fmt.Errorf("growatt BMS typed operating state is invalid")
 	}
 	return GrowattBMSTypedReadOnlyStatus{
+		nativeObservation:           &observation,
 		Revision:                    observation.Revision(),
 		MCUSoftwareVersion:          growattBMSByteVersion(identity[0]),
 		GaugeVersion:                growattBMSByteVersion(identity[1]),

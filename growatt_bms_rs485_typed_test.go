@@ -49,6 +49,11 @@ func TestGrowattBMSTypedStatusRetainsNativeObservation(t *testing.T) {
 	if native.UnitID() != input.UnitID || native.Revision() != input.Revision || len(native.Slices()) != len(input.Slices) {
 		t.Fatalf("native observation = %#v", native)
 	}
+	nativeSlices := native.Slices()
+	nativeSlices[0].Words[0] ^= 0xffff
+	if status.NativeObservation().Slices()[0].Words[0] != input.Slices[0].Words[0] {
+		t.Fatal("native observation aliases typed status")
+	}
 }
 
 func validGrowattBMSTypedReadOnlyInput() GrowattBMSReadOnlyInput {
