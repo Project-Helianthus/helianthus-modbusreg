@@ -23,7 +23,8 @@ const (
 	TeslaHSCWCSystemInfoCompatibilityV1 = "wc3_24_44_3"
 	// TeslaHSCWCLoadSharingStateCompatibilityV1 is the exact operation
 	// contract gate for the bounded WC load-sharing-state replay.
-	TeslaHSCWCLoadSharingStateCompatibilityV1 = "wc3_24_44_3"
+	TeslaHSCWCLoadSharingStateCompatibilityV1  = "wc3_24_44_3"
+	TeslaHSCWCPPUSettingsReplayCompatibilityV1 = "wc3_24_44_3"
 )
 
 // TeslaHSCProfileName identifies the profile only inside registry selection.
@@ -86,6 +87,7 @@ type TeslaHSCProfileConfig struct {
 	WCLifetimeOperationVersion         string
 	WCSystemInfoOperationVersion       string
 	WCLoadSharingStateOperationVersion string
+	WCPPUSettingsReplayVersion         string
 }
 
 // TeslaHSCProfile retains the immutable profile gate decision.
