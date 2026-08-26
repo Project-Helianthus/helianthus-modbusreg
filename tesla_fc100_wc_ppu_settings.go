@@ -24,21 +24,26 @@ type TeslaFC100WCPPUSettingsReplay struct {
 
 // TeslaFC100WCPPUSettingsReplayDecoder decodes injected offline replay only.
 // It owns no request construction, exchange, serial endpoint, or admission.
-type TeslaFC100WCPPUSettingsReplayDecoder struct{}
+type TeslaFC100WCPPUSettingsReplayDecoder struct {
+	valid bool
+}
 
 func NewTeslaFC100WCPPUSettingsReplayDecoder(profile TeslaHSCProfile) (*TeslaFC100WCPPUSettingsReplayDecoder, error) {
 	if profile.Disposition() != TeslaHSCQualifiedReadOnly ||
 		profile.config.WCPPUSettingsReplayVersion != TeslaHSCWCPPUSettingsReplayCompatibilityV1 {
 		return nil, ErrQualifiedFunctionNoSend
 	}
-	return &TeslaFC100WCPPUSettingsReplayDecoder{}, nil
+	return &TeslaFC100WCPPUSettingsReplayDecoder{valid: true}, nil
 }
 
-func (TeslaFC100WCPPUSettingsReplayDecoder) Decode(payloads [][]byte) ([]TeslaFC100WCPPUSettingsReplay, error) {
-	return DecodeTeslaFC100WCPPUSettingsReplaySequence(payloads)
+func (decoder *TeslaFC100WCPPUSettingsReplayDecoder) Decode(payloads [][]byte) ([]TeslaFC100WCPPUSettingsReplay, error) {
+	if decoder == nil || !decoder.valid {
+		return nil, ErrQualifiedFunctionNoSend
+	}
+	return decodeTeslaFC100WCPPUSettingsReplaySequence(payloads)
 }
 
-func DecodeTeslaFC100WCPPUSettingsReplay(payload []byte) (TeslaFC100WCPPUSettingsReplay, error) {
+func decodeTeslaFC100WCPPUSettingsReplay(payload []byte) (TeslaFC100WCPPUSettingsReplay, error) {
 	response, err := DecodeTeslaHSCResponse(teslaHSCFunction100, payload)
 	if err != nil {
 		return TeslaFC100WCPPUSettingsReplay{}, err
@@ -59,14 +64,14 @@ func DecodeTeslaFC100WCPPUSettingsReplay(payload []byte) (TeslaFC100WCPPUSetting
 	return TeslaFC100WCPPUSettingsReplay{Kind: TeslaFC100WCPPUSettingsTerminal, SnapshotLength: len(body), SnapshotDigest: hex.EncodeToString(digest[:])}, nil
 }
 
-func DecodeTeslaFC100WCPPUSettingsReplaySequence(payloads [][]byte) ([]TeslaFC100WCPPUSettingsReplay, error) {
+func decodeTeslaFC100WCPPUSettingsReplaySequence(payloads [][]byte) ([]TeslaFC100WCPPUSettingsReplay, error) {
 	if len(payloads) == 0 || len(payloads) > 2 {
 		return nil, fmt.Errorf("tesla WC PPU settings response count is invalid")
 	}
 	results := make([]TeslaFC100WCPPUSettingsReplay, 0, len(payloads))
 	seenIntermediate, seenTerminal := false, false
 	for _, payload := range payloads {
-		replay, err := DecodeTeslaFC100WCPPUSettingsReplay(payload)
+		replay, err := decodeTeslaFC100WCPPUSettingsReplay(payload)
 		if err != nil {
 			return nil, err
 		}

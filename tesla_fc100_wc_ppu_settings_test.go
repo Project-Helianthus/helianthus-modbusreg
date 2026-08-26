@@ -43,4 +43,8 @@ func TestTeslaFC100WCPPUSettingsReplayIsVersionGatedAndOpaque(t *testing.T) {
 	if _, err := NewTeslaFC100WCPPUSettingsReplayDecoder(ungated); err == nil {
 		t.Fatal("ungated profile created a PPU replay decoder")
 	}
+	var zero TeslaFC100WCPPUSettingsReplayDecoder
+	if got, err := zero.Decode([][]byte{{0x06, 0x32, 0x04, 0xc2, 0x01, 0x01, 0x08}}); err == nil || got != nil {
+		t.Fatalf("zero-value decoder = %#v, %v", got, err)
+	}
 }
