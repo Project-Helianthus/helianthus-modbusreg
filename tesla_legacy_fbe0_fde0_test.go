@@ -5,11 +5,11 @@ import "testing"
 func TestTeslaLegacyFDE0CandidateObservationRetainsCurrentRoles(t *testing.T) {
 	raw := []byte{0xfd, 0xe0, 0x09, 0x07, 0xd0, 0x03, 0xe8}
 	observation, err := NewTeslaLegacyFDE0Observation(TeslaLegacyFDE0ObservationSpec{
-		Qualification: TeslaLegacyFamilyCompatible,
-		State:         TeslaLegacyFDE0StateCharging,
-		AllocatedMaxCA: 2000,
+		Qualification:   TeslaLegacyFamilyCompatible,
+		State:           TeslaLegacyFDE0StateCharging,
+		AllocatedMaxCA:  2000,
 		ActualCurrentCA: 1000,
-		Raw:           raw,
+		Raw:             raw,
 	})
 	if err != nil {
 		t.Fatalf("NewTeslaLegacyFDE0Observation() error = %v", err)
