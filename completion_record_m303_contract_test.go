@@ -14,7 +14,7 @@ import (
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
-func TestFMV3M303CompletionGoldenJSONIsStableAndRoundTrips(t *testing.T) {
+func TestM303CompletionGoldenJSONIsStableAndRoundTrips(t *testing.T) {
 	golden, err := os.ReadFile("testdata/fmv3-m3-03-completion-v2.json")
 	if err != nil {
 		t.Fatalf("ReadFile(golden): %v", err)
@@ -48,7 +48,7 @@ func TestFMV3M303CompletionGoldenJSONIsStableAndRoundTrips(t *testing.T) {
 	}
 }
 
-func TestFMV3M303CompletionRejectsIncompatibleOrUnsafeRecords(t *testing.T) {
+func TestM303CompletionRejectsIncompatibleOrUnsafeRecords(t *testing.T) {
 	golden, err := os.ReadFile("testdata/fmv3-m3-03-completion-v2.json")
 	if err != nil {
 		t.Fatalf("ReadFile(golden): %v", err)
@@ -79,7 +79,7 @@ func TestFMV3M303CompletionRejectsIncompatibleOrUnsafeRecords(t *testing.T) {
 	}
 }
 
-func TestFMV3M303CompletionConstructorRejectsNonCanonicalConclusion(t *testing.T) {
+func TestM303CompletionConstructorRejectsNonCanonicalConclusion(t *testing.T) {
 	current, err := reg.NewCurrentFMV3M303CompletionRecord()
 	if err != nil {
 		t.Fatalf("NewCurrentFMV3M303CompletionRecord: %v", err)
@@ -166,7 +166,7 @@ func TestFMV3M303CompletionConstructorRejectsNonCanonicalConclusion(t *testing.T
 	}
 }
 
-func TestFMV3M303CompletionJSONRejectsNonCanonicalConclusion(t *testing.T) {
+func TestM303CompletionJSONRejectsNonCanonicalConclusion(t *testing.T) {
 	golden, err := os.ReadFile("testdata/fmv3-m3-03-completion-v2.json")
 	if err != nil {
 		t.Fatalf("ReadFile(golden): %v", err)
@@ -233,7 +233,7 @@ func TestFMV3M303CompletionJSONRejectsNonCanonicalConclusion(t *testing.T) {
 	}
 }
 
-func TestFMV3M303CompletionDispositionSetIsClosed(t *testing.T) {
+func TestM303CompletionDispositionSetIsClosed(t *testing.T) {
 	current, err := reg.NewCurrentFMV3M303CompletionRecord()
 	if err != nil {
 		t.Fatalf("NewCurrentFMV3M303CompletionRecord: %v", err)
@@ -281,7 +281,7 @@ func TestFMV3M303CompletionDispositionSetIsClosed(t *testing.T) {
 	})
 }
 
-func TestFMV3M303CompletionUsesDefensiveCopies(t *testing.T) {
+func TestM303CompletionUsesDefensiveCopies(t *testing.T) {
 	record, err := reg.NewCurrentFMV3M303CompletionRecord()
 	if err != nil {
 		t.Fatalf("NewCurrentFMV3M303CompletionRecord: %v", err)
@@ -298,7 +298,7 @@ func TestFMV3M303CompletionUsesDefensiveCopies(t *testing.T) {
 	}
 }
 
-func TestFMV3M303CompletionAddsNoVendorOverlayDetectorOrTransportImport(t *testing.T) {
+func TestM303CompletionAddsNoVendorOverlayDetectorOrTransportImport(t *testing.T) {
 	for _, name := range []string{"completion_record.go", "completion_record_serialization.go"} {
 		path := filepath.Join(".", name)
 		source, err := os.ReadFile(path)
