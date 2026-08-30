@@ -1,6 +1,9 @@
 package modbusreg
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 func currentLimitRequest(t *testing.T, operation TeslaFC100Operation, body []byte) []byte {
 	t.Helper()
@@ -33,26 +36,48 @@ func TestTeslaGen3EVSECurrentLimitRetainsPersistentAndProvisionalRecords(t *test
 		t.Fatalf("persistent record = %#v, %v", persistent, err)
 	}
 
+	setRequest := currentLimitRequest(t, TeslaFC100OperationWCSetProvisional, []byte{0x08, 0x10})
+	ack := currentLimitTerminal(TeslaFC100OperationWCSetProvisional, nil)
+	readbackRequest := currentLimitRequest(t, TeslaFC100OperationWCGetProvisional, nil)
+	readbackTerminal := currentLimitTerminal(TeslaFC100OperationWCGetProvisional, []byte{0x08, 0x10})
+	setRequestWant := append([]byte(nil), setRequest...)
+	ackWant := append([]byte(nil), ack...)
+	readbackRequestWant := append([]byte(nil), readbackRequest...)
+	readbackTerminalWant := append([]byte(nil), readbackTerminal...)
 	provisional, err := NewTeslaGen3ProvisionalCurrentLimit(TeslaGen3ProvisionalCurrentLimitSpec{
 		OperationVersion:        TeslaGen3CurrentLimitOperationVersion24443,
 		LimitCurrentMaxAmps:     16,
 		LimitTimeoutSeconds:     600,
 		InhibitCharging:         false,
-		SetRequestPayload:       currentLimitRequest(t, TeslaFC100OperationWCSetProvisional, []byte{0x08, 0x10}),
-		AckPayload:              currentLimitTerminal(TeslaFC100OperationWCSetProvisional, nil),
-		ReadbackRequestPayload:  currentLimitRequest(t, TeslaFC100OperationWCGetProvisional, nil),
-		ReadbackTerminalPayload: currentLimitTerminal(TeslaFC100OperationWCGetProvisional, []byte{0x08, 0x10}),
+		SetRequestPayload:       setRequest,
+		AckPayload:              ack,
+		ReadbackRequestPayload:  readbackRequest,
+		ReadbackTerminalPayload: readbackTerminal,
 	})
 	if err != nil || provisional.LimitCurrentMaxAmps() != 16 || provisional.LimitTimeoutSeconds() != 600 || provisional.InhibitCharging() {
 		t.Fatalf("provisional record = %#v, %v", provisional, err)
 	}
-	if provisional.OperationVersion() != TeslaGen3CurrentLimitOperationVersion24443 || provisional.ReadbackTerminalPayload()[0] == 0 {
-		t.Fatalf("provisional evidence is not retrievable")
+	for _, source := range [][]byte{setRequest, ack, readbackRequest, readbackTerminal} {
+		source[0] ^= 0xff
 	}
-	readback := provisional.ReadbackTerminalPayload()
-	readback[0] = 0
-	if provisional.ReadbackTerminalPayload()[0] == 0 {
-		t.Fatal("ReadbackRaw() did not defensively copy")
+	for _, evidence := range []struct {
+		name string
+		want []byte
+		get  func() []byte
+	}{
+		{"set request", setRequestWant, provisional.SetRequestPayload},
+		{"ack", ackWant, provisional.AckPayload},
+		{"readback request", readbackRequestWant, provisional.ReadbackRequestPayload},
+		{"readback terminal", readbackTerminalWant, provisional.ReadbackTerminalPayload},
+	} {
+		got := evidence.get()
+		if !bytes.Equal(got, evidence.want) {
+			t.Fatalf("%s = %x, want %x", evidence.name, got, evidence.want)
+		}
+		got[0] ^= 0xff
+		if bytes.Equal(got, evidence.get()) {
+			t.Fatalf("%s getter did not defensively copy", evidence.name)
+		}
 	}
 }
 
