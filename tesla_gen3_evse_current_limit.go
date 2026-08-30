@@ -54,7 +54,11 @@ type TeslaGen3ProvisionalCurrentLimit struct {
 func NewTeslaGen3ProvisionalCurrentLimit(s TeslaGen3ProvisionalCurrentLimitSpec) (TeslaGen3ProvisionalCurrentLimit, error) {
 	a, e := DecodeTeslaFC100OperationSequence(s.OperationVersion, TeslaFC100OperationWCSetProvisional, s.SetRequestPayload, [][]byte{s.AckPayload})
 	b, f := DecodeTeslaFC100OperationSequence(s.OperationVersion, TeslaFC100OperationWCGetProvisional, s.ReadbackRequestPayload, [][]byte{s.ReadbackTerminalPayload})
-	if s.OperationVersion != TeslaGen3CurrentLimitOperationVersion24443 || e != nil || f != nil || len(a) != 1 || len(b) != 1 || a[0].Kind != TeslaFC100OperationTerminal || b[0].Kind != TeslaFC100OperationTerminal {
+	if s.OperationVersion != TeslaGen3CurrentLimitOperationVersion24443 ||
+		!teslaGen3ExactFC100Request(TeslaFC100OperationWCSetProvisional, s.SetRequestPayload) ||
+		!teslaGen3ExactFC100Request(TeslaFC100OperationWCGetProvisional, s.ReadbackRequestPayload) ||
+		e != nil || f != nil || len(a) != 1 || len(b) != 1 ||
+		a[0].Kind != TeslaFC100OperationTerminal || b[0].Kind != TeslaFC100OperationTerminal {
 		return TeslaGen3ProvisionalCurrentLimit{}, fmt.Errorf("Gen3 provisional current limit context is invalid")
 	}
 	return TeslaGen3ProvisionalCurrentLimit{
@@ -68,6 +72,24 @@ func NewTeslaGen3ProvisionalCurrentLimit(s TeslaGen3ProvisionalCurrentLimitSpec)
 		readbackTerminalPayload: append([]byte(nil), s.ReadbackTerminalPayload...),
 	}, nil
 }
+
+func teslaGen3ExactFC100Request(operation TeslaFC100Operation, payload []byte) bool {
+	spec, ok := teslaFC100OperationSpecs[operation]
+	if !ok {
+		return false
+	}
+	envelope, err := DecodeTeslaHSCEnvelope(teslaHSCFunction100, payload)
+	if err != nil {
+		return false
+	}
+	family, err := decodeExactLengthDelimitedField(envelope.Payload(), spec.family)
+	if err != nil {
+		return false
+	}
+	_, err = decodeExactLengthDelimitedField(family, spec.requestTag)
+	return err == nil
+}
+
 func (v TeslaGen3ProvisionalCurrentLimit) OperationVersion() string    { return v.operationVersion }
 func (v TeslaGen3ProvisionalCurrentLimit) LimitCurrentMaxAmps() uint32 { return v.limitCurrentMaxAmps }
 func (v TeslaGen3ProvisionalCurrentLimit) LimitTimeoutSeconds() uint32 { return v.limitTimeoutSeconds }
