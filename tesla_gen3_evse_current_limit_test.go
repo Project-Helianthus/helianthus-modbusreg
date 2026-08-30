@@ -124,3 +124,25 @@ func TestTeslaGen3ProvisionalCurrentLimitRejectsMismatchedRequestOperations(t *t
 		})
 	}
 }
+
+func TestTeslaGen3PersistentCurrentLimitRejectsMismatchedRequestOperations(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		request []byte
+	}{
+		{"provisional set", currentLimitRequest(t, TeslaFC100OperationWCSetProvisional, []byte{0x08, 0x10})},
+		{"provisional get", currentLimitRequest(t, TeslaFC100OperationWCGetProvisional, nil)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NewTeslaGen3PersistentCurrentLimit(TeslaGen3PersistentCurrentLimitSpec{
+				OperationVersion:     TeslaGen3CurrentLimitOperationVersion24443,
+				MaxOutputCurrentAmps: 16,
+				RequestPayload:       tc.request,
+				TerminalPayload:      currentLimitTerminal(TeslaFC100OperationWCConfigureSettings, []byte{0x08, 0x10}),
+			})
+			if err == nil {
+				t.Fatal("mismatched request operation was accepted")
+			}
+		})
+	}
+}
