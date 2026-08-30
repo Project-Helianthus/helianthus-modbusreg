@@ -21,7 +21,9 @@ type TeslaGen3PersistentCurrentLimit struct {
 
 func NewTeslaGen3PersistentCurrentLimit(s TeslaGen3PersistentCurrentLimitSpec) (TeslaGen3PersistentCurrentLimit, error) {
 	r, e := DecodeTeslaFC100OperationSequence(s.OperationVersion, TeslaFC100OperationWCConfigureSettings, s.RequestPayload, [][]byte{s.TerminalPayload})
-	if s.OperationVersion != TeslaGen3CurrentLimitOperationVersion24443 || e != nil || len(r) != 1 || r[0].Kind != TeslaFC100OperationTerminal {
+	if s.OperationVersion != TeslaGen3CurrentLimitOperationVersion24443 ||
+		!teslaGen3ExactFC100Request(TeslaFC100OperationWCConfigureSettings, s.RequestPayload) ||
+		e != nil || len(r) != 1 || r[0].Kind != TeslaFC100OperationTerminal {
 		return TeslaGen3PersistentCurrentLimit{}, fmt.Errorf("Gen3 persistent current limit context is invalid")
 	}
 	return TeslaGen3PersistentCurrentLimit{s.OperationVersion, s.MaxOutputCurrentAmps, append([]byte(nil), s.RequestPayload...), append([]byte(nil), s.TerminalPayload...)}, nil
