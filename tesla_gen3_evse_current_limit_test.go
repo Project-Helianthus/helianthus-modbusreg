@@ -4,16 +4,16 @@ import "testing"
 
 func TestTeslaGen3EVSECurrentLimitRetainsPersistentAndProvisionalRecords(t *testing.T) {
 	persistent, err := NewTeslaGen3PersistentCurrentLimit(TeslaGen3PersistentCurrentLimitSpec{
-		OperationVersion: TeslaGen3CurrentLimitOperationVersion24443,
+		OperationVersion:     TeslaGen3CurrentLimitOperationVersion24443,
 		MaxOutputCurrentAmps: 16,
-		Raw:               []byte{0x32, 0x02, 0x3a, 0x00},
+		Raw:                  []byte{0x32, 0x02, 0x3a, 0x00},
 	})
 	if err != nil || persistent.MaxOutputCurrentAmps() != 16 || persistent.OperationVersion() != TeslaGen3CurrentLimitOperationVersion24443 {
 		t.Fatalf("persistent record = %#v, %v", persistent, err)
 	}
 
 	provisional, err := NewTeslaGen3ProvisionalCurrentLimit(TeslaGen3ProvisionalCurrentLimitSpec{
-		OperationVersion: TeslaGen3CurrentLimitOperationVersion24443,
+		OperationVersion:    TeslaGen3CurrentLimitOperationVersion24443,
 		LimitCurrentMaxAmps: 16,
 		LimitTimeoutSeconds: 600,
 		InhibitCharging:     false,
@@ -25,8 +25,13 @@ func TestTeslaGen3EVSECurrentLimitRetainsPersistentAndProvisionalRecords(t *test
 }
 
 func TestTeslaGen3EVSECurrentLimitInteroperableProjectionIsBounded(t *testing.T) {
-	for _, tc := range []struct{ amps, timeout uint32; valid bool }{{6, 1, true}, {5, 1, false}, {6, 0, false}, {6, 86400, false}} {
+	for _, tc := range []struct {
+		amps, timeout uint32
+		valid         bool
+	}{{6, 1, true}, {5, 1, false}, {6, 0, false}, {6, 86400, false}} {
 		_, err := NewTeslaGen3InteroperableCurrentLimit(tc.amps, tc.timeout)
-		if (err == nil) != tc.valid { t.Fatalf("amps=%d timeout=%d err=%v", tc.amps, tc.timeout, err) }
+		if (err == nil) != tc.valid {
+			t.Fatalf("amps=%d timeout=%d err=%v", tc.amps, tc.timeout, err)
+		}
 	}
 }
