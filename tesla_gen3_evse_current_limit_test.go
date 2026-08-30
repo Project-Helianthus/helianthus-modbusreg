@@ -96,3 +96,31 @@ func TestTeslaGen3EVSECurrentLimitInteroperableProjectionIsBounded(t *testing.T)
 		t.Fatalf("bounded projection = %#v, %v", limit, err)
 	}
 }
+
+func TestTeslaGen3ProvisionalCurrentLimitRejectsMismatchedRequestOperations(t *testing.T) {
+	setRequest := currentLimitRequest(t, TeslaFC100OperationWCSetProvisional, []byte{0x08, 0x10})
+	readbackRequest := currentLimitRequest(t, TeslaFC100OperationWCGetProvisional, nil)
+	wrongRequest := currentLimitRequest(t, TeslaFC100OperationWCConfigureSettings, []byte{0x08, 0x10})
+	for _, tc := range []struct {
+		name                        string
+		setRequest, readbackRequest []byte
+	}{
+		{"set", wrongRequest, readbackRequest},
+		{"readback", setRequest, wrongRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NewTeslaGen3ProvisionalCurrentLimit(TeslaGen3ProvisionalCurrentLimitSpec{
+				OperationVersion:        TeslaGen3CurrentLimitOperationVersion24443,
+				LimitCurrentMaxAmps:     16,
+				LimitTimeoutSeconds:     600,
+				SetRequestPayload:       tc.setRequest,
+				AckPayload:              currentLimitTerminal(TeslaFC100OperationWCSetProvisional, nil),
+				ReadbackRequestPayload:  tc.readbackRequest,
+				ReadbackTerminalPayload: currentLimitTerminal(TeslaFC100OperationWCGetProvisional, []byte{0x08, 0x10}),
+			})
+			if err == nil {
+				t.Fatal("mismatched request operation was accepted")
+			}
+		})
+	}
+}
