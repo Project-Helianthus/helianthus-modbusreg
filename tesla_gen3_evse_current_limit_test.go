@@ -22,6 +22,14 @@ func TestTeslaGen3EVSECurrentLimitRetainsPersistentAndProvisionalRecords(t *test
 	if err != nil || provisional.LimitCurrentMaxAmps() != 16 || provisional.LimitTimeoutSeconds() != 600 || provisional.InhibitCharging() {
 		t.Fatalf("provisional record = %#v, %v", provisional, err)
 	}
+	if provisional.OperationVersion() != TeslaGen3CurrentLimitOperationVersion24443 || provisional.ReadbackRaw()[0] != 0x32 {
+		t.Fatalf("provisional evidence is not retrievable")
+	}
+	readback := provisional.ReadbackRaw()
+	readback[0] = 0
+	if provisional.ReadbackRaw()[0] != 0x32 {
+		t.Fatal("ReadbackRaw() did not defensively copy")
+	}
 }
 
 func TestTeslaGen3EVSECurrentLimitInteroperableProjectionIsBounded(t *testing.T) {
@@ -33,5 +41,9 @@ func TestTeslaGen3EVSECurrentLimitInteroperableProjectionIsBounded(t *testing.T)
 		if (err == nil) != tc.valid {
 			t.Fatalf("amps=%d timeout=%d err=%v", tc.amps, tc.timeout, err)
 		}
+	}
+	limit, err := NewTeslaGen3InteroperableCurrentLimit(6, 1)
+	if err != nil || limit.MaxAmps() != 6 || limit.TimeoutSeconds() != 1 {
+		t.Fatalf("bounded projection = %#v, %v", limit, err)
 	}
 }

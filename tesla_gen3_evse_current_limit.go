@@ -55,12 +55,18 @@ func NewTeslaGen3ProvisionalCurrentLimit(spec TeslaGen3ProvisionalCurrentLimitSp
 func (v TeslaGen3ProvisionalCurrentLimit) LimitCurrentMaxAmps() uint32 { return v.limitCurrentMaxAmps }
 func (v TeslaGen3ProvisionalCurrentLimit) LimitTimeoutSeconds() uint32 { return v.limitTimeoutSeconds }
 func (v TeslaGen3ProvisionalCurrentLimit) InhibitCharging() bool       { return v.inhibitCharging }
+func (v TeslaGen3ProvisionalCurrentLimit) OperationVersion() string    { return v.operationVersion }
+func (v TeslaGen3ProvisionalCurrentLimit) ReadbackRaw() []byte {
+	return append([]byte(nil), v.readbackRaw...)
+}
 
-type TeslaGen3InteroperableCurrentLimit struct{ MaxAmps, TimeoutSeconds uint32 }
+type TeslaGen3InteroperableCurrentLimit struct{ maxAmps, timeoutSeconds uint32 }
 
 func NewTeslaGen3InteroperableCurrentLimit(amps, timeout uint32) (TeslaGen3InteroperableCurrentLimit, error) {
 	if amps < teslaGen3MinCurrentAmps || timeout == 0 || timeout > teslaGen3MaxTimeoutS {
 		return TeslaGen3InteroperableCurrentLimit{}, fmt.Errorf("Gen3 interoperable current limit is out of bounds")
 	}
-	return TeslaGen3InteroperableCurrentLimit{amps, timeout}, nil
+	return TeslaGen3InteroperableCurrentLimit{maxAmps: amps, timeoutSeconds: timeout}, nil
 }
+func (v TeslaGen3InteroperableCurrentLimit) MaxAmps() uint32        { return v.maxAmps }
+func (v TeslaGen3InteroperableCurrentLimit) TimeoutSeconds() uint32 { return v.timeoutSeconds }
