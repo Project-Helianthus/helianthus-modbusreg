@@ -3,6 +3,7 @@ package modbusreg
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 )
 
 const (
@@ -92,6 +93,10 @@ func (card SunSpecFroniusQualificationCard) Qualify(registry SunSpecDecoderRegis
 	if registry.revision != card.SchemaRevision() {
 		return SunSpecQualificationObservation{}, fmt.Errorf("qualification requires the pinned SunSpec V1 registry")
 	}
+	snapshot, err := card.replayExactAcquisition(registry, snapshot)
+	if err != nil {
+		return SunSpecQualificationObservation{}, err
+	}
 	views := snapshot.SourceViews()
 	if len(views) == 0 {
 		return SunSpecQualificationObservation{}, fmt.Errorf("qualification requires source-backed views")
@@ -111,6 +116,40 @@ func (card SunSpecFroniusQualificationCard) Qualify(registry SunSpecDecoderRegis
 		return SunSpecQualificationObservation{}, fmt.Errorf("qualification matched a different observed flavor")
 	}
 	return observation, nil
+}
+
+func (card SunSpecFroniusQualificationCard) replayExactAcquisition(registry SunSpecDecoderRegistry, input SunSpecChainSnapshot) (SunSpecChainSnapshot, error) {
+	chain, err := card.NewReplayChain(registry)
+	if err != nil {
+		return SunSpecChainSnapshot{}, err
+	}
+	views := input.SourceViews()
+	var terminal SunSpecChainSnapshot
+	for index, view := range views {
+		requests := chain.NextRequests()
+		if len(requests) != 1 {
+			return SunSpecChainSnapshot{}, fmt.Errorf("qualification source sequence is outside the exact card plan")
+		}
+		snapshot, err := chain.AdmitReplay(requests[0], view)
+		if err != nil {
+			return SunSpecChainSnapshot{}, fmt.Errorf("qualification source sequence is outside the exact card plan: %w", err)
+		}
+		if len(snapshot.RawWords()) != 0 {
+			if index != len(views)-1 {
+				return SunSpecChainSnapshot{}, fmt.Errorf("qualification source sequence continues after the terminal marker")
+			}
+			terminal = snapshot
+		}
+	}
+	if len(terminal.RawWords()) == 0 || len(chain.NextRequests()) != 0 {
+		return SunSpecChainSnapshot{}, fmt.Errorf("qualification source sequence is incomplete")
+	}
+	if !reflect.DeepEqual(terminal.RawWords(), input.RawWords()) ||
+		!reflect.DeepEqual(terminal.Occurrences(), input.Occurrences()) ||
+		!reflect.DeepEqual(terminal.SourceViews(), input.SourceViews()) {
+		return SunSpecChainSnapshot{}, fmt.Errorf("qualification snapshot differs from the exact card replay")
+	}
+	return terminal, nil
 }
 
 // SunSpecFroniusQualificationExpectedResult is a sanitized static expectation.

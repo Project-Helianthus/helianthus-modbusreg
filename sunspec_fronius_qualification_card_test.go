@@ -123,6 +123,61 @@ func TestFroniusQualificationCardCompleteChainNegativeControls(t *testing.T) {
 				if len(matches) == 0 || matches[0].Disposition != tc.retainedDisposition || len(matches[0].Words()) == 0 || len(matches[0].SourceSpans()) == 0 {
 					t.Fatalf("retained model=%#v", matches)
 				}
+				if tc.name == "duplicate model retained" {
+					if len(matches) != 2 || matches[0].Ordinal != 3 || matches[1].Ordinal != 4 ||
+						!reflect.DeepEqual(matches[0].Words(), matches[1].Words()) ||
+						matches[0].HeaderOffset+uint16(len(matches[0].Words())) != matches[1].HeaderOffset {
+						t.Fatalf("duplicate occurrences/order/raw=%#v", matches)
+					}
+					firstSpans, secondSpans := matches[0].SourceSpans(), matches[1].SourceSpans()
+					if len(firstSpans) == 0 || len(secondSpans) == 0 || firstSpans[0].LogicalViewID == secondSpans[0].LogicalViewID {
+						t.Fatalf("duplicate source spans are not distinct: first=%#v second=%#v", firstSpans, secondSpans)
+					}
+					raw := snapshot.RawWords()
+					firstOffset := int(matches[0].HeaderOffset - card.BaseCandidates()[0])
+					secondOffset := int(matches[1].HeaderOffset - card.BaseCandidates()[0])
+					if !reflect.DeepEqual(raw[firstOffset:firstOffset+len(matches[0].Words())], matches[0].Words()) ||
+						!reflect.DeepEqual(raw[secondOffset:secondOffset+len(matches[1].Words())], matches[1].Words()) {
+						t.Fatal("duplicate occurrence raw evidence was not retained in order")
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestFroniusQualificationCardRejectsWrongAndExtraBaseAcquisition(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	card := NewSunSpecFroniusQualificationCard()
+	raw := rawWordsForOccurrences(froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1").Occurrences())
+
+	for _, tc := range []struct {
+		name         string
+		bases        []uint16
+		selectedBase uint16
+	}{
+		{name: "wrong sole base", bases: []uint16{41000}, selectedBase: 41000},
+		{name: "extra scanned base", bases: []uint16{40000, 41000}, selectedBase: 40000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+				SchemaRevision: card.SchemaRevision(),
+				BaseCandidates: tc.bases,
+				Limits:         card.Limits(),
+				DecoderKeys:    registry.DecoderKeys(),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := replayFroniusQualificationPlan(t, plan, raw, tc.selectedBase)
+			if err != nil {
+				t.Fatalf("custom-plan replay: %v", err)
+			}
+			if len(snapshot.RawWords()) == 0 || !registry.EvaluateThreePhaseMonitoring(snapshot).Admitted() {
+				t.Fatal("negative control did not produce a complete generic SunSpec capture")
+			}
+			if _, err := card.Qualify(registry, snapshot); err == nil {
+				t.Fatal("qualification card accepted acquisition outside its exact base plan")
 			}
 		})
 	}
@@ -197,10 +252,30 @@ func replayFroniusQualificationCard(t *testing.T, card SunSpecFroniusQualificati
 	if err != nil {
 		return SunSpecChainSnapshot{}, err
 	}
-	base := uint32(card.BaseCandidates()[0])
+	return replayFroniusQualificationChain(t, chain, raw, card.BaseCandidates()[0])
+}
+
+func replayFroniusQualificationPlan(t *testing.T, plan SunSpecChainPlan, raw []uint16, selectedBase uint16) (SunSpecChainSnapshot, error) {
+	t.Helper()
+	return replayFroniusQualificationChain(t, NewSunSpecChain(plan), raw, selectedBase)
+}
+
+func replayFroniusQualificationChain(t *testing.T, chain *SunSpecChain, raw []uint16, selectedBase uint16) (SunSpecChainSnapshot, error) {
+	t.Helper()
+	base := uint32(selectedBase)
 	viewID := uint64(1000)
 	for len(chain.NextRequests()) != 0 {
 		request := chain.NextRequests()[0]
+		if request.Purpose() == SunSpecReadSignature && request.Address() != selectedBase {
+			if _, err := chain.AdmitReplay(request, chainView(t, request, viewID, []uint16{0, 0}, "qualification-fixture")); err != nil {
+				return SunSpecChainSnapshot{}, err
+			}
+			viewID++
+			continue
+		}
+		if uint32(request.Address()) < base {
+			return SunSpecChainSnapshot{}, nil
+		}
 		start := int(uint32(request.Address()) - base)
 		end := start + int(request.WordCount())
 		if start < 0 || end > len(raw) {
