@@ -3,8 +3,11 @@ package modbusreg
 import "fmt"
 
 const (
-	teslaLegacyFBE0PayloadLength = 7
-	teslaLegacyFDE0PayloadLength = 9
+	teslaLegacyHeartbeatDataProtocol1Length = 7
+	teslaLegacyHeartbeatDataProtocol2Length = 9
+	teslaLegacyAddressContextLength         = 4
+	teslaLegacyDynamicCurrentPayload1Length = teslaLegacyAddressContextLength + teslaLegacyHeartbeatDataProtocol1Length
+	teslaLegacyDynamicCurrentPayload2Length = teslaLegacyAddressContextLength + teslaLegacyHeartbeatDataProtocol2Length
 )
 
 // TeslaLegacyQualification states the evidence tier for a legacy Tesla record.
@@ -57,7 +60,7 @@ type TeslaLegacyFBE0Observation struct {
 func NewTeslaLegacyFBE0Observation(spec TeslaLegacyFBE0ObservationSpec) (TeslaLegacyFBE0Observation, error) {
 	payload, qualification, err := teslaLegacyDynamicCurrentPayload(
 		spec.Profile, spec.Direction, spec.Raw,
-		TeslaLegacyWallConnectorRequest, TeslaLegacyCommand{Prefix: 0xfb, Opcode: 0xe0}, teslaLegacyFBE0PayloadLength, teslaLegacyFDE0PayloadLength,
+		TeslaLegacyWallConnectorRequest, TeslaLegacyCommand{Prefix: 0xfb, Opcode: 0xe0}, teslaLegacyDynamicCurrentPayload1Length, teslaLegacyDynamicCurrentPayload2Length,
 	)
 	if err != nil {
 		return TeslaLegacyFBE0Observation{}, err
@@ -132,7 +135,7 @@ type TeslaLegacyFDE0Observation struct {
 func NewTeslaLegacyFDE0Observation(spec TeslaLegacyFDE0ObservationSpec) (TeslaLegacyFDE0Observation, error) {
 	payload, qualification, err := teslaLegacyDynamicCurrentPayload(
 		spec.Profile, spec.Direction, spec.Raw,
-		TeslaLegacyWallConnectorResponse, TeslaLegacyCommand{Prefix: 0xfd, Opcode: 0xe0}, teslaLegacyFDE0PayloadLength,
+		TeslaLegacyWallConnectorResponse, TeslaLegacyCommand{Prefix: 0xfd, Opcode: 0xe0}, teslaLegacyDynamicCurrentPayload1Length, teslaLegacyDynamicCurrentPayload2Length,
 	)
 	if err != nil {
 		return TeslaLegacyFDE0Observation{}, err
