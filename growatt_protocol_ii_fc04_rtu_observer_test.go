@@ -12,9 +12,13 @@ func TestGrowattProtocolIIFC04RTUObserverUsesOneExactInputRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	admission, err := NewGrowattProtocolIIFC04Applicability(validGrowattProtocolIIIdentityInput().Profile, "test-exact-mapping")
+	if err != nil {
+		t.Fatal(err)
+	}
 	s := &growattProtocolIIFC04Fake{words: make([]uint16, 59)}
 	s.words[0] = 1
-	o, err := NewGrowattProtocolIIFC04RTUObserver(identity, s)
+	o, err := NewGrowattProtocolIIFC04RTUObserver(identity, admission, s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,10 +32,32 @@ func TestGrowattProtocolIIFC04RTUObserverRejectsShortOrFailedRead(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	admission, err := NewGrowattProtocolIIFC04Applicability(validGrowattProtocolIIIdentityInput().Profile, "test-exact-mapping")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, s := range []*growattProtocolIIFC04Fake{{words: make([]uint16, 58)}, {err: errors.New("timeout")}} {
-		o, _ := NewGrowattProtocolIIFC04RTUObserver(identity, s)
+		o, _ := NewGrowattProtocolIIFC04RTUObserver(identity, admission, s)
 		if status, err := o.Observe(context.Background()); err == nil || status.Identity().UnitID() != 0 {
 			t.Fatalf("status/err=%#v/%v", status, err)
+		}
+	}
+}
+
+func TestGrowattProtocolIIFC04RTUObserverRejectsMissingOrMismatchedApplicability(t *testing.T) {
+	identity, err := DecodeGrowattProtocolIIIdentity(validGrowattProtocolIIIdentityInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	mismatch := validGrowattProtocolIIIdentityInput().Profile
+	mismatch.ModelBuild = [2]uint16{0x1111, 0x2222}
+	admission, err := NewGrowattProtocolIIFC04Applicability(mismatch, "test-exact-mapping")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, candidate := range []GrowattProtocolIIFC04Applicability{{}, admission} {
+		if observer, err := NewGrowattProtocolIIFC04RTUObserver(identity, candidate, &growattProtocolIIFC04Fake{}); err == nil || observer != nil {
+			t.Fatalf("observer/err=%#v/%v", observer, err)
 		}
 	}
 }
