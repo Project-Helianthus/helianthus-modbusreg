@@ -34,6 +34,10 @@ standard family. Vendor names alone do not justify an overlay.
 
 SmartLogger, EMMA, S-Dongle, model, and firmware distinctions are profile
 applicability and qualification dimensions, not separate repositories.
+The Huawei qualification package now exposes separate inert cards for bounded
+SmartLogger and EMMA evidence plus the retained S-Dongle non-response hard
+stop. Identity results carry no telemetry, automatic request, catalog, support,
+live-qualification, or write authority.
 
 ## Ownership
 
