@@ -7,10 +7,7 @@ func TestDecodeGrowattProtocolIIFC04TelemetryKeepsRawAndProducesBoundedFacts(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	admission, err := NewGrowattProtocolIIFC04Applicability(validGrowattProtocolIIIdentityInput().Profile, "test-exact-mapping")
-	if err != nil {
-		t.Fatal(err)
-	}
+	admission := syntheticGrowattProtocolIIFC04FixtureAdmission(validGrowattProtocolIIIdentityInput().Profile)
 	words := make([]uint16, 59)
 	words[0] = 1
 	words[1], words[2] = 0, 1234
@@ -40,10 +37,7 @@ func TestDecodeGrowattProtocolIIFC04TelemetryFailsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	admission, err := NewGrowattProtocolIIFC04Applicability(validGrowattProtocolIIIdentityInput().Profile, "test-exact-mapping")
-	if err != nil {
-		t.Fatal(err)
-	}
+	admission := syntheticGrowattProtocolIIFC04FixtureAdmission(validGrowattProtocolIIIdentityInput().Profile)
 	for name, mutate := range map[string]func(*GrowattProtocolIIFC04Slice){
 		"short":  func(s *GrowattProtocolIIFC04Slice) { s.Words = s.Words[:58] },
 		"extra":  func(s *GrowattProtocolIIFC04Slice) { s.Words = append(s.Words, 0) },
@@ -61,10 +55,7 @@ func TestDecodeGrowattProtocolIIFC04TelemetryFailsClosed(t *testing.T) {
 }
 
 func TestGrowattProtocolIIFC04TelemetryRequiresSeparateExactApplicability(t *testing.T) {
-	admission, err := NewGrowattProtocolIIFC04Applicability(validGrowattProtocolIIIdentityInput().Profile, "test-exact-mapping")
-	if err != nil {
-		t.Fatal(err)
-	}
+	admission := syntheticGrowattProtocolIIFC04FixtureAdmission(validGrowattProtocolIIIdentityInput().Profile)
 	words := make([]uint16, 59)
 	words[0] = 1
 
@@ -113,4 +104,11 @@ func TestGrowattProtocolIIFC04TelemetryRequiresSeparateExactApplicability(t *tes
 	if status, err := DecodeGrowattProtocolIIFC04Telemetry(identity, GrowattProtocolIIFC04Applicability{}, GrowattProtocolIIFC04Slice{Words: words}); err == nil || status.Identity().UnitID() != 0 {
 		t.Fatalf("missing admission status/err=%#v/%v", status, err)
 	}
+}
+
+// syntheticGrowattProtocolIIFC04FixtureAdmission exercises the source-backed
+// FC04 schema in package tests only. It cannot establish real-build
+// qualification and is deliberately unavailable to public callers.
+func syntheticGrowattProtocolIIFC04FixtureAdmission(profile GrowattProtocolIIIdentityProfile) GrowattProtocolIIFC04Applicability {
+	return GrowattProtocolIIFC04Applicability{profile: profile, syntheticFixture: true}
 }

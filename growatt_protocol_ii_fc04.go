@@ -2,7 +2,6 @@ package modbusreg
 
 import (
 	"fmt"
-	"strings"
 )
 
 // GrowattProtocolIIFC04Slice retains the sole bounded FC04 acquisition. Words
@@ -12,32 +11,19 @@ type GrowattProtocolIIFC04Slice struct {
 	Words  []uint16
 }
 
-// GrowattProtocolIIFC04Applicability is an immutable, caller-supplied exact
-// mapping admission for typed FC04 monitoring. Protocol II v1.24 names the
-// MAX/MID/MAC family but does not publish a device/model-build/protocol tuple
-// mapping, so this package deliberately contains no built-in tuple allowlist.
-// The caller must obtain a mapping from its own accepted source-backed evidence
-// before constructing this value; a raw FC03 identity observation cannot create
-// one implicitly.
+// GrowattProtocolIIFC04Applicability is an opaque typed-FC04 admission value.
+// The pinned Protocol II v1.24 source does not establish an admissible exact
+// device-type/model-build/protocol tuple, so this package intentionally exposes
+// no public successful constructor. Its zero value and every externally
+// constructible form fail closed. A raw FC03 identity observation cannot create
+// an admission implicitly.
 type GrowattProtocolIIFC04Applicability struct {
-	profile           GrowattProtocolIIIdentityProfile
-	evidenceReference string
-}
-
-// NewGrowattProtocolIIFC04Applicability seals one already-accepted exact
-// mapping for the FC04 schema. evidenceReference identifies the caller-owned
-// source-backed mapping record; it is not inferred from the Protocol II manual
-// revision or from an observed identity tuple.
-func NewGrowattProtocolIIFC04Applicability(profile GrowattProtocolIIIdentityProfile, evidenceReference string) (GrowattProtocolIIFC04Applicability, error) {
-	if !validGrowattProtocolIIIdentityProfile(profile) || profile.DeviceType == 0 ||
-		profile.ModelBuild == [2]uint16{} || profile.ProtocolVersion == 0 || strings.TrimSpace(evidenceReference) == "" {
-		return GrowattProtocolIIFC04Applicability{}, fmt.Errorf("growatt Protocol II FC04 applicability is invalid")
-	}
-	return GrowattProtocolIIFC04Applicability{profile: profile, evidenceReference: evidenceReference}, nil
+	profile          GrowattProtocolIIIdentityProfile
+	syntheticFixture bool
 }
 
 func (a GrowattProtocolIIFC04Applicability) matches(identity GrowattProtocolIIIdentityObservation) bool {
-	return a.evidenceReference != "" && a.profile == identity.Profile() &&
+	return a.syntheticFixture && a.profile == identity.Profile() &&
 		a.profile.DeviceType == identity.DeviceType() && a.profile.ModelBuild == identity.ModelBuild() &&
 		a.profile.ProtocolVersion == identity.ProtocolVersion()
 }
@@ -73,8 +59,9 @@ func (t GrowattProtocolIIFC04Telemetry) RawSlice() GrowattProtocolIIFC04Slice {
 func (GrowattProtocolIIFC04Telemetry) OutboundAllowed() bool { return false }
 
 // DecodeGrowattProtocolIIFC04Telemetry accepts exactly offsets 0 through 58
-// only when an independent exact applicability selection admits the FC03
-// identity. A caller-selected raw identity alone is insufficient.
+// only when an opaque applicability value admits the FC03 identity. No public
+// admitted value currently exists; a caller-selected raw identity alone is
+// insufficient.
 func DecodeGrowattProtocolIIFC04Telemetry(identity GrowattProtocolIIIdentityObservation, applicability GrowattProtocolIIFC04Applicability, raw GrowattProtocolIIFC04Slice) (GrowattProtocolIIFC04Telemetry, error) {
 	if !validGrowattProtocolIIIdentityProfile(identity.Profile()) || !applicability.matches(identity) || identity.UnitID() == 0 || raw.Offset != 0 || len(raw.Words) != 59 {
 		return GrowattProtocolIIFC04Telemetry{}, fmt.Errorf("growatt Protocol II FC04 telemetry is invalid")
