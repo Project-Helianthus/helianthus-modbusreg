@@ -17,6 +17,9 @@ bounded model chain and decoder registry, standard Models
 capability, and one exact experimental Fronius observed flavor. That flavor is
 post-capability classification only: it adds no product qualification,
 acquisition activation, support statement, live result, or write authority.
+The Fronius qualification card now turns that exact observed flavor into a
+bounded FC03 replay procedure with a sanitized expected result. It keeps live
+qualification, automatic runtime admission, and write authority false.
 
 ## One Registry, Multiple Vendors
 
