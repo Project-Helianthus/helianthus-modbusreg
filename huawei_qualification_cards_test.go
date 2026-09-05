@@ -148,6 +148,32 @@ func TestHuaweiQualificationResolutionRejectsAmbiguityAndNeverFallsBack(t *testi
 	}
 }
 
+func TestHuaweiQualificationPersistentNonResponseDominatesEveryClassOrder(t *testing.T) {
+	smartLogger := NewHuaweiSmartLoggerQualificationCard().Evaluate(validHuaweiSmartLoggerQualificationInput())
+	emma := NewHuaweiEMMAQualificationCard().Evaluate(HuaweiEMMAQualificationInput{
+		UnitID: 0, Offering: "SmartHEMS", Model: "EMMA-A02", Firmware: "SmartHEMS V100R025C00SPC131",
+	})
+	blocked := NewHuaweiSDongleQualificationCard().Result()
+	permutations := [][]HuaweiQualificationResult{
+		{smartLogger, emma, blocked},
+		{smartLogger, blocked, emma},
+		{emma, smartLogger, blocked},
+		{emma, blocked, smartLogger},
+		{blocked, smartLogger, emma},
+		{blocked, emma, smartLogger},
+	}
+	for index, results := range permutations {
+		resolution := ResolveHuaweiQualification(results...)
+		if resolution.Readiness() != HuaweiQualificationEvidenceBlocked ||
+			resolution.Reason() != HuaweiQualificationPersistentNonResponse ||
+			!reflect.DeepEqual(resolution.MissingEvidence(), blocked.MissingEvidence()) ||
+			resolution.SelectedClass() != "" || len(resolution.CandidateClasses()) != 0 ||
+			resolution.NativeFactCount() != 0 || resolution.AutomaticRequestCount() != 0 || resolution.FallbackAttempted() {
+			t.Fatalf("permutation %d lost the complete S-Dongle hard stop: %#v", index, resolution)
+		}
+	}
+}
+
 func TestHuaweiSDongleQualificationCardPreservesPersistentNonResponseHardStop(t *testing.T) {
 	card := NewHuaweiSDongleQualificationCard()
 	result := card.Result()

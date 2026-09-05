@@ -289,6 +289,9 @@ func ResolveHuaweiQualification(results ...HuaweiQualificationResult) HuaweiQual
 		matches = append(matches, result)
 		classes = append(classes, result.SelectedClass())
 	}
+	if persistentBlock != nil {
+		return *persistentBlock
+	}
 	sort.Strings(classes)
 	if len(matches) == 1 && len(results) == 1 {
 		selected := matches[0]
@@ -301,9 +304,6 @@ func ResolveHuaweiQualification(results ...HuaweiQualificationResult) HuaweiQual
 			reason:           HuaweiQualificationMultipleClasses,
 			candidateClasses: classes,
 		}
-	}
-	if persistentBlock != nil {
-		return *persistentBlock
 	}
 	if len(matches) == 1 {
 		return HuaweiQualificationResult{
