@@ -64,10 +64,10 @@ func validGrowattBMSTypedReadOnlyInput() GrowattBMSReadOnlyInput {
 		0, 0, 0x0002, 0,
 		75, 5200, 0xff9c, 25,
 		0, 3200, 5000, 0,
-		0, 110, 0, 0,
+		0, 110, 0x0300, 0,
 		0, 0, 0, 0,
-		0, 0, 0, 0, 0,
+		0, 0, 0, 0, 32,
 	}
-	input.Slices[2].Words = []uint16{100, 123, 3300, 0, 512, 5, 6, 0, 0, 0, 0, 0}
+	input.Slices[2].Words = []uint16{100, 123, 3300, 0, 512, 5, 6, 0, 0, 0x8001, 0, 0}
 	return input
 }
