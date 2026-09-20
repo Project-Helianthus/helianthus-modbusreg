@@ -38,6 +38,67 @@ func TestDecodeGrowattBMSMultiGroupDiagnosticRetainsBoundedNativeEvidence(t *tes
 	}
 }
 
+func TestDecodeGrowattBMSMultiGroupDiagnosticMapsEveryNativeBalanceBit(t *testing.T) {
+	baselineInput := validGrowattBMSTypedReadOnlyInput()
+	baselineInput.Slices[2].Words[9] = 0
+	baseline, err := DecodeGrowattBMSTypedReadOnlyStatus(baselineInput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baselineDiagnostic, err := DecodeGrowattBMSMultiGroupDiagnostic(baseline, validGrowattBMSMultiGroupDiagnosticInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for cell, state := range baselineDiagnostic.NativeBalanceStates {
+		if state != GrowattBMSNativeCellStateOff {
+			t.Fatalf("all-off baseline cell %d = %v", cell, state)
+		}
+	}
+
+	for selectedCell := range baselineDiagnostic.NativeBalanceStates {
+		t.Run("single native on bit", func(t *testing.T) {
+			baseInput := validGrowattBMSTypedReadOnlyInput()
+			baseInput.Slices[2].Words[9] = 1 << uint(selectedCell)
+			base, err := DecodeGrowattBMSTypedReadOnlyStatus(baseInput)
+			if err != nil {
+				t.Fatal(err)
+			}
+			diagnostic, err := DecodeGrowattBMSMultiGroupDiagnostic(base, validGrowattBMSMultiGroupDiagnosticInput())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for cell, state := range diagnostic.NativeBalanceStates {
+				want := GrowattBMSNativeCellStateOff
+				if cell == selectedCell {
+					want = GrowattBMSNativeCellStateOn
+				}
+				if state != want {
+					t.Fatalf("bit %d mapped cell %d as %v, want %v", selectedCell, cell, state, want)
+				}
+			}
+		})
+	}
+}
+
+func TestDecodeGrowattBMSMultiGroupDiagnosticRetainsGroupWordWithoutIdentityInference(t *testing.T) {
+	base, err := DecodeGrowattBMSTypedReadOnlyStatus(validGrowattBMSTypedReadOnlyInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, groupWord := range []uint16{0, 1, 0xffff} {
+		input := validGrowattBMSMultiGroupDiagnosticInput()
+		input.Slices[0].Words[0] = groupWord
+		diagnostic, err := DecodeGrowattBMSMultiGroupDiagnostic(base, input)
+		if err != nil {
+			t.Fatalf("reported group word %#04x rejected: %v", groupWord, err)
+		}
+		if diagnostic.ReportedGroupID != groupWord || len(diagnostic.CellVoltageGroups) != 2 ||
+			diagnostic.CellVoltageGroups[0].Offset != 0x0071 || diagnostic.CellVoltageGroups[1].Offset != 0x0081 {
+			t.Fatalf("reported group word %#04x inferred group identity: %#v", groupWord, diagnostic)
+		}
+	}
+}
+
 func TestDecodeGrowattBMSMultiGroupDiagnosticFailsClosedWithoutAffectingBaseStatus(t *testing.T) {
 	base, err := DecodeGrowattBMSTypedReadOnlyStatus(validGrowattBMSTypedReadOnlyInput())
 	if err != nil {
@@ -71,12 +132,6 @@ func TestDecodeGrowattBMSMultiGroupDiagnosticFailsClosedWithoutAffectingBaseStat
 		},
 		"reserved battery ID bits": func(base *GrowattBMSTypedReadOnlyStatus, _ *GrowattBMSMultiGroupDiagnosticInput) {
 			base.nativeObservation.slices[1].Words[18] = 0x4000
-		},
-		"zero battery ID": func(base *GrowattBMSTypedReadOnlyStatus, _ *GrowattBMSMultiGroupDiagnosticInput) {
-			base.nativeObservation.slices[1].Words[18] = 0
-		},
-		"zero reported group ID": func(_ *GrowattBMSTypedReadOnlyStatus, input *GrowattBMSMultiGroupDiagnosticInput) {
-			input.Slices[0].Words[0] = 0
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

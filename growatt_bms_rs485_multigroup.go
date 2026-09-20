@@ -71,7 +71,11 @@ func (GrowattBMSMultiGroupDiagnostic) OutboundAllowed() bool { return false }
 
 // DecodeGrowattBMSMultiGroupDiagnostic decodes the three fixed FC03 slices
 // only after a valid base status from the same selected unicast unit and exact
-// revision. It returns no partial diagnostic on insufficient evidence.
+// revision. It returns no partial diagnostic on insufficient evidence. This is
+// deliberately one stateless observation: a lifecycle consumer that retains
+// observations must reject changing, duplicate, missing, or contradictory pack
+// identity before it emits repeated facts; this decoder never merges groups or
+// establishes cross-observation identity continuity.
 func DecodeGrowattBMSMultiGroupDiagnostic(
 	base GrowattBMSTypedReadOnlyStatus,
 	input GrowattBMSMultiGroupDiagnosticInput,
@@ -106,8 +110,7 @@ func DecodeGrowattBMSMultiGroupDiagnostic(
 	}
 	batteryIdentity := statusWords[18]
 	batteryID := uint8((batteryIdentity >> 8) & 0x3f)
-	if batteryIdentity&0xc000 != 0 || batteryID == 0 || statusWords[28] == 0 ||
-		baseSlices[0].Words[0] == 0 || statusWords[0] == 0 || statusWords[1] == 0 || input.Slices[0].Words[0] == 0 {
+	if batteryIdentity&0xc000 != 0 {
 		return GrowattBMSMultiGroupDiagnostic{}, fmt.Errorf("growatt BMS multi-group diagnostic identity evidence is insufficient")
 	}
 
