@@ -1,10 +1,15 @@
 package modbusreg
 
 import (
+	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/parser"
 	"go/token"
-	"strconv"
+	"go/types"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
@@ -26,37 +31,12 @@ func TestTeslaFC100CatalogStaysWithinEVSEScope(t *testing.T) {
 		"wc.set_provisional":        {teslaFC100OperationSpec{6, 25, 26}, false},
 		"wc.get_provisional":        {teslaFC100OperationSpec{6, 27, 28}, true},
 	}
-	// Guard the exported enumeration too: an unused out-of-scope constant
-	// must not escape just because it was omitted from the runtime maps.
-	catalog, err := parser.ParseFile(token.NewFileSet(), "tesla_fc100_operation.go", nil, 0)
-	if err != nil {
-		t.Fatal(err)
+	allowed := make(map[TeslaFC100Operation]bool, len(retained))
+	for operation := range retained {
+		allowed[operation] = true
 	}
-	for _, declaration := range catalog.Decls {
-		constants, ok := declaration.(*ast.GenDecl)
-		if !ok || constants.Tok != token.CONST {
-			continue
-		}
-		for _, entry := range constants.Specs {
-			constant := entry.(*ast.ValueSpec)
-			kind, ok := constant.Type.(*ast.Ident)
-			if !ok || kind.Name != "TeslaFC100Operation" {
-				continue
-			}
-			if len(constant.Values) != 1 {
-				t.Errorf("operation constant %s must have an explicit retained value", constant.Names[0])
-				continue
-			}
-			literal, ok := constant.Values[0].(*ast.BasicLit)
-			if !ok || literal.Kind != token.STRING {
-				t.Errorf("operation constant %s must have an explicit retained string", constant.Names[0])
-				continue
-			}
-			value, err := strconv.Unquote(literal.Value)
-			if _, ok := retained[TeslaFC100Operation(value)]; err != nil || !ok {
-				t.Errorf("exported operation constant %s is outside the retained EVSE scope", constant.Names[0])
-			}
-		}
+	for _, finding := range teslaFC100SourceScopeFindings(".", allowed) {
+		t.Error(finding)
 	}
 	if len(teslaFC100OperationSpecs) != len(retained) {
 		t.Errorf("catalog contains %d operations, want %d retained EVSE operations", len(teslaFC100OperationSpecs), len(retained))
@@ -127,6 +107,136 @@ func TestTeslaFC100RejectsOperationsOutsideEVSEScope(t *testing.T) {
 				Outcome: TeslaGen3HSCNormalOutcome,
 			}); err == nil {
 				t.Error("out-of-scope named native operation record was accepted")
+			}
+		})
+	}
+}
+
+// teslaFC100SourceScopeFindings is shared by the real-package guard and the
+// mutation tests, so the probes exercise the same source inspection.
+func teslaFC100SourceScopeFindings(directory string, allowed map[TeslaFC100Operation]bool) []string {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return []string{err.Error()}
+	}
+	fileSet := token.NewFileSet()
+	var files []*ast.File
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fileSet, filepath.Join(directory, entry.Name()), nil, 0)
+		if err != nil {
+			return []string{err.Error()}
+		}
+		if file.Name.Name == "modbusreg" {
+			files = append(files, file)
+		}
+	}
+	// Local contextual types catch explicit declarations, inferred conversion
+	// forms, aliases, and strings inside operation-typed composite literals.
+	// Import resolution is deliberately unnecessary: unrelated unresolved
+	// imports/types do not stop go/types from recording local operation values.
+	// This scope guard supplements, rather than replaces, the normal compiler.
+	info := &types.Info{Types: make(map[ast.Expr]types.TypeAndValue)}
+	config := types.Config{Error: func(error) {}}
+	pkg, _ := config.Check("modbusreg", fileSet, files, info)
+	if pkg == nil || pkg.Scope().Lookup("TeslaFC100Operation") == nil {
+		return []string{"package has no TeslaFC100Operation type to inspect"}
+	}
+	operationType := pkg.Scope().Lookup("TeslaFC100Operation").Type()
+	var findings []string
+	for _, file := range files {
+		// The empty operation is an opaque FC101/FC102 context sentinel, not
+		// a catalog entry. Permit its comparison, but not a declared value.
+		sentinelComparisons := make(map[ast.Expr]bool)
+		ast.Inspect(file, func(node ast.Node) bool {
+			comparison, ok := node.(*ast.BinaryExpr)
+			if !ok || (comparison.Op != token.EQL && comparison.Op != token.NEQ) {
+				return true
+			}
+			for _, operand := range []ast.Expr{comparison.X, comparison.Y} {
+				value := info.Types[operand]
+				if value.Value != nil && value.Value.Kind() == constant.String && constant.StringVal(value.Value) == "" {
+					sentinelComparisons[operand] = true
+				}
+			}
+			return true
+		})
+		ast.Inspect(file, func(node ast.Node) bool {
+			expression, ok := node.(ast.Expr)
+			if !ok {
+				return true
+			}
+			value, ok := info.Types[expression]
+			if !ok || sentinelComparisons[expression] || value.Value == nil || value.Value.Kind() != constant.String || !types.Identical(value.Type, operationType) {
+				return true
+			}
+			operation := constant.StringVal(value.Value)
+			if !allowed[TeslaFC100Operation(operation)] {
+				findings = append(findings, fmt.Sprintf("%s: operation %q is outside the retained EVSE scope", fileSet.Position(expression.Pos()), operation))
+			}
+			return true
+		})
+	}
+	return findings
+}
+
+func TestTeslaFC100SourceScopeGuardRejectsMutationEscapes(t *testing.T) {
+	allowed := map[TeslaFC100Operation]bool{
+		"common.system_info": true, "wc.get_vitals": true,
+		"wc.get_lifetime_stats": true, "wc.configure_settings": true,
+		"wc.get_system_info": true, "wc.get_load_sharing_state": true,
+		"wc.set_provisional": true, "wc.get_provisional": true,
+	}
+	for _, mutation := range []struct {
+		name, declaration string
+	}{
+		{"typed constant in another file", `const ReviewEscape TeslaFC100Operation = "wc.get_config"`},
+		{"conversion-form constant", `const ReviewEscape = TeslaFC100Operation("wc.get_config")`},
+		{"exported typed variable", `var ReviewEscape TeslaFC100Operation = "wc.get_config"`},
+		{"exported inferred variable", `var ReviewEscape = TeslaFC100Operation("wc.get_config")`},
+		{"exported variable assigned in init", `var ReviewEscape TeslaFC100Operation; func init() { ReviewEscape = "wc.get_config" }`},
+		{"operation type alias", `type ReviewOperation = TeslaFC100Operation; const ReviewEscape ReviewOperation = "wc.get_config"`},
+		{"slice composite", `var reviewEscape = []TeslaFC100Operation{"wc.get_config"}`},
+		{"map composite key", `var reviewEscape = map[TeslaFC100Operation]bool{"wc.get_config": true}`},
+		{"map composite value", `var reviewEscape = map[string]TeslaFC100Operation{"operation": "wc.get_config"}`},
+		{"struct composite", `var reviewEscape = TeslaGen3HSCNativeOperationRecordConfig{Operation: "wc.get_config"}`},
+	} {
+		t.Run(mutation.name, func(t *testing.T) {
+			directory := t.TempDir()
+			files, err := filepath.Glob("*.go")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, file := range files {
+				if strings.HasSuffix(file, "_test.go") {
+					continue
+				}
+				contents, err := os.ReadFile(file)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(directory, file), contents, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if findings := teslaFC100SourceScopeFindings(directory, allowed); len(findings) != 0 {
+				t.Fatalf("unmutated package rejected: %v", findings)
+			}
+			if err := os.WriteFile(filepath.Join(directory, "review_scope_escape.go"), []byte("package modbusreg\n"+mutation.declaration+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			findings := teslaFC100SourceScopeFindings(directory, allowed)
+			if report := strings.Join(findings, "\n"); !strings.Contains(report, "review_scope_escape.go") || !strings.Contains(report, `operation "wc.get_config" is outside the retained EVSE scope`) {
+				t.Fatalf("out-of-scope mutation escaped the package guard: %v", findings)
+			}
+			retained := strings.ReplaceAll(mutation.declaration, "wc.get_config", "wc.get_vitals")
+			if err := os.WriteFile(filepath.Join(directory, "review_scope_escape.go"), []byte("package modbusreg\n"+retained+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if findings := teslaFC100SourceScopeFindings(directory, allowed); len(findings) != 0 {
+				t.Fatalf("retained operation rejected in the same declaration form: %v", findings)
 			}
 		})
 	}

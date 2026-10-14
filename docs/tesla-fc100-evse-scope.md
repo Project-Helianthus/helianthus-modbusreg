@@ -13,8 +13,14 @@ The retained set follows the public
 [TEDAPI EVSE scope](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/12bd50b95fddfdfdfb7b73771b05f972dc0ecd09/protocols/tesla/tedapi.md),
 [Gen3 HSC and exact current-limit body contract](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/12bd50b95fddfdfdfb7b73771b05f972dc0ecd09/protocols/tesla/gen3-hsc-rtu.md),
 and [current-limit operation contract V1](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/12bd50b95fddfdfdfb7b73771b05f972dc0ecd09/protocols/tesla/gen3-current-limit-operation-v1.md).
+These pages define the EVSE scope and the three current-limit pairs. They do
+not publish the family/tag numbers for `common.system_info` or the four WC
+observation pairs in the table below. Those five pairs require the
+[helianthus-docs-modbus#155](https://github.com/Project-Helianthus/helianthus-docs-modbus/issues/155) publication described under "Regression and
+evidence boundary"; this code PR merges after that documentation companion.
 The two existing system-information pairs retain identity and capability/version
-provenance separately; neither establishes new field semantics.
+provenance separately. The retained field labels are Helianthus recovered
+labels; they do not establish new field semantics or live qualification.
 
 | Catalog operation | Family | Request → terminal tag | EVSE scope |
 | --- | --- | --- | --- |
@@ -71,9 +77,12 @@ catalog does not claim support for every Gen2 unit.
 
 `TestTeslaFC100CatalogStaysWithinEVSEScope` pins the eight allowed operations,
 family/tag pairs, and empty-request classification independently of the
-implementation maps. It also checks the exported operation enumeration,
-including unused typed constants. It checks both the request catalog and recovered-name
-catalog. `TestTeslaFC100RejectsOperationsOutsideEVSEScope` exercises rejection
+implementation maps. Its source guard walks every non-test Go file in the
+package and checks operation-typed string values in constants, conversion
+expressions, variables, and composite literals. Mutation tests exercise the
+three reported declaration escapes and slice, map, and struct literal variants.
+It checks both the request catalog and recovered-name catalog.
+`TestTeslaFC100RejectsOperationsOutsideEVSEScope` exercises rejection
 through request construction, request-matrix validation, sequence decoding,
 recovered names, and named native records. Existing retained Gen3 and legacy
 replay tests continue to verify offline behavior with self-contained synthetic
@@ -82,6 +91,19 @@ needed by these checks.
 
 This is a public API contraction: callers of removed operation constants,
 `TeslaFC100DeterministicApplicationStatus`, or PPU replay APIs must migrate to
-an in-scope contract. No protocol facts or firmware evidence are newly asserted.
-The public documentation/evidence gate applies; delivery must reconcile the
-companion `helianthus-docs-modbus` update before merging the code PR.
+an in-scope contract. The retained field labels are Helianthus recovered labels,
+not field metadata published by the linked documentation contracts.
+
+The public documentation/evidence gate applies. The family/tag numbers for
+`common.system_info` (4:2 → 3), `wc.get_vitals` (6:1 → 2),
+`wc.get_lifetime_stats` (6:3 → 4), `wc.get_system_info` (6:9 → 10), and
+`wc.get_load_sharing_state` (6:11 → 12) are published by the documentation
+companion [helianthus-docs-modbus#155](https://github.com/Project-Helianthus/helianthus-docs-modbus/issues/155).
+The linked docs-modbus revision `12bd50b9` does not publish those five numeric
+pairs; this code PR merges after that documentation companion.
+
+The three current-limit pairs, `wc.configure_settings` (6:7 → 8),
+`wc.set_provisional` (6:25 → 26), and `wc.get_provisional` (6:27 → 28), remain
+cited to the linked `gen3-hsc-rtu.md` exact body contract and
+`gen3-current-limit-operation-v1.md` operation contract. No new firmware
+evidence, control qualification, or acquisition lifecycle is asserted here.
