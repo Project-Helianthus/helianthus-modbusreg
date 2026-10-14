@@ -77,16 +77,17 @@ func TestHuaweiInverterBatteryDispositionsFailClosedWithoutEvidence(t *testing.T
 			evidence := huaweiObject(t, record["evidence"])
 			requireHuaweiKeys(t, evidence, "source_document", "docs_modbus_page", "eligible", "missing_evidence")
 			source := huaweiObject(t, evidence["source_document"])
-			requireHuaweiKeys(t, source, "name", "version", "version_pinned", "classification", "redistributable", "locator")
+			requireHuaweiKeys(t, source, "name", "version", "version_pinned", "classification", "present_in_repository", "publication_policy", "redistributable", "locator")
 			if source["name"] != "Huawei SUN2000 MODBUS Interface Definitions" || source["version"] != "UNPINNED" ||
-				source["version_pinned"] != false || source["classification"] != "vendor-copyright-inspection-only" ||
+				source["version_pinned"] != false || source["classification"] != "UNVERIFIED_PROSPECTIVE_SOURCE" || source["present_in_repository"] != false ||
+				!strings.Contains(source["publication_policy"].(string), "no SUN2000 or LUNA2000 entry") ||
 				source["redistributable"] != false || source["locator"] != "" {
 				t.Fatalf("unexpected source document: %#v", source)
 			}
 			page := huaweiObject(t, evidence["docs_modbus_page"])
-			requireHuaweiKeys(t, page, "exists", "path", "companion_required")
+			requireHuaweiKeys(t, page, "exists", "path", "companion_required", "companion_state", "merge_companion_first")
 			if page["exists"] != false || page["path"] != "protocols/huawei/inverter-battery-readonly-v1.md" ||
-				page["companion_required"] != true || evidence["eligible"] != false {
+				page["companion_required"] != true || page["companion_state"] != "PENDING_MERGE_BEFORE_CODE_PR" || page["merge_companion_first"] != true || evidence["eligible"] != false {
 				t.Fatalf("unexpected docs-modbus page state: %#v", page)
 			}
 			missing := huaweiStringSlice(t, evidence["missing_evidence"])

@@ -8,14 +8,18 @@
       "name": "Huawei SUN2000 MODBUS Interface Definitions",
       "version": "UNPINNED",
       "version_pinned": false,
-      "classification": "vendor-copyright-inspection-only",
+      "classification": "UNVERIFIED_PROSPECTIVE_SOURCE",
       "redistributable": false,
-      "locator": ""
+      "locator": "",
+      "present_in_repository": false,
+      "publication_policy": "treated conservatively as vendor-copyright-inspection-only; applicability-and-licensing.md has no SUN2000 or LUNA2000 entry"
     },
     "docs_modbus_page": {
       "exists": false,
       "path": "protocols/huawei/inverter-battery-readonly-v1.md",
-      "companion_required": true
+      "companion_required": true,
+      "companion_state": "PENDING_MERGE_BEFORE_CODE_PR",
+      "merge_companion_first": true
     },
     "eligible": false,
     "missing_evidence": [
