@@ -1,81 +1,41 @@
 package modbusreg
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
-func TestOutBackAXSReadOnlyDecoderSelectsOneExplicitExactInterface(t *testing.T) {
+func TestOutBackAXSReadOnlyDecoderNeverSelectsUnqualifiedSource(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
 	decoder, err := NewOutBackAXSReadOnlyDecoder()
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot := outBackAXSSnapshot(t, registry, outBackAXSOccurrence(OutBackAXSModelInterface, OutBackAXSInterfaceModelWords, 2))
-
-	decision := decoder.EvaluateSnapshot(snapshot)
-	if !decision.Matched() || decision.Reason() != OutBackAXSReadOnlyFlavorReasonMatched {
-		t.Fatalf("matched=%t reason=%q", decision.Matched(), decision.Reason())
-	}
-	occurrence, ok := decision.InterfaceOccurrence()
-	if !ok || occurrence.WireKey != (SunSpecWireKey{ModelID: OutBackAXSModelInterface, ModelLength: OutBackAXSInterfaceModelWords}) {
-		t.Fatalf("interface occurrence=%#v found=%t", occurrence, ok)
-	}
-	if chain := decision.Chain(); len(chain) != 3 || chain[1] != occurrence.WireKey {
-		t.Fatalf("selected chain=%#v", chain)
-	}
-	model, ok := decision.InterfaceModel()
-	if !ok || model.Key() != (SunSpecDecoderKey{ModelID: OutBackAXSModelInterface, ModelLength: OutBackAXSInterfaceModelWords, SchemaRevision: SunSpecModelsRevisionV1}) {
-		t.Fatalf("interface model=%#v found=%t", model, ok)
-	}
-	model.raw[2] = 99
-	again, ok := decision.InterfaceModel()
-	if !ok || again.RawWords()[2] != 0 {
-		t.Fatal("interface model aliases decision state")
-	}
-	if _, standard := registry.definition(SunSpecDecoderKey{ModelID: OutBackAXSModelInterface, ModelLength: OutBackAXSInterfaceModelWords, SchemaRevision: SunSpecModelsRevisionV1}); standard {
-		t.Fatal("explicit vendor selection extended the standard registry")
-	}
-}
-
-func TestOutBackAXSReadOnlyDecoderFailsClosedOnInvalidOrAmbiguousSnapshot(t *testing.T) {
-	registry := mustStandardSunSpecRegistry(t)
-	decoder, err := NewOutBackAXSReadOnlyDecoder()
-	if err != nil {
-		t.Fatal(err)
-	}
-	validCommon := commonOccurrence(t, registry, "Maker", "Model", "1.0", 1)
-	invalidCommon := cloneOccurrence(validCommon)
-	invalidCommon.words[2] = 0
-
-	for name, tc := range map[string]struct {
-		snapshot SunSpecChainSnapshot
-		reason   OutBackAXSReadOnlyFlavorReason
-	}{
-		"missing interface": {
-			snapshot: outBackAXSSnapshot(t, registry),
-			reason:   OutBackAXSReadOnlyFlavorReasonInterfaceAbsent,
-		},
-		"wrong interface length": {
-			snapshot: outBackAXSSnapshot(t, registry, outBackAXSOccurrence(OutBackAXSModelInterface, OutBackAXSInterfaceModelWords-1, 2)),
-			reason:   OutBackAXSReadOnlyFlavorReasonInterfaceWrongLength,
-		},
-		"duplicate interfaces": {
-			snapshot: outBackAXSSnapshot(t, registry,
-				outBackAXSOccurrence(OutBackAXSModelInterface, OutBackAXSInterfaceModelWords, 2),
-				outBackAXSOccurrence(OutBackAXSModelInterface, OutBackAXSInterfaceModelWords, 3),
-			),
-			reason: OutBackAXSReadOnlyFlavorReasonInterfaceAmbiguous,
-		},
-		"invalid common": {
-			snapshot: snapshotFromOccurrences(invalidCommon, outBackAXSOccurrence(OutBackAXSModelInterface, OutBackAXSInterfaceModelWords, 2)),
-			reason:   OutBackAXSReadOnlyFlavorReasonCommonNotAdmitted,
-		},
+	for name, snapshot := range map[string]SunSpecChainSnapshot{
+		"owner manual rev C":     outBackAXSSnapshot(t, registry, outBackAXSOccurrence(64110, 282, 2)),
+		"application note rev 5": outBackAXSSnapshot(t, registry, outBackAXSOccurrence(64110, 420, 2)),
+		"conflicting revisions":  outBackAXSSnapshot(t, registry, outBackAXSOccurrence(64110, 282, 2), outBackAXSOccurrence(64110, 420, 3)),
+		"duplicate interfaces":   outBackAXSSnapshot(t, registry, outBackAXSOccurrence(64110, 282, 2), outBackAXSOccurrence(64110, 282, 3)),
+		"wrong length":           outBackAXSSnapshot(t, registry, outBackAXSOccurrence(64110, 281, 2)),
+		"missing interface":      outBackAXSSnapshot(t, registry),
+		"invalid chain":          {},
 	} {
 		t.Run(name, func(t *testing.T) {
-			decision := decoder.EvaluateSnapshot(tc.snapshot)
-			if decision.Matched() || decision.Reason() != tc.reason {
-				t.Fatalf("matched=%t reason=%q want=%q", decision.Matched(), decision.Reason(), tc.reason)
+			before := snapshot.Occurrences()
+			for _, d := range []OutBackAXSReadOnlyDecoder{decoder, {}} {
+				decision := d.EvaluateSnapshot(snapshot)
+				if decision.Matched() || decision.Reason() != OutBackAXSReadOnlyFlavorReasonSourceNotQualified {
+					t.Fatal("unqualified source selected an OutBack profile")
+				}
+				if _, ok := decision.InterfaceModel(); ok {
+					t.Fatal("rejected candidate emitted a typed model")
+				}
+				if _, ok := decision.InterfaceOccurrence(); ok {
+					t.Fatal("rejected candidate exposed a selected interface")
+				}
 			}
-			if _, ok := decision.InterfaceOccurrence(); ok {
-				t.Fatal("rejected decision exposed vendor occurrence")
+			if !reflect.DeepEqual(before, snapshot.Occurrences()) {
+				t.Fatal("rejection changed raw snapshot evidence")
 			}
 		})
 	}

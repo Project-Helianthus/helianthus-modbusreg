@@ -137,3 +137,23 @@ Implementation code and repository documentation are licensed under
 facts belong in the public CC0-1.0 documentation lane, not in private fixtures
 or bindings. See the
 [Helianthus licensing model](https://github.com/Project-Helianthus/.github/blob/main/LICENSING.md).
+
+## OutBack AXS candidate disposition
+
+OutBack AXS source selection is `NO_GO` under
+[docs-modbus PR #145](https://github.com/Project-Helianthus/helianthus-docs-modbus/pull/145)
+and its [source/profile matrix](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/outback/axs-port-source-profile-matrix-v1.md).
+The owner manual revision C declares `64110/282`; application note revision 5
+declares `64110/420`. Neither supplies the required public product/firmware
+binding and bounded read-operation contract. The historical 282-word constant
+is candidate evidence only, and no OutBack layout is registered for decoding.
+
+`NewOutBackAXSReadOnlyDecoder` creates an inert compatibility object. `Decode`
+returns `ErrOutBackAXSSourceNotQualified` and an empty model for every input;
+`EvaluateSnapshot` returns `NO_GO`, no match, and no selected interface or typed
+model. Caller-supplied raw blocks and snapshots remain unchanged as evidence.
+Model 64111 remains opaque; its conflicting source lengths do not admit it.
+The OutBack API creates no acquisition request and exposes no transport or send
+method. Future admission requires the additional public evidence specified by
+the matrix and a separately reviewed implementation. This change does not
+establish live qualification or product support.
