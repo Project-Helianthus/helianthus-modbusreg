@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -691,6 +692,7 @@ func (clock *teslaGen3FakeClock) advance(delta time.Duration) {
 }
 
 type teslaGen3WitnessStep struct {
+	before   func()
 	waitDone bool
 	observed []byte
 	err      error
@@ -729,6 +731,9 @@ func (witness *teslaGen3FakeWitness) ObserveTeslaGen3HSCActivation(ctx context.C
 	}
 	step := witness.steps[0]
 	witness.steps = witness.steps[1:]
+	if step.before != nil {
+		step.before()
+	}
 	if step.waitDone {
 		<-ctx.Done()
 	}
@@ -1086,6 +1091,85 @@ func TestTeslaGen3ReadAcquisitionRejectsExpiredActivation(t *testing.T) {
 			}
 			if _, err := acquisition.Acquire(context.Background(), TeslaFC100OperationWCGetVitals); !errors.Is(err, ErrTeslaGen3ReadAcquisitionUnavailable) {
 				t.Fatalf("acquire after expired activation = %v", err)
+			}
+		})
+	}
+}
+
+func TestTeslaGen3ReadAcquisitionCloseBeforePromotionPublishesNoValue(t *testing.T) {
+	var harness *teslaGen3ReadHarness
+	var armed atomic.Bool
+	var closedInBarrier atomic.Bool
+	harness = newTeslaGen3ReadHarness(t, func(config *TeslaGen3ReadAcquisitionConfig) {
+		clock := config.Now
+		config.Now = func() time.Time {
+			// Barrier: the first clock read after transport success lets Close
+			// complete before the record can be promoted.
+			if armed.CompareAndSwap(true, false) {
+				if err := harness.acquisition.Close(); err == nil {
+					closedInBarrier.Store(true)
+				}
+			}
+			return clock()
+		}
+	})
+	endpoint := harness.endpoint()
+	endpoint.push(teslaGen3FakeStep{
+		echo:           true,
+		terminal:       teslaGen3ReadTerminal(t, TeslaFC100OperationWCGetVitals, []byte{0x08, 0x01}),
+		beforeComplete: func() { armed.Store(true) },
+	})
+	record, err := harness.acquisition.Acquire(context.Background(), TeslaFC100OperationWCGetVitals)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !closedInBarrier.Load() || !endpoint.isClosed() {
+		t.Fatal("barrier did not close the lifecycle after transport success")
+	}
+	if record.State != TeslaGen3ReadEvidenceIndeterminate || record.TransportOutcome != "success" ||
+		record.TerminalBody() != nil || record.Results() != nil || len(record.ResponseADUs()) != 2 {
+		t.Fatalf("record after Close won = %#v", record)
+	}
+	retained, ok := harness.acquisition.Retained(TeslaFC100OperationWCGetVitals)
+	if !ok || retained.HasLastGood || retained.LastAttempt.State != TeslaGen3ReadEvidenceIndeterminate || retained.Current {
+		t.Fatalf("retained after Close won = %#v", retained)
+	}
+}
+
+func TestTeslaGen3ReadAcquisitionRejectsActivationAtOrAfterDeadline(t *testing.T) {
+	for name, tc := range map[string]struct {
+		advance time.Duration
+		ready   bool
+	}{
+		"before deadline": {advance: 999 * time.Millisecond, ready: true},
+		"at deadline":     {advance: time.Second},
+		"after deadline":  {advance: time.Second + time.Millisecond},
+	} {
+		t.Run(name, func(t *testing.T) {
+			clock := &teslaGen3FakeClock{at: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}
+			config := teslaGen3ReadTestConfig(t, nil)
+			config.Now = clock.now
+			config.ActivationTimeout = time.Second
+			// The fake clock passes the activation deadline while the real
+			// context timer has not fired, so ctx.Err() is still nil.
+			config.Activation = &teslaGen3FakeWitness{steps: []teslaGen3WitnessStep{{
+				before:   func() { clock.advance(tc.advance) },
+				observed: []byte("TESLA\x00PASS\x00"),
+			}}}
+			acquisition, err := NewTeslaGen3ReadAcquisition(config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = acquisition.Close() }()
+			err = acquisition.Start(context.Background())
+			if tc.ready {
+				if err != nil || acquisition.State() != TeslaGen3ReadLifecycleReady {
+					t.Fatalf("start = %v, state %s", err, acquisition.State())
+				}
+				return
+			}
+			if !errors.Is(err, ErrTeslaGen3HSCActivationFailed) || acquisition.State() != TeslaGen3ReadLifecycleUnavailable {
+				t.Fatalf("start = %v, state %s", err, acquisition.State())
 			}
 		})
 	}

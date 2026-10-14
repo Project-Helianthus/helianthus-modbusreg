@@ -95,7 +95,11 @@ qualification claim, and it creates no control authority.
 
 The lifecycle compares the bytes reported by a configured
 `TeslaGen3HSCActivationWitness` with the documented sequence and fails closed
-without one. A report delivered after cancellation or after `ActivationTimeout`
-is rejected even when its bytes match. The helianthus-modbus production endpoint does not expose
+without one. A report returned at or after the `ActivationTimeout` deadline (measured
+on the lifecycle clock), or after cancellation, is rejected even when its
+bytes match; cancellation is checked again inside the readiness commit.
+The final ownership check, ACK promotion, and retention run in one critical
+section with `Close`, so a record whose endpoint was closed or retired before
+publication is `indeterminate` with its frames kept and no decoded value. The helianthus-modbus production endpoint does not expose
 pre-exchange activation bytes, so this repository ships no production witness;
 until one exists the lifecycle cannot be constructed for live use.

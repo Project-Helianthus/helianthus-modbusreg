@@ -559,17 +559,24 @@ func (acquisition *TeslaGen3ReadAcquisition) activate(ctx context.Context) error
 	acquisition.state = TeslaGen3ReadLifecycleActivating
 	epoch := acquisition.epoch + 1
 	acquisition.mu.Unlock()
+	deadline := acquisition.config.Now().Add(acquisition.config.ActivationTimeout)
 	activationCtx, cancel := context.WithTimeout(ctx, acquisition.config.ActivationTimeout)
 	defer cancel()
 	observed, err := acquisition.config.Activation.ObserveTeslaGen3HSCActivation(
 		activationCtx, TeslaGen3HSCActivationRequest{Endpoint: acquisition.config.Endpoint, Epoch: epoch})
+	returned := acquisition.config.Now()
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrTeslaGen3HSCActivationFailed, err)
 	}
-	// A report delivered after cancellation or the activation deadline is not
-	// a completed activation, even when its bytes match.
-	if ctxErr := activationCtx.Err(); ctxErr != nil {
-		return fmt.Errorf("%w: %w", ErrTeslaGen3HSCActivationFailed, ctxErr)
+	// A report delivered at or after the activation deadline, or after
+	// cancellation, is not a completed activation even when its bytes match.
+	// The deadline is compared against the report-return time on the
+	// lifecycle clock because the context timer may not have fired yet.
+	if !returned.Before(deadline) {
+		return fmt.Errorf("%w: %w", ErrTeslaGen3HSCActivationFailed, context.DeadlineExceeded)
+	}
+	if contextDeadline, ok := activationCtx.Deadline(); ok && !time.Now().Before(contextDeadline) {
+		return fmt.Errorf("%w: %w", ErrTeslaGen3HSCActivationFailed, context.DeadlineExceeded)
 	}
 	if !bytes.Equal(observed, teslaGen3HSCActivationSequence) {
 		return fmt.Errorf("%w: unexpected activation bytes", ErrTeslaGen3HSCActivationFailed)
@@ -578,6 +585,10 @@ func (acquisition *TeslaGen3ReadAcquisition) activate(ctx context.Context) error
 	defer acquisition.mu.Unlock()
 	if acquisition.closed {
 		return ErrTeslaGen3ReadAcquisitionClosed
+	}
+	// Re-check cancellation inside the readiness commit.
+	if ctxErr := activationCtx.Err(); ctxErr != nil {
+		return fmt.Errorf("%w: %w", ErrTeslaGen3HSCActivationFailed, ctxErr)
 	}
 	acquisition.epoch = epoch
 	acquisition.state = TeslaGen3ReadLifecycleReady
@@ -704,7 +715,7 @@ func (acquisition *TeslaGen3ReadAcquisition) acquireLocked(parent context.Contex
 		}
 		var followUp teslaGen3ReadFollowUp
 		record, followUp = acquisition.exchange(ctx, endpoint, operation, request, policy, attempt)
-		acquisition.retain(record)
+		record = acquisition.publish(record, endpoint)
 		switch followUp {
 		case teslaGen3ReadFollowUpRecover:
 			if !acquisition.recover(ctx, endpoint) {
@@ -756,7 +767,6 @@ func (acquisition *TeslaGen3ReadAcquisition) exchange(
 		ctx, acquisition.config.Profile.Node(), request, policy, teslaGen3ReadClassifier{operation: operation, request: request.Payload()})
 	acquisition.mu.Lock()
 	acquisition.plan = nil
-	owned := !acquisition.closed && acquisition.endpoint == endpoint && acquisition.epoch == epoch
 	acquisition.mu.Unlock()
 
 	record := TeslaGen3ReadRecord{
@@ -802,10 +812,10 @@ func (acquisition *TeslaGen3ReadAcquisition) exchange(
 		record.State = TeslaGen3ReadEvidenceIndeterminate
 		return record, teslaGen3ReadFollowUpRecover
 	}
-	// A success receipt publishes a value only while it is current at the
-	// transport and the lifecycle still owns that endpoint and epoch. Close or
-	// retirement during completion keeps the frames as evidence only.
-	if !evidence.Current || !owned {
+	// A receipt that was not current at the transport never carries a value.
+	// Ownership of the endpoint and epoch is checked again when the record
+	// is published (see publish), under the lifecycle mutex.
+	if !evidence.Current {
 		record.State = TeslaGen3ReadEvidenceIndeterminate
 		record.Cause = "receipt is not current for the owned endpoint epoch"
 		return record, teslaGen3ReadFollowUpNone
@@ -866,9 +876,26 @@ func (acquisition *TeslaGen3ReadAcquisition) recover(ctx context.Context, endpoi
 	return true
 }
 
-func (acquisition *TeslaGen3ReadAcquisition) retain(record TeslaGen3ReadRecord) {
+// publish linearizes the final ownership check, ACK promotion, and retention
+// with Close and endpoint retirement: all three run in one critical section
+// of the lifecycle mutex, which Close also takes. When the lifecycle no longer
+// owns the endpoint and epoch the record was acquired in, an ACK is downgraded
+// to indeterminate with its frames preserved and decoded values cleared.
+func (acquisition *TeslaGen3ReadAcquisition) publish(record TeslaGen3ReadRecord, endpoint TeslaGen3ReadEndpoint) TeslaGen3ReadRecord {
 	acquisition.mu.Lock()
 	defer acquisition.mu.Unlock()
+	if record.State == TeslaGen3ReadEvidenceAck &&
+		(acquisition.closed || acquisition.endpoint != endpoint || acquisition.epoch != record.LifecycleEpoch ||
+			acquisition.state != TeslaGen3ReadLifecycleReady) {
+		record.State = TeslaGen3ReadEvidenceIndeterminate
+		record.Cause = "receipt is not current for the owned endpoint epoch"
+		record.results = nil
+	}
+	acquisition.retainLocked(record)
+	return record.clone()
+}
+
+func (acquisition *TeslaGen3ReadAcquisition) retainLocked(record TeslaGen3ReadRecord) {
 	entry := acquisition.retained[record.Operation]
 	if entry == nil {
 		return
