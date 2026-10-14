@@ -162,3 +162,6 @@ establish live qualification or product support.
 
 The Tesla Gen3 FC100 catalog is limited to the documented
 [retained EVSE operation set](docs/tesla-fc100-evse-scope.md).
+The Gen3 [read-path acquisition lifecycle](docs/tesla-gen3-read-acquisition.md)
+acquires only the five retained observation operations through the
+helianthus-modbus production endpoint; it adds no mutation path.

@@ -1,2 +1,4 @@
 github.com/Project-Helianthus/helianthus-modbus v0.3.0 h1:cmYb4WqaAl9DmDAfwnBJf5YIzXyYfnsZRcuZEk1d7/I=
 github.com/Project-Helianthus/helianthus-modbus v0.3.0/go.mod h1:Nr8SW7fE3SIjnp+rj8PCOtwk8JZ9wqafu1ZCgq3Zz+Q=
+github.com/Project-Helianthus/helianthus-modbus v0.3.1-0.20261014112527-df5bdc80771c h1:/afxettNlxgpDKk+ExmTySEmmf2mbahJ5izr5jtg2yM=
+github.com/Project-Helianthus/helianthus-modbus v0.3.1-0.20261014112527-df5bdc80771c/go.mod h1:Nr8SW7fE3SIjnp+rj8PCOtwk8JZ9wqafu1ZCgq3Zz+Q=
