@@ -8,7 +8,10 @@ acquires only the five retained observation operations: `common.system_info`
 The current-limit pairs (6:7 → 8, 6:25 → 26, 6:27 → 28) have no acquisition
 mapping and are rejected as `NO_SEND`. The legacy Wall Connector RS-485
 profile is a separate, non-Modbus flow and is never reached from this
-lifecycle; there is no fallback in either direction.
+lifecycle; there is no fallback in either direction. The Gen3 version label
+must be exactly `wc3_24_44_3`, the only operation version the retained catalog
+and decoders are qualified for; any other label, including another known
+observation or a compatible candidate, is `NO_SEND` at construction.
 
 ## Public contracts followed
 
@@ -52,8 +55,14 @@ One lifecycle call owns the single in-flight slot; concurrent `Acquire`,
 attempt. `MaxAttempts` (1 through 3) bounds exchanges per acquisition, all
 inside `AcquisitionDeadline`. A timeout or indeterminate outcome after possible
 transmission is followed by the transport's bounded recovery and a fresh
-activation before any retry. A correlated exception or application error is
-not retried. `PollOnce` acquires each configured operation whose
+activation before any retry; both run inside the remaining acquisition budget.
+An expired or cancelled acquisition does not start recovery: the endpoint stays
+fenced, the lifecycle becomes unavailable, and `Restart` is required. The
+response classifier accepts as terminal only the request operation's exact
+family/terminal-tag container or a TEDAPI application error; any other frame is
+a classifier fault that fences the transport generation, so a delayed terminal
+can never satisfy a later attempt. A correlated exception or application error
+is not retried. `PollOnce` acquires each configured operation whose
 last-known-good record is not fresh and current; `Run` repeats it every
 `PollInterval` and restarts an unavailable lifecycle at most once per interval.
 
@@ -73,7 +82,7 @@ received response ADU, and the evidence state:
 
 | State | Meaning |
 | --- | --- |
-| `ack` | Correlated terminal accepted by the operation decoder; carries the complete native terminal body. |
+| `ack` | Correlated terminal accepted by the operation decoder in a receipt that is current for the owned endpoint and epoch; carries the complete native terminal body. A success receipt completed after Close or retirement is `indeterminate`. |
 | `rejected` | Correlated Modbus exception or TEDAPI application error; no value. |
 | `timeout` | Exchange or acquisition deadline after possible transmission; no value. |
 | `indeterminate` | Other failure after possible transmission, or a correlated response the decoder rejected; no value. |
@@ -86,6 +95,7 @@ qualification claim, and it creates no control authority.
 
 The lifecycle compares the bytes reported by a configured
 `TeslaGen3HSCActivationWitness` with the documented sequence and fails closed
-without one. The helianthus-modbus production endpoint does not expose
+without one. A report delivered after cancellation or after `ActivationTimeout`
+is rejected even when its bytes match. The helianthus-modbus production endpoint does not expose
 pre-exchange activation bytes, so this repository ships no production witness;
 until one exists the lifecycle cannot be constructed for live use.

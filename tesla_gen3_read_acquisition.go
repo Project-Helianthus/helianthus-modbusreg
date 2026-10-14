@@ -343,6 +343,12 @@ func validateTeslaGen3ReadAcquisitionConfig(config TeslaGen3ReadAcquisitionConfi
 	if config.Profile.Disposition() != TeslaHSCQualifiedReadOnly || !config.Gen3.ExchangeEligible() {
 		return noSend("profile is not qualified")
 	}
+	// The retained catalog and decoders are qualified only for the exact
+	// wc3_24_44_3 operation version. Another Gen3 version label, even a known
+	// observation or a compatible candidate, has no qualified mapping here.
+	if config.Gen3.Version() != TeslaHSCFC100OperationCompatibilityV1 {
+		return noSend("Gen3 version is not the qualified operation version")
+	}
 	if config.Activation == nil {
 		return noSend("has no activation witness")
 	}
@@ -522,6 +528,18 @@ func (acquisition *TeslaGen3ReadAcquisition) retireEndpoint() {
 	}
 }
 
+// retireOwned retires endpoint if the lifecycle still owns it and leaves the
+// lifecycle unavailable until Restart.
+func (acquisition *TeslaGen3ReadAcquisition) retireOwned(endpoint TeslaGen3ReadEndpoint) {
+	acquisition.mu.Lock()
+	owned := acquisition.endpoint == endpoint
+	acquisition.mu.Unlock()
+	if owned {
+		acquisition.retireEndpoint()
+	}
+	acquisition.setState(TeslaGen3ReadLifecycleUnavailable)
+}
+
 func (acquisition *TeslaGen3ReadAcquisition) setState(state TeslaGen3ReadLifecycleState) {
 	acquisition.mu.Lock()
 	if !acquisition.closed {
@@ -547,6 +565,11 @@ func (acquisition *TeslaGen3ReadAcquisition) activate(ctx context.Context) error
 		activationCtx, TeslaGen3HSCActivationRequest{Endpoint: acquisition.config.Endpoint, Epoch: epoch})
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrTeslaGen3HSCActivationFailed, err)
+	}
+	// A report delivered after cancellation or the activation deadline is not
+	// a completed activation, even when its bytes match.
+	if ctxErr := activationCtx.Err(); ctxErr != nil {
+		return fmt.Errorf("%w: %w", ErrTeslaGen3HSCActivationFailed, ctxErr)
 	}
 	if !bytes.Equal(observed, teslaGen3HSCActivationSequence) {
 		return fmt.Errorf("%w: unexpected activation bytes", ErrTeslaGen3HSCActivationFailed)
@@ -668,7 +691,10 @@ func (acquisition *TeslaGen3ReadAcquisition) acquireLocked(parent context.Contex
 		closed, state, endpoint := acquisition.closed, acquisition.state, acquisition.endpoint
 		acquisition.mu.Unlock()
 		if closed {
-			return TeslaGen3ReadRecord{}, ErrTeslaGen3ReadAcquisitionClosed
+			if attempt == 1 {
+				return TeslaGen3ReadRecord{}, ErrTeslaGen3ReadAcquisitionClosed
+			}
+			return record, nil
 		}
 		if state != TeslaGen3ReadLifecycleReady || endpoint == nil {
 			if attempt == 1 {
@@ -676,13 +702,17 @@ func (acquisition *TeslaGen3ReadAcquisition) acquireLocked(parent context.Contex
 			}
 			return record, nil
 		}
-		var needsRecovery bool
-		record, needsRecovery = acquisition.exchange(ctx, endpoint, operation, request, policy, attempt)
+		var followUp teslaGen3ReadFollowUp
+		record, followUp = acquisition.exchange(ctx, endpoint, operation, request, policy, attempt)
 		acquisition.retain(record)
-		if needsRecovery {
+		switch followUp {
+		case teslaGen3ReadFollowUpRecover:
 			if !acquisition.recover(ctx, endpoint) {
 				return record, nil
 			}
+		case teslaGen3ReadFollowUpRetire:
+			acquisition.retireOwned(endpoint)
+			return record, nil
 		}
 		switch record.State {
 		case TeslaGen3ReadEvidenceAck, TeslaGen3ReadEvidenceRejected, TeslaGen3ReadEvidenceNoSend:
@@ -695,8 +725,20 @@ func (acquisition *TeslaGen3ReadAcquisition) acquireLocked(parent context.Contex
 	return record, nil
 }
 
+// teslaGen3ReadFollowUp is the lifecycle action an exchange outcome requires.
+type teslaGen3ReadFollowUp uint8
+
+const (
+	teslaGen3ReadFollowUpNone teslaGen3ReadFollowUp = iota
+	// teslaGen3ReadFollowUpRecover: the transport fenced the generation.
+	teslaGen3ReadFollowUpRecover
+	// teslaGen3ReadFollowUpRetire: the transport reported success for a
+	// sequence the operation decoder rejected; the endpoint is not fenced,
+	// so it is retired instead of being reused in the same generation.
+	teslaGen3ReadFollowUpRetire
+)
+
 // exchange performs one single-attempt production exchange and classifies it.
-// The second result reports that the transport fenced the generation.
 func (acquisition *TeslaGen3ReadAcquisition) exchange(
 	ctx context.Context,
 	endpoint TeslaGen3ReadEndpoint,
@@ -704,16 +746,17 @@ func (acquisition *TeslaGen3ReadAcquisition) exchange(
 	request modbus.PrivateFunctionRequest,
 	policy modbus.PrivateFunctionResponsePolicy,
 	attempt int,
-) (TeslaGen3ReadRecord, bool) {
+) (TeslaGen3ReadRecord, teslaGen3ReadFollowUp) {
 	spec := teslaFC100OperationSpecs[operation]
 	acquisition.mu.Lock()
 	epoch := acquisition.epoch
 	acquisition.plan = &teslaGen3ReadPlan{instance: acquisition.instance, payload: request.Payload()}
 	acquisition.mu.Unlock()
 	responses, evidence, err := endpoint.ExchangePrivateFunction(
-		ctx, acquisition.config.Profile.Node(), request, policy, teslaGen3ReadClassifier{request: request.Payload()})
+		ctx, acquisition.config.Profile.Node(), request, policy, teslaGen3ReadClassifier{operation: operation, request: request.Payload()})
 	acquisition.mu.Lock()
 	acquisition.plan = nil
+	owned := !acquisition.closed && acquisition.endpoint == endpoint && acquisition.epoch == epoch
 	acquisition.mu.Unlock()
 
 	record := TeslaGen3ReadRecord{
@@ -742,7 +785,7 @@ func (acquisition *TeslaGen3ReadAcquisition) exchange(
 	switch {
 	case err != nil && evidence.RequestID == 0:
 		record.State = TeslaGen3ReadEvidenceNoSend
-		return record, false
+		return record, teslaGen3ReadFollowUpNone
 	case err != nil && evidence.TerminalOutcome == "exception":
 		record.State = TeslaGen3ReadEvidenceRejected
 		if frames := evidence.ResponseADUs; len(frames) != 0 {
@@ -751,13 +794,21 @@ func (acquisition *TeslaGen3ReadAcquisition) exchange(
 				record.ExceptionStatus = last[2]
 			}
 		}
-		return record, false
+		return record, teslaGen3ReadFollowUpNone
 	case err != nil && errors.Is(err, context.DeadlineExceeded):
 		record.State = TeslaGen3ReadEvidenceTimeout
-		return record, evidence.TerminalOutcome != "success"
+		return record, teslaGen3ReadFollowUpRecover
 	case err != nil:
 		record.State = TeslaGen3ReadEvidenceIndeterminate
-		return record, evidence.TerminalOutcome != "success"
+		return record, teslaGen3ReadFollowUpRecover
+	}
+	// A success receipt publishes a value only while it is current at the
+	// transport and the lifecycle still owns that endpoint and epoch. Close or
+	// retirement during completion keeps the frames as evidence only.
+	if !evidence.Current || !owned {
+		record.State = TeslaGen3ReadEvidenceIndeterminate
+		record.Cause = "receipt is not current for the owned endpoint epoch"
+		return record, teslaGen3ReadFollowUpNone
 	}
 	payloads := make([][]byte, len(responses))
 	for index, response := range responses {
@@ -767,7 +818,7 @@ func (acquisition *TeslaGen3ReadAcquisition) exchange(
 	if decodeErr != nil {
 		record.State = TeslaGen3ReadEvidenceIndeterminate
 		record.Cause = decodeErr.Error()
-		return record, false
+		return record, teslaGen3ReadFollowUpRetire
 	}
 	record.results = results
 	record.State = TeslaGen3ReadEvidenceAck
@@ -778,7 +829,7 @@ func (acquisition *TeslaGen3ReadAcquisition) exchange(
 			record.ApplicationStatus = result.Status
 		}
 	}
-	return record, false
+	return record, teslaGen3ReadFollowUpNone
 }
 
 // recover runs the transport's bounded recovery and then re-activates, which
@@ -791,7 +842,14 @@ func (acquisition *TeslaGen3ReadAcquisition) recover(ctx context.Context, endpoi
 	}
 	acquisition.state = TeslaGen3ReadLifecycleRecovering
 	acquisition.mu.Unlock()
-	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), acquisition.config.ResponseTimeout+acquisition.config.Timing.InterFrame())
+	// Recovery and re-activation stay inside the acquisition budget. An
+	// expired or cancelled acquisition leaves the endpoint fenced and the
+	// lifecycle unavailable; Restart is the bounded way back.
+	if ctx.Err() != nil {
+		acquisition.setState(TeslaGen3ReadLifecycleUnavailable)
+		return false
+	}
+	recoveryCtx, cancel := context.WithTimeout(ctx, acquisition.config.ResponseTimeout+acquisition.config.Timing.InterFrame())
 	defer cancel()
 	if err := endpoint.Recover(recoveryCtx); err != nil {
 		acquisition.setState(TeslaGen3ReadLifecycleUnavailable)
@@ -801,9 +859,7 @@ func (acquisition *TeslaGen3ReadAcquisition) recover(ctx context.Context, endpoi
 	acquisition.lastGeneration = acquisition.epochGeneration
 	acquisition.epochGeneration = 0
 	acquisition.mu.Unlock()
-	// Activation has its own ActivationTimeout bound and must run even when
-	// the acquisition deadline that triggered recovery has expired.
-	if err := acquisition.activate(context.WithoutCancel(ctx)); err != nil {
+	if err := acquisition.activate(ctx); err != nil {
 		acquisition.setState(TeslaGen3ReadLifecycleUnavailable)
 		return false
 	}
@@ -898,10 +954,13 @@ type teslaGen3ReadDenyRegisterReads struct{}
 func (teslaGen3ReadDenyRegisterReads) AdmitRTURead(modbus.RTUReadAdmissionRequest) bool { return false }
 
 // teslaGen3ReadClassifier marks the exact FC100 request echo as an
-// intermediate frame and any other valid FC100 envelope as terminal. The
-// operation decoder validates the terminal after transport correlation.
+// intermediate frame. Any other frame is terminal only when it is the
+// selected operation's exact family/terminal-tag container or a TEDAPI
+// application error; every other frame is a classifier fault, which fences
+// the transport generation so no later request can be satisfied by it.
 type teslaGen3ReadClassifier struct {
-	request []byte
+	operation TeslaFC100Operation
+	request   []byte
 }
 
 func (classifier teslaGen3ReadClassifier) ClassifyRTUPrivateFunctionResponse(response modbus.RTUPrivateFunctionResponseADU) (modbus.RTUPrivateFunctionDisposition, error) {
@@ -909,8 +968,24 @@ func (classifier teslaGen3ReadClassifier) ClassifyRTUPrivateFunctionResponse(res
 	if bytes.Equal(payload, classifier.request) {
 		return modbus.RTUPrivateFunctionContinue, nil
 	}
-	if _, err := DecodeTeslaHSCEnvelope(teslaHSCFunction100, payload); err != nil {
+	envelope, err := DecodeTeslaHSCEnvelope(teslaHSCFunction100, payload)
+	if err != nil {
 		return 0, err
+	}
+	message := envelope.Payload()
+	if _, ok := decodeTeslaFC100ApplicationError(message); ok {
+		return modbus.RTUPrivateFunctionTerminal, nil
+	}
+	spec, ok := teslaFC100OperationSpecs[classifier.operation]
+	if !ok {
+		return 0, fmt.Errorf("tesla Gen3 read operation is not correlated")
+	}
+	family, err := decodeExactLengthDelimitedField(message, spec.family)
+	if err != nil {
+		return 0, fmt.Errorf("tesla Gen3 read terminal family is not correlated: %w", err)
+	}
+	if _, err := decodeExactLengthDelimitedField(family, spec.responseTag); err != nil {
+		return 0, fmt.Errorf("tesla Gen3 read terminal tag is not correlated: %w", err)
 	}
 	return modbus.RTUPrivateFunctionTerminal, nil
 }
