@@ -16,8 +16,8 @@ and [current-limit operation contract V1](https://github.com/Project-Helianthus/
 These pages define the EVSE scope and the three current-limit pairs. They do
 not publish the family/tag numbers for `common.system_info` or the four WC
 observation pairs in the table below. Those five pairs require the
-[helianthus-docs-modbus#155](https://github.com/Project-Helianthus/helianthus-docs-modbus/issues/155) publication described under "Regression and
-evidence boundary"; this code PR merges after that documentation companion.
+[helianthus-docs-modbus#155, published at `fb4fee5b`](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/fb4fee5b5097a9d8edf98e24b8a2fea600998ee9/protocols/tesla/tedapi.md) publication described under "Regression and
+evidence boundary"; that documentation companion is merged.
 The two existing system-information pairs retain identity and capability/version
 provenance separately. The retained field labels are Helianthus recovered
 labels; they do not establish new field semantics or live qualification.
@@ -98,9 +98,9 @@ The public documentation/evidence gate applies. The family/tag numbers for
 `common.system_info` (4:2 → 3), `wc.get_vitals` (6:1 → 2),
 `wc.get_lifetime_stats` (6:3 → 4), `wc.get_system_info` (6:9 → 10), and
 `wc.get_load_sharing_state` (6:11 → 12) are published by the documentation
-companion [helianthus-docs-modbus#155](https://github.com/Project-Helianthus/helianthus-docs-modbus/issues/155).
+companion [helianthus-docs-modbus#155, published at `fb4fee5b`](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/fb4fee5b5097a9d8edf98e24b8a2fea600998ee9/protocols/tesla/tedapi.md).
 The linked docs-modbus revision `12bd50b9` does not publish those five numeric
-pairs; this code PR merges after that documentation companion.
+pairs; that documentation companion is merged.
 
 The three current-limit pairs, `wc.configure_settings` (6:7 → 8),
 `wc.set_provisional` (6:25 → 26), and `wc.get_provisional` (6:27 → 28), remain
