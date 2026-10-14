@@ -14,24 +14,17 @@ type TeslaFC100RequestMatrix struct {
 
 var teslaFC100EmptyRequestOperations = map[TeslaFC100Operation]struct{}{
 	TeslaFC100OperationCommonSystemInfo:      {},
-	TeslaFC100OperationCommonPerformUpdate:   {},
-	TeslaFC100OperationCommonFactoryReset:    {},
-	TeslaFC100OperationCommonClearUpdate:     {},
 	TeslaFC100OperationWCGetVitals:           {},
 	TeslaFC100OperationWCGetLifetimeStats:    {},
-	TeslaFC100OperationWCGetConfig:           {},
 	TeslaFC100OperationWCGetSystemInfo:       {},
 	TeslaFC100OperationWCGetLoadSharingState: {},
-	TeslaFC100OperationWCGetPPU:              {},
 	TeslaFC100OperationWCGetProvisional:      {},
-	TeslaFC100OperationWCGetAccessControl:    {},
-	TeslaFC100OperationWCGetRecentVehicles:   {},
-	TeslaFC100OperationWCGetOperational:      {},
 }
 
 // ValidateTeslaFC100RequestMatrix validates an operation's exact empty or
 // non-empty request form. Non-empty bodies retain all validated bytes and
-// preserve unknown protobuf fields through RequestBody and Entries.
+// preserve unknown protobuf fields through RequestBody and Entries. This is
+// structural validation only, not current-limit admission or send authority.
 func ValidateTeslaFC100RequestMatrix(version string, operation TeslaFC100Operation, body []byte) (TeslaFC100RequestMatrix, error) {
 	if version != TeslaHSCFC100OperationCompatibilityV1 {
 		return TeslaFC100RequestMatrix{}, fmt.Errorf("tesla FC100 request matrix compatibility is unsupported")
@@ -55,24 +48,6 @@ func ValidateTeslaFC100RequestMatrix(version string, operation TeslaFC100Operati
 	if err != nil {
 		return TeslaFC100RequestMatrix{}, fmt.Errorf("tesla FC100 structured request: %w", err)
 	}
-	switch operation {
-	case TeslaFC100OperationCommonWifiScan:
-		fields, err := decodeTeslaFC100RequestFields(body)
-		if err != nil {
-			return TeslaFC100RequestMatrix{}, err
-		}
-		if err := validateTeslaFC100WifiScanRequest(fields); err != nil {
-			return TeslaFC100RequestMatrix{}, err
-		}
-	case TeslaFC100OperationCommonConfigureWifi:
-		fields, err := decodeTeslaFC100RequestFields(body)
-		if err != nil {
-			return TeslaFC100RequestMatrix{}, err
-		}
-		if err := validateTeslaFC100ConfigureWifiRequest(fields); err != nil {
-			return TeslaFC100RequestMatrix{}, err
-		}
-	}
 	return TeslaFC100RequestMatrix{
 		Operation:   operation,
 		RequestBody: append([]byte(nil), body...),
@@ -80,32 +55,10 @@ func ValidateTeslaFC100RequestMatrix(version string, operation TeslaFC100Operati
 	}, nil
 }
 
-// TeslaFC100DeterministicApplicationStatus identifies operations with a
-// version-scoped normal FC100 application result instead of a terminal body.
-func TeslaFC100DeterministicApplicationStatus(operation TeslaFC100Operation) (uint64, bool) {
-	if operation == TeslaFC100OperationWCPushPPUAuthorization {
-		return 7, true
-	}
-	return 0, false
-}
-
 type teslaFC100RequestField struct {
 	number   uint64
 	wireType uint8
 	value    []byte
-}
-
-func decodeTeslaFC100RequestFields(body []byte) ([]teslaFC100RequestField, error) {
-	fields := make([]teslaFC100RequestField, 0)
-	for offset := 0; offset < len(body); {
-		field, consumed, err := decodeTeslaFC100RequestField(body[offset:])
-		if err != nil {
-			return nil, fmt.Errorf("tesla FC100 structured request field: %w", err)
-		}
-		fields = append(fields, field)
-		offset += consumed
-	}
-	return fields, nil
 }
 
 func decodeTeslaFC100RequestField(input []byte) (teslaFC100RequestField, int, error) {
@@ -182,45 +135,4 @@ func skipTeslaFC100RequestGroup(input []byte, groupField uint64) (int, error) {
 		offset += width
 	}
 	return 0, fmt.Errorf("protobuf group boundary is truncated")
-}
-
-func validateTeslaFC100WifiScanRequest(fields []teslaFC100RequestField) error {
-	known := false
-	for _, field := range fields {
-		if field.number >= 1 && field.number <= 3 {
-			if field.wireType != 0 {
-				return fmt.Errorf("tesla FC100 Wi-Fi scan field %d has invalid wire type", field.number)
-			}
-			known = true
-		}
-	}
-	if !known {
-		return fmt.Errorf("tesla FC100 Wi-Fi scan lacks a known structural field")
-	}
-	return nil
-}
-
-func validateTeslaFC100ConfigureWifiRequest(fields []teslaFC100RequestField) error {
-	known := false
-	for _, field := range fields {
-		switch field.number {
-		case 1:
-			if field.wireType != 0 {
-				return fmt.Errorf("tesla FC100 configure Wi-Fi enabled has invalid wire type")
-			}
-			known = true
-		case 2:
-			if field.wireType != 2 {
-				return fmt.Errorf("tesla FC100 configure Wi-Fi config has invalid wire type")
-			}
-			if _, err := decodeTeslaFC100RequestFields(field.value); err != nil {
-				return fmt.Errorf("tesla FC100 configure Wi-Fi config: %w", err)
-			}
-			known = true
-		}
-	}
-	if !known {
-		return fmt.Errorf("tesla FC100 configure Wi-Fi lacks a known structural field")
-	}
-	return nil
 }

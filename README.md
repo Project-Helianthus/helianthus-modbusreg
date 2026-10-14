@@ -157,3 +157,8 @@ The OutBack API creates no acquisition request and exposes no transport or send
 method. Future admission requires the additional public evidence specified by
 the matrix and a separately reviewed implementation. This change does not
 establish live qualification or product support.
+
+## Tesla FC100 EVSE catalog
+
+The Tesla Gen3 FC100 catalog is limited to the documented
+[retained EVSE operation set](docs/tesla-fc100-evse-scope.md).
