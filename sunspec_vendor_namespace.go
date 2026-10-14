@@ -9,24 +9,6 @@ type SunSpecVendorDecoderNamespace struct {
 	registry SunSpecDecoderRegistry
 }
 
-func newSunSpecVendorDecoderNamespace(revision SunSpecSchemaRevision, definitions []sunSpecModelDefinition) (SunSpecVendorDecoderNamespace, error) {
-	if len(definitions) == 0 {
-		return SunSpecVendorDecoderNamespace{}, fmt.Errorf("vendor SunSpec namespace has no definitions")
-	}
-	registry := SunSpecDecoderRegistry{revision: revision, definitions: make(map[SunSpecDecoderKey]sunSpecModelDefinition, len(definitions))}
-	for _, definition := range definitions {
-		if definition.key.SchemaRevision != revision {
-			return SunSpecVendorDecoderNamespace{}, fmt.Errorf("vendor SunSpec definition has incompatible revision")
-		}
-		if _, duplicate := registry.definitions[definition.key]; duplicate {
-			return SunSpecVendorDecoderNamespace{}, fmt.Errorf("vendor SunSpec decoder key is duplicated")
-		}
-		registry.definitions[definition.key] = definition
-		registry.keys = append(registry.keys, definition.key)
-	}
-	return SunSpecVendorDecoderNamespace{registry: registry}, nil
-}
-
 func (n SunSpecVendorDecoderNamespace) Decode(words []uint16) (SunSpecDecodedModel, error) {
 	if len(words) < 2 {
 		return SunSpecDecodedModel{}, fmt.Errorf("vendor SunSpec occurrence is incomplete")
