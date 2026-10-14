@@ -85,9 +85,9 @@ func TestHuaweiInverterBatteryDispositionsFailClosedWithoutEvidence(t *testing.T
 				t.Fatalf("unexpected source document: %#v", source)
 			}
 			page := huaweiObject(t, evidence["docs_modbus_page"])
-			requireHuaweiKeys(t, page, "exists", "path", "companion_required", "companion_state", "merge_companion_first")
-			if page["exists"] != false || page["path"] != "protocols/huawei/inverter-battery-readonly-v1.md" ||
-				page["companion_required"] != true || page["companion_state"] != "PENDING_MERGE_BEFORE_CODE_PR" || page["merge_companion_first"] != true || evidence["eligible"] != false {
+			requireHuaweiKeys(t, page, "exists", "path", "companion_required", "companion_state", "merge_companion_first", "docs_merge_sha")
+			if page["exists"] != true || page["path"] != "protocols/huawei/inverter-battery-readonly-v1.md" ||
+				page["companion_required"] != true || page["companion_state"] != "MERGED" || page["docs_merge_sha"] != "5d8a25871a9fbc48ca6e87e249b6b8603a131920" || page["merge_companion_first"] != true || evidence["eligible"] != false {
 				t.Fatalf("unexpected docs-modbus page state: %#v", page)
 			}
 			missing := huaweiStringSlice(t, evidence["missing_evidence"])

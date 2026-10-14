@@ -15,11 +15,12 @@
       "publication_policy": "treated conservatively as vendor-copyright-inspection-only; applicability-and-licensing.md has no SUN2000 or LUNA2000 entry"
     },
     "docs_modbus_page": {
-      "exists": false,
+      "exists": true,
       "path": "protocols/huawei/inverter-battery-readonly-v1.md",
       "companion_required": true,
-      "companion_state": "PENDING_MERGE_BEFORE_CODE_PR",
-      "merge_companion_first": true
+      "companion_state": "MERGED",
+      "merge_companion_first": true,
+      "docs_merge_sha": "5d8a25871a9fbc48ca6e87e249b6b8603a131920"
     },
     "eligible": false,
     "missing_evidence": [
