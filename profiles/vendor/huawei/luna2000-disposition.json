@@ -1,0 +1,167 @@
+{
+  "schema": "helianthus-modbusreg-huawei-inverter-battery-disposition/v1",
+  "profile": "huawei.luna2000",
+  "profile_version": "1.0.0",
+  "outcome": "NO_ADMISSIBLE_PROFILE",
+  "evidence": {
+    "source_document": {
+      "name": "Huawei SUN2000 MODBUS Interface Definitions",
+      "version": "UNPINNED",
+      "version_pinned": false,
+      "classification": "vendor-copyright-inspection-only",
+      "redistributable": false,
+      "locator": ""
+    },
+    "docs_modbus_page": {
+      "exists": false,
+      "path": "protocols/huawei/inverter-battery-readonly-v1.md",
+      "companion_required": true
+    },
+    "eligible": false,
+    "missing_evidence": [
+      "pinned_vendor_document_version",
+      "companion_docs_modbus_protocol_page",
+      "clean_room_sanitized_identity_fixture",
+      "clean_room_sanitized_monitoring_fixture",
+      "negative_overlap_with_smartlogger_emma_sdongle"
+    ]
+  },
+  "model_families": {
+    "class": "LUNA2000",
+    "covered": [],
+    "unsupported": "ALL"
+  },
+  "firmware_ranges": {
+    "covered": [],
+    "unsupported": "ALL"
+  },
+  "capability_detection": {
+    "positive_identity_required": [
+      "exact_model_identity",
+      "exact_firmware_identity",
+      "unit_identity",
+      "pinned_register_map"
+    ],
+    "forbidden_identity": [
+      "serial_number",
+      "esn",
+      "writable_alias",
+      "register_readability",
+      "gateway_inventory_child_model",
+      "model_prefix_or_wildcard"
+    ],
+    "default_outcome": "INSUFFICIENT_EVIDENCE",
+    "multiple_positive_outcome": "AMBIGUOUS",
+    "first_match_priority": false,
+    "executable": false,
+    "rows": [
+      {
+        "id": "no_identity_evidence",
+        "outcome": "INSUFFICIENT_EVIDENCE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "no model, firmware or unit identity was read"
+      },
+      {
+        "id": "gateway_inventory_child_model_only",
+        "outcome": "INSUFFICIENT_EVIDENCE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "a SmartLogger or EMMA inventory lists a child model; a gateway child listing is not unit identity"
+      },
+      {
+        "id": "parent_inverter_unidentified",
+        "outcome": "INSUFFICIENT_EVIDENCE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "the parent SUN2000 inverter has no positive identity, so no battery profile is selected"
+      },
+      {
+        "id": "model_without_firmware",
+        "outcome": "INSUFFICIENT_EVIDENCE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "model identity without an exact firmware identity"
+      },
+      {
+        "id": "serial_or_esn_only",
+        "outcome": "INSUFFICIENT_EVIDENCE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "serial number or ESN is never a qualification predicate"
+      },
+      {
+        "id": "register_readability_only",
+        "outcome": "INSUFFICIENT_EVIDENCE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "a successful read of any register is not identity"
+      },
+      {
+        "id": "battery_group_absent",
+        "outcome": "INSUFFICIENT_EVIDENCE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "optional group absent: facts stay unknown, never numeric zero"
+      },
+      {
+        "id": "battery_group_exception",
+        "outcome": "INSUFFICIENT_EVIDENCE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "optional group read exception: no negation of an identified unit, last-known-good retained"
+      },
+      {
+        "id": "multiple_positive_candidates",
+        "outcome": "AMBIGUOUS",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "more than one candidate positive for one endpoint and unit: no winner chosen by order or priority"
+      },
+      {
+        "id": "exact_identity_with_pinned_register_map",
+        "outcome": "NO_ADMISSIBLE_PROFILE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "would be positive, but no pinned register map is admissible today"
+      }
+    ]
+  },
+  "registers": {
+    "evidence_backed": [],
+    "candidate": [],
+    "unknown": [
+      "model_identity",
+      "firmware_identity",
+      "unit_identity",
+      "monitoring_registers",
+      "scale_and_unit",
+      "access_mode",
+      "availability_markers"
+    ]
+  },
+  "optional_groups": {
+    "declared": [
+      "battery_unit_presence"
+    ],
+    "absent_semantics": "UNKNOWN_NOT_ZERO",
+    "exception_semantics": "RETAIN_LAST_KNOWN_GOOD_NO_NEGATION"
+  },
+  "private_functions": {
+    "FC0x41": "NO_SEND",
+    "FC0x17": "NO_SEND"
+  },
+  "writes": "DEFAULT_DENY",
+  "decoder_keys": [],
+  "catalog_registered": false,
+  "automatic_runtime_admission": false,
+  "support_claim": false,
+  "write_authority": false,
+  "reopen_requires": [
+    "pinned_vendor_document_version",
+    "companion_docs_modbus_protocol_page",
+    "clean_room_sanitized_identity_fixture",
+    "clean_room_sanitized_monitoring_fixture",
+    "negative_overlap_with_smartlogger_emma_sdongle"
+  ]
+}

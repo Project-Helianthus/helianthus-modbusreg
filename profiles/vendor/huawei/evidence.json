@@ -23,6 +23,7 @@
     "SmartLogger documentary candidate huawei.smartlogger.v1",
     "S-Dongle documentary candidate huawei.sdongle.v1",
     "EMMA documentary candidate huawei.emma.v1",
+    "SUN2000 inverter and LUNA2000 battery: NO_ADMISSIBLE_PROFILE disposition only; no public source, register map or companion protocol page",
     "candidate evidence only; no detector, catalog, decoder, runtime acquisition, or support admission"
   ],
   "license": "CC0-1.0"
