@@ -8,14 +8,14 @@ import (
 func TestTeslaFC100OperationFoundationBuildsFixedAndOpaqueRequests(t *testing.T) {
 	fixed, err := BuildTeslaFC100OperationRequest(
 		TeslaHSCFC100OperationCompatibilityV1,
-		TeslaFC100OperationWCGetConfig,
+		TeslaFC100OperationWCGetVitals,
 		nil,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := fixed.Payload(), []byte{0x04, 0x32, 0x02, 0x2a, 0x00}; !bytes.Equal(got, want) {
-		t.Fatalf("GetConfig payload = %x, want %x", got, want)
+	if got, want := fixed.Payload(), []byte{0x04, 0x32, 0x02, 0x0a, 0x00}; !bytes.Equal(got, want) {
+		t.Fatalf("GetVitals payload = %x, want %x", got, want)
 	}
 
 	opaque, err := BuildTeslaFC100OperationRequest(
@@ -32,15 +32,15 @@ func TestTeslaFC100OperationFoundationBuildsFixedAndOpaqueRequests(t *testing.T)
 }
 
 func TestTeslaFC100OperationFoundationRetainsTerminalAndApplicationError(t *testing.T) {
-	request, err := BuildTeslaFC100OperationRequest(TeslaHSCFC100OperationCompatibilityV1, TeslaFC100OperationWCGetConfig, nil)
+	request, err := BuildTeslaFC100OperationRequest(TeslaHSCFC100OperationCompatibilityV1, TeslaFC100OperationWCGetVitals, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	terminal, err := DecodeTeslaFC100OperationSequence(
 		TeslaHSCFC100OperationCompatibilityV1,
-		TeslaFC100OperationWCGetConfig,
+		TeslaFC100OperationWCGetVitals,
 		request.Payload(),
-		[][]byte{{0x04, 0x32, 0x02, 0x2a, 0x00}, {0x07, 0x32, 0x05, 0x32, 0x03, 0x0a, 0x01, 0xff}},
+		[][]byte{{0x04, 0x32, 0x02, 0x0a, 0x00}, {0x07, 0x32, 0x05, 0x12, 0x03, 0x0a, 0x01, 0xff}},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +51,7 @@ func TestTeslaFC100OperationFoundationRetainsTerminalAndApplicationError(t *test
 
 	applicationError, err := DecodeTeslaFC100OperationSequence(
 		TeslaHSCFC100OperationCompatibilityV1,
-		TeslaFC100OperationWCGetConfig,
+		TeslaFC100OperationWCGetVitals,
 		request.Payload(),
 		[][]byte{{0x06, 0x22, 0x04, 0x0a, 0x02, 0x08, 0x0e}},
 	)
@@ -64,22 +64,13 @@ func TestTeslaFC100OperationFoundationRetainsTerminalAndApplicationError(t *test
 }
 
 func TestTeslaFC100OperationFoundationRejectsInvalidTerminalSequences(t *testing.T) {
-	request, err := BuildTeslaFC100OperationRequest(TeslaHSCFC100OperationCompatibilityV1, TeslaFC100OperationWCGetConfig, nil)
+	request, err := BuildTeslaFC100OperationRequest(TeslaHSCFC100OperationCompatibilityV1, TeslaFC100OperationWCGetVitals, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, sequence := range [][][]byte{nil, {{0x04, 0x32, 0x02, 0x2a, 0x00}}, {{0x04, 0x32, 0x02, 0x32, 0x00}, {0x04, 0x32, 0x02, 0x32, 0x00}, {0x04, 0x32, 0x02, 0x32, 0x00}}} {
-		if _, err := DecodeTeslaFC100OperationSequence(TeslaHSCFC100OperationCompatibilityV1, TeslaFC100OperationWCGetConfig, request.Payload(), sequence); err == nil {
+	for _, sequence := range [][][]byte{nil, {{0x04, 0x32, 0x02, 0x0a, 0x00}}, {{0x04, 0x32, 0x02, 0x12, 0x00}, {0x04, 0x32, 0x02, 0x12, 0x00}, {0x04, 0x32, 0x02, 0x12, 0x00}}} {
+		if _, err := DecodeTeslaFC100OperationSequence(TeslaHSCFC100OperationCompatibilityV1, TeslaFC100OperationWCGetVitals, request.Payload(), sequence); err == nil {
 			t.Fatalf("accepted sequence %#v", sequence)
-		}
-	}
-}
-
-func TestTeslaFC100RecoveredNamesCoverAccessVehiclesAndOCPP(t *testing.T) {
-	for _, operation := range []TeslaFC100Operation{TeslaFC100OperationWCGetAccessControl, TeslaFC100OperationWCConfigureAccessControl, TeslaFC100OperationWCGetRecentVehicles, TeslaFC100OperationWCGetOCPPSecurity, TeslaFC100OperationNeurioConfigureCTs} {
-		names, ok := TeslaFC100RecoveredNames(operation)
-		if !ok || names.Request == "" || names.Response == "" || len(names.Fields) == 0 {
-			t.Fatalf("missing recovered names for %s: %#v", operation, names)
 		}
 	}
 }

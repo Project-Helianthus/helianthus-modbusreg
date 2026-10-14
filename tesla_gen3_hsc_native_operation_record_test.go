@@ -13,7 +13,7 @@ func TestTeslaGen3HSCNativeOperationRecordRetainsFC100TerminalContext(t *testing
 		Profile:          TeslaHSCProfileName,
 		ProfileVersion:   TeslaHSCCompatibilityV1,
 		OperationVersion: TeslaHSCFC100OperationCompatibilityV1,
-		Operation:        TeslaFC100OperationWCGetConfig,
+		Operation:        TeslaFC100OperationWCGetVitals,
 		Function:         modbus.PrivateFunctionCode(100),
 		Direction:        TeslaGen3HSCResponseDirection,
 		Outcome:          TeslaGen3HSCNormalOutcome,
@@ -25,7 +25,7 @@ func TestTeslaGen3HSCNativeOperationRecordRetainsFC100TerminalContext(t *testing
 	if record.Profile() != TeslaHSCProfileName ||
 		record.ProfileVersion() != TeslaHSCCompatibilityV1 ||
 		record.OperationVersion() != TeslaHSCFC100OperationCompatibilityV1 ||
-		record.Operation() != TeslaFC100OperationWCGetConfig ||
+		record.Operation() != TeslaFC100OperationWCGetVitals ||
 		record.Function() != modbus.PrivateFunctionCode(100) ||
 		record.Direction() != TeslaGen3HSCResponseDirection ||
 		record.Outcome() != TeslaGen3HSCNormalOutcome ||
