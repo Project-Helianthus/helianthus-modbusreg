@@ -82,7 +82,7 @@ func TestK19AggregateByteBoundary(t *testing.T) {
 			if err != nil || inventory.ChildCount() != 2 || inventory.DeclaredChildren() != 2 || !inventory.DefaultDenied() {
 				t.Fatalf("boundary inventory = %#v, error %v", inventory, err)
 			}
-			before := inventory.Children()
+			before := append([]HuaweiSmartLoggerInventoryChild(nil), inventory.Children()...)
 			for page := range input.Pages {
 				for object := range input.Pages[page].Objects {
 					for index := range input.Pages[page].Objects[object].Value {
@@ -99,6 +99,65 @@ func TestK19AggregateByteBoundary(t *testing.T) {
 				t.Fatal("returned slice mutation changed parsed inventory")
 			}
 		})
+	}
+}
+
+func TestM51BeforeStateDetectsRetainedMutation(t *testing.T) {
+	inventory, err := ParseHuaweiSmartLoggerOfflineInventory(k19Inventory(2, false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Child fields are scalars and immutable strings, so copying the slice is sufficient.
+	before := append([]HuaweiSmartLoggerInventoryChild(nil), inventory.Children()...)
+	wantFirst := before[0]
+	inventory.children[0] = HuaweiSmartLoggerInventoryChild{}
+	if before[0] != wantFirst || reflect.DeepEqual(before, inventory.Children()) {
+		t.Fatal("independent before-state failed to detect retained inventory mutation")
+	}
+}
+
+func TestM51LatePaginationFailurePreservesInventory(t *testing.T) {
+	for _, boundary := range []string{"aggregate bytes", "aggregate pages"} {
+		for _, failure := range []string{"late wrong next object", "terminal more flag"} {
+			t.Run(boundary+"/"+failure, func(t *testing.T) {
+				children := 2
+				if boundary == "aggregate pages" {
+					children = 247
+				}
+				input := k19Inventory(children, false)
+				lastIndex := len(input.Pages) - 1
+				if boundary == "aggregate bytes" {
+					last := &input.Pages[lastIndex].Objects[0]
+					padding := 65536 - k19Bytes(input) - len(";2=")
+					last.Value = append(last.Value, []byte(";2="+strings.Repeat("x", padding))...)
+					if k19Bytes(input) != 65536 {
+						t.Fatal("fixture must reach the aggregate byte limit")
+					}
+				} else if len(input.Pages) != 248 {
+					t.Fatal("fixture must reach the aggregate page limit")
+				}
+				if k19Bytes(input) > 65536 || len(input.Pages) > 248 || lastIndex < 2 {
+					t.Fatal("fixture must reach late pagination within both budgets")
+				}
+				inventory, err := ParseHuaweiSmartLoggerOfflineInventory(input)
+				if err != nil || inventory.ChildCount() != children || inventory.DeclaredChildren() != children || !inventory.DefaultDenied() {
+					t.Fatalf("valid boundary control = %#v, error %v", inventory, err)
+				}
+				before := append([]HuaweiSmartLoggerInventoryChild(nil), inventory.Children()...)
+				switch failure {
+				case "late wrong next object":
+					input.Pages[lastIndex-1].NextObjectID++
+				case "terminal more flag":
+					last := &input.Pages[lastIndex]
+					last.More = true
+					last.NextObjectID = last.Objects[len(last.Objects)-1].ObjectID + 1
+				}
+				k19RequireRejected(t, input)
+				if !reflect.DeepEqual(before, inventory.Children()) || inventory.ChildCount() != children || inventory.DeclaredChildren() != children || !inventory.DefaultDenied() {
+					t.Fatal("late pagination failure changed last-known-good inventory")
+				}
+			})
+		}
 	}
 }
 
