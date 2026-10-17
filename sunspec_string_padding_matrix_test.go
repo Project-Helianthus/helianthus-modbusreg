@@ -29,6 +29,10 @@ func TestS25SunSpecStringPaddingMatrix(t *testing.T) {
 		{name: "nul_high_byte_nonzero_tail", words: []uint16{0x4142, 0x0043}, raw: []byte{'A', 'B', 0, 'C'}, state: SunSpecValueInvalidEncoding},
 		{name: "truncated_utf8_before_nul", words: []uint16{0x41e2, 0x8200}, raw: []byte{'A', 0xe2, 0x82, 0}, state: SunSpecValueInvalidEncoding},
 		{name: "truncated_utf8_at_field_end", words: []uint16{0xe282}, raw: []byte{0xe2, 0x82}, state: SunSpecValueInvalidEncoding},
+		{name: "leading_nul_then_payload", words: []uint16{0x0041}, raw: []byte{0, 'A'}, state: SunSpecValueInvalidEncoding},
+		{name: "leading_nul_then_multiword_payload", words: []uint16{0x0041, 0x4200}, raw: []byte{0, 'A', 'B', 0}, state: SunSpecValueInvalidEncoding},
+		{name: "near_marker_nonzero_high_byte", words: []uint16{0x4180}, raw: []byte{'A', 0x80}, state: SunSpecValueInvalidEncoding},
+		{name: "near_marker_low_nonzero_high_byte", words: []uint16{0x0180}, raw: []byte{0x01, 0x80}, state: SunSpecValueInvalidEncoding},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
