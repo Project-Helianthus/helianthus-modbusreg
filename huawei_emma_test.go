@@ -10,8 +10,20 @@ func TestEvaluateHuaweiEMMAOfflineIdentityUsesFiniteAliasesAndBranchFloors(t *te
 		reason                          HuaweiEMMAOfflineReason
 	}{
 		{
+			name: "A01 R024 below floor", offering: "SmartHEMS", model: "EMMA-A01", firmware: "SmartHEMS V100R024C00SPC099",
+			matched: false, reason: HuaweiEMMAOfflineFirmwareMismatch,
+		},
+		{
 			name: "A01 R024 floor", offering: "SmartHEMS", model: "EMMA-A01", firmware: "SmartHEMS V100R024C00SPC100",
 			matched: true, variant: "EMMA-A01", reason: HuaweiEMMAOfflineMatched,
+		},
+		{
+			name: "A02 R024 below floor", offering: "SmartHEMS", model: "EMMA-A02", firmware: "SmartHEMS V100R024C00SPC099",
+			matched: false, reason: HuaweiEMMAOfflineFirmwareMismatch,
+		},
+		{
+			name: "A02 R024 floor", offering: "SmartHEMS", model: "EMMA-A02", firmware: "SmartHEMS V100R024C00SPC100",
+			matched: true, variant: "EMMA-A02", reason: HuaweiEMMAOfflineMatched,
 		},
 		{
 			name: "A02 R025 above floor with terminal padding", offering: "SmartHEMS\x00 ", model: "EMMA-A02\x00 ", firmware: "SmartHEMS V100R025C00SPC131 ",
@@ -20,6 +32,10 @@ func TestEvaluateHuaweiEMMAOfflineIdentityUsesFiniteAliasesAndBranchFloors(t *te
 		{
 			name: "R025 below floor", offering: "SmartHEMS", model: "EMMA-A02", firmware: "SmartHEMS V100R025C00SPC101",
 			matched: false, reason: HuaweiEMMAOfflineFirmwareMismatch,
+		},
+		{
+			name: "R025 floor", offering: "SmartHEMS", model: "EMMA-A02", firmware: "SmartHEMS V100R025C00SPC102",
+			matched: true, variant: "EMMA-A02", reason: HuaweiEMMAOfflineMatched,
 		},
 		{
 			name: "unknown R branch", offering: "SmartHEMS", model: "EMMA-A02", firmware: "SmartHEMS V100R026C00SPC999",
@@ -61,11 +77,17 @@ func TestEvaluateHuaweiEMMAOfflineIdentityUsesFiniteAliasesAndBranchFloors(t *te
 			if decision.Matched() != test.matched || decision.Reason() != test.reason {
 				t.Fatalf("decision=(matched=%t reason=%q), want (matched=%t reason=%q)", decision.Matched(), decision.Reason(), test.matched, test.reason)
 			}
+			if !decision.DefaultDenied() {
+				t.Fatalf("decision must remain default-denied: %+v", decision)
+			}
 			if !test.matched {
+				if decision.ProfileID() != "" || decision.CanonicalClass() != "" {
+					t.Fatalf("rejected decision exposes profile or canonical class: %+v", decision)
+				}
 				return
 			}
-			if decision.CanonicalClass() != "EMMA" || decision.ModelVariant() != test.variant ||
-				decision.ProfileID() != "huawei.emma.readonly.v1" || !decision.DefaultDenied() {
+			if decision.CanonicalClass() != HuaweiEMMACanonicalClass || decision.ModelVariant() != test.variant ||
+				decision.ProfileID() != HuaweiEMMAReadOnlyProfileID {
 				t.Fatalf("unexpected accepted decision: %+v", decision)
 			}
 		})
