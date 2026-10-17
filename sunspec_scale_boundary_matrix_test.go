@@ -36,6 +36,8 @@ func TestS27ScaleBoundaryDependencyMatrix(t *testing.T) {
 		{"missing", nil, true, SunSpecValueInvalidEncoding, 0},
 		{"invalid_width", []uint16{0, 1}, false, SunSpecValueInvalidEncoding, 0},
 		{"not_implemented", []uint16{0x8000}, false, SunSpecValueNotImplemented, 0},
+		{"max_int16", []uint16{0x7fff}, false, SunSpecValueInvalidEncoding, 0},
+		{"min_plus_one", []uint16{0x8001}, false, SunSpecValueInvalidEncoding, 0},
 	}
 	for _, coefficient := range coefficients {
 		for _, dependency := range dependencies {
