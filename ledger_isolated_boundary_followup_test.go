@@ -75,6 +75,8 @@ func TestS07RestartStateBoundaries(t *testing.T) {
 		{"exhausted_reservation_control", state(0, math.MaxUint64-2, true, attempt(math.MaxUint64-1, 1), claim(math.MaxUint64, math.MaxUint64-1, 0)), ""},
 		{"exhausted_claim_tail_control", state(0, math.MaxUint64-1, true, claim(math.MaxUint64, math.MaxUint64-1, 0)), ""},
 		{"exhausted_claim_link_overflow", state(0, math.MaxUint64-1, true, claim(math.MaxUint64, math.MaxUint64, 0)), "ledger restart claim sequence is invalid"},
+		{"exhausted_truncation_with_history", state(0, math.MaxUint64, true, attempt(math.MaxUint64, 1)), "ledger restart history follows an exhausted truncation watermark"},
+		{"claim_link_wraps_uint64", state(2, 0, false, claim(1, math.MaxUint64, 1)), "ledger restart claim sequence is invalid"},
 		{"exhausted_attempt_reservation_overflow", state(0, math.MaxUint64-1, true, attempt(math.MaxUint64, 1)), "ledger restart attempt claim count is invalid"},
 	}
 	for _, test := range tests {
