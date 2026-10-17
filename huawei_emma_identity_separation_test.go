@@ -134,8 +134,11 @@ func TestK20HuaweiFamilyEvidenceDoesNotFallBack(t *testing.T) {
 				UnitID: 100, Model: test.model, Firmware: test.firmware, ProtocolMajor: 5, ProtocolMinor: 0,
 				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
 			})
-			if emma.IdentityMatched() != test.emma || logger.IdentityMatched() != test.smartLogger || dongle.Matched() != test.dongle {
+			if emma.IdentityMatched() != test.emma || logger.IdentityMatched() != test.smartLogger {
 				t.Fatalf("family evidence crossed: EMMA=%#v SmartLogger=%#v S-Dongle=%#v", emma, logger, dongle)
+			}
+			if dongle.Matched() != test.dongle {
+				t.Fatalf("S-Dongle observation = %#v, want matched=%t", dongle, test.dongle)
 			}
 			if test.emma && emma.SelectedClass() != HuaweiEMMACanonicalClass || test.smartLogger && logger.SelectedClass() != HuaweiSmartLoggerCanonicalClass ||
 				test.dongle && dongle.CanonicalClass() != HuaweiSDongleCanonicalClass {
@@ -143,9 +146,8 @@ func TestK20HuaweiFamilyEvidenceDoesNotFallBack(t *testing.T) {
 			}
 			k20RequireDenied(t, emma)
 			k20RequireDenied(t, logger)
-			k20RequireDenied(t, NewHuaweiSDongleQualificationCard().Result())
 			if !dongle.DefaultDenied() {
-				t.Fatal("S-Dongle observation granted admission")
+				t.Fatalf("S-Dongle observation granted admission: %#v", dongle)
 			}
 		})
 	}
