@@ -64,6 +64,17 @@ func TestQ30DetectionDecisionSerializedByteBudget(t *testing.T) {
 			}
 		})
 	}
+	t.Run("invalid_content_over_limit", func(t *testing.T) {
+		// Content that is not JSON at all: only a byte check that runs before any
+		// scanning can report the byte boundary instead of a syntax error.
+		data := buffer[:reg.MaxSerializedContractBytes+1]
+		for index := range data {
+			data[index] = 'x'
+		}
+		if _, err := reg.UnmarshalDetectionDecision(data); err == nil || err.Error() != "serialized contract exceeds the byte boundary" {
+			t.Fatalf("oversized input must be rejected before parsing: %v", err)
+		}
+	})
 	t.Run("second_value_within_budget", func(t *testing.T) {
 		data := buffer[:2*len(valid)+1]
 		copy(data, valid)
