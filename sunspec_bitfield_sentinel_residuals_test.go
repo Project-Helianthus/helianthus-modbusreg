@@ -19,11 +19,14 @@ func TestU12BitfieldSentinelResiduals(t *testing.T) {
 	}{
 		{"bitfield16/all_ones", SunSpecTypeBitfield16, 1, []uint16{0xffff}, SunSpecValueNotImplemented, 0, 0, false, nil},
 		{"bitfield16/neighbor", SunSpecTypeBitfield16, 1, []uint16{0xfffd}, SunSpecValueValid, 0xfffd, 0xfffc, true, []string{"FLAG_ZERO"}},
+		{"bitfield16/last_valid_value", SunSpecTypeBitfield16, 1, []uint16{0xfffe}, SunSpecValueValid, 0xfffe, 0xfffc, true, []string{"FLAG_ONE"}},
+		{"bitfield16/low_byte_all_ones", SunSpecTypeBitfield16, 1, []uint16{0x00ff}, SunSpecValueValid, 0x00ff, 0x00fc, true, []string{"FLAG_ZERO", "FLAG_ONE"}},
 		{"bitfield32/all_ones", SunSpecTypeBitfield32, 2, []uint16{0xffff, 0xffff}, SunSpecValueNotImplemented, 0, 0, false, nil},
 		{"bitfield32/neighbor", SunSpecTypeBitfield32, 2, []uint16{0xffff, 0xfffd}, SunSpecValueValid, 0xfffffffd, 0xfffffffc, true, []string{"FLAG_ZERO"}},
+		{"bitfield32/high_word_all_ones_last_valid_value", SunSpecTypeBitfield32, 2, []uint16{0xffff, 0xfffe}, SunSpecValueValid, 0xfffffffe, 0xfffffffc, true, []string{"FLAG_ONE"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			// Bits zero and one are known; each neighbor clears only bit one.
+			// Bits zero and one are known; positive controls vary the set bits.
 			// The literal unknown masks retain bits two through the width boundary.
 			def := sunSpecPointDefinition{
 				pointType: tc.pointType, size: tc.size, knownMask: 0x3,
