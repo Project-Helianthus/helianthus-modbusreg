@@ -109,6 +109,19 @@ func TestS30CompletionReceiverRetainsAcceptedRecordAfterDecodeFailures(t *testin
 		if !reflect.DeepEqual(receiver.Spec(), baseline) {
 			t.Error("valid decode did not restore the expected Spec")
 		}
+		// A fresh receiver starts from the zero value, so only a decode that
+		// actually assigns the decoded record can produce the expected Spec and bytes.
+		var fresh reg.CompletionRecord
+		if err := fresh.UnmarshalJSON(canonical); err != nil {
+			t.Fatalf("valid decode into a fresh receiver: %v", err)
+		}
+		if !reflect.DeepEqual(fresh.Spec(), baseline) {
+			t.Error("valid decode into a fresh receiver did not produce the expected Spec")
+		}
+		freshBytes, err := reg.MarshalFMV3M303CompletionRecord(fresh)
+		if err != nil || !bytes.Equal(freshBytes, canonical) {
+			t.Fatalf("fresh receiver did not round-trip canonical bytes: %v", err)
+		}
 		got, err := reg.MarshalFMV3M303CompletionRecord(receiver)
 		if err != nil {
 			t.Fatalf("marshal after valid decode: %v", err)
