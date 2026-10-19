@@ -30,7 +30,8 @@ Construction freezes the exact request key and native lookup bounds by value.
 It validates the request through the merged cycle using an already canceled
 context, making zero supplier calls. All native input, size and previous-record
 checks remain in force. Optional `Previous` must additionally have exactly the
-frozen decision key; it remains caller-supplied history, not verified provenance.
+frozen key in both its decision and evidence; it remains caller-supplied history,
+not verified provenance.
 Its mutable references are copied. The initial latest result is blocked, with
 only that optional detached history. The construction attempt time is required
 by the native request contract and is not an evidence age.
@@ -50,6 +51,8 @@ the port. A concurrent refresh returns `ErrI21Busy` without a supplier call;
 there is no queue. Supplier storage must remain coherent while being read and
 must honor cancellation and input bounds. An uncooperative supplier cannot be
 forcibly stopped; retirement does not wait for it to return.
+Supplier panics propagate to the caller, while releasing the in-flight slot and
+canceling its context. A recovered panic leaves the stored result unchanged.
 
 Nil context, zero attempt time, zero/uninitialized owner, mismatched refresh
 key, already canceled context, overlapping work and retirement refuse without
@@ -64,6 +67,12 @@ success, with no growing attempt log. Each snapshot, refresh result, current
 decision and retained record owns independent reference slices. No projection
 or native field loss is introduced. The mutex orders state publication and
 retirement, and the implementation never holds it across supplier execution.
+The native plan byte budget can admit a success whose added decision reasons
+exceed the stricter previous-record byte budget. Such history stays detached in
+the owner and is omitted from the next native request, so it cannot prevent a
+fresh lookup. Native validation and bounds remain unchanged. If a cycle returns
+no retained replacement, the owner preserves its prior complete success with
+its original fields and evaluation time; history never supplies current readiness.
 
 | Transition | Latest result | Retained record |
 | --- | --- | --- |

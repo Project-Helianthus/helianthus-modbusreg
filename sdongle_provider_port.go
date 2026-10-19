@@ -39,7 +39,7 @@ type I21SDonglePort struct {
 // context: construction never invokes the supplier. Previous is optional
 // caller-supplied history for this exact route, never an admission credential.
 func I21NewSDonglePort(i21req SDongleOfflineRequest, i21lookup SDongleOfflineLookup) (*I21SDonglePort, error) {
-	if i21req.Previous != nil && i21req.Previous.Decision.Key != i21req.Key {
+	if i21req.Previous != nil && (i21req.Previous.Decision.Key != i21req.Key || i21req.Previous.Decision.Evidence.Key != i21req.Key) {
 		return nil, ErrI21Association
 	}
 	i21ctx, i21cancel := context.WithCancel(context.Background())
@@ -83,19 +83,31 @@ func (i21p *I21SDonglePort) I21Refresh(i21ctx context.Context, i21key SDongleRou
 	i21work, i21cancel := context.WithCancel(i21ctx)
 	i21p.i21cancel = i21cancel
 	i21req := SDongleOfflineRequest{Key: i21p.i21key, Bounds: i21p.i21bounds, AttemptedAt: i21at, Previous: i21refused.Retained}
+	// A native success can exceed the stricter Previous decision budget.
+	// Keep that history locally without making it input to the next cycle.
+	if i21req.Previous != nil && !sdongleOfflineDecisionFits(i21req.Bounds, i21req.Previous.Decision) {
+		i21req.Previous = nil
+	}
 	i21lookup := i21p.i21lookup
 	i21p.i21mu.Unlock()
-	defer i21cancel()
+	defer func() {
+		i21cancel()
+		i21p.i21mu.Lock()
+		i21p.i21cancel = nil
+		i21p.i21mu.Unlock()
+	}()
 
 	i21result, i21err := RunSDongleOfflineProvider(i21work, i21req, i21lookup)
 	i21p.i21mu.Lock()
 	defer i21p.i21mu.Unlock()
-	i21p.i21cancel = nil
 	if i21p.i21retired {
 		return i21p.i21Blocked(), ErrI21Retired
 	}
 	if i21fence := i21work.Err(); i21fence != nil {
 		i21result, i21err = i21p.i21Blocked(), i21fence
+	}
+	if i21result.Retained == nil {
+		i21result.Retained = i21refused.Retained
 	}
 	i21p.i21latest = i21Detach(i21result)
 	return i21Detach(i21result), i21err

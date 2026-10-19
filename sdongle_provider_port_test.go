@@ -352,3 +352,138 @@ func TestI21ReplacementAndZero(i21t *testing.T) {
 		i21zero.I21Retire()
 	}
 }
+
+func TestI21TightHistoryBound(i21t *testing.T) {
+	i21plan := i21Plan(false)
+	i21req := i21Request(i21plan)
+	for i21req.Bounds.MaxInputBytes > 0 {
+		i21req.Bounds.MaxInputBytes--
+		if !sdongleOfflinePlanFits(i21req.Bounds, i21plan) {
+			i21req.Bounds.MaxInputBytes++
+			break
+		}
+	}
+	if sdongleOfflineDecisionFits(i21req.Bounds, DecideSDongleRoute(i21plan)) {
+		i21t.Fatal("test requires a plan that fits but a decision that does not")
+	}
+	i21mode, i21calls := "ready", 0
+	i21failure := errors.New("synthetic supplier failure")
+	i21owner, i21err := I21NewSDonglePort(i21req, func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) {
+		i21calls++
+		i21candidate := i21Plan(false)
+		switch i21mode {
+		case "error":
+			return i21candidate, i21failure
+		case "excess":
+			i21candidate.Evidence.References = []string{strings.Repeat("x", int(i21req.Bounds.MaxInputBytes)+1)}
+		case "blocked":
+			i21candidate.Evidence.Current = false
+		case "denied":
+			i21candidate.QualificationStopped = true
+		}
+		return i21candidate, nil
+	})
+	if i21err != nil || i21calls != 0 {
+		i21t.Fatalf("constructor: %v calls=%d", i21err, i21calls)
+	}
+	i21ready, i21err := i21owner.I21Refresh(context.Background(), i21req.Key, time.Unix(20, 0))
+	if i21err != nil || i21ready.State != SDongleOfflineReady || i21ready.Retained == nil {
+		i21t.Fatalf("first refresh: %+v %v", i21ready, i21err)
+	}
+	// The native cycle must still reject this history as input.
+	i21req.Previous = i21ready.Retained
+	if _, i21err = RunSDongleOfflineProvider(context.Background(), i21req, func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) {
+		i21t.Fatal("invalid native history reached supplier")
+		return i21plan, nil
+	}); !errors.Is(i21err, ErrSDongleOfflineInput) {
+		i21t.Fatalf("native validation changed: %v", i21err)
+	}
+	for i21index, i21next := range []string{"error", "excess", "blocked", "denied", "ready"} {
+		i21mode = i21next
+		i21at := time.Unix(int64(30+i21index), 0)
+		i21result, i21err := i21owner.I21Refresh(context.Background(), i21req.Key, i21at)
+		var i21want error
+		switch i21mode {
+		case "error":
+			i21want = i21failure
+		case "excess":
+			i21want = ErrSDongleOfflineInput
+		}
+		if !errors.Is(i21err, i21want) || i21calls != i21index+2 || !i21result.DefaultDenied() {
+			i21t.Fatalf("%s: %+v %v calls=%d", i21mode, i21result, i21err, i21calls)
+		}
+		i21history := i21ready.Retained
+		i21state := SDongleOfflineBlocked
+		switch i21mode {
+		case "ready":
+			i21history = &SDongleOfflineRecord{Decision: DecideSDongleRoute(i21plan), EvaluatedAt: i21at}
+			i21state = SDongleOfflineReady
+		case "denied":
+			i21state = SDongleOfflineDenied
+		}
+		if i21result.State != i21state || !reflect.DeepEqual(i21result.Retained, i21history) || !reflect.DeepEqual(i21owner.I21Snapshot(), i21result) {
+			i21t.Fatalf("%s lost history or replacement: %+v", i21mode, i21result)
+		}
+		if i21want != nil && i21result.Decision != nil {
+			i21t.Fatal("failed refresh published a decision")
+		}
+		i21result.Retained.Decision.Evidence.References[0] = "changed"
+		if !reflect.DeepEqual(i21owner.I21Snapshot().Retained, i21history) {
+			i21t.Fatal("retained fallback aliases output")
+		}
+	}
+}
+
+func TestI21SupplierPanic(i21t *testing.T) {
+	i21plan := i21Plan(false)
+	i21req := i21Request(i21plan)
+	i21req.Previous = &SDongleOfflineRecord{Decision: DecideSDongleRoute(i21plan), EvaluatedAt: time.Unix(1, 0)}
+	i21calls := 0
+	var i21work context.Context
+	i21owner, i21err := I21NewSDonglePort(i21req, func(i21ctx context.Context, _ SDongleRouteKey) (SDongleRoutePlan, error) {
+		i21calls++
+		i21work = i21ctx
+		if i21calls == 1 {
+			panic("synthetic panic")
+		}
+		return i21plan, nil
+	})
+	if i21err != nil {
+		i21t.Fatal(i21err)
+	}
+	i21before := i21owner.I21Snapshot()
+	func() {
+		defer func() {
+			if i21panic := recover(); i21panic != "synthetic panic" {
+				i21t.Fatalf("unexpected panic: %v", i21panic)
+			}
+		}()
+		_, _ = i21owner.I21Refresh(context.Background(), i21req.Key, time.Unix(20, 0))
+	}()
+	if !reflect.DeepEqual(i21before, i21owner.I21Snapshot()) || !errors.Is(i21work.Err(), context.Canceled) {
+		i21t.Fatal("panic changed stored state or leaked context")
+	}
+	i21result, i21err := i21owner.I21Refresh(context.Background(), i21req.Key, time.Unix(30, 0))
+	if i21err != nil || i21calls != 2 || i21result.State != SDongleOfflineReady {
+		i21t.Fatalf("panic stranded owner: %+v %v calls=%d", i21result, i21err, i21calls)
+	}
+}
+
+func TestI21PreviousEvidenceAssociation(i21t *testing.T) {
+	i21Axes(func(i21name string, i21path []int) {
+		i21t.Run(i21name, func(i21t *testing.T) {
+			i21plan := i21Plan(true)
+			i21req := i21Request(i21plan)
+			i21req.Previous = &SDongleOfflineRecord{Decision: DecideSDongleRoute(i21plan), EvaluatedAt: time.Unix(1, 0)}
+			i21Change(&i21req.Previous.Decision.Evidence.Key, i21path)
+			i21calls := 0
+			i21owner, i21err := I21NewSDonglePort(i21req, func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) {
+				i21calls++
+				return i21plan, nil
+			})
+			if !errors.Is(i21err, ErrI21Association) || i21owner != nil || i21calls != 0 {
+				i21t.Fatalf("unassociated history accepted: %v calls=%d", i21err, i21calls)
+			}
+		})
+	})
+}
