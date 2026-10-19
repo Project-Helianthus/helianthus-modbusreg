@@ -412,11 +412,11 @@ func TestI17LateReaderFence(i17T *testing.T) {
 	for _, i17Event := range []string{"close", "retire"} {
 		i17T.Run(i17Event, func(i17T *testing.T) {
 			i17Calls := 0
-			i17Port, _ := i17Port(i17T, func(SmartloggerInventoryPlan) (HuaweiSmartLoggerOfflineInventoryInput, error) {
+			i17Provider, _ := i17Port(i17T, func(SmartloggerInventoryPlan) (HuaweiSmartLoggerOfflineInventoryInput, error) {
 				i17Calls++
 				return i17Input(), nil
 			})
-			i17P := i17Port.(*I17SmartloggerProviderAdapter)
+			i17P := i17Provider.(*I17SmartloggerProviderAdapter)
 			i17Reader := i17P.i17Provider.reader
 			if i17Event == "close" {
 				i17P.I17Close()
@@ -459,5 +459,41 @@ func TestI17RetirementContextValidation(i17T *testing.T) {
 	}
 	if _, i17Err := i17P.I17Refresh(context.Background(), i17Now.Add(time.Second)); i17Err == nil || i17Calls != 1 {
 		i17T.Fatal("retired idle port invoked supplier")
+	}
+}
+
+func TestI17InvalidRetirementDuringRefresh(i17T *testing.T) {
+	i17Entered, i17Release := make(chan struct{}), make(chan struct{})
+	defer close(i17Release)
+	var i17Calls atomic.Int32
+	i17P, i17Now := i17Port(i17T, func(SmartloggerInventoryPlan) (HuaweiSmartLoggerOfflineInventoryInput, error) {
+		i17Calls.Add(1)
+		close(i17Entered)
+		<-i17Release
+		return i17Input(), nil
+	})
+	i17Done := make(chan struct{})
+	var i17Result SmartloggerInventoryResult
+	var i17Err error
+	go func() {
+		i17Result, i17Err = i17P.I17Refresh(context.Background(), i17Now.Add(time.Second))
+		close(i17Done)
+	}()
+	i17Wait(i17T, i17Entered)
+	for _, i17Next := range []SmartloggerInventoryContext{i17Context(), {}} {
+		if i17RetireErr := i17P.I17Retire(i17Next); !errors.Is(i17RetireErr, ErrSmartloggerInventoryContext) {
+			i17T.Fatal("invalid active retirement accepted", i17RetireErr)
+		}
+	}
+	if _, i17RefreshErr := i17P.I17Refresh(context.Background(), i17Now.Add(time.Second)); !errors.Is(i17RefreshErr, ErrSmartloggerInventoryBusy) || i17Calls.Load() != 1 {
+		i17T.Fatal("invalid retirement released or closed active slot", i17RefreshErr)
+	}
+	i17Release <- struct{}{}
+	i17Wait(i17T, i17Done)
+	i17View, i17OK := i17P.I17NativeView()
+	if i17Err != nil || i17Result.Outcome != SmartloggerInventoryComplete || !i17Result.DefaultDenied() ||
+		!i17OK || !i17View.Current || !i17View.Inventory.DefaultDenied() ||
+		i17View.Plan != i17Result.Plan || !reflect.DeepEqual(i17View.Native, i17Input()) || i17Calls.Load() != 1 {
+		i17T.Fatal("invalid retirement cancelled refresh or prevented publication", i17Result, i17Err, i17View)
 	}
 }
