@@ -15,7 +15,7 @@ func offlineInput() OutBackDetachedRecordInput {
 		{Ordinal: 5, WireKey: SunSpecWireKey{64111, 1}, Offset: 1, Words: []uint16{8}, Present: []OutBackWordSpan{{0, 1}}},
 	}}
 }
-func offlineProvider(t *testing.T, supplier OutBackDiagnosticSupplier) *OutBackOfflineProvider {
+func outBackOfflineProvider(t *testing.T, supplier OutBackDiagnosticSupplier) *OutBackOfflineProvider {
 	t.Helper()
 	p, err := NewOutBackOfflineProvider(offlineInput().Source, 4096, time.Second, supplier)
 	if err != nil {
@@ -44,7 +44,7 @@ func TestOutbackOfflineProviderBounds(t *testing.T) {
 			t.Fatal("invalid configuration accepted")
 		}
 	}
-	p := offlineProvider(t, supplier)
+	p := outBackOfflineProvider(t, supplier)
 	// Deliberately exercise nil-context rejection before the supplier is invoked.
 	var nilContext context.Context
 	if err := p.Cycle(nilContext, time.Unix(1, 0)); err == nil {
@@ -76,7 +76,7 @@ func TestOutbackOfflineProviderBounds(t *testing.T) {
 func TestOutbackOfflineProviderRetention(t *testing.T) {
 	input := offlineInput()
 	var supplierErr error
-	p := offlineProvider(t, func(_ context.Context, a OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	p := outBackOfflineProvider(t, func(_ context.Context, a OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
 		if a.Generation != 1 || a.Number == 0 || a.Source != offlineInput().Source {
 			t.Error("attempt not frozen")
 		}
@@ -142,7 +142,7 @@ func TestOutbackOfflineProviderDiagnostic(t *testing.T) {
 		if malformed {
 			i.Present = []OutBackWordSpan{{^uint64(0), 2}}
 		}
-		p := offlineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) { return i, nil })
+		p := outBackOfflineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) { return i, nil })
 		if err := p.Cycle(context.Background(), time.Unix(1, 0)); err != nil {
 			t.Fatal(err)
 		}
@@ -166,7 +166,7 @@ func offlineChanges() map[string]func(*OutBackSourceAssociation) {
 func TestOutbackOfflineProviderAssociation(t *testing.T) {
 	for name, change := range offlineChanges() {
 		t.Run(name, func(t *testing.T) {
-			p := offlineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+			p := outBackOfflineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
 				return offlineInput(), nil
 			})
 			if err := p.Cycle(context.Background(), time.Unix(1, 0)); err != nil {
@@ -196,7 +196,7 @@ func TestOutbackOfflineProviderAssociation(t *testing.T) {
 			}
 		})
 	}
-	p := offlineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	p := outBackOfflineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
 		return offlineInput(), nil
 	})
 	if err := p.Cycle(context.Background(), time.Unix(1, 0)); err != nil {
@@ -212,7 +212,7 @@ func TestOutbackOfflineProviderFences(t *testing.T) {
 			entered := make(chan OutBackOfflineAttempt, 1)
 			release := make(chan struct{})
 			done := make(chan error, 1)
-			p := offlineProvider(t, func(_ context.Context, a OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+			p := outBackOfflineProvider(t, func(_ context.Context, a OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
 				if a.Number == 1 {
 					entered <- a
 					<-release
@@ -303,7 +303,7 @@ func (c *offlineDeadlineContext) Err() error {
 
 func TestOutbackOfflineProviderSuccessfulReplacement(t *testing.T) {
 	input := offlineInput()
-	p := offlineProvider(t, func(ctx context.Context, a OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	p := outBackOfflineProvider(t, func(ctx context.Context, a OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
 		if deadline, ok := ctx.Deadline(); !ok || deadline.After(time.Now().Add(time.Second)) {
 			t.Error("missing bounded work deadline")
 		}
@@ -366,7 +366,7 @@ func TestOutbackOfflineProviderZeroAndExhaustion(t *testing.T) {
 	}
 	offlineNoGo(t, s.Record)
 	calls := 0
-	p := offlineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	p := outBackOfflineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
 		calls++
 		return offlineInput(), nil
 	})
@@ -399,7 +399,7 @@ func (c *offlinePublicationCancel) Err() error {
 }
 func TestOutbackOfflineProviderPublicationCancel(t *testing.T) {
 	ctx := &offlinePublicationCancel{Context: context.Background()}
-	p := offlineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	p := outBackOfflineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
 		ctx.armed = true
 		return offlineInput(), nil
 	})
