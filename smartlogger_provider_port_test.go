@@ -408,6 +408,36 @@ func TestI17LifecycleFences(i17T *testing.T) {
 	}
 }
 
+func TestI17LateReaderFence(i17T *testing.T) {
+	for _, i17Event := range []string{"close", "retire"} {
+		i17T.Run(i17Event, func(i17T *testing.T) {
+			i17Calls := 0
+			i17Port, _ := i17Port(i17T, func(SmartloggerInventoryPlan) (HuaweiSmartLoggerOfflineInventoryInput, error) {
+				i17Calls++
+				return i17Input(), nil
+			})
+			i17P := i17Port.(*I17SmartloggerProviderAdapter)
+			i17Reader := i17P.i17Provider.reader
+			if i17Event == "close" {
+				i17P.I17Close()
+			} else {
+				i17Next := i17Context()
+				i17Next.ConnectionGeneration++
+				if i17Err := i17P.I17Retire(i17Next); i17Err != nil {
+					i17T.Fatal(i17Err)
+				}
+			}
+			// Invoke the captured wrapper directly to deterministically exercise
+			// its late-entry guard independently of the native owner's fences.
+			i17Input, i17Err := i17Reader(SmartloggerInventoryPlan{Context: i17Context()})
+			if !errors.Is(i17Err, ErrSmartloggerInventoryClosed) || i17Calls != 0 ||
+				!reflect.DeepEqual(i17Input, HuaweiSmartLoggerOfflineInventoryInput{}) {
+				i17T.Fatal("late reader invoked supplier", i17Input, i17Err, i17Calls)
+			}
+		})
+	}
+}
+
 func TestI17RetirementContextValidation(i17T *testing.T) {
 	i17Calls := 0
 	i17P, i17Now := i17Port(i17T, func(SmartloggerInventoryPlan) (HuaweiSmartLoggerOfflineInventoryInput, error) {
