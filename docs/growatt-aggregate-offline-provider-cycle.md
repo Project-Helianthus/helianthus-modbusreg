@@ -11,10 +11,8 @@ and [retention implementation contract](https://github.com/Project-Helianthus/he
 bound this composition. No protocol fact, native read extent or admission rule
 is added here.
 
-The independently authored [A31 public companion](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/growatt-aggregate-offline-provider-cycle.md)
-must merge before or with this code. Merge remains on hold until review compares
-its actual API signatures and results with the implementation below. This link
-names the required destination; its availability has not been verified offline.
+The [public companion contract](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/growatt-aggregate-offline-provider-cycle.md)
+describes the offline provider composition, API and synthetic transitions.
 
 | Evidence status | Boundary |
 | --- | --- |
@@ -110,9 +108,6 @@ for presence, versions, attempt outcomes and native evidence, with explicit
 projection loss. Existing eBUS MCP compatibility is unchanged; eeBUS output
 remains driver-owned.
 
-Manual documentation acceptance covers source signatures, claims, transition and
-loss tables, synthetic examples and link destinations. Full committed-head gates,
-independent review and the A31 comparison remain required. Offline tests establish
-no transport, passive-capture, runtime, smoke or hardware acceptance. Registration,
-persistence, live qualification and the remainder of Project #2 remain outside
-this partial slice.
+Offline tests establish no transport, passive-capture, runtime, smoke or hardware
+acceptance. Registration, persistence, live qualification and the remainder of
+Project #2 remain outside this partial slice.
