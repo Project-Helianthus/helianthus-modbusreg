@@ -74,7 +74,7 @@ complete native evidence by retention. Local cycle and deadline correlate an
 attempt; they are not native identity or evidence of a physical capture time.
 
 There is one last-good aggregate and one latest attempt, both inside retention.
-The provider stores no second value, ledger, diagnostic bank or error history.
+The provider stores no second value, diagnostic bank or error history.
 Snapshots use the existing detached deterministic envelope. Callers must not
 mutate returned reader slices until `Cycle` returns; later mutations cannot
 change accepted storage. Concurrent cycles can supersede each other. Readers

@@ -19,7 +19,7 @@ func offlineInput() GrowattBMSReadOnlyInput {
 		}}
 }
 
-func offlineRequest() GrowattAggregateOfflineCycle {
+func growattAggregateOfflineRequest() GrowattAggregateOfflineCycle {
 	return GrowattAggregateOfflineCycle{Context: GrowattAggregateContext{
 		SourceInstance: "synthetic-source", OwnerEpoch: 1, UnitID: 1, Function: FunctionReadHoldingRegisters,
 		Revision: GrowattBMSRevisionTuple{Family: "1xSxxP ESS", FileRevision: "Rev2.01", HeaderVersion: "V2.0", CumulativeRevision: "2.02"}, IdentityKnown: true,
@@ -42,12 +42,12 @@ func TestGrowattAggregateOfflineProviderTransitions(t *testing.T) {
 	calls := 0
 	p := offlineProvider(t, func(_ context.Context, got GrowattAggregateOfflineCycle) (GrowattBMSReadOnlyInput, error) {
 		calls++
-		if got.Context != offlineRequest().Context {
+		if got.Context != growattAggregateOfflineRequest().Context {
 			t.Fatal("reader context changed")
 		}
 		return in, readErr
 	})
-	r := offlineRequest()
+	r := growattAggregateOfflineRequest()
 	tick := uint64(1)
 	run := func() error { return p.Cycle(context.Background(), r, func() uint64 { return tick }) }
 	if err := run(); err != nil {
@@ -129,7 +129,7 @@ func TestGrowattAggregateOfflineProviderContinuity(t *testing.T) {
 			p := offlineProvider(t, func(context.Context, GrowattAggregateOfflineCycle) (GrowattBMSReadOnlyInput, error) {
 				return offlineInput(), nil
 			})
-			r := offlineRequest()
+			r := growattAggregateOfflineRequest()
 			if err := p.Cycle(context.Background(), r, func() uint64 { return 1 }); err != nil {
 				t.Fatal(err)
 			}
@@ -160,10 +160,47 @@ func TestGrowattAggregateOfflineProviderCallbackContext(t *testing.T) {
 				}
 				return offlineInput(), nil
 			})
-			if err := p.Cycle(context.Background(), offlineRequest(), func() uint64 { return 1 }); err != nil {
+			if err := p.Cycle(context.Background(), growattAggregateOfflineRequest(), func() uint64 { return 1 }); err != nil {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestGrowattAggregateOfflineProviderCallbackCycle(t *testing.T) {
+	var p *GrowattAggregateOfflineProvider
+	p = offlineProvider(t, func(_ context.Context, request GrowattAggregateOfflineCycle) (GrowattBMSReadOnlyInput, error) {
+		before := p.Snapshot()
+		if err := p.retention.Fail(request.Context, request.Cycle+1, 1); err == nil {
+			t.Fatal("foreign cycle callback accepted")
+		}
+		if got := p.Snapshot(); !reflect.DeepEqual(got, before) {
+			t.Fatalf("foreign cycle callback changed active attempt: %+v", got)
+		}
+		return offlineInput(), nil
+	})
+	if err := p.Cycle(context.Background(), growattAggregateOfflineRequest(), func() uint64 { return 1 }); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGrowattAggregateOfflineProviderCancelDuringBegin(t *testing.T) {
+	calls := 0
+	p := offlineProvider(t, func(context.Context, GrowattAggregateOfflineCycle) (GrowattBMSReadOnlyInput, error) {
+		calls++
+		return offlineInput(), nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// The first clock call occurs after the entry cancellation check and
+	// supplies Begin's logical time, before the pre-reader cancellation fence.
+	err := p.Cycle(ctx, growattAggregateOfflineRequest(), func() uint64 {
+		cancel()
+		return 1
+	})
+	s := p.Snapshot()
+	if !errors.Is(err, context.Canceled) || calls != 0 || s.Attempt.Outcome != "failed" || s.Value != nil || s.SuccessTick != 0 || s.SuccessRevision != 0 {
+		t.Fatalf("cancellation during Begin: calls=%d snapshot=%+v err=%v", calls, s, err)
 	}
 }
 
@@ -187,7 +224,7 @@ func TestGrowattAggregateOfflineProviderNativeIdentity(t *testing.T) {
 			in := offlineInput()
 			mutate(&in)
 			p := offlineProvider(t, func(context.Context, GrowattAggregateOfflineCycle) (GrowattBMSReadOnlyInput, error) { return in, nil })
-			if err := p.Cycle(context.Background(), offlineRequest(), func() uint64 { return 1 }); err == nil || p.Snapshot().Value != nil {
+			if err := p.Cycle(context.Background(), growattAggregateOfflineRequest(), func() uint64 { return 1 }); err == nil || p.Snapshot().Value != nil {
 				t.Fatal("native conflict committed")
 			}
 		})
@@ -205,7 +242,7 @@ func TestGrowattAggregateOfflineProviderCancelExpirySupersession(t *testing.T) {
 				}
 				return offlineInput(), nil
 			})
-			r := offlineRequest()
+			r := growattAggregateOfflineRequest()
 			if err := p.Cycle(context.Background(), r, func() uint64 { return 1 }); err != nil {
 				t.Fatal(err)
 			}
@@ -276,7 +313,7 @@ func TestGrowattAggregateOfflineProviderBounds(t *testing.T) {
 				calls++
 				return offlineInput(), nil
 			})
-			r := offlineRequest()
+			r := growattAggregateOfflineRequest()
 			ctx := context.Background()
 			clock := func() uint64 { return 1 }
 			switch mode {
@@ -330,7 +367,7 @@ func TestGrowattAggregateOfflineProviderBounds(t *testing.T) {
 				in = GrowattBMSReadOnlyInput{}
 			}
 			p := offlineProvider(t, func(context.Context, GrowattAggregateOfflineCycle) (GrowattBMSReadOnlyInput, error) { return in, nil })
-			err := p.Cycle(context.Background(), offlineRequest(), func() uint64 { return 1 })
+			err := p.Cycle(context.Background(), growattAggregateOfflineRequest(), func() uint64 { return 1 })
 			if err == nil || p.Snapshot().Value != nil {
 				t.Fatalf("admitted %s", mode)
 			}
@@ -345,7 +382,7 @@ func TestGrowattAggregateOfflineProviderBounds(t *testing.T) {
 }
 
 func TestGrowattAggregateOfflineProviderRequest(t *testing.T) {
-	r := offlineRequest()
+	r := growattAggregateOfflineRequest()
 	r.Cycle = 7
 	r.Deadline = 8
 	calls := 0
