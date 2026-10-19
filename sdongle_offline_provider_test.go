@@ -9,14 +9,14 @@ import (
 	"time"
 )
 
-func offlineRequest(p SDongleRoutePlan) SDongleOfflineRequest {
+func sdongleOfflineRequest(p SDongleRoutePlan) SDongleOfflineRequest {
 	return SDongleOfflineRequest{Key: p.Key, AttemptedAt: time.Unix(100, 0), Bounds: SDongleOfflineBounds{LookupTimeout: time.Second, MaxInputBytes: 8192, MaxReferences: 16}}
 }
 
 func TestSdongleOfflineProviderReady(t *testing.T) {
 	for _, p := range []SDongleRoutePlan{routePlan(), childRoutePlan()} {
 		calls := 0
-		req := offlineRequest(p)
+		req := sdongleOfflineRequest(p)
 		r, err := RunSDongleOfflineProvider(context.Background(), req, func(ctx context.Context, k SDongleRouteKey) (SDongleRoutePlan, error) {
 			calls++
 			if k != req.Key {
@@ -62,7 +62,7 @@ func TestSdongleOfflineProviderKeyAxes(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				p := childRoutePlan()
-				req := offlineRequest(p)
+				req := sdongleOfflineRequest(p)
 				v := reflect.ValueOf(&req.Key).Elem().FieldByIndex(indices)
 				if v.Kind() == reflect.String {
 					v.SetString(v.String() + "-other")
@@ -98,7 +98,7 @@ func TestSdongleOfflineProviderControls(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			p := childRoutePlan()
 			tc.change(&p)
-			r, err := RunSDongleOfflineProvider(context.Background(), offlineRequest(p), func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) { return p, nil })
+			r, err := RunSDongleOfflineProvider(context.Background(), sdongleOfflineRequest(p), func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) { return p, nil })
 			if err != nil || r.State != tc.state || r.Decision == nil || r.Decision.Outcome != tc.outcome || r.Retained != nil || !r.DefaultDenied() {
 				t.Fatalf("%+v %v", r, err)
 			}
@@ -119,7 +119,7 @@ func TestSdongleOfflineProviderInvalid(t *testing.T) {
 		"attempt-zero":     func(r *SDongleOfflineRequest) { r.AttemptedAt = time.Time{} },
 	} {
 		t.Run(name, func(t *testing.T) {
-			req := offlineRequest(routePlan())
+			req := sdongleOfflineRequest(routePlan())
 			change(&req)
 			calls := 0
 			r, err := RunSDongleOfflineProvider(context.Background(), req, func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) { calls++; return routePlan(), nil })
@@ -128,11 +128,11 @@ func TestSdongleOfflineProviderInvalid(t *testing.T) {
 			}
 		})
 	}
-	_, err := RunSDongleOfflineProvider(context.Background(), offlineRequest(routePlan()), nil)
+	_, err := RunSDongleOfflineProvider(context.Background(), sdongleOfflineRequest(routePlan()), nil)
 	if !errors.Is(err, ErrSDongleOfflineInput) {
 		t.Fatal(err)
 	}
-	_, err = RunSDongleOfflineProvider(nil, offlineRequest(routePlan()), func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) { //nolint:staticcheck // Intentional nil context verifies rejection before lookup.
+	_, err = RunSDongleOfflineProvider(nil, sdongleOfflineRequest(routePlan()), func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) { //nolint:staticcheck // Intentional nil context verifies rejection before lookup.
 		t.Fatal("nil context lookup")
 		return SDongleRoutePlan{}, nil
 	})
@@ -146,7 +146,7 @@ func TestSdongleOfflineProviderRetentionAndFences(t *testing.T) {
 	old := SDongleOfflineRecord{Decision: DecideSDongleRoute(p), EvaluatedAt: time.Unix(10, 0)}
 	for _, mode := range []string{"error", "cancel-before", "cancel-after", "deadline-before", "deadline-after", "blocked", "denied", "association", "oversize", "references"} {
 		t.Run(mode, func(t *testing.T) {
-			req := offlineRequest(p)
+			req := sdongleOfflineRequest(p)
 			req.Previous = &old
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -219,7 +219,7 @@ func TestSdongleOfflineProviderCancellationBarrier(t *testing.T) {
 	release := make(chan struct{})
 	finished := make(chan SDongleOfflineResult)
 	go func() {
-		r, err := RunSDongleOfflineProvider(ctx, offlineRequest(p), func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) {
+		r, err := RunSDongleOfflineProvider(ctx, sdongleOfflineRequest(p), func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) {
 			close(entered)
 			<-release
 			return p, nil
@@ -248,7 +248,7 @@ func TestSdongleOfflineProviderPreviousValidation(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			old := SDongleOfflineRecord{Decision: DecideSDongleRoute(routePlan()), EvaluatedAt: time.Unix(10, 0)}
 			change(&old)
-			req := offlineRequest(routePlan())
+			req := sdongleOfflineRequest(routePlan())
 			req.Previous = &old
 			r, err := RunSDongleOfflineProvider(context.Background(), req, func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) {
 				t.Fatal("invalid previous reached lookup")
@@ -265,7 +265,7 @@ func TestSdongleOfflineProviderHistoryIsolation(t *testing.T) {
 	p := childRoutePlan()
 	old := SDongleOfflineRecord{Decision: DecideSDongleRoute(routePlan()), EvaluatedAt: time.Unix(10, 0)}
 	expected := SDongleOfflineRecord{Decision: DecideSDongleRoute(routePlan()), EvaluatedAt: time.Unix(10, 0)}
-	req := offlineRequest(p)
+	req := sdongleOfflineRequest(p)
 	req.Previous = &old
 	r, err := RunSDongleOfflineProvider(context.Background(), req, func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) {
 		old.Decision.Evidence.References[0] = "changed during lookup"
@@ -280,7 +280,7 @@ func TestSdongleOfflineProviderHistoryIsolation(t *testing.T) {
 func TestSdongleOfflineProviderEmptyKey(t *testing.T) {
 	for _, name := range []string{"Family", "Model", "Firmware", "Role", "Request", "Scope", "Revision"} {
 		t.Run(name, func(t *testing.T) {
-			req := offlineRequest(routePlan())
+			req := sdongleOfflineRequest(routePlan())
 			reflect.ValueOf(&req.Key).Elem().FieldByName(name).SetString("")
 			_, err := RunSDongleOfflineProvider(context.Background(), req, func(context.Context, SDongleRouteKey) (SDongleRoutePlan, error) {
 				t.Fatal("incomplete key reached lookup")
