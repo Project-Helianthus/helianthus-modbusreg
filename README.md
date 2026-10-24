@@ -14,12 +14,21 @@ profile and parser. M3-03 records its historical evidence-qualified
 `STANDARD_ONLY` disposition. The generic SunSpec R1-R3 wave now adds the
 bounded model chain and decoder registry, standard Models
 1/101-103/111-113/120-124/160/201-204/211-214/302-308, the encoding-neutral three-phase monitoring
-capability, and one exact experimental Fronius observed flavor. That flavor is
-post-capability classification only: it adds no product qualification,
-acquisition activation, support statement, live result, or write authority.
-The Fronius qualification card now turns that exact observed flavor into a
-bounded FC03 replay procedure with a sanitized expected result. It keeps live
-qualification, automatic runtime admission, and write authority false.
+capability, and exact experimental Fronius GEN24 observed flavors. Flavor
+versions 1.0.0, 1.1.0, and 1.2.0 require the same exact manufacturer and model
+strings, and each version carries its own exact firmware string and exact
+ordered model chain; 1.2.0 shares the 1.1.0 chain and differs only in its
+firmware string. Options, serial number, and device address are not compared.
+Any other firmware string fails closed as `FIRMWARE_MISMATCH`: there are no
+firmware ranges, prefixes, or case folding, and a new tuple needs a new flavor
+version.
+The flavors are post-capability classification only: they add no product
+qualification, acquisition activation, support statement, live result, or
+write authority. The Fronius qualification card
+`sunspec.qualification.fronius.gen24.float.readonly@1.0.0` turns flavor 1.1.0
+into a bounded FC03 replay procedure with a sanitized expected result and stays
+bound to that flavor. It keeps live qualification, automatic runtime
+admission, and write authority false.
 
 ## One Registry, Multiple Vendors
 
