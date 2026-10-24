@@ -43,6 +43,12 @@ observation established, replayed from synthetic fixtures under
 `testdata/huawei/identity`; every other tuple stays insufficient evidence and
 the profile outcome stays `NO_ADMISSIBLE_PROFILE`. See
 [`docs/huawei-smartlogger-observed-identity.md`](docs/huawei-smartlogger-observed-identity.md).
+One S-Dongle card does the same for the single-inverter tuple that a read-only
+observation established: the gateway unit refuses basic identification and
+answers its status reads, and one child unit answers the model, basic and
+extended identification. It supersedes the recorded hard stop for that identity
+only; the profile outcome stays `PRE_LIVE_INSUFFICIENT_EVIDENCE`. See
+[`docs/huawei-sdongle-observed-identity.md`](docs/huawei-sdongle-observed-identity.md).
 
 ## Ownership
 

@@ -1,0 +1,44 @@
+{
+  "schema": "helianthus-huawei-identity-fixture/v1",
+  "kind": "mei_extended_inventory",
+  "family": "SUN2000",
+  "license": "CC0-1.0",
+  "provenance": "synthetic re-creation of one sanitized read-only observation",
+  "sanitization": {
+    "rule": "digit to 0, upper-case letter to X, lower-case letter to x; punctuation and length kept; placeholder values are not kept distinct between entries"
+  },
+  "unit": 1,
+  "read": {
+    "function": "FC2B",
+    "mei_type": "0x0e",
+    "read_device_id_code": 3,
+    "start_object_id": "0x87"
+  },
+  "pages": [
+    {
+      "request_object_id": "0x87",
+      "conformity": "0x03",
+      "more_follows": "0x00",
+      "next_object_id": "0x87",
+      "declared_objects": 2,
+      "pdu_bytes": 87,
+      "objects": [
+        {
+          "object_id": "0x87",
+          "count": 1
+        },
+        {
+          "object_id": "0x88",
+          "entry": "1=SUN2000-8KTL-M1;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=1;6=0.0",
+          "pad_to": 75,
+          "sanitized_attributes": [
+            "2",
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    }
+  ]
+}

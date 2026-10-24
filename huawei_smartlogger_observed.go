@@ -47,6 +47,9 @@ type HuaweiInventoryPageAnomalies struct {
 	// DeclaredObjectFieldDiffers counts responses whose declared-object field
 	// is not the number of objects present in that response.
 	DeclaredObjectFieldDiffers int
+	// NextObjectWithoutContinuation counts responses that name a next object
+	// identifier although no continuation follows.
+	NextObjectWithoutContinuation int
 }
 
 // HuaweiSmartLoggerObservedInventoryPage is one already-decoded extended

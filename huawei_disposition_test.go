@@ -161,7 +161,7 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 		{
 			name:         "S-Dongle",
 			path:         "profiles/vendor/huawei/sdongle-disposition.json",
-			schema:       "helianthus-modbusreg-huawei-sdongle-disposition/v1",
+			schema:       "helianthus-modbusreg-huawei-sdongle-disposition/v2",
 			profile:      "huawei.sdongle",
 			outcome:      "PRE_LIVE_INSUFFICIENT_EVIDENCE",
 			docsMergeSHA: sdongleDocsMergeSHA,
@@ -191,12 +191,13 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 			},
 			remaining: func(t *testing.T, record map[string]any) {
 				t.Helper()
-				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "protocol_version", "search_sequence", "capacity", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "qualification_plan", "observation_pointer")
+				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "protocol_version", "search_sequence", "capacity", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "qualification_plan", "observed_identity", "reopen_requires")
 				evidence := huaweiObject(t, record["evidence"])
-				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "live_qualification")
+				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "closed_evidence", "partially_closed_evidence", "unknown_after_observation", "live_qualification", "docs_contract")
 				live := huaweiObject(t, evidence["live_qualification"])
-				requireHuaweiKeys(t, live, "status", "identification_claim", "incompatibility_claim", "subsequent_modbus_requests_sent", "attempts", "retry_matrix")
-				if evidence["candidate_id"] != "huawei.sdongle.v1" || evidence["source_license"] != "CC0-1.0" || live["status"] != "LIVE_STOPPED_PERSISTENT_NON_RESPONSE" ||
+				requireHuaweiKeys(t, live, "status", "recorded_status", "superseded_by", "identification_claim", "incompatibility_claim", "subsequent_modbus_requests_sent", "attempts", "retry_matrix")
+				if evidence["candidate_id"] != "huawei.sdongle.v1" || evidence["source_license"] != "CC0-1.0" || live["status"] != "SUPERSEDED_FOR_OBSERVED_IDENTITY" ||
+					live["recorded_status"] != "LIVE_STOPPED_PERSISTENT_NON_RESPONSE" || live["superseded_by"] != "observed_identity" ||
 					live["identification_claim"] != false || live["incompatibility_claim"] != false || huaweiInt(t, live["subsequent_modbus_requests_sent"]) != 0 {
 					t.Fatalf("unexpected S-Dongle evidence: %#v", evidence)
 				}
@@ -214,8 +215,8 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 				}
 				plan := huaweiObject(t, record["qualification_plan"])
 				requireHuaweiKeys(t, plan, "status", "read_only", "live_io_performed", "further_live_io", "operator_confirmation_required", "required_connection_context", "capture_sequence", "redact", "promotion_outcomes")
-				if plan["status"] != "LIVE_STOPPED_PERSISTENT_NON_RESPONSE" || plan["read_only"] != true || plan["live_io_performed"] != true ||
-					plan["further_live_io"] != "HARD_STOP" || plan["operator_confirmation_required"] != true ||
+				if plan["status"] != "HARD_STOP_SUPERSEDED_FOR_OBSERVED_IDENTITY" || plan["read_only"] != true || plan["live_io_performed"] != true ||
+					plan["further_live_io"] != "OPERATOR_APPROVAL_AT_ACTION_TIME" || plan["operator_confirmation_required"] != true ||
 					!reflect.DeepEqual(huaweiStringSlice(t, plan["promotion_outcomes"]), []string{"PROFILE_ADMITTED", "NO_ADMISSIBLE_PROFILE"}) {
 					t.Fatalf("unexpected S-Dongle qualification contract: %#v", plan)
 				}

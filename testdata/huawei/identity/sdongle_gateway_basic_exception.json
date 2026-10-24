@@ -1,0 +1,21 @@
+{
+  "schema": "helianthus-huawei-identity-fixture/v1",
+  "kind": "mei_exception",
+  "family": "S-Dongle",
+  "license": "CC0-1.0",
+  "provenance": "synthetic re-creation of one sanitized read-only observation",
+  "sanitization": {
+    "rule": "digit to 0, upper-case letter to X, lower-case letter to x; punctuation and length kept; placeholder values are not kept distinct between entries"
+  },
+  "unit": 100,
+  "read": {
+    "function": "FC2B",
+    "mei_type": "0x0e",
+    "read_device_id_code": 1,
+    "start_object_id": "0x00"
+  },
+  "reply": {
+    "exception_code": 1,
+    "pdu_bytes": 2
+  }
+}

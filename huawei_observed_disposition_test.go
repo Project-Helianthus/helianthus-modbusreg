@@ -200,8 +200,6 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 	tests := []expectation{
 		{"emma-disposition.json", "OFFLINE_IDENTITY_ADMITTED", "NO_MODBUS_RESPONSE", []string{gateway, observation}, []string{h03FixturePaths[2]},
 			"missing_capability_evidence", []string{"sanitized_readonly_capability_fixture", "negative_overlap_with_smartlogger", "model_specific_capability_fixture"}},
-		{"sdongle-disposition.json", "PRE_LIVE_INSUFFICIENT_EVIDENCE", "NOT_ATTEMPTED", []string{gateway, observation}, []string{h03FixturePaths[0], h03FixturePaths[2]},
-			"missing_evidence", []string{"sanitized_basic_mei_product_model_fixture", "exact_protocol_version_encoding_fixture", "separately_qualified_child_unit_inventory_fixture"}},
 		{"sun2000-disposition.json", "NO_ADMISSIBLE_PROFILE", "OBSERVED_IDENTITY_BEHIND_GATEWAY", []string{identity, observation}, []string{h03FixturePaths[1], h03FixturePaths[3]},
 			"missing_evidence", []string{"pinned_vendor_document_version", "companion_docs_modbus_protocol_page", "clean_room_sanitized_identity_fixture", "clean_room_sanitized_monitoring_fixture", "negative_overlap_with_smartlogger_emma_sdongle"}},
 		{"luna2000-disposition.json", "NO_ADMISSIBLE_PROFILE", "NOT_OBSERVED", []string{identity}, []string{},
@@ -240,9 +238,10 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 	if len(h03Array(t, huaweiObject(t, luna["observation_pointer"])["fixtures"])) != 0 {
 		t.Fatal("LUNA2000 must point at no fixture: no battery group was observed")
 	}
-	sdongle := decodeHuaweiObject(t, "profiles/vendor/huawei/sdongle-disposition.json")
-	if huaweiObject(t, sdongle["qualification_plan"])["further_live_io"] != "HARD_STOP" {
-		t.Fatal("S-Dongle hard stop changed")
+	// The S-Dongle disposition moved to schema v2 and carries its own observed
+	// identity instead of a pointer row; the S-Dongle tests pin it.
+	if _, ok := decodeHuaweiObject(t, "profiles/vendor/huawei/sdongle-disposition.json")["observation_pointer"]; ok {
+		t.Fatal("the S-Dongle disposition still carries a pointer row next to its observed identity")
 	}
 }
 
@@ -307,11 +306,13 @@ func TestH03ReadinessExpectedResultListsObservedCardAndKeepsTheOthers(t *testing
 		"huawei.qualification.smartlogger.observed-readonly@1.0.0",
 		"huawei.qualification.emma.readonly@1.0.0",
 		"huawei.qualification.sdongle.evidence-blocked@1.0.0",
+		"huawei.qualification.sdongle.observed-readonly@1.0.0",
 	}
 	if !reflect.DeepEqual(ids, wantIDs) {
 		t.Fatalf("cards=%v want=%v", ids, wantIDs)
 	}
-	if statuses[wantIDs[1]] != "QUALIFICATION_TEST_READY" || statuses[wantIDs[3]] != "QUALIFICATION_EVIDENCE_BLOCKED" || statuses[wantIDs[2]] != "QUALIFICATION_EVIDENCE_BLOCKED" {
+	if statuses[wantIDs[1]] != "QUALIFICATION_TEST_READY" || statuses[wantIDs[3]] != "QUALIFICATION_EVIDENCE_BLOCKED" || statuses[wantIDs[2]] != "QUALIFICATION_EVIDENCE_BLOCKED" ||
+		statuses[wantIDs[4]] != "QUALIFICATION_TEST_READY" {
 		t.Fatalf("statuses=%v", statuses)
 	}
 	if !reflect.DeepEqual(expected.Classes[1]["missing_evidence"], []any{"pairwise_negative_overlap_with_emma_fixture"}) {
