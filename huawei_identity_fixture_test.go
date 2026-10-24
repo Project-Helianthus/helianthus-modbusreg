@@ -119,12 +119,19 @@ type h03BasicFixture struct {
 	Reply            h03BasicReply `json:"reply"`
 }
 
+// h03Outcome gained three optional fields for the S-Dongle fixtures: Residue
+// and Sanitized describe a model block that carries printable residue after its
+// first NUL, and Attempts counts the unanswered attempts of a no_response
+// outcome. Every earlier fixture omits them.
 type h03Outcome struct {
 	Type      string   `json:"type"`
 	Text      string   `json:"text,omitempty"`
 	Words     []uint16 `json:"words,omitempty"`
 	Code      uint8    `json:"code,omitempty"`
 	Synthetic bool     `json:"synthetic,omitempty"`
+	Residue   string   `json:"residue,omitempty"`
+	Sanitized bool     `json:"sanitized,omitempty"`
+	Attempts  int      `json:"attempts,omitempty"`
 }
 
 type h03Probe struct {

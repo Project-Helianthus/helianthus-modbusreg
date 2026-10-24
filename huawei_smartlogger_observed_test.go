@@ -675,8 +675,10 @@ func TestH03SDongleHardStopIsPreservedWithoutRespondingGatewayUnitTuple(t *testi
 	plan := huaweiObject(t, disposition["qualification_plan"])
 	evidence := huaweiObject(t, disposition["evidence"])
 	live := huaweiObject(t, evidence["live_qualification"])
-	if disposition["outcome"] != "PRE_LIVE_INSUFFICIENT_EVIDENCE" || plan["further_live_io"] != "HARD_STOP" ||
-		live["status"] != "LIVE_STOPPED_PERSISTENT_NON_RESPONSE" || huaweiInt(t, live["subsequent_modbus_requests_sent"]) != 0 ||
+	// The recorded stop stays on record; the S-Dongle observation supersedes it
+	// for the identity of its own tuple only (TestH15SDongleDisposition...).
+	if disposition["outcome"] != "PRE_LIVE_INSUFFICIENT_EVIDENCE" || plan["further_live_io"] != "OPERATOR_APPROVAL_AT_ACTION_TIME" ||
+		live["recorded_status"] != "LIVE_STOPPED_PERSISTENT_NON_RESPONSE" || huaweiInt(t, live["subsequent_modbus_requests_sent"]) != 0 ||
 		len(huaweiStringSlice(t, evidence["missing_evidence"])) != 3 {
 		t.Fatalf("S-Dongle disposition changed: %#v", disposition)
 	}

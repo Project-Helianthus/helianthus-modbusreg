@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-sdongle-disposition/v1",
+  "schema": "helianthus-modbusreg-huawei-sdongle-disposition/v2",
   "profile": "huawei.sdongle",
   "profile_version": "1.0.0",
   "outcome": "PRE_LIVE_INSUFFICIENT_EVIDENCE",
@@ -11,10 +11,58 @@
     "missing_evidence": [
       "sanitized_basic_mei_product_model_fixture",
       "exact_protocol_version_encoding_fixture",
-      "separately_qualified_child_unit_inventory_fixture"
+      "pairwise_negative_overlap_with_emma_fixture"
+    ],
+    "closed_evidence": [
+      {
+        "gap": "separately_qualified_child_unit_inventory_fixture",
+        "scope": "observed_tuple",
+        "fixtures": [
+          "testdata/huawei/identity/sdongle_child_extended_inventory.json"
+        ]
+      }
+    ],
+    "partially_closed_evidence": [
+      {
+        "gap": "sanitized_basic_mei_product_model_fixture",
+        "closed": "gateway_unit_100_refuses_basic_identification_with_exception_1",
+        "open": "gateway_product_model_string",
+        "fixtures": [
+          "testdata/huawei/identity/sdongle_gateway_basic_exception.json"
+        ]
+      },
+      {
+        "gap": "exact_protocol_version_encoding_fixture",
+        "closed": "protocol_words_as_read_at_gateway_and_child",
+        "open": "encoding_of_the_protocol_words",
+        "fixtures": [
+          "testdata/huawei/identity/sdongle_gateway_fc03_replies.json",
+          "testdata/huawei/identity/sdongle_child_identity_blocks.json"
+        ]
+      },
+      {
+        "gap": "pairwise_negative_overlap_with_emma_fixture",
+        "closed": "emma_probes_at_sdongle_endpoint",
+        "open": "sdongle_probes_at_emma_endpoint",
+        "fixtures": [
+          "testdata/huawei/identity/sdongle_negative_overlap.json",
+          "testdata/huawei/identity/sdongle_child_identity_blocks.json"
+        ]
+      }
+    ],
+    "unknown_after_observation": [
+      "gateway_product_model_string",
+      "encoding_of_the_protocol_words",
+      "child_units_other_than_unit_1",
+      "dongle_with_more_than_one_inverter",
+      "extended_inventory_at_gateway_unit_100",
+      "smartlogger_counter_read_at_gateway_unit_100",
+      "cause_of_the_first_request_timeout"
     ],
     "live_qualification": {
-      "status": "LIVE_STOPPED_PERSISTENT_NON_RESPONSE",
+      "status": "SUPERSEDED_FOR_OBSERVED_IDENTITY",
+      "recorded_status": "LIVE_STOPPED_PERSISTENT_NON_RESPONSE",
+      "superseded_by": "observed_identity",
       "identification_claim": false,
       "incompatibility_claim": false,
       "subsequent_modbus_requests_sent": 0,
@@ -69,25 +117,245 @@
           }
         ]
       }
-    }
-  },
-  "observation_pointer": {
+    },
     "docs_contract": {
       "repository": "helianthus-docs-modbus",
       "issue": 241,
       "pull_request": 243,
       "pages": [
         "protocols/huawei/gateway-readonly-v1.md",
-        "protocols/huawei/smartlogger-observed-inventory-v1.md"
+        "protocols/huawei/smartlogger-observed-inventory-v1.md",
+        "protocols/huawei/sun2000-observed-identity-v1.md",
+        "protocols/huawei/qualification-readiness-v1.md"
+      ]
+    }
+  },
+  "observed_identity": {
+    "status": "OFFLINE_IDENTITY_ADMITTED",
+    "scope": "OBSERVED_TUPLE_ONLY",
+    "qualification_card": "huawei.qualification.sdongle.observed-readonly@1.0.0",
+    "gate_registered": true,
+    "default_denied": true,
+    "hard_stop": {
+      "recorded_status": "LIVE_STOPPED_PERSISTENT_NON_RESPONSE",
+      "superseded_for": "IDENTITY_OF_OBSERVED_TUPLE_ONLY",
+      "non_response_reproduced": false,
+      "superseded_only_by": "MATCHED_OBSERVED_CARD_OF_THE_SAME_CLASS",
+      "further_live_io": "OPERATOR_APPROVAL_AT_ACTION_TIME"
+    },
+    "required_tuple": [
+      "gateway_unit_100",
+      "gateway_basic_mei_exception_1",
+      "gateway_fc03_37411_q1_search_state_0",
+      "gateway_fc03_30068_q2_protocol_words_50_0",
+      "gateway_fc03_37410_q3_type_4_state_0_sequence_equal_before_after",
+      "gateway_fc03_37429_q1_capacity_covers_one_child",
+      "child_unit_1",
+      "child_fc03_30000_q15_model_exact_residue_opaque",
+      "child_basic_mei_vendor_and_product_family_exact",
+      "child_extended_inventory_one_page_count_1_one_entry_keys_1_to_6",
+      "child_entry_model_equals_routed_model",
+      "child_entry_unit_equals_unit_read"
+    ],
+    "exact_tuple": {
+      "gateway_unit": 100,
+      "gateway_basic_mei": {
+        "outcome": "EXCEPTION",
+        "code": 1
+      },
+      "gateway_protocol_words": [
+        50,
+        0
+      ],
+      "gateway_search": {
+        "type": 4,
+        "state": 0,
+        "sequence": "EQUAL_BEFORE_AFTER"
+      },
+      "child_unit": 1,
+      "child_model": "SUN2000-8KTL-M1",
+      "child_basic_mei": {
+        "vendor": "Huawei",
+        "product": "SUN2000",
+        "version": "PRESENT"
+      },
+      "selected_class": "S-Dongle",
+      "gateway_model_variant": "UNKNOWN"
+    },
+    "tolerance": {
+      "model_block_residue": "PRINTABLE_ASCII_AFTER_FIRST_NUL_RETAINED_NOT_COMPARED",
+      "declared_object_field": "RETAINED_NOT_COMPARED",
+      "next_object_id_without_more_follows": "RETAINED_NOT_COMPARED",
+      "entry_padding": "NOT_REQUIRED",
+      "attribute_order": "NOT_VALIDATED",
+      "unknown_or_repeated_keys": "REJECT_INVENTORY",
+      "max_response_bytes": 253
+    },
+    "retained_not_gating": [
+      "child_firmware_text_30035",
+      "child_protocol_words_30068",
+      "child_entry_attributes_2_3_4_6",
+      "child_basic_mei_version_object",
+      "child_basic_mei_objects_beyond_the_basic_category",
+      "gateway_capacity_value",
+      "model_block_residue"
+    ],
+    "forbidden_identity": [
+      "serial_number",
+      "esn",
+      "register_readability",
+      "unit_100_readability_only",
+      "search_status_only",
+      "basic_mei_only",
+      "dongle_registers_answered_at_the_child",
+      "child_listing",
+      "mei_request_unit_identifier",
+      "prefix_wildcard_case_folded_or_whitespace_normalized_match"
+    ],
+    "outside_admitted_set_outcome": "INSUFFICIENT_EVIDENCE",
+    "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",
+    "first_match_priority": false,
+    "timing": {
+      "first_request_timeout": "RECORDED_NOT_REQUIRED",
+      "fixture": "testdata/huawei/identity/sdongle_first_request_timing.json"
+    },
+    "negative_overlap": {
+      "versus_smartlogger": [
+        {
+          "probe": "fc03_65521_q1_counter",
+          "unit": 1,
+          "offset": 65521,
+          "outcome": "EXCEPTION_2",
+          "fixture": "testdata/huawei/identity/sdongle_negative_overlap.json"
+        },
+        {
+          "probe": "fc03_65521_q1_counter",
+          "unit": 0,
+          "offset": 65521,
+          "outcome": "NO_RESPONSE",
+          "fixture": "testdata/huawei/identity/sdongle_negative_overlap.json"
+        },
+        {
+          "probe": "fc2b_mei_basic",
+          "unit": 100,
+          "function": "FC2B",
+          "outcome": "EXCEPTION_1",
+          "fixture": "testdata/huawei/identity/sdongle_gateway_basic_exception.json"
+        },
+        {
+          "probe": "fc2b_mei_basic",
+          "unit": 1,
+          "function": "FC2B",
+          "outcome": "ANSWERED_MEI_BASIC",
+          "fixture": "testdata/huawei/identity/sdongle_child_basic_reply.json"
+        },
+        {
+          "probe": "fc2b_mei_extended_inventory",
+          "unit": 1,
+          "function": "FC2B",
+          "outcome": "ANSWERED_MEI_EXTENDED",
+          "fixture": "testdata/huawei/identity/sdongle_child_extended_inventory.json"
+        },
+        {
+          "probe": "fc03_37410_q3_sdongle_search",
+          "unit": 100,
+          "offset": 37410,
+          "outcome": "EXCEPTION_4",
+          "fixture": "testdata/huawei/identity/smartlogger_negative_overlap.json"
+        },
+        {
+          "probe": "fc03_37410_q3_sdongle_search",
+          "unit": 1,
+          "offset": 37410,
+          "outcome": "ANSWERED_WORDS",
+          "fixture": "testdata/huawei/identity/sdongle_negative_overlap.json"
+        },
+        {
+          "probe": "fc03_37429_q1_sdongle_capacity",
+          "unit": 1,
+          "offset": 37429,
+          "outcome": "ANSWERED_WORDS",
+          "fixture": "testdata/huawei/identity/sdongle_negative_overlap.json"
+        }
+      ],
+      "versus_emma": [
+        {
+          "probe": "fc03_30000_q15_offering",
+          "unit": 1,
+          "offset": 30000,
+          "outcome": "ANSWERED_TEXT",
+          "fixture": "testdata/huawei/identity/sdongle_child_identity_blocks.json"
+        },
+        {
+          "probe": "fc03_30222_q20_model",
+          "unit": 1,
+          "offset": 30222,
+          "outcome": "ANSWERED_WORDS",
+          "fixture": "testdata/huawei/identity/sdongle_negative_overlap.json"
+        },
+        {
+          "probe": "fc03_30035_q15_software",
+          "unit": 1,
+          "offset": 30035,
+          "outcome": "ANSWERED_TEXT",
+          "fixture": "testdata/huawei/identity/sdongle_child_identity_blocks.json"
+        },
+        {
+          "probe": "fc03_30000_q15_offering",
+          "unit": 0,
+          "offset": 30000,
+          "outcome": "NO_RESPONSE",
+          "fixture": "testdata/huawei/identity/sdongle_child_identity_blocks.json"
+        },
+        {
+          "probe": "fc03_30222_q20_model",
+          "unit": 0,
+          "offset": 30222,
+          "outcome": "NO_RESPONSE",
+          "fixture": "testdata/huawei/identity/sdongle_negative_overlap.json"
+        },
+        {
+          "probe": "fc03_30035_q15_software",
+          "unit": 0,
+          "offset": 30035,
+          "outcome": "NO_RESPONSE",
+          "fixture": "testdata/huawei/identity/sdongle_negative_overlap.json"
+        }
+      ],
+      "versus_sunspec": [
+        {
+          "probe": "fc03_40000_q2_marker",
+          "unit": 1,
+          "offset": 40000,
+          "outcome": "ANSWERED_WORDS",
+          "fixture": "testdata/huawei/identity/sdongle_negative_overlap.json"
+        }
+      ],
+      "readability_alone_is_never_identity": true,
+      "open_directions": [
+        "sdongle_probes_at_emma_endpoint",
+        "smartlogger_counter_read_at_gateway_unit_100",
+        "growatt_probes"
       ]
     },
-    "observation_state": "NOT_ATTEMPTED",
     "fixtures": [
-      "testdata/huawei/identity/smartlogger_basic_reply.json",
-      "testdata/huawei/identity/smartlogger_negative_overlap.json"
+      "testdata/huawei/identity/sdongle_child_basic_reply.json",
+      "testdata/huawei/identity/sdongle_child_extended_inventory.json",
+      "testdata/huawei/identity/sdongle_child_identity_blocks.json",
+      "testdata/huawei/identity/sdongle_first_request_timing.json",
+      "testdata/huawei/identity/sdongle_gateway_basic_exception.json",
+      "testdata/huawei/identity/sdongle_gateway_fc03_replies.json",
+      "testdata/huawei/identity/sdongle_negative_overlap.json"
     ],
-    "changes_outcome": false,
-    "changes_missing_evidence": false
+    "profile_status": {
+      "outcome": "PRE_LIVE_INSUFFICIENT_EVIDENCE",
+      "monitoring": "NOT_ADMITTED",
+      "blocked_by": [
+        "sanitized_basic_mei_product_model_fixture",
+        "exact_protocol_version_encoding_fixture",
+        "pairwise_negative_overlap_with_emma_fixture"
+      ]
+    }
   },
   "admission": {
     "unit_id": 100,
@@ -185,11 +453,12 @@
   "catalog_registered": false,
   "automatic_runtime_admission": false,
   "support_claim": false,
+  "write_authority": false,
   "qualification_plan": {
-    "status": "LIVE_STOPPED_PERSISTENT_NON_RESPONSE",
+    "status": "HARD_STOP_SUPERSEDED_FOR_OBSERVED_IDENTITY",
     "read_only": true,
     "live_io_performed": true,
-    "further_live_io": "HARD_STOP",
+    "further_live_io": "OPERATOR_APPROVAL_AT_ACTION_TIME",
     "operator_confirmation_required": true,
     "required_connection_context": [
       "endpoint",
@@ -217,5 +486,10 @@
       "PROFILE_ADMITTED",
       "NO_ADMISSIBLE_PROFILE"
     ]
-  }
+  },
+  "reopen_requires": [
+    "sanitized_basic_mei_product_model_fixture",
+    "exact_protocol_version_encoding_fixture",
+    "pairwise_negative_overlap_with_emma_fixture"
+  ]
 }

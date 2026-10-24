@@ -51,6 +51,20 @@
       "live_qualified": false,
       "automatic_request_count": 0,
       "native_fact_count": 0
+    },
+    {
+      "class": "S-Dongle",
+      "card_id": "huawei.qualification.sdongle.observed-readonly@1.0.0",
+      "status": "QUALIFICATION_TEST_READY",
+      "missing_evidence": [
+        "sanitized_basic_mei_product_model_fixture",
+        "exact_protocol_version_encoding_fixture",
+        "pairwise_negative_overlap_with_emma_fixture"
+      ],
+      "hardware_test_ready": false,
+      "live_qualified": false,
+      "automatic_request_count": 0,
+      "native_fact_count": 0
     }
   ],
   "default_denied": true,

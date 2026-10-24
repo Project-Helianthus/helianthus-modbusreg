@@ -1,0 +1,46 @@
+{
+  "schema": "helianthus-huawei-identity-fixture/v1",
+  "kind": "first_request_timing",
+  "family": "S-Dongle",
+  "license": "CC0-1.0",
+  "provenance": "synthetic re-creation of one sanitized read-only observation",
+  "sanitization": {
+    "rule": "digit to 0, upper-case letter to X, lower-case letter to x; punctuation and length kept; placeholder values are not kept distinct between entries"
+  },
+  "scope": "first request on a fresh connection",
+  "required_by_card": false,
+  "attempt_deadline_ms": 5000,
+  "prompt_bound_ms": 100,
+  "observations": [
+    {
+      "run": 1,
+      "unit": 100,
+      "function": "FC2B",
+      "attempts": [
+        {
+          "outcome": "timeout",
+          "elapsed_class": "at_deadline"
+        },
+        {
+          "outcome": "exception",
+          "elapsed_class": "within_prompt_bound"
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "unit": 1,
+      "function": "FC03",
+      "attempts": [
+        {
+          "outcome": "timeout",
+          "elapsed_class": "at_deadline"
+        },
+        {
+          "outcome": "answered",
+          "elapsed_class": "within_prompt_bound"
+        }
+      ]
+    }
+  ]
+}

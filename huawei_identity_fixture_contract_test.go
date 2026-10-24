@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -571,8 +572,10 @@ func TestH03FixtureCorpusIsExactlyTheDocumentedSet(t *testing.T) {
 			t.Fatalf("%s carries the documentary model string as a self entry", entry.Name())
 		}
 	}
-	if !reflect.DeepEqual(names, h03FixtureNames()) {
-		t.Fatalf("identity fixtures=%v want=%v", names, h03FixtureNames())
+	want := append(append([]string(nil), h03FixtureNames()...), h15FixtureNames()...)
+	sort.Strings(want)
+	if !reflect.DeepEqual(names, want) {
+		t.Fatalf("identity fixtures=%v want=%v", names, want)
 	}
 }
 
