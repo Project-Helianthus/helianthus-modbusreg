@@ -31,6 +31,20 @@
       "negative_overlap_with_smartlogger_emma_sdongle"
     ]
   },
+  "observation_pointer": {
+    "docs_contract": {
+      "repository": "helianthus-docs-modbus",
+      "issue": 241,
+      "pull_request": 243,
+      "pages": [
+        "protocols/huawei/sun2000-observed-identity-v1.md"
+      ]
+    },
+    "observation_state": "NOT_OBSERVED",
+    "fixtures": [],
+    "changes_outcome": false,
+    "changes_missing_evidence": false
+  },
   "model_families": {
     "class": "LUNA2000",
     "covered": [],

@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-smartlogger-disposition/v1",
+  "schema": "helianthus-modbusreg-huawei-smartlogger-disposition/v2",
   "profile": "huawei.smartlogger",
   "profile_version": "1.0.0",
   "outcome": "NO_ADMISSIBLE_PROFILE",
@@ -9,10 +9,49 @@
     "source_license": "CC0-1.0",
     "eligible": false,
     "missing_evidence": [
-      "sanitized_extended_mei_self_entry_fixture",
-      "exact_child_attribute_encoding_fixture",
       "pairwise_negative_overlap_with_emma_fixture"
-    ]
+    ],
+    "closed_evidence": [
+      {
+        "gap": "sanitized_extended_mei_self_entry_fixture",
+        "scope": "observed_tuple",
+        "fixtures": [
+          "testdata/huawei/identity/smartlogger_extended_inventory.json"
+        ]
+      },
+      {
+        "gap": "exact_child_attribute_encoding_fixture",
+        "scope": "observed_key_set_structure",
+        "fixtures": [
+          "testdata/huawei/identity/smartlogger_extended_inventory.json"
+        ]
+      }
+    ],
+    "partially_closed_evidence": [
+      {
+        "gap": "pairwise_negative_overlap_with_emma_fixture",
+        "closed": "emma_probes_at_smartlogger_endpoint",
+        "open": "smartlogger_probes_at_emma_endpoint",
+        "fixtures": [
+          "testdata/huawei/identity/smartlogger_negative_overlap.json"
+        ]
+      }
+    ],
+    "unknown_after_observation": [
+      "opaque_attribute_key_meanings_3_6_9_10",
+      "change_counter_moves_when_listing_changes",
+      "connected_identity_at_documentary_tuples"
+    ],
+    "docs_contract": {
+      "repository": "helianthus-docs-modbus",
+      "issue": 241,
+      "pull_request": 243,
+      "pages": [
+        "protocols/huawei/gateway-readonly-v1.md",
+        "protocols/huawei/smartlogger-observed-inventory-v1.md",
+        "protocols/huawei/qualification-readiness-v1.md"
+      ]
+    }
   },
   "admission": {
     "unit_id": 0,
@@ -34,9 +73,98 @@
       "V300R024C10SPC191",
       "V300R024C10SPC210"
     ],
+    "exact_tuples": [
+      {
+        "branch": "documentary",
+        "self_entry_model": "SmartLogger",
+        "firmware": "V300R024C10SPC191",
+        "basis": "documentary_candidate",
+        "observed": false
+      },
+      {
+        "branch": "documentary",
+        "self_entry_model": "SmartLogger",
+        "firmware": "V300R024C10SPC210",
+        "basis": "documentary_candidate",
+        "observed": false
+      },
+      {
+        "branch": "observed",
+        "self_entry_model": "Smart Logger",
+        "firmware": "V300R023C10SPC620",
+        "self_entry_unit": "0",
+        "basis": "sanitized_readonly_observation",
+        "observed": true
+      }
+    ],
+    "tuple_independence": "NO_RANGE_PREFIX_ORDER_OR_INHERITANCE",
     "version_comparison": "EXACT_TUPLE_ONLY",
     "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",
     "first_match_priority": false
+  },
+  "observed_identity": {
+    "status": "OFFLINE_IDENTITY_ADMITTED",
+    "scope": "OBSERVED_TUPLE_ONLY",
+    "qualification_card": "huawei.qualification.smartlogger.observed-readonly@1.0.0",
+    "gate_registered": true,
+    "default_denied": true,
+    "required_tuple": [
+      "gateway_unit_0",
+      "fc03_65521_q1_u16_counter_equal_before_after",
+      "complete_valid_extended_inventory",
+      "self_entry_model_exact",
+      "self_entry_firmware_exact",
+      "self_entry_unit_equals_gateway_unit"
+    ],
+    "optional_corroboration": {
+      "basic_mei": {
+        "vendor": "HUAWEI",
+        "product": "Smart Logger",
+        "version": "EQUALS_SELF_ENTRY_FIRMWARE",
+        "disagreement_outcome": "INSUFFICIENT_EVIDENCE",
+        "absence_outcome": "NO_EFFECT"
+      }
+    },
+    "forbidden_identity": [
+      "serial_number",
+      "esn",
+      "writable_device_name_65524",
+      "register_readability",
+      "child_listing",
+      "basic_mei_only",
+      "product_string_without_firmware",
+      "mei_request_unit_identifier",
+      "prefix_wildcard_case_folded_or_whitespace_normalized_match"
+    ],
+    "outside_admitted_set_outcome": "INSUFFICIENT_EVIDENCE",
+    "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",
+    "first_match_priority": false,
+    "inventory_tolerance": {
+      "min_accepted_response_bytes": 263,
+      "max_response_bytes": 1024,
+      "max_entry_bytes": 254,
+      "declared_object_field": "RETAINED_NOT_COMPARED",
+      "count_object_includes_self_entry": true,
+      "opaque_attribute_keys": [
+        "9",
+        "10"
+      ],
+      "attribute_order": "NOT_VALIDATED",
+      "unknown_or_repeated_keys": "REJECT_INVENTORY"
+    },
+    "fixtures": [
+      "testdata/huawei/identity/smartlogger_basic_reply.json",
+      "testdata/huawei/identity/smartlogger_extended_inventory.json",
+      "testdata/huawei/identity/smartlogger_negative_overlap.json",
+      "testdata/huawei/identity/sun2000_routed_identity.json"
+    ],
+    "profile_status": {
+      "outcome": "NO_ADMISSIBLE_PROFILE",
+      "monitoring": "NOT_ADMITTED",
+      "blocked_by": [
+        "pairwise_negative_overlap_with_emma_fixture"
+      ]
+    }
   },
   "change_counter": {
     "function": "FC03",
@@ -76,9 +204,8 @@
   "catalog_registered": false,
   "automatic_runtime_admission": false,
   "support_claim": false,
+  "write_authority": false,
   "reopen_requires": [
-    "sanitized_extended_mei_self_entry_fixture",
-    "exact_child_attribute_encoding_fixture",
     "pairwise_negative_overlap_with_emma_fixture"
   ]
 }

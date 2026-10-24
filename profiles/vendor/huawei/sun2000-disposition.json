@@ -31,6 +31,24 @@
       "negative_overlap_with_smartlogger_emma_sdongle"
     ]
   },
+  "observation_pointer": {
+    "docs_contract": {
+      "repository": "helianthus-docs-modbus",
+      "issue": 241,
+      "pull_request": 243,
+      "pages": [
+        "protocols/huawei/sun2000-observed-identity-v1.md",
+        "protocols/huawei/smartlogger-observed-inventory-v1.md"
+      ]
+    },
+    "observation_state": "OBSERVED_IDENTITY_BEHIND_GATEWAY",
+    "fixtures": [
+      "testdata/huawei/identity/smartlogger_extended_inventory.json",
+      "testdata/huawei/identity/sun2000_routed_identity.json"
+    ],
+    "changes_outcome": false,
+    "changes_missing_evidence": false
+  },
   "model_families": {
     "class": "SUN2000",
     "covered": [],

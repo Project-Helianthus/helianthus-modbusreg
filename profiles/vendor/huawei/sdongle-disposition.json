@@ -71,6 +71,24 @@
       }
     }
   },
+  "observation_pointer": {
+    "docs_contract": {
+      "repository": "helianthus-docs-modbus",
+      "issue": 241,
+      "pull_request": 243,
+      "pages": [
+        "protocols/huawei/gateway-readonly-v1.md",
+        "protocols/huawei/smartlogger-observed-inventory-v1.md"
+      ]
+    },
+    "observation_state": "NOT_ATTEMPTED",
+    "fixtures": [
+      "testdata/huawei/identity/smartlogger_basic_reply.json",
+      "testdata/huawei/identity/smartlogger_negative_overlap.json"
+    ],
+    "changes_outcome": false,
+    "changes_missing_evidence": false
+  },
   "admission": {
     "unit_id": 100,
     "registered": false,

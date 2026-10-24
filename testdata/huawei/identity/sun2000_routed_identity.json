@@ -1,0 +1,116 @@
+{
+  "schema": "helianthus-huawei-identity-fixture/v1",
+  "kind": "fc03_probe_set",
+  "family": "SUN2000",
+  "license": "CC0-1.0",
+  "provenance": "synthetic re-creation of one sanitized read-only observation",
+  "sanitization": {
+    "rule": "digit to 0, upper-case letter to X, lower-case letter to x; punctuation and length kept; placeholder values are not kept distinct between entries"
+  },
+  "probes": [
+    {
+      "units": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "function": "FC03",
+      "offset": 30000,
+      "quantity": 15,
+      "roles": [
+        "identity_model",
+        "emma_offering"
+      ],
+      "outcome": {
+        "type": "text",
+        "text": "SUN2000-50KTL-M3"
+      }
+    },
+    {
+      "units": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "function": "FC03",
+      "offset": 30035,
+      "quantity": 15,
+      "roles": [
+        "identity_firmware",
+        "emma_software"
+      ],
+      "outcome": {
+        "type": "text",
+        "text": "V200R023"
+      }
+    },
+    {
+      "units": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "function": "FC03",
+      "offset": 30068,
+      "quantity": 2,
+      "roles": [
+        "identity_protocol",
+        "sdongle_protocol"
+      ],
+      "outcome": {
+        "type": "words",
+        "words": [
+          5,
+          0
+        ]
+      }
+    },
+    {
+      "units": [
+        9,
+        11
+      ],
+      "function": "FC03",
+      "offset": 30000,
+      "quantity": 15,
+      "roles": [
+        "identity_model"
+      ],
+      "outcome": {
+        "type": "exception",
+        "code": 3
+      }
+    },
+    {
+      "units": [
+        10,
+        12
+      ],
+      "function": "FC03",
+      "offset": 30000,
+      "quantity": 15,
+      "roles": [
+        "identity_model"
+      ],
+      "outcome": {
+        "type": "exception",
+        "code": 4
+      }
+    }
+  ]
+}

@@ -114,13 +114,13 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 		{
 			name:         "SmartLogger",
 			path:         "profiles/vendor/huawei/smartlogger-disposition.json",
-			schema:       "helianthus-modbusreg-huawei-smartlogger-disposition/v1",
+			schema:       "helianthus-modbusreg-huawei-smartlogger-disposition/v2",
 			profile:      "huawei.smartlogger",
 			outcome:      "NO_ADMISSIBLE_PROFILE",
 			docsMergeSHA: smartLoggerDocsMergeSHA,
 			admission: func(t *testing.T, admission map[string]any) {
 				t.Helper()
-				requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "required_tuple", "forbidden_identity", "firmware_gates", "version_comparison", "multiple_positive_outcome", "first_match_priority")
+				requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "required_tuple", "forbidden_identity", "firmware_gates", "exact_tuples", "tuple_independence", "version_comparison", "multiple_positive_outcome", "first_match_priority")
 				if huaweiInt(t, admission["unit_id"]) != 0 || admission["registered"] != false || admission["executable"] != false ||
 					admission["version_comparison"] != "EXACT_TUPLE_ONLY" || admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || admission["first_match_priority"] != false ||
 					!reflect.DeepEqual(huaweiStringSlice(t, admission["required_tuple"]), []string{"fc03_65521_q1_u16_counter_stable", "fc2b_mei0e_code03_object87_inventory", "self_entry_model_smartlogger", "exact_firmware_tuple"}) ||
@@ -143,17 +143,17 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 			},
 			remaining: func(t *testing.T, record map[string]any) {
 				t.Helper()
-				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "change_counter", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "reopen_requires")
+				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "observed_identity", "change_counter", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "reopen_requires")
 				evidence := huaweiObject(t, record["evidence"])
-				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence")
+				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "closed_evidence", "partially_closed_evidence", "unknown_after_observation", "docs_contract")
 				if evidence["candidate_id"] != "huawei.smartlogger.v1" || evidence["source_license"] != "CC0-1.0" ||
-					!reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), []string{"sanitized_extended_mei_self_entry_fixture", "exact_child_attribute_encoding_fixture", "pairwise_negative_overlap_with_emma_fixture"}) {
+					!reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), []string{"pairwise_negative_overlap_with_emma_fixture"}) {
 					t.Fatalf("unexpected SmartLogger evidence: %#v", evidence)
 				}
 				counter := huaweiObject(t, record["change_counter"])
 				requireHuaweiKeys(t, counter, "function", "offset", "quantity", "type", "equal_before_after")
 				if counter["function"] != "FC03" || huaweiInt(t, counter["offset"]) != 65521 || huaweiInt(t, counter["quantity"]) != 1 || counter["type"] != "U16" || counter["equal_before_after"] != true ||
-					!reflect.DeepEqual(huaweiStringSlice(t, record["reopen_requires"]), []string{"sanitized_extended_mei_self_entry_fixture", "exact_child_attribute_encoding_fixture", "pairwise_negative_overlap_with_emma_fixture"}) {
+					!reflect.DeepEqual(huaweiStringSlice(t, record["reopen_requires"]), []string{"pairwise_negative_overlap_with_emma_fixture"}) {
 					t.Fatalf("unexpected SmartLogger counter or reopen contract: %#v", record)
 				}
 			},
@@ -191,7 +191,7 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 			},
 			remaining: func(t *testing.T, record map[string]any) {
 				t.Helper()
-				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "protocol_version", "search_sequence", "capacity", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "qualification_plan")
+				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "protocol_version", "search_sequence", "capacity", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "qualification_plan", "observation_pointer")
 				evidence := huaweiObject(t, record["evidence"])
 				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "live_qualification")
 				live := huaweiObject(t, evidence["live_qualification"])
@@ -265,7 +265,7 @@ func TestHuaweiEMMAOfflineDispositionIsDefaultDeniedAndPinnedToDocs(t *testing.T
 		t.Fatal("disposition contains private endpoint or credential material")
 	}
 	record := decodeHuaweiObject(t, path)
-	requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "offline_identity_gate_registered", "catalog_registered", "automatic_runtime_admission", "support_claim", "detector", "firmware_gates", "child_enumeration", "decoder_keys", "reopen_requires")
+	requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "offline_identity_gate_registered", "catalog_registered", "automatic_runtime_admission", "support_claim", "detector", "firmware_gates", "child_enumeration", "decoder_keys", "reopen_requires", "observation_pointer")
 	if record["schema"] != "helianthus-modbusreg-huawei-emma-disposition/v2" || record["profile"] != HuaweiEMMAReadOnlyProfileID ||
 		record["profile_version"] != "1.0.0" || record["outcome"] != "OFFLINE_IDENTITY_ADMITTED" ||
 		record["offline_identity_gate_registered"] != true || record["catalog_registered"] != false ||

@@ -17,13 +17,30 @@
       "id": "modbus-vendor-evidence-v1",
       "locator": "https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f/docs/platform/manifests/modbus-vendor-evidence-v1.json",
       "license": "CC0-1.0"
+    },
+    {
+      "id": "huawei-smartlogger-observed-inventory-v1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/smartlogger-observed-inventory-v1.md",
+      "license": "CC0-1.0"
+    },
+    {
+      "id": "huawei-sun2000-observed-identity-v1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/sun2000-observed-identity-v1.md",
+      "license": "CC0-1.0"
+    },
+    {
+      "id": "huawei-gateway-power-meter-v1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/gateway-power-meter-v1.md",
+      "license": "CC0-1.0"
     }
   ],
   "applicability": [
     "SmartLogger documentary candidate huawei.smartlogger.v1",
     "S-Dongle documentary candidate huawei.sdongle.v1",
     "EMMA documentary candidate huawei.emma.v1",
-    "SUN2000 inverter and LUNA2000 battery: NO_ADMISSIBLE_PROFILE disposition only; no public source, register map or companion protocol page",
+    "SUN2000 inverter and LUNA2000 battery: NO_ADMISSIBLE_PROFILE disposition; no register map or companion monitoring page",
+    "SmartLogger observed tuple: self-entry model Smart Logger with one exact firmware string at gateway unit 0, exact identity only, default denied; the documentary tuples stay unobserved",
+    "SUN2000 observed identity: model SUN2000-50KTL-M3 with one exact routed firmware text, identity applicability only, default denied; the LUNA2000 group and every power meter stay Unknown",
     "candidate evidence only; no detector, catalog, decoder, runtime acquisition, or support admission"
   ],
   "license": "CC0-1.0"

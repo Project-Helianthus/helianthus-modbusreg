@@ -38,6 +38,11 @@ The Huawei qualification package now exposes separate inert cards for bounded
 SmartLogger and EMMA evidence plus the retained S-Dongle non-response hard
 stop. Identity results carry no telemetry, automatic request, catalog, support,
 live-qualification, or write authority.
+One further SmartLogger card admits only the exact tuple that a read-only
+observation established, replayed from synthetic fixtures under
+`testdata/huawei/identity`; every other tuple stays insufficient evidence and
+the profile outcome stays `NO_ADMISSIBLE_PROFILE`. See
+[`docs/huawei-smartlogger-observed-identity.md`](docs/huawei-smartlogger-observed-identity.md).
 
 ## Ownership
 

@@ -63,7 +63,7 @@ func TestHuaweiInverterBatteryDispositionsFailClosedWithoutEvidence(t *testing.T
 				"schema", "profile", "profile_version", "outcome", "evidence", "model_families",
 				"firmware_ranges", "capability_detection", "registers", "optional_groups",
 				"private_functions", "writes", "decoder_keys", "catalog_registered",
-				"automatic_runtime_admission", "support_claim", "write_authority", "reopen_requires",
+				"automatic_runtime_admission", "support_claim", "write_authority", "reopen_requires", "observation_pointer",
 			)
 			if record["schema"] != "helianthus-modbusreg-huawei-inverter-battery-disposition/v1" ||
 				record["profile"] != tc.profile || record["profile_version"] != "1.0.0" ||
