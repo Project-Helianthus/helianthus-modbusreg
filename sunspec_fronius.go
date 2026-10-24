@@ -5,6 +5,7 @@ import "slices"
 const (
 	SunSpecFroniusObservedFlavorID    = "sunspec.flavor.fronius.gen24.float.observed@1.0.0"
 	SunSpecFroniusObservedFlavorV11ID = "sunspec.flavor.fronius.gen24.float.observed@1.1.0"
+	SunSpecFroniusObservedFlavorV12ID = "sunspec.flavor.fronius.gen24.float.observed@1.2.0"
 )
 
 type SunSpecFroniusFlavorReason string
@@ -68,10 +69,38 @@ var froniusObservedChainV11 = []SunSpecWireKey{
 	{ModelID: sunSpecEndModel, ModelLength: 0},
 }
 
-type sunSpecFroniusFlavorDefinition struct {
-	id    string
-	chain []SunSpecWireKey
+var froniusObservedChainV12 = []SunSpecWireKey{
+	{ModelID: 1, ModelLength: 65},
+	{ModelID: 113, ModelLength: 60},
+	{ModelID: 120, ModelLength: 26},
+	{ModelID: 121, ModelLength: 30},
+	{ModelID: 122, ModelLength: 44},
+	{ModelID: 123, ModelLength: 24},
+	{ModelID: 160, ModelLength: 88},
+	{ModelID: 124, ModelLength: 24},
+	{ModelID: sunSpecEndModel, ModelLength: 0},
 }
+
+// sunSpecFroniusFlavorDefinition is one immutable observed flavor. Each version
+// carries its own exact Common firmware string and ordered model chain; a new
+// firmware or chain requires a new flavor version, never a range or an edit.
+type sunSpecFroniusFlavorDefinition struct {
+	id       string
+	firmware string
+	chain    []SunSpecWireKey
+}
+
+var (
+	froniusObservedFlavorV1 = sunSpecFroniusFlavorDefinition{
+		id: SunSpecFroniusObservedFlavorID, firmware: "1.41.11-1", chain: froniusObservedChainV1,
+	}
+	froniusObservedFlavorV11 = sunSpecFroniusFlavorDefinition{
+		id: SunSpecFroniusObservedFlavorV11ID, firmware: "1.41.11-1", chain: froniusObservedChainV11,
+	}
+	froniusObservedFlavorV12 = sunSpecFroniusFlavorDefinition{
+		id: SunSpecFroniusObservedFlavorV12ID, firmware: "1.42.9-1", chain: froniusObservedChainV12,
+	}
+)
 
 type SunSpecFroniusFlavorSelectionReason string
 
@@ -103,21 +132,22 @@ func (s SunSpecFroniusFlavorSelection) Evaluations() []SunSpecFroniusFlavorDecis
 }
 
 func (r SunSpecDecoderRegistry) EvaluateFroniusObservedFlavor(snapshot SunSpecChainSnapshot) SunSpecFroniusFlavorDecision {
-	return r.evaluateFroniusObservedFlavor(snapshot, sunSpecFroniusFlavorDefinition{
-		id: SunSpecFroniusObservedFlavorID, chain: froniusObservedChainV1,
-	})
+	return r.evaluateFroniusObservedFlavor(snapshot, froniusObservedFlavorV1)
 }
 
 func (r SunSpecDecoderRegistry) EvaluateFroniusObservedFlavorV11(snapshot SunSpecChainSnapshot) SunSpecFroniusFlavorDecision {
-	return r.evaluateFroniusObservedFlavor(snapshot, sunSpecFroniusFlavorDefinition{
-		id: SunSpecFroniusObservedFlavorV11ID, chain: froniusObservedChainV11,
-	})
+	return r.evaluateFroniusObservedFlavor(snapshot, froniusObservedFlavorV11)
+}
+
+func (r SunSpecDecoderRegistry) EvaluateFroniusObservedFlavorV12(snapshot SunSpecChainSnapshot) SunSpecFroniusFlavorDecision {
+	return r.evaluateFroniusObservedFlavor(snapshot, froniusObservedFlavorV12)
 }
 
 func (r SunSpecDecoderRegistry) SelectFroniusObservedFlavor(snapshot SunSpecChainSnapshot) SunSpecFroniusFlavorSelection {
 	return selectSunSpecFroniusFlavor([]SunSpecFroniusFlavorDecision{
 		r.EvaluateFroniusObservedFlavor(snapshot),
 		r.EvaluateFroniusObservedFlavorV11(snapshot),
+		r.EvaluateFroniusObservedFlavorV12(snapshot),
 	})
 }
 
@@ -146,7 +176,7 @@ func (r SunSpecDecoderRegistry) evaluateFroniusObservedFlavor(snapshot SunSpecCh
 		return rejected(SunSpecFroniusFlavorReasonCommonIdentityMismatch)
 	}
 	firmware, firmwareOK := sunSpecTextFact(common, "device.version")
-	if !firmwareOK || firmware != "1.41.11-1" {
+	if !firmwareOK || definition.firmware == "" || firmware != definition.firmware {
 		return rejected(SunSpecFroniusFlavorReasonFirmwareMismatch)
 	}
 	chain, valid := sunSpecSnapshotWireChain(snapshot)

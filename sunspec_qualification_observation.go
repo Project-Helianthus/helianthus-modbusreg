@@ -223,7 +223,8 @@ func (observation SunSpecQualificationObservation) MarshalJSON() ([]byte, error)
 }
 
 func supportedSunSpecQualificationFlavorID(flavorID string) bool {
-	return flavorID == SunSpecFroniusObservedFlavorID || flavorID == SunSpecFroniusObservedFlavorV11ID
+	return flavorID == SunSpecFroniusObservedFlavorID || flavorID == SunSpecFroniusObservedFlavorV11ID ||
+		flavorID == SunSpecFroniusObservedFlavorV12ID
 }
 
 type sunSpecQualificationObservationJSON struct {
