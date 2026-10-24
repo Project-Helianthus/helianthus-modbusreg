@@ -14,6 +14,23 @@
       "model_specific_capability_fixture"
     ]
   },
+  "observation_pointer": {
+    "docs_contract": {
+      "repository": "helianthus-docs-modbus",
+      "issue": 241,
+      "pull_request": 243,
+      "pages": [
+        "protocols/huawei/gateway-readonly-v1.md",
+        "protocols/huawei/smartlogger-observed-inventory-v1.md"
+      ]
+    },
+    "observation_state": "NO_MODBUS_RESPONSE",
+    "fixtures": [
+      "testdata/huawei/identity/smartlogger_negative_overlap.json"
+    ],
+    "changes_outcome": false,
+    "changes_missing_evidence": false
+  },
   "offline_identity_gate_registered": true,
   "catalog_registered": false,
   "automatic_runtime_admission": false,

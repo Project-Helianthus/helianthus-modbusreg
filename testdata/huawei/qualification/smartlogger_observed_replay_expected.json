@@ -1,0 +1,40 @@
+{
+  "schema": "helianthus-huawei-smartlogger-observed-replay-expected/v1",
+  "card_id": "huawei.qualification.smartlogger.observed-readonly@1.0.0",
+  "status": "QUALIFICATION_TEST_READY",
+  "reason": "IDENTITY_INVENTORY_MATCHED",
+  "selected_class": "SmartLogger",
+  "gateway_unit": 0,
+  "self_entry": {
+    "model": "Smart Logger",
+    "firmware": "V300R023C10SPC620",
+    "unit": "0"
+  },
+  "pages": 13,
+  "entries": 12,
+  "children": 11,
+  "children_by_label": {
+    "SUN2000-50KTL-M3": 8,
+    "PLC": 1,
+    "PowerMeter": 2
+  },
+  "child_units": [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 19],
+  "page_anomalies": {
+    "oversize_responses": 12,
+    "declared_object_field_differs": 13
+  },
+  "basic_corroboration": {
+    "agrees": true,
+    "opaque_extra_objects": 9
+  },
+  "missing_evidence": ["pairwise_negative_overlap_with_emma_fixture"],
+  "hardware_test_ready": false,
+  "live_qualified": false,
+  "automatic_request_count": 0,
+  "native_fact_count": 0,
+  "default_denied": true,
+  "catalog_registered": false,
+  "automatic_runtime_admission": false,
+  "support_claim": false,
+  "write_authority": false
+}

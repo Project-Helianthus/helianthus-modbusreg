@@ -1,0 +1,281 @@
+{
+  "schema": "helianthus-huawei-identity-fixture/v1",
+  "kind": "mei_extended_inventory",
+  "family": "SmartLogger",
+  "license": "CC0-1.0",
+  "provenance": "synthetic re-creation of one sanitized read-only observation",
+  "sanitization": {
+    "rule": "digit to 0, upper-case letter to X, lower-case letter to x; punctuation and length kept; placeholder values are not kept distinct between entries"
+  },
+  "gateway_unit": 0,
+  "change_counter": {
+    "before": 7,
+    "after": 7
+  },
+  "read": {
+    "function": "FC2B",
+    "mei_type": "0x0e",
+    "read_device_id_code": 3,
+    "start_object_id": "0x87"
+  },
+  "pages": [
+    {
+      "request_object_id": "0x87",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x88",
+      "declared_objects": 13,
+      "pdu_bytes": 10,
+      "objects": [
+        {
+          "object_id": "0x87",
+          "count": 12
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x88",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x89",
+      "declared_objects": 13,
+      "pdu_bytes": 263,
+      "objects": [
+        {
+          "object_id": "0x88",
+          "entry": "1=Smart Logger;2=V300R023C10SPC620;3=X0.00-X0.0;4=000000000000;5=0;6=0.0;10=XXXX0XXX;9=0",
+          "pad_to": 254,
+          "sanitized_attributes": [
+            "3",
+            "4",
+            "6",
+            "10"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x89",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x8a",
+      "declared_objects": 13,
+      "pdu_bytes": 263,
+      "objects": [
+        {
+          "object_id": "0x89",
+          "entry": "1=SUN2000-50KTL-M3;2=V200R023C00SPC128;3=X0.00-X0.0;4=0X0000000000;5=2;6=0.0;8=SUN2000;9=0",
+          "pad_to": 254,
+          "sanitized_attributes": [
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x8a",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x8b",
+      "declared_objects": 13,
+      "pdu_bytes": 263,
+      "objects": [
+        {
+          "object_id": "0x8a",
+          "entry": "1=SUN2000-50KTL-M3;2=V200R023C00SPC128;3=X0.00-X0.0;4=XX0000000000;5=3;6=0.0;8=SUN2000;9=0",
+          "pad_to": 254,
+          "sanitized_attributes": [
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x8b",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x8c",
+      "declared_objects": 13,
+      "pdu_bytes": 263,
+      "objects": [
+        {
+          "object_id": "0x8b",
+          "entry": "1=SUN2000-50KTL-M3;2=V200R023C00SPC128;3=X0.00-X0.0;4=XX0000000000;5=4;6=0.0;8=SUN2000;9=0",
+          "pad_to": 254,
+          "sanitized_attributes": [
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x8c",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x8d",
+      "declared_objects": 13,
+      "pdu_bytes": 263,
+      "objects": [
+        {
+          "object_id": "0x8c",
+          "entry": "1=SUN2000-50KTL-M3;2=V200R023C00SPC128;3=X0.00-X0.0;4=0X00X0000000;5=5;6=0.0;8=SUN2000;9=0",
+          "pad_to": 254,
+          "sanitized_attributes": [
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x8d",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x8e",
+      "declared_objects": 13,
+      "pdu_bytes": 263,
+      "objects": [
+        {
+          "object_id": "0x8d",
+          "entry": "1=SUN2000-50KTL-M3;2=V200R023C00SPC128;3=X0.00-X0.0;4=0X00X0000000;5=6;6=0.0;8=SUN2000;9=0",
+          "pad_to": 254,
+          "sanitized_attributes": [
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x8e",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x8f",
+      "declared_objects": 13,
+      "pdu_bytes": 263,
+      "objects": [
+        {
+          "object_id": "0x8e",
+          "entry": "1=SUN2000-50KTL-M3;2=V200R023C00SPC128;3=X0.00-X0.0;4=0X00X0000000;5=7;6=0.0;8=SUN2000;9=0",
+          "pad_to": 254,
+          "sanitized_attributes": [
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x8f",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x90",
+      "declared_objects": 13,
+      "pdu_bytes": 263,
+      "objects": [
+        {
+          "object_id": "0x8f",
+          "entry": "1=SUN2000-50KTL-M3;2=V200R023C00SPC128;3=X0.00-X0.0;4=0X0000000000;5=8;6=0.0;8=SUN2000;9=0",
+          "pad_to": 254,
+          "sanitized_attributes": [
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x90",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x91",
+      "declared_objects": 13,
+      "pdu_bytes": 263,
+      "objects": [
+        {
+          "object_id": "0x90",
+          "entry": "1=PLC;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX_XXX_XXXXXX;5=9;6=-0;9=0",
+          "pad_to": 254,
+          "sanitized_attributes": [
+            "2",
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x91",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x92",
+      "declared_objects": 13,
+      "pdu_bytes": 263,
+      "objects": [
+        {
+          "object_id": "0x91",
+          "entry": "1=SUN2000-50KTL-M3;2=V200R023C00SPC128;3=X0.00-X0.0;4=XX0000000000;5=1;6=0.0;8=SUN2000;9=0",
+          "pad_to": 254,
+          "sanitized_attributes": [
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x92",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x93",
+      "declared_objects": 13,
+      "pdu_bytes": 263,
+      "objects": [
+        {
+          "object_id": "0x92",
+          "entry": "1=PowerMeter;2=X000X000X00XX000;3=X0.0-X0.0;4=XX00000000000000;5=11;6=-0;9=0",
+          "pad_to": 254,
+          "sanitized_attributes": [
+            "2",
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x93",
+      "conformity": "0x03",
+      "more_follows": "0x00",
+      "next_object_id": "0x00",
+      "declared_objects": 13,
+      "pdu_bytes": 263,
+      "objects": [
+        {
+          "object_id": "0x93",
+          "entry": "1=PowerMeter;2=X000X000X00XX000;3=X0.0-X0.0;4=XX00000000000000;5=19;6=-0;9=0",
+          "pad_to": 254,
+          "sanitized_attributes": [
+            "2",
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    }
+  ]
+}
