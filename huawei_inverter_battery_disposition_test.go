@@ -288,11 +288,27 @@ func TestHuaweiInverterBatteryProfilesAreNotRegistered(t *testing.T) {
 	}
 	sort.Strings(names)
 	want := []string{
-		"emma-disposition.json", "evidence.json", "luna2000-disposition.json",
+		"catalogue", "emma-disposition.json", "evidence.json", "luna2000-disposition.json",
 		"sdongle-disposition.json", "smartlogger-disposition.json", "sun2000-disposition.json",
 	}
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("huawei vendor files=%v want=%v", names, want)
+	}
+	// The generated catalogue is registry data only: it names no profile
+	// identifier, so it registers no SUN2000 or LUNA2000 profile.
+	catalogueFiles, err := filepath.Glob("profiles/vendor/huawei/catalogue/*.json")
+	if err != nil || len(catalogueFiles) == 0 {
+		t.Fatalf("catalogue files not found: %v", err)
+	}
+	for _, file := range catalogueFiles {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lower := strings.ToLower(string(data))
+		if strings.Contains(lower, "huawei.sun2000") || strings.Contains(lower, "huawei.luna2000") {
+			t.Fatalf("%s names a Huawei profile identifier", file)
+		}
 	}
 
 	closure, err := os.ReadFile("profiles/mixed-catalog-closure-v1.json")

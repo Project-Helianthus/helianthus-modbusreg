@@ -97,6 +97,14 @@ EMMA path gets no provider while its inverter family has no consulted edition.
 The providers open no socket and start no goroutine, and they send only FC03
 and FC2B / MEI 0x0e reads. See
 [`docs/huawei-readonly-providers.md`](docs/huawei-readonly-providers.md).
+The Huawei SUN2000 catalogue under `profiles/vendor/huawei/catalogue` is
+registry data generated from the consulted CC0 inverter reference by
+`tools/huaweicatalogue`: every documented model row with its documented minimum
+software as a floor, the read-only rows of the sixteen profile cards with their
+class, the dictionaries and the quarantined contradictions. Raw-only and
+conflict rows carry no decode fields. No code reads the catalogue yet, so no
+profile, selection or admission changes. See
+[`docs/huawei-catalogue.md`](docs/huawei-catalogue.md).
 
 ## Ownership
 
