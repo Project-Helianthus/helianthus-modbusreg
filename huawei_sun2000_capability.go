@@ -316,5 +316,12 @@ func (o *HuaweiSUN2000MonitoringObserver) Observe(ctx context.Context, cycle uin
 			break
 		}
 	}
-	return o.profile.Decode(o.unitID, readings)
+	decoded, decodeErr := o.profile.Decode(o.unitID, readings)
+	if ctxErr := ctx.Err(); ctxErr != nil && len(readings) > 0 && readings[len(readings)-1].Outcome == HuaweiSUN2000GroupFailed {
+		if decodeErr != nil {
+			return HuaweiSUN2000MonitoringReading{}, ctxErr
+		}
+		return decoded, ctxErr
+	}
+	return decoded, decodeErr
 }
