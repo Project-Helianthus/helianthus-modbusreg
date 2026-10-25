@@ -223,19 +223,29 @@ type huaweiObservedInventory struct {
 	anomalies HuaweiInventoryPageAnomalies
 }
 
-// parseHuaweiSmartLoggerObservedInventory validates the observed dialect. It
+// parseHuaweiSmartLoggerObservedInventory requires an unchanged change counter
+// and then validates the pages in the observed dialect.
+func parseHuaweiSmartLoggerObservedInventory(gatewayUnit uint8, input HuaweiSmartLoggerObservedInventoryInput) (huaweiObservedInventory, error) {
+	if input.ChangeCounterBefore != input.ChangeCounterAfter {
+		return huaweiObservedInventory{}, errHuaweiSmartLoggerObservedInventoryInvalid
+	}
+	return parseHuaweiObservedInventoryPages(gatewayUnit, input.Pages)
+}
+
+// parseHuaweiObservedInventoryPages validates the observed dialect. It
 // differs from the documentary parser in the points the observation fixed: the
 // count object counts the self entry, a response may exceed the classic frame
 // limit up to a finite cap, the declared-object field is not compared, keys 9
 // and 10 are known opaque keys and key order is free. The ceilings on pages,
 // objects, children and aggregate bytes are unchanged. Any failure returns an
-// empty result: there is no partial child list.
-func parseHuaweiSmartLoggerObservedInventory(gatewayUnit uint8, input HuaweiSmartLoggerObservedInventoryInput) (huaweiObservedInventory, error) {
+// empty result: there is no partial child list. A gateway without a change
+// counter calls it directly.
+func parseHuaweiObservedInventoryPages(gatewayUnit uint8, pages []HuaweiSmartLoggerObservedInventoryPage) (huaweiObservedInventory, error) {
 	gatewayAddress := strconv.Itoa(int(gatewayUnit))
 	invalid := func() (huaweiObservedInventory, error) {
 		return huaweiObservedInventory{}, errHuaweiSmartLoggerObservedInventoryInvalid
 	}
-	if input.ChangeCounterBefore != input.ChangeCounterAfter || len(input.Pages) == 0 || len(input.Pages) > huaweiSmartLoggerInventoryMaxPages {
+	if len(pages) == 0 || len(pages) > huaweiSmartLoggerInventoryMaxPages {
 		return invalid()
 	}
 
@@ -249,7 +259,7 @@ func parseHuaweiSmartLoggerObservedInventory(gatewayUnit uint8, input HuaweiSmar
 		anomalies   HuaweiInventoryPageAnomalies
 		seenAddress = make(map[string]struct{})
 	)
-	for pageIndex, page := range input.Pages {
+	for pageIndex, page := range pages {
 		if len(page.Objects) == 0 || page.DeclaredObjects < 0 || page.DeclaredObjects > 255 {
 			return invalid()
 		}
@@ -306,12 +316,12 @@ func parseHuaweiSmartLoggerObservedInventory(gatewayUnit uint8, input HuaweiSmar
 			anomalies.DeclaredObjectFieldDiffers++
 		}
 		if page.More {
-			if page.NextObjectID != expected || pageIndex == len(input.Pages)-1 {
+			if page.NextObjectID != expected || pageIndex == len(pages)-1 {
 				return invalid()
 			}
 			continue
 		}
-		if page.NextObjectID != 0 || pageIndex != len(input.Pages)-1 {
+		if page.NextObjectID != 0 || pageIndex != len(pages)-1 {
 			return invalid()
 		}
 	}

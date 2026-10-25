@@ -65,6 +65,20 @@
       "live_qualified": false,
       "automatic_request_count": 0,
       "native_fact_count": 0
+    },
+    {
+      "class": "EMMA",
+      "card_id": "huawei.qualification.emma.observed-readonly@1.0.0",
+      "status": "QUALIFICATION_TEST_READY",
+      "missing_evidence": [
+        "sanitized_readonly_capability_fixture",
+        "model_specific_capability_fixture",
+        "battery_addressing_behind_gateway_fixture"
+      ],
+      "hardware_test_ready": false,
+      "live_qualified": false,
+      "automatic_request_count": 0,
+      "native_fact_count": 0
     }
   ],
   "default_denied": true,

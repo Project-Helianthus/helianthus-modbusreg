@@ -1,0 +1,73 @@
+{
+  "schema": "helianthus-huawei-identity-fixture/v1",
+  "kind": "fc03_probe_set",
+  "family": "EMMA",
+  "license": "CC0-1.0",
+  "provenance": "synthetic re-creation of one sanitized read-only observation",
+  "sanitization": {
+    "rule": "digit to 0, upper-case letter to X, lower-case letter to x; punctuation and length kept; placeholder values are not kept distinct between entries"
+  },
+  "probes": [
+    {
+      "units": [
+        0
+      ],
+      "function": "FC03",
+      "offset": 30000,
+      "quantity": 15,
+      "roles": [
+        "emma_family_label"
+      ],
+      "outcome": {
+        "type": "text",
+        "text": "SmartHEMS"
+      }
+    },
+    {
+      "units": [
+        0
+      ],
+      "function": "FC03",
+      "offset": 30015,
+      "quantity": 10,
+      "roles": [
+        "serial_bearing_block"
+      ],
+      "outcome": {
+        "type": "text",
+        "text": "XX0000000000",
+        "sanitized": true
+      }
+    },
+    {
+      "units": [
+        0
+      ],
+      "function": "FC03",
+      "offset": 30035,
+      "quantity": 15,
+      "roles": [
+        "emma_software_label"
+      ],
+      "outcome": {
+        "type": "text",
+        "text": "SmartHEMS V100R025C00SPC131"
+      }
+    },
+    {
+      "units": [
+        0
+      ],
+      "function": "FC03",
+      "offset": 30222,
+      "quantity": 20,
+      "roles": [
+        "emma_model"
+      ],
+      "outcome": {
+        "type": "text",
+        "text": "EMMA-A02"
+      }
+    }
+  ]
+}

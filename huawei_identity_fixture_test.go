@@ -122,7 +122,9 @@ type h03BasicFixture struct {
 // h03Outcome gained three optional fields for the S-Dongle fixtures: Residue
 // and Sanitized describe a model block that carries printable residue after its
 // first NUL, and Attempts counts the unanswered attempts of a no_response
-// outcome. Every earlier fixture omits them.
+// outcome. The EMMA fixtures add ResidueAt, the byte offset at which the residue
+// starts when a run of NUL bytes separates it from the text; zero means that it
+// follows the first NUL directly. Every earlier fixture omits all four.
 type h03Outcome struct {
 	Type      string   `json:"type"`
 	Text      string   `json:"text,omitempty"`
@@ -130,6 +132,7 @@ type h03Outcome struct {
 	Code      uint8    `json:"code,omitempty"`
 	Synthetic bool     `json:"synthetic,omitempty"`
 	Residue   string   `json:"residue,omitempty"`
+	ResidueAt int      `json:"residue_at,omitempty"`
 	Sanitized bool     `json:"sanitized,omitempty"`
 	Attempts  int      `json:"attempts,omitempty"`
 }

@@ -194,12 +194,9 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 		missing              string
 		missingList          []string
 	}
-	gateway := "protocols/huawei/gateway-readonly-v1.md"
 	observation := "protocols/huawei/smartlogger-observed-inventory-v1.md"
 	identity := "protocols/huawei/sun2000-observed-identity-v1.md"
 	tests := []expectation{
-		{"emma-disposition.json", "OFFLINE_IDENTITY_ADMITTED", "NO_MODBUS_RESPONSE", []string{gateway, observation}, []string{h03FixturePaths[2]},
-			"missing_capability_evidence", []string{"sanitized_readonly_capability_fixture", "negative_overlap_with_smartlogger", "model_specific_capability_fixture"}},
 		// The SUN2000 monitoring profiles (#348) admit two exact pairs; the
 		// pointer row itself still changes nothing, and what stays missing is
 		// the pinned edition of the MAP0 series.
@@ -242,10 +239,13 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 	if len(h03Array(t, huaweiObject(t, luna["observation_pointer"])["fixtures"])) != 0 {
 		t.Fatal("LUNA2000 must point at no fixture: no LUNA2000 identity was observed")
 	}
-	// The S-Dongle disposition moved to schema v2 and carries its own observed
-	// identity instead of a pointer row; the S-Dongle tests pin it.
-	if _, ok := decodeHuaweiObject(t, "profiles/vendor/huawei/sdongle-disposition.json")["observation_pointer"]; ok {
-		t.Fatal("the S-Dongle disposition still carries a pointer row next to its observed identity")
+	// The S-Dongle disposition moved to schema v2 and the EMMA disposition to
+	// schema v3; each carries its own observed identity instead of a pointer row,
+	// and the S-Dongle and EMMA tests pin them.
+	for _, name := range []string{"sdongle-disposition.json", "emma-disposition.json"} {
+		if _, ok := decodeHuaweiObject(t, "profiles/vendor/huawei/"+name)["observation_pointer"]; ok {
+			t.Fatalf("the %s still carries a pointer row next to its observed identity", name)
+		}
 	}
 }
 
@@ -311,12 +311,13 @@ func TestH03ReadinessExpectedResultListsObservedCardAndKeepsTheOthers(t *testing
 		"huawei.qualification.emma.readonly@1.0.0",
 		"huawei.qualification.sdongle.evidence-blocked@1.0.0",
 		"huawei.qualification.sdongle.observed-readonly@1.0.0",
+		"huawei.qualification.emma.observed-readonly@1.0.0",
 	}
 	if !reflect.DeepEqual(ids, wantIDs) {
 		t.Fatalf("cards=%v want=%v", ids, wantIDs)
 	}
 	if statuses[wantIDs[1]] != "QUALIFICATION_TEST_READY" || statuses[wantIDs[3]] != "QUALIFICATION_EVIDENCE_BLOCKED" || statuses[wantIDs[2]] != "QUALIFICATION_EVIDENCE_BLOCKED" ||
-		statuses[wantIDs[4]] != "QUALIFICATION_TEST_READY" {
+		statuses[wantIDs[4]] != "QUALIFICATION_TEST_READY" || statuses[wantIDs[5]] != "QUALIFICATION_TEST_READY" {
 		t.Fatalf("statuses=%v", statuses)
 	}
 	if !reflect.DeepEqual(expected.Classes[1]["missing_evidence"], []any{"pairwise_negative_overlap_with_emma_fixture"}) {

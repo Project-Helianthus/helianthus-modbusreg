@@ -299,6 +299,7 @@ func (card HuaweiSDongleQualificationCard) Result() HuaweiQualificationResult {
 
 func ResolveHuaweiQualification(results ...HuaweiQualificationResult) HuaweiQualificationResult {
 	results = withoutHuaweiSiblingNonMatches(results)
+	results = withoutHuaweiSupersededMatches(results)
 	matches := make([]HuaweiQualificationResult, 0, len(results))
 	classes := make([]string, 0, len(results))
 	var persistentBlock *HuaweiQualificationResult
@@ -367,6 +368,34 @@ func withoutHuaweiSiblingNonMatches(results []HuaweiQualificationResult) []Huawe
 	return kept
 }
 
+// withoutHuaweiSupersededMatches drops an identity match that still waits for
+// its capability evidence when a result of the same class matched a complete
+// observed tuple. Both results describe one device: the documentary card says
+// that the identity is known and the capabilities are not, and the observed card
+// adds the fixtures behind the identity and the inventory. Results of other
+// classes, and two complete matches of one class, are left as they are.
+func withoutHuaweiSupersededMatches(results []HuaweiQualificationResult) []HuaweiQualificationResult {
+	complete := make(map[string]struct{}, len(results))
+	for _, result := range results {
+		if result.IdentityMatched() && result.SelectedClass() != "" && result.Readiness() == HuaweiQualificationTestReady {
+			complete[result.SelectedClass()] = struct{}{}
+		}
+	}
+	if len(complete) == 0 {
+		return results
+	}
+	kept := make([]HuaweiQualificationResult, 0, len(results))
+	for _, result := range results {
+		_, superseded := complete[result.SelectedClass()]
+		if superseded && result.IdentityMatched() && result.Readiness() == HuaweiQualificationEvidenceBlocked &&
+			result.Reason() == HuaweiQualificationIdentityMatchedCapabilitiesMissing {
+			continue
+		}
+		kept = append(kept, result)
+	}
+	return kept
+}
+
 func containsHuaweiQualificationString(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {
@@ -391,6 +420,7 @@ func (HuaweiQualificationExpectedResult) MarshalJSON() ([]byte, error) {
 	emma := NewHuaweiEMMAQualificationCard()
 	sdongle := NewHuaweiSDongleQualificationCard()
 	sdongleObserved := NewHuaweiSDongleObservedQualificationCard()
+	emmaObserved := NewHuaweiEMMAObservedQualificationCard()
 	classes := []map[string]any{
 		{
 			"class": smartLogger.CandidateClass(), "card_id": smartLogger.ID(), "status": HuaweiQualificationTestReady,
@@ -415,6 +445,11 @@ func (HuaweiQualificationExpectedResult) MarshalJSON() ([]byte, error) {
 		{
 			"class": sdongleObserved.CandidateClass(), "card_id": sdongleObserved.ID(), "status": HuaweiQualificationTestReady,
 			"missing_evidence":    sdongleObserved.MissingEvidence(),
+			"hardware_test_ready": false, "live_qualified": false, "automatic_request_count": 0, "native_fact_count": 0,
+		},
+		{
+			"class": emmaObserved.CandidateClass(), "card_id": emmaObserved.ID(), "status": HuaweiQualificationTestReady,
+			"missing_evidence":    emmaObserved.MissingEvidence(),
 			"hardware_test_ready": false, "live_qualified": false, "automatic_request_count": 0, "native_fact_count": 0,
 		},
 	}

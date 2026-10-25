@@ -49,6 +49,12 @@ answers its status reads, and one child unit answers the model, basic and
 extended identification. It supersedes the recorded hard stop for that identity
 only; the profile outcome stays `PRE_LIVE_INSUFFICIENT_EVIDENCE`. See
 [`docs/huawei-sdongle-observed-identity.md`](docs/huawei-sdongle-observed-identity.md).
+One EMMA card does the same for the gateway that a read-only observation
+established: the gateway unit names its family label and model, answers basic
+and extended identification, and lists two SUN2000-family inverter units that
+answer their own model blocks. It supersedes the recorded absence of a response
+for that identity only; monitoring and the battery group stay unadmitted. See
+[`docs/huawei-emma-observed-identity.md`](docs/huawei-emma-observed-identity.md).
 A Huawei monitoring profile may rest on official vendor documentation that is
 cited, never copied: it needs a named document, pinned in its disposition as
 identity only (title, version, and date, each as the document states it, with no
