@@ -1,0 +1,556 @@
+{
+  "schema": "helianthus-huawei-monitoring-fixture/v1",
+  "kind": "fc03_monitoring_reads",
+  "family": "SUN2000 M3 series",
+  "gateway_path": "SmartLogger",
+  "profile_id": "huawei.sun2000.m3.monitoring-readonly@1.0.0",
+  "license": "CC0-1.0",
+  "provenance": "synthetic re-creation of one sanitized read-only observation at one daylight operating point",
+  "sanitization": {
+    "rule": "words are as read except the replaced ranges: the serial-derived status word and every time word become zero, and each lifetime energy total becomes a synthetic value that keeps the observed ordering of the counters and a conversion ratio inside the efficiency band",
+    "replaced": [
+      {
+        "offset": 32015,
+        "words": 1,
+        "class": "serial_derived"
+      },
+      {
+        "offset": 32106,
+        "words": 2,
+        "class": "lifetime_total"
+      },
+      {
+        "offset": 32108,
+        "words": 2,
+        "class": "lifetime_total"
+      },
+      {
+        "offset": 32110,
+        "words": 2,
+        "class": "time"
+      }
+    ]
+  },
+  "readings": [
+    {
+      "unit": 1,
+      "reads": [
+        {
+          "function": "FC03",
+          "offset": 32000,
+          "quantity": 16,
+          "outcome": {
+            "type": "words",
+            "words": [
+              10,
+              0,
+              7,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "function": "FC03",
+          "offset": 32016,
+          "quantity": 24,
+          "outcome": {
+            "type": "words",
+            "words": [
+              6128,
+              110,
+              6128,
+              0,
+              6204,
+              100,
+              6204,
+              95,
+              6059,
+              101,
+              6059,
+              93,
+              5924,
+              114,
+              5924,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "function": "FC03",
+          "offset": 32064,
+          "quantity": 32,
+          "outcome": {
+            "type": "exception",
+            "code": 3
+          }
+        },
+        {
+          "function": "FC03",
+          "offset": 32106,
+          "quantity": 10,
+          "outcome": {
+            "type": "words",
+            "words": [
+              64,
+              5696,
+              65,
+              25874,
+              0,
+              0,
+              0,
+              116,
+              0,
+              228
+            ]
+          }
+        },
+        {
+          "function": "FC03",
+          "offset": 37100,
+          "quantity": 38,
+          "outcome": {
+            "type": "exception",
+            "code": 3
+          }
+        },
+        {
+          "function": "FC03",
+          "offset": 37000,
+          "quantity": 1,
+          "outcome": {
+            "type": "words",
+            "words": [
+              0
+            ]
+          }
+        },
+        {
+          "function": "FC03",
+          "offset": 47000,
+          "quantity": 1,
+          "outcome": {
+            "type": "words",
+            "words": [
+              0
+            ]
+          }
+        }
+      ],
+      "expected": [
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 1,
+          "value": "612.8",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 1,
+          "value": "1.10",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 2,
+          "value": "612.8",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 2,
+          "value": "0.00",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 3,
+          "value": "620.4",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 3,
+          "value": "1.00",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 4,
+          "value": "620.4",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 4,
+          "value": "0.95",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 5,
+          "value": "605.9",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 5,
+          "value": "1.01",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 6,
+          "value": "605.9",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 6,
+          "value": "0.93",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 7,
+          "value": "592.4",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 7,
+          "value": "1.14",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 8,
+          "value": "592.4",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 8,
+          "value": "0.00",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.energy_accumulated",
+          "index": 0,
+          "value": "42000.00",
+          "unit": "kWh",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.energy_current_hour",
+          "index": 0,
+          "value": "1.16",
+          "unit": "kWh",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.energy_current_day",
+          "index": 0,
+          "value": "2.28",
+          "unit": "kWh",
+          "grade": "HYPOTHESIS"
+        }
+      ]
+    },
+    {
+      "unit": 2,
+      "reads": [
+        {
+          "function": "FC03",
+          "offset": 32000,
+          "quantity": 16,
+          "outcome": {
+            "type": "words",
+            "words": [
+              10,
+              0,
+              7,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "function": "FC03",
+          "offset": 32016,
+          "quantity": 24,
+          "outcome": {
+            "type": "words",
+            "words": [
+              6149,
+              101,
+              6149,
+              97,
+              6100,
+              113,
+              6100,
+              89,
+              6140,
+              109,
+              6140,
+              91,
+              4850,
+              120,
+              4850,
+              88,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "function": "FC03",
+          "offset": 32064,
+          "quantity": 32,
+          "outcome": {
+            "type": "exception",
+            "code": 3
+          }
+        },
+        {
+          "function": "FC03",
+          "offset": 32106,
+          "quantity": 10,
+          "outcome": {
+            "type": "words",
+            "words": [
+              66,
+              24624,
+              67,
+              47864,
+              0,
+              0,
+              0,
+              146,
+              0,
+              285
+            ]
+          }
+        },
+        {
+          "function": "FC03",
+          "offset": 37100,
+          "quantity": 38,
+          "outcome": {
+            "type": "exception",
+            "code": 3
+          }
+        },
+        {
+          "function": "FC03",
+          "offset": 37000,
+          "quantity": 1,
+          "outcome": {
+            "type": "words",
+            "words": [
+              0
+            ]
+          }
+        },
+        {
+          "function": "FC03",
+          "offset": 47000,
+          "quantity": 1,
+          "outcome": {
+            "type": "words",
+            "words": [
+              0
+            ]
+          }
+        }
+      ],
+      "expected": [
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 1,
+          "value": "614.9",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 1,
+          "value": "1.01",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 2,
+          "value": "614.9",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 2,
+          "value": "0.97",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 3,
+          "value": "610.0",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 3,
+          "value": "1.13",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 4,
+          "value": "610.0",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 4,
+          "value": "0.89",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 5,
+          "value": "614.0",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 5,
+          "value": "1.09",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 6,
+          "value": "614.0",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 6,
+          "value": "0.91",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 7,
+          "value": "485.0",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 7,
+          "value": "1.20",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_voltage",
+          "index": 8,
+          "value": "485.0",
+          "unit": "V",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.pv_string_current",
+          "index": 8,
+          "value": "0.88",
+          "unit": "A",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.energy_accumulated",
+          "index": 0,
+          "value": "43500.00",
+          "unit": "kWh",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "huawei.sun2000.m3.energy_current_hour",
+          "index": 0,
+          "value": "1.46",
+          "unit": "kWh",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.energy_current_day",
+          "index": 0,
+          "value": "2.85",
+          "unit": "kWh",
+          "grade": "HYPOTHESIS"
+        }
+      ]
+    }
+  ]
+}

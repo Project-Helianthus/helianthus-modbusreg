@@ -12,6 +12,16 @@
       "native_fact_count": 0
     },
     {
+      "class": "SmartLogger",
+      "card_id": "huawei.qualification.smartlogger.observed-readonly@1.0.0",
+      "status": "QUALIFICATION_TEST_READY",
+      "missing_evidence": ["pairwise_negative_overlap_with_emma_fixture"],
+      "hardware_test_ready": false,
+      "live_qualified": false,
+      "automatic_request_count": 0,
+      "native_fact_count": 0
+    },
+    {
       "class": "EMMA",
       "card_id": "huawei.qualification.emma.readonly@1.0.0",
       "status": "QUALIFICATION_EVIDENCE_BLOCKED",
@@ -36,6 +46,34 @@
         "exact_protocol_version_encoding_fixture",
         "completed_search_stable_sequence_capacity_fixture",
         "separately_qualified_child_unit_inventory_fixture"
+      ],
+      "hardware_test_ready": false,
+      "live_qualified": false,
+      "automatic_request_count": 0,
+      "native_fact_count": 0
+    },
+    {
+      "class": "S-Dongle",
+      "card_id": "huawei.qualification.sdongle.observed-readonly@1.0.0",
+      "status": "QUALIFICATION_TEST_READY",
+      "missing_evidence": [
+        "sanitized_basic_mei_product_model_fixture",
+        "exact_protocol_version_encoding_fixture",
+        "pairwise_negative_overlap_with_emma_fixture"
+      ],
+      "hardware_test_ready": false,
+      "live_qualified": false,
+      "automatic_request_count": 0,
+      "native_fact_count": 0
+    },
+    {
+      "class": "EMMA",
+      "card_id": "huawei.qualification.emma.observed-readonly@1.0.0",
+      "status": "QUALIFICATION_TEST_READY",
+      "missing_evidence": [
+        "sanitized_readonly_capability_fixture",
+        "model_specific_capability_fixture",
+        "battery_addressing_behind_gateway_fixture"
       ],
       "hardware_test_ready": false,
       "live_qualified": false,

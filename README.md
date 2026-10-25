@@ -47,6 +47,45 @@ The Huawei qualification package now exposes separate inert cards for bounded
 SmartLogger and EMMA evidence plus the retained S-Dongle non-response hard
 stop. Identity results carry no telemetry, automatic request, catalog, support,
 live-qualification, or write authority.
+One further SmartLogger card admits only the exact tuple that a read-only
+observation established, replayed from synthetic fixtures under
+`testdata/huawei/identity`; every other tuple stays insufficient evidence and
+the profile outcome stays `NO_ADMISSIBLE_PROFILE`. See
+[`docs/huawei-smartlogger-observed-identity.md`](docs/huawei-smartlogger-observed-identity.md).
+One S-Dongle card does the same for the single-inverter tuple that a read-only
+observation established: the gateway unit refuses basic identification and
+answers its status reads, and one child unit answers the model, basic and
+extended identification. It supersedes the recorded hard stop for that identity
+only; the profile outcome stays `PRE_LIVE_INSUFFICIENT_EVIDENCE`. See
+[`docs/huawei-sdongle-observed-identity.md`](docs/huawei-sdongle-observed-identity.md).
+One EMMA card does the same for the gateway that a read-only observation
+established: the gateway unit names its family label and model, answers basic
+and extended identification, and lists two SUN2000-family inverter units that
+answer their own model blocks. It supersedes the recorded absence of a response
+for that identity only; monitoring and the battery group stay unadmitted. See
+[`docs/huawei-emma-observed-identity.md`](docs/huawei-emma-observed-identity.md).
+A Huawei monitoring profile may rest on official vendor documentation that is
+cited, never copied: it needs a named document, pinned in its disposition as
+identity only (title, version, and date, each as the document states it, with no
+excerpt, link, or digest), together with observation fixtures from operator
+sites. The identity set is optional and empty until the operator supplies it. A
+pin changes no outcome, and exact tuples, negative overlap, and fail-closed
+admission stay required. See
+[`docs/huawei-vendor-documentation.md`](docs/huawei-vendor-documentation.md) and
+the
+[applicability and licensing policy](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/applicability-and-licensing.md).
+Two SUN2000 monitoring profiles implement the public Huawei read-only
+monitoring contract for exact pairs only: the M3 series model behind the
+observed SmartLogger tuple and the M1 series model behind the observed S-Dongle
+tuple, each bound to the one pinned SUN2000MC edition. Capability detection
+evaluates the gateway card, the routed unit, the routed model string and the
+edition; everything else stays insufficient evidence or `NO_ADMISSIBLE_PROFILE`.
+The read plans are bounded FC03 groups that the family answered, a refused
+group is never read, and the observer session exposes reads only. The MAP0
+series has no consulted edition and no profile, no battery or meter fact is
+admitted, and catalog registration, live qualification, support claims and
+write authority stay false. See
+[`docs/huawei-sun2000-monitoring-profiles.md`](docs/huawei-sun2000-monitoring-profiles.md).
 
 ## Ownership
 

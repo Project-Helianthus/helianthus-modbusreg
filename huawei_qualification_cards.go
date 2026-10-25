@@ -2,6 +2,7 @@ package modbusreg
 
 import (
 	"encoding/json"
+	"slices"
 	"sort"
 )
 
@@ -41,6 +42,9 @@ type HuaweiQualificationInventoryLimits struct {
 	MaxObjects           uint32
 	MaxBytes             uint32
 	MaxChildren          uint32
+	// MaxResponseBytes is the finite cap on one inventory response. Zero means
+	// the card applies no cap of its own and relies on the classic frame limit.
+	MaxResponseBytes uint32
 }
 
 // HuaweiQualificationStep describes one caller-controlled read-only evidence
@@ -68,6 +72,11 @@ type HuaweiQualificationResult struct {
 	inventory        *HuaweiGatewayInventory
 	missingEvidence  []string
 	candidateClasses []string
+
+	pageAnomalies      HuaweiInventoryPageAnomalies
+	basicCorroborated  bool
+	basicOpaqueObjects int
+	modelResidueBytes  int
 }
 
 func (result HuaweiQualificationResult) CandidateClass() string { return result.candidateClass }
@@ -86,6 +95,17 @@ func (result HuaweiQualificationResult) Reason() HuaweiQualificationReason {
 	return result.reason
 }
 func (result HuaweiQualificationResult) IdentityMatched() bool { return result.identityMatched }
+func (result HuaweiQualificationResult) PageAnomalies() HuaweiInventoryPageAnomalies {
+	return result.pageAnomalies
+}
+func (result HuaweiQualificationResult) BasicCorroborated() bool { return result.basicCorroborated }
+func (result HuaweiQualificationResult) BasicOpaqueObjectCount() int {
+	return result.basicOpaqueObjects
+}
+
+// ModelResidueBytes is the length of the printable residue that followed the
+// terminating NUL of a model block. The residue is retained evidence only.
+func (result HuaweiQualificationResult) ModelResidueBytes() int { return result.modelResidueBytes }
 func (result HuaweiQualificationResult) QualificationTestReady() bool {
 	return result.Readiness() == HuaweiQualificationTestReady
 }
@@ -240,6 +260,9 @@ func (card HuaweiEMMAQualificationCard) Evaluate(input HuaweiEMMAQualificationIn
 	}
 }
 
+// HuaweiSDongleQualificationCard is the retained record of the persistent
+// non-response stop. Its result never changes. The shared resolution lets a
+// matched result of the observed S-Dongle card supersede it, and nothing else.
 type HuaweiSDongleQualificationCard struct{}
 
 func NewHuaweiSDongleQualificationCard() HuaweiSDongleQualificationCard {
@@ -275,6 +298,8 @@ func (card HuaweiSDongleQualificationCard) Result() HuaweiQualificationResult {
 }
 
 func ResolveHuaweiQualification(results ...HuaweiQualificationResult) HuaweiQualificationResult {
+	results = withoutHuaweiSiblingNonMatches(results)
+	results = withoutHuaweiSupersededMatches(results)
 	matches := make([]HuaweiQualificationResult, 0, len(results))
 	classes := make([]string, 0, len(results))
 	var persistentBlock *HuaweiQualificationResult
@@ -293,6 +318,7 @@ func ResolveHuaweiQualification(results ...HuaweiQualificationResult) HuaweiQual
 		return *persistentBlock
 	}
 	sort.Strings(classes)
+	classes = slices.Compact(classes)
 	if len(matches) == 1 && len(results) == 1 {
 		selected := matches[0]
 		selected.candidateClasses = classes
@@ -315,6 +341,61 @@ func ResolveHuaweiQualification(results ...HuaweiQualificationResult) HuaweiQual
 	return HuaweiQualificationResult{readiness: HuaweiQualificationInsufficientEvidence, reason: HuaweiQualificationIdentityInvalid}
 }
 
+// withoutHuaweiSiblingNonMatches drops a non-matching result when another card
+// of the same class matched. Cards of one class are alternative exact tuples, so
+// the rejection of one says nothing against the tuple that matched. A persistent
+// non-response record is a non-matching result of its own class: an exact tuple
+// of that class contradicts it and supersedes it, and nothing else does. A
+// match never hides a result of a different class.
+func withoutHuaweiSiblingNonMatches(results []HuaweiQualificationResult) []HuaweiQualificationResult {
+	matched := make(map[string]struct{}, len(results))
+	for _, result := range results {
+		if result.IdentityMatched() && result.SelectedClass() != "" {
+			matched[result.SelectedClass()] = struct{}{}
+		}
+	}
+	if len(matched) == 0 {
+		return results
+	}
+	kept := make([]HuaweiQualificationResult, 0, len(results))
+	for _, result := range results {
+		_, sibling := matched[result.CandidateClass()]
+		if !result.IdentityMatched() && sibling {
+			continue
+		}
+		kept = append(kept, result)
+	}
+	return kept
+}
+
+// withoutHuaweiSupersededMatches drops an identity match that still waits for
+// its capability evidence when a result of the same class matched a complete
+// observed tuple. Both results describe one device: the documentary card says
+// that the identity is known and the capabilities are not, and the observed card
+// adds the fixtures behind the identity and the inventory. Results of other
+// classes, and two complete matches of one class, are left as they are.
+func withoutHuaweiSupersededMatches(results []HuaweiQualificationResult) []HuaweiQualificationResult {
+	complete := make(map[string]struct{}, len(results))
+	for _, result := range results {
+		if result.IdentityMatched() && result.SelectedClass() != "" && result.Readiness() == HuaweiQualificationTestReady {
+			complete[result.SelectedClass()] = struct{}{}
+		}
+	}
+	if len(complete) == 0 {
+		return results
+	}
+	kept := make([]HuaweiQualificationResult, 0, len(results))
+	for _, result := range results {
+		_, superseded := complete[result.SelectedClass()]
+		if superseded && result.IdentityMatched() && result.Readiness() == HuaweiQualificationEvidenceBlocked &&
+			result.Reason() == HuaweiQualificationIdentityMatchedCapabilitiesMissing {
+			continue
+		}
+		kept = append(kept, result)
+	}
+	return kept
+}
+
 func containsHuaweiQualificationString(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {
@@ -335,12 +416,20 @@ type HuaweiQualificationExpectedResult struct{}
 
 func (HuaweiQualificationExpectedResult) MarshalJSON() ([]byte, error) {
 	smartLogger := NewHuaweiSmartLoggerQualificationCard()
+	observed := NewHuaweiSmartLoggerObservedQualificationCard()
 	emma := NewHuaweiEMMAQualificationCard()
 	sdongle := NewHuaweiSDongleQualificationCard()
+	sdongleObserved := NewHuaweiSDongleObservedQualificationCard()
+	emmaObserved := NewHuaweiEMMAObservedQualificationCard()
 	classes := []map[string]any{
 		{
 			"class": smartLogger.CandidateClass(), "card_id": smartLogger.ID(), "status": HuaweiQualificationTestReady,
 			"missing_evidence":    []string{"connected_smartlogger_identity_inventory_capture"},
+			"hardware_test_ready": false, "live_qualified": false, "automatic_request_count": 0, "native_fact_count": 0,
+		},
+		{
+			"class": observed.CandidateClass(), "card_id": observed.ID(), "status": HuaweiQualificationTestReady,
+			"missing_evidence":    observed.MissingEvidence(),
 			"hardware_test_ready": false, "live_qualified": false, "automatic_request_count": 0, "native_fact_count": 0,
 		},
 		{
@@ -351,6 +440,16 @@ func (HuaweiQualificationExpectedResult) MarshalJSON() ([]byte, error) {
 		{
 			"class": sdongle.CandidateClass(), "card_id": sdongle.ID(), "status": HuaweiQualificationEvidenceBlocked,
 			"missing_evidence":    sdongle.Result().MissingEvidence(),
+			"hardware_test_ready": false, "live_qualified": false, "automatic_request_count": 0, "native_fact_count": 0,
+		},
+		{
+			"class": sdongleObserved.CandidateClass(), "card_id": sdongleObserved.ID(), "status": HuaweiQualificationTestReady,
+			"missing_evidence":    sdongleObserved.MissingEvidence(),
+			"hardware_test_ready": false, "live_qualified": false, "automatic_request_count": 0, "native_fact_count": 0,
+		},
+		{
+			"class": emmaObserved.CandidateClass(), "card_id": emmaObserved.ID(), "status": HuaweiQualificationTestReady,
+			"missing_evidence":    emmaObserved.MissingEvidence(),
 			"hardware_test_ready": false, "live_qualified": false, "automatic_request_count": 0, "native_fact_count": 0,
 		},
 	}

@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-emma-disposition/v2",
+  "schema": "helianthus-modbusreg-huawei-emma-disposition/v3",
   "profile": "huawei.emma.readonly.v1",
   "profile_version": "1.0.0",
   "outcome": "OFFLINE_IDENTITY_ADMITTED",
@@ -10,14 +10,327 @@
     "eligible": true,
     "missing_capability_evidence": [
       "sanitized_readonly_capability_fixture",
-      "negative_overlap_with_smartlogger",
-      "model_specific_capability_fixture"
-    ]
+      "model_specific_capability_fixture",
+      "battery_addressing_behind_gateway_fixture"
+    ],
+    "vendor_documentation": {
+      "source_class": "OFFICIAL_VENDOR_DOCUMENTATION_ONLY",
+      "monitoring_profile_basis": [
+        "pinned_vendor_document_identity",
+        "operator_site_observation_fixtures"
+      ],
+      "consulted_documents": [],
+      "changes_outcome": false
+    },
+    "closed_evidence": [
+      {
+        "gap": "negative_overlap_with_smartlogger",
+        "scope": "observed_tuple",
+        "fixtures": [
+          "testdata/huawei/identity/emma_negative_overlap.json",
+          "testdata/huawei/identity/smartlogger_negative_overlap.json"
+        ]
+      }
+    ],
+    "unknown_after_observation": [
+      "battery_addressing_behind_gateway",
+      "unit_2_entry_identity_and_reads",
+      "inverter_units_other_than_3_and_4",
+      "emma_model_aliases_other_than_the_observed_one",
+      "smartlogger_counter_read_at_unit_100",
+      "cause_of_the_earlier_connection_resets",
+      "meaning_of_the_declared_object_field"
+    ],
+    "earlier_observation": {
+      "state": "SUPERSEDED_FOR_OBSERVED_IDENTITY",
+      "recorded_state": "NO_MODBUS_RESPONSE",
+      "runs": 4,
+      "requests": 80,
+      "attempts": 320,
+      "answered_requests": 0,
+      "superseded_by": "observed_identity",
+      "reproduced": false,
+      "identification_claim": false,
+      "incompatibility_claim": false,
+      "fixtures": [
+        "testdata/huawei/identity/smartlogger_negative_overlap.json"
+      ]
+    },
+    "docs_contract": {
+      "repository": "helianthus-docs-modbus",
+      "issue": 249,
+      "pull_request": 252,
+      "pages": [
+        "protocols/huawei/gateway-readonly-v1.md",
+        "protocols/huawei/emma-observed-identity-v1.md",
+        "protocols/huawei/smartlogger-observed-inventory-v1.md",
+        "protocols/huawei/qualification-readiness-v1.md"
+      ]
+    }
+  },
+  "observed_identity": {
+    "status": "OFFLINE_IDENTITY_ADMITTED",
+    "scope": "OBSERVED_TUPLE_ONLY",
+    "qualification_card": "huawei.qualification.emma.observed-readonly@1.0.0",
+    "gate_registered": true,
+    "default_denied": true,
+    "supersedes": {
+      "documentary_card": "huawei.qualification.emma.readonly@1.0.0",
+      "superseded_for": "IDENTITY_OF_OBSERVED_TUPLE_ONLY",
+      "superseded_only_by": "MATCHED_OBSERVED_CARD_OF_THE_SAME_CLASS"
+    },
+    "required_tuple": [
+      "gateway_unit_0",
+      "gateway_fc03_30000_q15_family_label_exact",
+      "gateway_fc03_30222_q20_model_exact",
+      "gateway_fc03_30035_q15_family_label_space_version_token_meeting_the_documentary_floor",
+      "gateway_basic_mei_vendor_and_product_exact_version_equals_software_token",
+      "gateway_extended_inventory_count_4_self_backup_box_unit_2_sun2000_units_3_and_4",
+      "gateway_self_entry_model_product_type_and_version_equal_the_blocks",
+      "inverter_units_3_and_4_fc03_30000_q15_sun2000_family_model_equals_own_entry"
+    ],
+    "exact_tuple": {
+      "gateway_unit": 0,
+      "gateway_family_label": "SmartHEMS",
+      "gateway_model": "EMMA-A02",
+      "gateway_software_label": "FAMILY_LABEL_SPACE_VERSION_TOKEN_MEETING_THE_DOCUMENTARY_FLOOR",
+      "gateway_basic_mei": {
+        "vendor": "Huawei",
+        "product": "HEMS",
+        "version": "EQUALS_SOFTWARE_LABEL_TOKEN"
+      },
+      "inventory": {
+        "count_object": 4,
+        "self_entry_unit": 0,
+        "children": [
+          {
+            "unit": 2,
+            "product_type": "BackupBox",
+            "model_family": "WITHHELD_NOT_COMPARED"
+          },
+          {
+            "unit": 3,
+            "product_type": "SUN2000",
+            "model_family": "SUN2000"
+          },
+          {
+            "unit": 4,
+            "product_type": "SUN2000",
+            "model_family": "SUN2000"
+          }
+        ]
+      },
+      "inverter_units": [
+        3,
+        4
+      ],
+      "inverter_model": "SUN2000_FAMILY_EQUALS_OWN_ENTRY",
+      "selected_class": "EMMA",
+      "gateway_model_variant": "EMMA-A02"
+    },
+    "tolerance": {
+      "model_block_residue": "PRINTABLE_ASCII_OR_NUL_AFTER_FIRST_NUL_RETAINED_NOT_COMPARED",
+      "declared_object_field": "RETAINED_NOT_COMPARED",
+      "page_layout": "NOT_COMPARED_EACH_RESPONSE_WITHIN_THE_CLASSIC_FRAME",
+      "entry_padding": "NOT_REQUIRED",
+      "attribute_order": "NOT_VALIDATED",
+      "unknown_or_repeated_keys": "REJECT_INVENTORY",
+      "max_pages": 5,
+      "max_response_bytes": 253
+    },
+    "retained_not_gating": [
+      "gateway_serial_bearing_block_30015",
+      "inverter_serial_bearing_block_30015",
+      "inverter_firmware_block_30035",
+      "inverter_protocol_words_30068",
+      "entry_attributes_3_4_6_9_10",
+      "entry_attribute_2_of_units_2_3_4",
+      "unit_2_model",
+      "basic_mei_objects_beyond_the_basic_category",
+      "model_block_residue",
+      "request_timing"
+    ],
+    "forbidden_identity": [
+      "serial_number",
+      "esn",
+      "register_readability",
+      "basic_mei_only",
+      "basic_mei_answered_at_another_unit",
+      "extended_inventory_only",
+      "child_listing",
+      "unit_100_behaviour",
+      "sunspec_marker_offset_readability",
+      "mei_request_unit_identifier",
+      "prefix_wildcard_case_folded_or_whitespace_normalized_match"
+    ],
+    "outside_admitted_set_outcome": "INSUFFICIENT_EVIDENCE",
+    "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",
+    "first_match_priority": false,
+    "timing": {
+      "request_timeouts": "NONE_OBSERVED",
+      "retries": 0,
+      "fixture": "testdata/huawei/identity/emma_request_timing.json"
+    },
+    "negative_overlap": {
+      "versus_smartlogger": [
+        {
+          "probe": "fc03_65521_q1_counter",
+          "unit": 0,
+          "offset": 65521,
+          "outcome": "EXCEPTION_3",
+          "fixture": "testdata/huawei/identity/emma_negative_overlap.json"
+        },
+        {
+          "probe": "fc03_65521_q1_counter",
+          "unit": 3,
+          "offset": 65521,
+          "outcome": "EXCEPTION_3",
+          "fixture": "testdata/huawei/identity/emma_negative_overlap.json"
+        },
+        {
+          "probe": "fc2b_mei_basic",
+          "unit": 3,
+          "function": "FC2B",
+          "outcome": "ANSWERED_MEI_BASIC",
+          "fixture": "testdata/huawei/identity/emma_gateway_basic_reply.json"
+        },
+        {
+          "probe": "fc2b_mei_extended_inventory",
+          "unit": 0,
+          "function": "FC2B",
+          "outcome": "ANSWERED_MEI_EXTENDED",
+          "fixture": "testdata/huawei/identity/emma_extended_inventory.json"
+        }
+      ],
+      "versus_sdongle": [
+        {
+          "probe": "fc2b_mei_basic",
+          "unit": 100,
+          "function": "FC2B",
+          "outcome": "ANSWERED_MEI_BASIC",
+          "fixture": "testdata/huawei/identity/emma_gateway_basic_reply.json"
+        },
+        {
+          "probe": "fc03_30068_q2_sdongle_protocol",
+          "unit": 100,
+          "offset": 30068,
+          "outcome": "EXCEPTION_4",
+          "fixture": "testdata/huawei/identity/emma_unit100_behaviour.json"
+        },
+        {
+          "probe": "fc03_37410_q3_sdongle_search",
+          "unit": 100,
+          "offset": 37410,
+          "outcome": "EXCEPTION_4",
+          "fixture": "testdata/huawei/identity/emma_unit100_behaviour.json"
+        },
+        {
+          "probe": "fc03_37429_q1_sdongle_capacity",
+          "unit": 100,
+          "offset": 37429,
+          "outcome": "EXCEPTION_4",
+          "fixture": "testdata/huawei/identity/emma_unit100_behaviour.json"
+        },
+        {
+          "probe": "fc03_37410_q3_sdongle_search",
+          "unit": 3,
+          "offset": 37410,
+          "outcome": "EXCEPTION_3",
+          "fixture": "testdata/huawei/identity/emma_negative_overlap.json"
+        },
+        {
+          "probe": "fc03_37429_q1_sdongle_capacity",
+          "unit": 3,
+          "offset": 37429,
+          "outcome": "EXCEPTION_3",
+          "fixture": "testdata/huawei/identity/emma_negative_overlap.json"
+        },
+        {
+          "probe": "fc03_30068_q2_sdongle_protocol",
+          "unit": 3,
+          "offset": 30068,
+          "outcome": "ANSWERED_WORDS",
+          "fixture": "testdata/huawei/identity/emma_child_identity_blocks.json"
+        }
+      ],
+      "versus_sunspec": [
+        {
+          "probe": "fc03_40000_q2_marker",
+          "unit": 0,
+          "offset": 40000,
+          "outcome": "ANSWERED_WORDS",
+          "fixture": "testdata/huawei/identity/emma_negative_overlap.json"
+        },
+        {
+          "probe": "fc03_40000_q2_marker",
+          "unit": 3,
+          "offset": 40000,
+          "outcome": "ANSWERED_WORDS",
+          "fixture": "testdata/huawei/identity/emma_negative_overlap.json"
+        }
+      ],
+      "versus_inverter_units": [
+        {
+          "probe": "fc03_30000_q15_emma_offering",
+          "unit": 3,
+          "offset": 30000,
+          "outcome": "ANSWERED_TEXT",
+          "fixture": "testdata/huawei/identity/emma_child_identity_blocks.json"
+        },
+        {
+          "probe": "fc03_30222_q20_emma_model",
+          "unit": 3,
+          "offset": 30222,
+          "outcome": "ANSWERED_WORDS",
+          "fixture": "testdata/huawei/identity/emma_negative_overlap.json"
+        },
+        {
+          "probe": "fc03_30035_q15_emma_software",
+          "unit": 3,
+          "offset": 30035,
+          "outcome": "ANSWERED_TEXT",
+          "fixture": "testdata/huawei/identity/emma_child_identity_blocks.json"
+        }
+      ],
+      "readability_alone_is_never_identity": true,
+      "open_directions": [
+        "growatt_probes",
+        "smartlogger_counter_read_at_unit_100",
+        "sdongle_probes_at_inverter_unit_4"
+      ]
+    },
+    "batteries": {
+      "status": "NOT_ADMITTED",
+      "listed_in_inventory": false,
+      "addressing": "UNKNOWN",
+      "profile": "huawei.luna2000",
+      "profile_outcome": "NO_ADMISSIBLE_PROFILE"
+    },
+    "fixtures": [
+      "testdata/huawei/identity/emma_child_identity_blocks.json",
+      "testdata/huawei/identity/emma_extended_inventory.json",
+      "testdata/huawei/identity/emma_gateway_basic_reply.json",
+      "testdata/huawei/identity/emma_gateway_identity_blocks.json",
+      "testdata/huawei/identity/emma_negative_overlap.json",
+      "testdata/huawei/identity/emma_request_timing.json",
+      "testdata/huawei/identity/emma_unit100_behaviour.json"
+    ],
+    "profile_status": {
+      "outcome": "OFFLINE_IDENTITY_ADMITTED",
+      "monitoring": "NOT_ADMITTED",
+      "batteries": "NOT_ADMITTED",
+      "blocked_by": [
+        "sanitized_readonly_capability_fixture",
+        "model_specific_capability_fixture",
+        "battery_addressing_behind_gateway_fixture"
+      ]
+    }
   },
   "offline_identity_gate_registered": true,
   "catalog_registered": false,
   "automatic_runtime_admission": false,
   "support_claim": false,
+  "write_authority": false,
   "detector": {
     "registered": false,
     "executable": true,
@@ -74,10 +387,14 @@
       "presence_or_count_changed"
     ]
   },
+  "private_functions": {
+    "FC0x41": "NO_SEND",
+    "FC0x17": "NO_SEND"
+  },
   "decoder_keys": [],
   "reopen_requires": [
     "sanitized_readonly_capability_fixture",
-    "negative_overlap_with_smartlogger",
-    "model_specific_capability_fixture"
+    "model_specific_capability_fixture",
+    "battery_addressing_behind_gateway_fixture"
   ]
 }

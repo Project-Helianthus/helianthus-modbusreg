@@ -1,18 +1,15 @@
 {
-  "schema": "helianthus-modbusreg-huawei-inverter-battery-disposition/v1",
+  "schema": "helianthus-modbusreg-huawei-inverter-battery-disposition/v3",
   "profile": "huawei.luna2000",
-  "profile_version": "1.0.0",
+  "profile_version": "1.1.0",
   "outcome": "NO_ADMISSIBLE_PROFILE",
   "evidence": {
     "source_document": {
       "name": "Huawei SUN2000 MODBUS Interface Definitions",
-      "version": "UNPINNED",
-      "version_pinned": false,
       "classification": "UNVERIFIED_PROSPECTIVE_SOURCE",
       "redistributable": false,
-      "locator": "",
       "present_in_repository": false,
-      "publication_policy": "treated conservatively as vendor-copyright-inspection-only; applicability-and-licensing.md has no SUN2000 or LUNA2000 entry"
+      "publication_policy": "official vendor documentation may be consulted and cited under the applicability and licensing policy; the vendor keeps the copyright, the document is never copied here, and the registry records its identity only (title, version and date) in vendor_documentation"
     },
     "docs_modbus_page": {
       "exists": true,
@@ -22,14 +19,49 @@
       "merge_companion_first": true,
       "docs_merge_sha": "5d8a25871a9fbc48ca6e87e249b6b8603a131920"
     },
+    "monitoring_contract": {
+      "repository": "helianthus-docs-modbus",
+      "issue": 242,
+      "pull_request": 253,
+      "pages": [
+        "protocols/huawei/monitoring-readonly-v1.md",
+        "protocols/huawei/read-pacing-v1.md"
+      ],
+      "companion_required": true,
+      "companion_state": "MERGED",
+      "merge_companion_first": true
+    },
     "eligible": false,
     "missing_evidence": [
-      "pinned_vendor_document_version",
+      "pinned_vendor_document_identity",
       "companion_docs_modbus_protocol_page",
       "clean_room_sanitized_identity_fixture",
       "clean_room_sanitized_monitoring_fixture",
       "negative_overlap_with_smartlogger_emma_sdongle"
-    ]
+    ],
+    "vendor_documentation": {
+      "source_class": "OFFICIAL_VENDOR_DOCUMENTATION_ONLY",
+      "monitoring_profile_basis": [
+        "pinned_vendor_document_identity",
+        "operator_site_observation_fixtures"
+      ],
+      "consulted_documents": [],
+      "changes_outcome": false
+    }
+  },
+  "observation_pointer": {
+    "docs_contract": {
+      "repository": "helianthus-docs-modbus",
+      "issue": 241,
+      "pull_request": 243,
+      "pages": [
+        "protocols/huawei/sun2000-observed-identity-v1.md"
+      ]
+    },
+    "observation_state": "NOT_OBSERVED",
+    "fixtures": [],
+    "changes_outcome": false,
+    "changes_missing_evidence": false
   },
   "model_families": {
     "class": "LUNA2000",
@@ -80,6 +112,13 @@
         "selected_profile": "",
         "native_fact_count": 0,
         "reason": "the parent SUN2000 inverter has no positive identity, so no battery profile is selected"
+      },
+      {
+        "id": "parent_identified_battery_layout_unknown",
+        "outcome": "NO_ADMISSIBLE_PROFILE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "the parent inverter has a selected monitoring profile, but no consulted edition defines the battery group for its family, so no battery profile is selected"
       },
       {
         "id": "model_without_firmware",
@@ -152,6 +191,32 @@
     "absent_semantics": "UNKNOWN_NOT_ZERO",
     "exception_semantics": "RETAIN_LAST_KNOWN_GOOD_NO_NEGATION"
   },
+  "battery_groups": {
+    "status": "PRESENT_NOT_ADMITTED",
+    "groups": [
+      {
+        "offset": 37000,
+        "quantity": 30
+      },
+      {
+        "offset": 37066,
+        "quantity": 4
+      },
+      {
+        "offset": 47000,
+        "quantity": 1
+      }
+    ],
+    "answered_with_data_on": [
+      "SUN2000 MAP0 series"
+    ],
+    "presence_grade": "PROVEN",
+    "meanings_grade": "UNKNOWN",
+    "zero_word_rule_grade": "HYPOTHESIS",
+    "presence_word_grade": "UNKNOWN",
+    "facts_admitted": false,
+    "port_definitions": "the two consulted LUNA2000 port definitions cover commercial and utility-scale storage, not the residential packs behind the EMMA, so no battery field rests on them and no document is pinned here"
+  },
   "private_functions": {
     "FC0x41": "NO_SEND",
     "FC0x17": "NO_SEND"
@@ -163,7 +228,7 @@
   "support_claim": false,
   "write_authority": false,
   "reopen_requires": [
-    "pinned_vendor_document_version",
+    "pinned_vendor_document_identity",
     "companion_docs_modbus_protocol_page",
     "clean_room_sanitized_identity_fixture",
     "clean_room_sanitized_monitoring_fixture",

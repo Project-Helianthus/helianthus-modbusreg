@@ -17,14 +17,47 @@
       "id": "modbus-vendor-evidence-v1",
       "locator": "https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/aa67e0c2a7c2042c7c1dccad6ebe3c4900dab04f/docs/platform/manifests/modbus-vendor-evidence-v1.json",
       "license": "CC0-1.0"
+    },
+    {
+      "id": "huawei-smartlogger-observed-inventory-v1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/smartlogger-observed-inventory-v1.md",
+      "license": "CC0-1.0"
+    },
+    {
+      "id": "huawei-sun2000-observed-identity-v1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/sun2000-observed-identity-v1.md",
+      "license": "CC0-1.0"
+    },
+    {
+      "id": "huawei-gateway-power-meter-v1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/gateway-power-meter-v1.md",
+      "license": "CC0-1.0"
+    },
+    {
+      "id": "modbus-applicability-and-licensing",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/applicability-and-licensing.md",
+      "license": "CC0-1.0"
+    },
+    {
+      "id": "huawei-monitoring-readonly-v1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/monitoring-readonly-v1.md",
+      "license": "CC0-1.0"
+    },
+    {
+      "id": "huawei-read-pacing-v1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/read-pacing-v1.md",
+      "license": "CC0-1.0"
     }
   ],
   "applicability": [
     "SmartLogger documentary candidate huawei.smartlogger.v1",
     "S-Dongle documentary candidate huawei.sdongle.v1",
     "EMMA documentary candidate huawei.emma.v1",
-    "SUN2000 inverter and LUNA2000 battery: NO_ADMISSIBLE_PROFILE disposition only; no public source, register map or companion protocol page",
-    "candidate evidence only; no detector, catalog, decoder, runtime acquisition, or support admission"
+    "SUN2000 monitoring: offline profiles admitted for two exact pairs, the M3 series model behind the observed SmartLogger tuple and the M1 series model behind the observed S-Dongle tuple, each bound to the pinned SUN2000MC edition and the monitoring contract; the MAP0 series has no consulted edition and no profile; the LUNA2000 battery groups are present but not admitted and every meter stays Unknown; default denied, with no catalog registration, live qualification, support claim or write authority",
+    "SmartLogger observed tuple: self-entry model Smart Logger with one exact firmware string at gateway unit 0, exact identity only, default denied; the documentary tuples stay unobserved",
+    "SUN2000 observed identity: model SUN2000-50KTL-M3 with one exact routed firmware text, identity applicability only, default denied; the LUNA2000 group and every power meter stay Unknown",
+    "vendor documentation: a profile may rest on official vendor documentation cited by its title, version and date; one document is consulted, the SUN2000MC edition pinned in the SUN2000 disposition, and every other disposition keeps an empty identity set; observation fixtures, exact tuples and fail-closed admission stay required with every disposition default denied",
+    "candidate evidence only outside the two SUN2000 monitoring profiles; no catalog registration, runtime acquisition, or support admission"
   ],
   "license": "CC0-1.0"
 }

@@ -1,0 +1,97 @@
+{
+  "schema": "helianthus-huawei-identity-fixture/v1",
+  "kind": "mei_basic_reply",
+  "family": "EMMA",
+  "license": "CC0-1.0",
+  "provenance": "synthetic re-creation of one sanitized read-only observation",
+  "sanitization": {
+    "rule": "digit to 0, upper-case letter to X, lower-case letter to x; punctuation and length kept; placeholder values are not kept distinct between entries"
+  },
+  "answered_for_units": [
+    0,
+    3,
+    100
+  ],
+  "read": {
+    "function": "FC2B",
+    "mei_type": "0x0e",
+    "read_device_id_code": 1,
+    "start_object_id": "0x00"
+  },
+  "reply": {
+    "conformity": "0x01",
+    "more_follows": "0x00",
+    "next_object_id": "0x00",
+    "declared_objects": 14,
+    "pdu_bytes": 118,
+    "objects": [
+      {
+        "object_id": "0x00",
+        "text": "Huawei"
+      },
+      {
+        "object_id": "0x01",
+        "text": "HEMS"
+      },
+      {
+        "object_id": "0x02",
+        "text": "V100R025C00SPC131"
+      },
+      {
+        "object_id": "0x03",
+        "opaque_bytes": 2,
+        "sanitized": true
+      },
+      {
+        "object_id": "0x10",
+        "opaque_bytes": 12,
+        "sanitized": true
+      },
+      {
+        "object_id": "0x11",
+        "opaque_bytes": 2,
+        "sanitized": true
+      },
+      {
+        "object_id": "0x12",
+        "opaque_bytes": 2,
+        "sanitized": true
+      },
+      {
+        "object_id": "0x13",
+        "opaque_bytes": 2,
+        "sanitized": true
+      },
+      {
+        "object_id": "0x14",
+        "opaque_bytes": 2,
+        "sanitized": true
+      },
+      {
+        "object_id": "0x15",
+        "opaque_bytes": 2,
+        "sanitized": true
+      },
+      {
+        "object_id": "0x17",
+        "opaque_bytes": 2,
+        "sanitized": true
+      },
+      {
+        "object_id": "0x18",
+        "opaque_bytes": 8,
+        "sanitized": true
+      },
+      {
+        "object_id": "0x19",
+        "opaque_bytes": 2,
+        "sanitized": true
+      },
+      {
+        "object_id": "0x1b",
+        "opaque_bytes": 20,
+        "sanitized": true
+      }
+    ]
+  }
+}

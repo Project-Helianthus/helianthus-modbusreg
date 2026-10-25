@@ -13,31 +13,35 @@ func TestHuaweiSDongleDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 		"schema", "profile", "profile_version", "outcome", "evidence", "admission",
 		"protocol_version", "search_sequence", "capacity", "child_enumeration",
 		"private_functions", "decoder_keys", "catalog_registered",
-		"automatic_runtime_admission", "support_claim", "qualification_plan",
+		"automatic_runtime_admission", "support_claim", "write_authority", "qualification_plan", "observed_identity", "reopen_requires",
 	)
-	if record["schema"] != "helianthus-modbusreg-huawei-sdongle-disposition/v1" ||
+	if record["schema"] != "helianthus-modbusreg-huawei-sdongle-disposition/v2" ||
 		record["profile"] != "huawei.sdongle" || record["profile_version"] != "1.0.0" ||
 		record["outcome"] != "PRE_LIVE_INSUFFICIENT_EVIDENCE" || record["catalog_registered"] != false ||
-		record["automatic_runtime_admission"] != false || record["support_claim"] != false ||
+		record["automatic_runtime_admission"] != false || record["support_claim"] != false || record["write_authority"] != false ||
 		len(record["decoder_keys"].([]any)) != 0 {
 		t.Fatalf("unexpected S-Dongle disposition: %#v", record)
 	}
 
+	// The child inventory gap closes for the observed tuple and leaves the list;
+	// the product string, the protocol encoding and the EMMA overlap stay open.
 	missing := []string{
 		"sanitized_basic_mei_product_model_fixture",
 		"exact_protocol_version_encoding_fixture",
-		"separately_qualified_child_unit_inventory_fixture",
+		"pairwise_negative_overlap_with_emma_fixture",
 	}
 	evidence := huaweiObject(t, record["evidence"])
-	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "live_qualification")
+	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence",
+		"closed_evidence", "partially_closed_evidence", "unknown_after_observation", "live_qualification", "docs_contract", "vendor_documentation")
 	if evidence["docs_merge_sha"] != sdongleDocsMergeSHA || evidence["candidate_id"] != "huawei.sdongle.v1" ||
 		evidence["source_license"] != "CC0-1.0" || evidence["eligible"] != false ||
 		!reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), missing) {
 		t.Fatalf("unexpected S-Dongle evidence: %#v", evidence)
 	}
 	live := huaweiObject(t, evidence["live_qualification"])
-	requireHuaweiKeys(t, live, "status", "identification_claim", "incompatibility_claim", "subsequent_modbus_requests_sent", "attempts", "retry_matrix")
-	if live["status"] != "LIVE_STOPPED_PERSISTENT_NON_RESPONSE" ||
+	requireHuaweiKeys(t, live, "status", "recorded_status", "superseded_by", "identification_claim", "incompatibility_claim", "subsequent_modbus_requests_sent", "attempts", "retry_matrix")
+	if live["status"] != "SUPERSEDED_FOR_OBSERVED_IDENTITY" || live["recorded_status"] != "LIVE_STOPPED_PERSISTENT_NON_RESPONSE" ||
+		live["superseded_by"] != "observed_identity" ||
 		live["identification_claim"] != false || live["incompatibility_claim"] != false ||
 		huaweiInt(t, live["subsequent_modbus_requests_sent"]) != 0 {
 		t.Fatalf("unexpected S-Dongle live qualification: %#v", live)
@@ -157,8 +161,8 @@ func TestHuaweiSDongleDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 
 	plan := huaweiObject(t, record["qualification_plan"])
 	requireHuaweiKeys(t, plan, "status", "read_only", "live_io_performed", "further_live_io", "operator_confirmation_required", "required_connection_context", "capture_sequence", "redact", "promotion_outcomes")
-	if plan["status"] != "LIVE_STOPPED_PERSISTENT_NON_RESPONSE" || plan["read_only"] != true ||
-		plan["live_io_performed"] != true || plan["further_live_io"] != "HARD_STOP" || plan["operator_confirmation_required"] != true ||
+	if plan["status"] != "HARD_STOP_SUPERSEDED_FOR_OBSERVED_IDENTITY" || plan["read_only"] != true ||
+		plan["live_io_performed"] != true || plan["further_live_io"] != "OPERATOR_APPROVAL_AT_ACTION_TIME" || plan["operator_confirmation_required"] != true ||
 		!reflect.DeepEqual(huaweiStringSlice(t, plan["required_connection_context"]), []string{
 			"endpoint", "port", "unit_id", "topology",
 		}) ||

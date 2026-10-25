@@ -1,0 +1,48 @@
+{
+  "schema": "helianthus-huawei-sdongle-observed-replay-expected/v1",
+  "card_id": "huawei.qualification.sdongle.observed-readonly@1.0.0",
+  "status": "QUALIFICATION_TEST_READY",
+  "reason": "IDENTITY_INVENTORY_MATCHED",
+  "selected_class": "S-Dongle",
+  "gateway": {
+    "unit": 100,
+    "basic_identification": {"outcome": "exception", "code": 1},
+    "search": {"type": 4, "state": 0, "sequence_equal_before_after": true},
+    "protocol_words": [50, 0],
+    "capacity_covers_children": true
+  },
+  "child": {
+    "unit": 1,
+    "model": "SUN2000-8KTL-M1",
+    "model_block_residue_bytes": 12,
+    "basic_identification": {"vendor": "Huawei", "product": "SUN2000", "opaque_extra_objects": 3},
+    "inventory": {
+      "pages": 1,
+      "entries": 1,
+      "entry_bytes": 75,
+      "entry_padding_bytes": 0,
+      "entry_unit": "1",
+      "retained_child_list": false
+    }
+  },
+  "page_anomalies": {
+    "oversize_responses": 0,
+    "declared_object_field_differs": 0,
+    "next_object_without_continuation": 1
+  },
+  "first_request_timeout": {"recorded": true, "required": false},
+  "missing_evidence": [
+    "sanitized_basic_mei_product_model_fixture",
+    "exact_protocol_version_encoding_fixture",
+    "pairwise_negative_overlap_with_emma_fixture"
+  ],
+  "hardware_test_ready": false,
+  "live_qualified": false,
+  "automatic_request_count": 0,
+  "native_fact_count": 0,
+  "default_denied": true,
+  "catalog_registered": false,
+  "automatic_runtime_admission": false,
+  "support_claim": false,
+  "write_authority": false
+}

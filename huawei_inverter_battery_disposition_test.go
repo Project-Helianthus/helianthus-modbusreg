@@ -1,6 +1,7 @@
 package modbusreg
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,6 +14,8 @@ type huaweiInverterBatteryCase struct {
 	name       string
 	path       string
 	profile    string
+	version    string
+	outcome    string
 	class      string
 	optional   bool
 	rowsWanted []string
@@ -22,27 +25,32 @@ func huaweiInverterBatteryCases() []huaweiInverterBatteryCase {
 	return []huaweiInverterBatteryCase{
 		{
 			name: "SUN2000", path: "profiles/vendor/huawei/sun2000-disposition.json",
-			profile: "huawei.sun2000", class: "SUN2000", optional: false,
+			profile: "huawei.sun2000", version: "2.0.0", outcome: "OFFLINE_PROFILE_ADMITTED", class: "SUN2000", optional: false,
 			rowsWanted: []string{
 				"no_identity_evidence",
+				"gateway_identity_not_matched",
 				"gateway_inventory_child_model_only",
-				"model_without_firmware",
-				"firmware_without_model",
+				"unit_not_routed",
 				"serial_or_esn_only",
 				"register_readability_only",
-				"battery_group_absent",
-				"battery_group_exception",
+				"listing_model_conflict",
+				"model_prefix_or_wildcard",
+				"model_behind_another_gateway_path",
+				"family_without_consulted_edition",
+				"document_identity_mismatch",
 				"multiple_positive_candidates",
-				"exact_identity_with_pinned_register_map",
+				"exact_m3_pair_behind_smartlogger",
+				"exact_m1_pair_behind_sdongle",
 			},
 		},
 		{
 			name: "LUNA2000", path: "profiles/vendor/huawei/luna2000-disposition.json",
-			profile: "huawei.luna2000", class: "LUNA2000", optional: true,
+			profile: "huawei.luna2000", version: "1.1.0", outcome: "NO_ADMISSIBLE_PROFILE", class: "LUNA2000", optional: true,
 			rowsWanted: []string{
 				"no_identity_evidence",
 				"gateway_inventory_child_model_only",
 				"parent_inverter_unidentified",
+				"parent_identified_battery_layout_unknown",
 				"model_without_firmware",
 				"serial_or_esn_only",
 				"register_readability_only",
@@ -55,79 +63,107 @@ func huaweiInverterBatteryCases() []huaweiInverterBatteryCase {
 	}
 }
 
-func TestHuaweiInverterBatteryDispositionsFailClosedWithoutEvidence(t *testing.T) {
+func huaweiRequireMonitoringContract(t *testing.T, value any) {
+	t.Helper()
+	contract := huaweiObject(t, value)
+	requireHuaweiKeys(t, contract, "repository", "issue", "pull_request", "pages", "companion_required", "companion_state", "merge_companion_first")
+	if contract["repository"] != "helianthus-docs-modbus" || huaweiInt(t, contract["issue"]) != 242 || huaweiInt(t, contract["pull_request"]) != 253 ||
+		!reflect.DeepEqual(huaweiStringSlice(t, contract["pages"]), []string{"protocols/huawei/monitoring-readonly-v1.md", "protocols/huawei/read-pacing-v1.md"}) ||
+		contract["companion_required"] != true || contract["companion_state"] != "MERGED" || contract["merge_companion_first"] != true {
+		t.Fatalf("unexpected monitoring contract pointer: %#v", contract)
+	}
+}
+
+func TestHuaweiInverterBatteryDispositionsKeepAuthorityClosed(t *testing.T) {
 	for _, tc := range huaweiInverterBatteryCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			record := decodeHuaweiObject(t, tc.path)
-			requireHuaweiKeys(t, record,
+			keys := []string{
 				"schema", "profile", "profile_version", "outcome", "evidence", "model_families",
 				"firmware_ranges", "capability_detection", "registers", "optional_groups",
 				"private_functions", "writes", "decoder_keys", "catalog_registered",
-				"automatic_runtime_admission", "support_claim", "write_authority", "reopen_requires",
-			)
-			if record["schema"] != "helianthus-modbusreg-huawei-inverter-battery-disposition/v1" ||
-				record["profile"] != tc.profile || record["profile_version"] != "1.0.0" ||
-				record["outcome"] != "NO_ADMISSIBLE_PROFILE" || record["catalog_registered"] != false ||
+				"automatic_runtime_admission", "support_claim", "write_authority", "reopen_requires", "observation_pointer",
+			}
+			if tc.optional {
+				keys = append(keys, "battery_groups")
+			} else {
+				keys = append(keys, "monitoring_profiles", "version_gate", "battery_groups", "meters", "live_qualified")
+			}
+			requireHuaweiKeys(t, record, keys...)
+			if record["schema"] != "helianthus-modbusreg-huawei-inverter-battery-disposition/v3" ||
+				record["profile"] != tc.profile || record["profile_version"] != tc.version ||
+				record["outcome"] != tc.outcome || record["catalog_registered"] != false ||
 				record["automatic_runtime_admission"] != false || record["support_claim"] != false ||
-				record["write_authority"] != false || record["writes"] != "DEFAULT_DENY" ||
-				len(record["decoder_keys"].([]any)) != 0 {
+				record["write_authority"] != false || record["writes"] != "DEFAULT_DENY" {
 				t.Fatalf("unexpected %s disposition: %#v", tc.name, record)
+			}
+			if live, ok := record["live_qualified"]; ok && live != false {
+				t.Fatalf("%s claims live qualification", tc.name)
 			}
 
 			evidence := huaweiObject(t, record["evidence"])
-			requireHuaweiKeys(t, evidence, "source_document", "docs_modbus_page", "eligible", "missing_evidence")
+			requireHuaweiKeys(t, evidence, "source_document", "docs_modbus_page", "monitoring_contract", "eligible", "missing_evidence", "vendor_documentation")
+			huaweiRequireMonitoringContract(t, evidence["monitoring_contract"])
 			source := huaweiObject(t, evidence["source_document"])
-			requireHuaweiKeys(t, source, "name", "version", "version_pinned", "classification", "present_in_repository", "publication_policy", "redistributable", "locator")
-			if source["name"] != "Huawei SUN2000 MODBUS Interface Definitions" || source["version"] != "UNPINNED" ||
-				source["version_pinned"] != false || source["classification"] != "UNVERIFIED_PROSPECTIVE_SOURCE" || source["present_in_repository"] != false ||
-				!strings.Contains(source["publication_policy"].(string), "no SUN2000 or LUNA2000 entry") ||
-				source["redistributable"] != false || source["locator"] != "" {
+			requireHuaweiKeys(t, source, "name", "classification", "present_in_repository", "publication_policy", "redistributable")
+			wantName, wantClass := "Huawei SUN2000 MODBUS Interface Definitions", "UNVERIFIED_PROSPECTIVE_SOURCE"
+			if !tc.optional {
+				wantName, wantClass = huaweiSUN2000MCEdition.Title, "CONSULTED_OFFICIAL_EDITION"
+			}
+			if source["name"] != wantName || source["classification"] != wantClass || source["present_in_repository"] != false ||
+				!strings.Contains(source["publication_policy"].(string), "official vendor documentation may be consulted and cited") ||
+				!strings.Contains(source["publication_policy"].(string), "identity only (title, version and date)") ||
+				source["redistributable"] != false {
 				t.Fatalf("unexpected source document: %#v", source)
 			}
 			page := huaweiObject(t, evidence["docs_modbus_page"])
 			requireHuaweiKeys(t, page, "exists", "path", "companion_required", "companion_state", "merge_companion_first", "docs_merge_sha")
 			if page["exists"] != true || page["path"] != "protocols/huawei/inverter-battery-readonly-v1.md" ||
-				page["companion_required"] != true || page["companion_state"] != "MERGED" || page["docs_merge_sha"] != "5d8a25871a9fbc48ca6e87e249b6b8603a131920" || page["merge_companion_first"] != true || evidence["eligible"] != false {
+				page["companion_required"] != true || page["companion_state"] != "MERGED" || page["docs_merge_sha"] != "5d8a25871a9fbc48ca6e87e249b6b8603a131920" || page["merge_companion_first"] != true ||
+				evidence["eligible"] != !tc.optional {
 				t.Fatalf("unexpected docs-modbus page state: %#v", page)
 			}
 			missing := huaweiStringSlice(t, evidence["missing_evidence"])
-			for _, name := range []string{
-				"pinned_vendor_document_version",
-				"companion_docs_modbus_protocol_page",
-				"clean_room_sanitized_identity_fixture",
-				"clean_room_sanitized_monitoring_fixture",
-				"negative_overlap_with_smartlogger_emma_sdongle",
-			} {
-				if !containsString(missing, name) {
-					t.Fatalf("missing_evidence lacks %q: %v", name, missing)
+			wantMissing := []string{"pinned_vendor_document_identity"}
+			if tc.optional {
+				wantMissing = []string{
+					"pinned_vendor_document_identity",
+					"companion_docs_modbus_protocol_page",
+					"clean_room_sanitized_identity_fixture",
+					"clean_room_sanitized_monitoring_fixture",
+					"negative_overlap_with_smartlogger_emma_sdongle",
 				}
 			}
-			if !reflect.DeepEqual(huaweiStringSlice(t, record["reopen_requires"]), missing) {
-				t.Fatalf("reopen_requires diverges from missing_evidence")
+			if !reflect.DeepEqual(missing, wantMissing) || !reflect.DeepEqual(huaweiStringSlice(t, record["reopen_requires"]), missing) {
+				t.Fatalf("missing_evidence=%v reopen_requires=%v want %v", missing, record["reopen_requires"], wantMissing)
 			}
 
 			families := huaweiObject(t, record["model_families"])
 			requireHuaweiKeys(t, families, "class", "covered", "unsupported")
 			ranges := huaweiObject(t, record["firmware_ranges"])
-			requireHuaweiKeys(t, ranges, "covered", "unsupported")
-			if families["class"] != tc.class || len(families["covered"].([]any)) != 0 || families["unsupported"] != "ALL" ||
-				len(ranges["covered"].([]any)) != 0 || ranges["unsupported"] != "ALL" {
-				t.Fatalf("a model family or firmware range was claimed: %#v %#v", families, ranges)
+			if families["class"] != tc.class || len(h03Array(t, ranges["covered"])) != 0 {
+				t.Fatalf("unexpected coverage: %#v %#v", families, ranges)
+			}
+			if tc.optional {
+				requireHuaweiKeys(t, ranges, "covered", "unsupported")
+				if len(h03Array(t, families["covered"])) != 0 || families["unsupported"] != "ALL" || ranges["unsupported"] != "ALL" ||
+					len(h03Array(t, record["decoder_keys"])) != 0 {
+					t.Fatalf("a LUNA2000 family, firmware range or decoder was claimed: %#v %#v", families, ranges)
+				}
+			} else {
+				requireHuaweiKeys(t, ranges, "covered", "predicate", "reason")
+				if !reflect.DeepEqual(huaweiStringSlice(t, families["covered"]), []string{huaweiSUN2000M3Family, huaweiSUN2000M1Family}) ||
+					families["unsupported"] != "ALL_OTHER_FAMILIES" || ranges["predicate"] != false {
+					t.Fatalf("unexpected SUN2000 coverage: %#v %#v", families, ranges)
+				}
 			}
 
 			registers := huaweiObject(t, record["registers"])
-			requireHuaweiKeys(t, registers, "evidence_backed", "candidate", "unknown")
-			if len(registers["evidence_backed"].([]any)) != 0 || len(registers["candidate"].([]any)) != 0 {
-				t.Fatalf("registers claimed without admissible evidence: %#v", registers)
+			if len(h03Array(t, registers["candidate"])) != 0 {
+				t.Fatalf("candidate registers claimed: %#v", registers)
 			}
-			unknown := huaweiStringSlice(t, registers["unknown"])
-			for _, name := range []string{
-				"model_identity", "firmware_identity", "unit_identity", "monitoring_registers",
-				"scale_and_unit", "access_mode", "availability_markers",
-			} {
-				if !containsString(unknown, name) {
-					t.Fatalf("unknown registers lack %q: %v", name, unknown)
-				}
+			if tc.optional && len(h03Array(t, registers["evidence_backed"])) != 0 {
+				t.Fatalf("LUNA2000 registers claimed: %#v", registers)
 			}
 
 			optional := huaweiObject(t, record["optional_groups"])
@@ -153,22 +189,42 @@ func TestHuaweiInverterBatteryDispositionsFailClosedWithoutEvidence(t *testing.T
 	}
 }
 
+func TestHuaweiBatteryGroupsArePresentButNotAdmitted(t *testing.T) {
+	luna := huaweiObject(t, decodeHuaweiObject(t, "profiles/vendor/huawei/luna2000-disposition.json")["battery_groups"])
+	requireHuaweiKeys(t, luna, "status", "groups", "answered_with_data_on", "presence_grade", "meanings_grade", "zero_word_rule_grade",
+		"presence_word_grade", "facts_admitted", "port_definitions")
+	var groups []string
+	for _, value := range h03Array(t, luna["groups"]) {
+		group := huaweiObject(t, value)
+		groups = append(groups, fmt.Sprintf("%d/%d", huaweiInt(t, group["offset"]), huaweiInt(t, group["quantity"])))
+	}
+	if luna["status"] != "PRESENT_NOT_ADMITTED" || !reflect.DeepEqual(groups, []string{"37000/30", "37066/4", "47000/1"}) ||
+		!reflect.DeepEqual(huaweiStringSlice(t, luna["answered_with_data_on"]), []string{"SUN2000 MAP0 series"}) ||
+		luna["presence_grade"] != "PROVEN" || luna["meanings_grade"] != "UNKNOWN" || luna["zero_word_rule_grade"] != "HYPOTHESIS" ||
+		luna["presence_word_grade"] != "UNKNOWN" || luna["facts_admitted"] != false {
+		t.Fatalf("LUNA2000 battery groups: %#v", luna)
+	}
+	sun := decodeHuaweiObject(t, "profiles/vendor/huawei/sun2000-disposition.json")
+	battery := huaweiObject(t, sun["battery_groups"])
+	meters := huaweiObject(t, sun["meters"])
+	if battery["admitted"] != false || meters["admitted"] != false || meters["grade"] != "UNKNOWN" ||
+		!reflect.DeepEqual(huaweiStringSlice(t, battery["zero_word_on"]), []string{huaweiSUN2000M3Family, huaweiSUN2000M1Family}) {
+		t.Fatalf("SUN2000 battery or meter record: %#v %#v", battery, meters)
+	}
+	for _, key := range huaweiStringSlice(t, sun["decoder_keys"]) {
+		for _, token := range []string{"battery", "soc", "meter", "grid"} {
+			if strings.Contains(key, token) {
+				t.Fatalf("decoder key %s admits a battery or meter fact", key)
+			}
+		}
+	}
+}
+
 func TestHuaweiInverterBatteryCapabilityDetectionDecisionTable(t *testing.T) {
 	for _, tc := range huaweiInverterBatteryCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			record := decodeHuaweiObject(t, tc.path)
 			detection := huaweiObject(t, record["capability_detection"])
-			requireHuaweiKeys(t, detection, "positive_identity_required", "forbidden_identity",
-				"default_outcome", "multiple_positive_outcome", "first_match_priority", "executable", "rows")
-			if detection["default_outcome"] != "INSUFFICIENT_EVIDENCE" || detection["multiple_positive_outcome"] != "AMBIGUOUS" ||
-				detection["first_match_priority"] != false || detection["executable"] != false {
-				t.Fatalf("unexpected detection policy: %#v", detection)
-			}
-			if !reflect.DeepEqual(huaweiStringSlice(t, detection["positive_identity_required"]), []string{
-				"exact_model_identity", "exact_firmware_identity", "unit_identity", "pinned_register_map",
-			}) {
-				t.Fatalf("unexpected positive identity tuple: %#v", detection["positive_identity_required"])
-			}
 			forbidden := huaweiStringSlice(t, detection["forbidden_identity"])
 			for _, name := range []string{
 				"serial_number", "esn", "writable_alias", "register_readability",
@@ -178,37 +234,44 @@ func TestHuaweiInverterBatteryCapabilityDetectionDecisionTable(t *testing.T) {
 					t.Fatalf("forbidden identity lacks %q: %v", name, forbidden)
 				}
 			}
-
-			rows, ok := detection["rows"].([]any)
-			if !ok {
-				t.Fatalf("rows is not an array")
+			if detection["default_outcome"] != "INSUFFICIENT_EVIDENCE" || detection["multiple_positive_outcome"] != "AMBIGUOUS" ||
+				detection["first_match_priority"] != false {
+				t.Fatalf("unexpected detection policy: %#v", detection)
 			}
+			if tc.optional {
+				requireHuaweiKeys(t, detection, "positive_identity_required", "forbidden_identity",
+					"default_outcome", "multiple_positive_outcome", "first_match_priority", "executable", "rows")
+				if detection["executable"] != false || !reflect.DeepEqual(huaweiStringSlice(t, detection["positive_identity_required"]), []string{
+					"exact_model_identity", "exact_firmware_identity", "unit_identity", "pinned_register_map",
+				}) {
+					t.Fatalf("unexpected LUNA2000 detection: %#v", detection)
+				}
+			} else {
+				requireHuaweiKeys(t, detection, "positive_identity_required", "not_predicates", "forbidden_identity",
+					"default_outcome", "multiple_positive_outcome", "first_match_priority", "executable", "rows")
+				if detection["executable"] != true || !reflect.DeepEqual(huaweiStringSlice(t, detection["positive_identity_required"]), []string{
+					"observed_gateway_identity_card", "routed_unit", "exact_routed_model_string", "pinned_document_identity",
+				}) || !reflect.DeepEqual(huaweiStringSlice(t, detection["not_predicates"]), []string{"firmware_identity"}) {
+					t.Fatalf("unexpected SUN2000 detection: %#v", detection)
+				}
+			}
+
 			var ids []string
-			for _, value := range rows {
+			for _, value := range h03Array(t, detection["rows"]) {
 				row := huaweiObject(t, value)
 				requireHuaweiKeys(t, row, "id", "outcome", "selected_profile", "native_fact_count", "reason")
 				id, _ := row["id"].(string)
 				ids = append(ids, id)
-				if row["selected_profile"] != "" || huaweiInt(t, row["native_fact_count"]) != 0 {
-					t.Fatalf("row %q selects a profile or emits facts: %#v", id, row)
+				selected := row["selected_profile"] != ""
+				if selected != (row["outcome"] == "PROFILE_SELECTED") || selected != (huaweiInt(t, row["native_fact_count"]) > 0) {
+					t.Fatalf("row %q mixes selection and facts: %#v", id, row)
 				}
-				want := "INSUFFICIENT_EVIDENCE"
-				switch id {
-				case "multiple_positive_candidates":
-					want = "AMBIGUOUS"
-				case "exact_identity_with_pinned_register_map":
-					want = "NO_ADMISSIBLE_PROFILE"
-				}
-				if row["outcome"] != want {
-					t.Fatalf("row %q outcome=%v want %s", id, row["outcome"], want)
+				if tc.optional && (selected || (row["outcome"] != "INSUFFICIENT_EVIDENCE" && row["outcome"] != "AMBIGUOUS" && row["outcome"] != "NO_ADMISSIBLE_PROFILE")) {
+					t.Fatalf("LUNA2000 row %q selects: %#v", id, row)
 				}
 			}
-			sortedIDs := append([]string(nil), ids...)
-			sort.Strings(sortedIDs)
-			wantIDs := append([]string(nil), tc.rowsWanted...)
-			sort.Strings(wantIDs)
-			if !reflect.DeepEqual(sortedIDs, wantIDs) {
-				t.Fatalf("decision-table rows=%v want=%v", sortedIDs, wantIDs)
+			if !reflect.DeepEqual(ids, tc.rowsWanted) {
+				t.Fatalf("decision-table rows=%v want=%v", ids, tc.rowsWanted)
 			}
 		})
 	}
@@ -240,6 +303,10 @@ func TestHuaweiInverterBatteryProfilesAreNotRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Only the two monitoring files name a SUN2000 profile, and only by the
+	// two exact profile identifiers and their decoder keys. No LUNA2000 profile
+	// is named anywhere.
+	allowed := map[string]bool{"huawei_sun2000_monitoring.go": true, "huawei_sun2000_capability.go": true}
 	for _, file := range files {
 		if strings.HasSuffix(file, "_test.go") {
 			continue
@@ -249,15 +316,34 @@ func TestHuaweiInverterBatteryProfilesAreNotRegistered(t *testing.T) {
 			t.Fatal(err)
 		}
 		lower := strings.ToLower(string(data))
-		for _, token := range []string{"huawei.sun2000", "huawei.luna2000"} {
-			if strings.Contains(lower, token) {
-				t.Fatalf("%s registers or names %s", file, token)
+		if strings.Contains(lower, "huawei.luna2000") {
+			t.Fatalf("%s registers or names huawei.luna2000", file)
+		}
+		if !strings.Contains(lower, "huawei.sun2000") {
+			continue
+		}
+		if !allowed[file] {
+			t.Fatalf("%s registers or names huawei.sun2000", file)
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			index := strings.Index(line, "huawei.sun2000")
+			if index < 0 {
+				continue
+			}
+			rest := line[index:]
+			if !strings.HasPrefix(rest, "huawei.sun2000.m3.") && !strings.HasPrefix(rest, "huawei.sun2000.m1.") {
+				t.Fatalf("%s names a SUN2000 profile outside the two exact families: %q", file, strings.TrimSpace(line))
 			}
 		}
 	}
 	for _, token := range []string{"sun2000", "luna2000"} {
 		if strings.Contains(strings.ToLower(string(closure)), token) {
 			t.Fatalf("mixed catalog closure admits %s", token)
+		}
+	}
+	for _, profile := range HuaweiSUN2000MonitoringProfiles() {
+		if profile.CatalogRegistered() || profile.AutomaticRuntimeAdmission() || profile.LiveQualified() || profile.SupportClaim() || profile.WriteAuthority() {
+			t.Fatalf("%s grants authority", profile.ID())
 		}
 	}
 }

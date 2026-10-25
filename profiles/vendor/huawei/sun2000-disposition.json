@@ -1,18 +1,15 @@
 {
-  "schema": "helianthus-modbusreg-huawei-inverter-battery-disposition/v1",
+  "schema": "helianthus-modbusreg-huawei-inverter-battery-disposition/v3",
   "profile": "huawei.sun2000",
-  "profile_version": "1.0.0",
-  "outcome": "NO_ADMISSIBLE_PROFILE",
+  "profile_version": "2.0.0",
+  "outcome": "OFFLINE_PROFILE_ADMITTED",
   "evidence": {
     "source_document": {
-      "name": "Huawei SUN2000 MODBUS Interface Definitions",
-      "version": "UNPINNED",
-      "version_pinned": false,
-      "classification": "UNVERIFIED_PROSPECTIVE_SOURCE",
+      "name": "SUN2000MC V200R023C00 Modbus Interface Definitions",
+      "classification": "CONSULTED_OFFICIAL_EDITION",
       "redistributable": false,
-      "locator": "",
       "present_in_repository": false,
-      "publication_policy": "treated conservatively as vendor-copyright-inspection-only; applicability-and-licensing.md has no SUN2000 or LUNA2000 entry"
+      "publication_policy": "official vendor documentation may be consulted and cited under the applicability and licensing policy; the vendor keeps the copyright, the document is never copied here, and the registry records its identity only (title, version and date) in vendor_documentation"
     },
     "docs_modbus_page": {
       "exists": true,
@@ -22,30 +19,392 @@
       "merge_companion_first": true,
       "docs_merge_sha": "5d8a25871a9fbc48ca6e87e249b6b8603a131920"
     },
-    "eligible": false,
+    "monitoring_contract": {
+      "repository": "helianthus-docs-modbus",
+      "issue": 242,
+      "pull_request": 253,
+      "pages": [
+        "protocols/huawei/monitoring-readonly-v1.md",
+        "protocols/huawei/read-pacing-v1.md"
+      ],
+      "companion_required": true,
+      "companion_state": "MERGED",
+      "merge_companion_first": true
+    },
+    "eligible": true,
     "missing_evidence": [
-      "pinned_vendor_document_version",
-      "companion_docs_modbus_protocol_page",
-      "clean_room_sanitized_identity_fixture",
-      "clean_room_sanitized_monitoring_fixture",
-      "negative_overlap_with_smartlogger_emma_sdongle"
-    ]
+      "pinned_vendor_document_identity"
+    ],
+    "vendor_documentation": {
+      "source_class": "OFFICIAL_VENDOR_DOCUMENTATION_ONLY",
+      "monitoring_profile_basis": [
+        "pinned_vendor_document_identity",
+        "operator_site_observation_fixtures"
+      ],
+      "consulted_documents": [
+        {
+          "title": "SUN2000MC V200R023C00 Modbus Interface Definitions",
+          "version": "Issue 01",
+          "date": "2023-03-17"
+        }
+      ],
+      "changes_outcome": false
+    }
+  },
+  "observation_pointer": {
+    "docs_contract": {
+      "repository": "helianthus-docs-modbus",
+      "issue": 241,
+      "pull_request": 243,
+      "pages": [
+        "protocols/huawei/sun2000-observed-identity-v1.md",
+        "protocols/huawei/smartlogger-observed-inventory-v1.md"
+      ]
+    },
+    "observation_state": "OBSERVED_IDENTITY_BEHIND_GATEWAY",
+    "fixtures": [
+      "testdata/huawei/identity/smartlogger_extended_inventory.json",
+      "testdata/huawei/identity/sun2000_routed_identity.json"
+    ],
+    "changes_outcome": false,
+    "changes_missing_evidence": false
   },
   "model_families": {
     "class": "SUN2000",
-    "covered": [],
-    "unsupported": "ALL"
+    "covered": [
+      "SUN2000 M3 series",
+      "SUN2000 M1 series"
+    ],
+    "unsupported": "ALL_OTHER_FAMILIES"
   },
   "firmware_ranges": {
     "covered": [],
-    "unsupported": "ALL"
+    "predicate": false,
+    "reason": "the routed firmware texts differ by family and the cause of the power-group refusal is Unknown, so no firmware range is claimed and firmware never selects a profile"
+  },
+  "monitoring_profiles": [
+    {
+      "family": "SUN2000 M3 series",
+      "gateway_path": "SmartLogger",
+      "identity_card": "huawei.qualification.smartlogger.observed-readonly@1.0.0",
+      "routed_units": "LISTED_INVERTER_UNITS_IN_THE_VALIDATED_LISTING",
+      "model": "SUN2000-50KTL-M3",
+      "profile_id": "huawei.sun2000.m3.monitoring-readonly@1.0.0",
+      "outcome": "OFFLINE_PROFILE_ADMITTED",
+      "document": {
+        "title": "SUN2000MC V200R023C00 Modbus Interface Definitions",
+        "version": "Issue 01",
+        "date": "2023-03-17"
+      },
+      "edition_binding": "EDITION_SUPPORTED_MODEL_TABLE",
+      "observed_units": [
+        1,
+        2
+      ],
+      "read_plan": [
+        {
+          "offset": 32000,
+          "quantity": 16,
+          "use": "RETAINED_NO_FACTS"
+        },
+        {
+          "offset": 32016,
+          "quantity": 24,
+          "use": "CONSUMED"
+        },
+        {
+          "offset": 32106,
+          "quantity": 10,
+          "use": "CONSUMED"
+        }
+      ],
+      "refused_groups": [
+        {
+          "offset": 32064,
+          "quantity": 32,
+          "exception": 3,
+          "cause": "UNKNOWN"
+        },
+        {
+          "offset": 37100,
+          "quantity": 38,
+          "exception": 3,
+          "cause": "HYPOTHESIS"
+        }
+      ],
+      "facts": [
+        {
+          "key": "pv_string_voltage",
+          "offset": 32016,
+          "stride": 2,
+          "count": 8,
+          "type": "I16",
+          "gain": 10,
+          "unit": "V",
+          "sign": "TWOS_COMPLEMENT",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "pv_string_current",
+          "offset": 32017,
+          "stride": 2,
+          "count": 8,
+          "type": "I16",
+          "gain": 100,
+          "unit": "A",
+          "sign": "TWOS_COMPLEMENT",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "energy_accumulated",
+          "offset": 32106,
+          "stride": 0,
+          "count": 1,
+          "type": "U32",
+          "gain": 100,
+          "unit": "kWh",
+          "sign": "UNSIGNED",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "energy_current_hour",
+          "offset": 32112,
+          "stride": 0,
+          "count": 1,
+          "type": "U32",
+          "gain": 100,
+          "unit": "kWh",
+          "sign": "UNSIGNED",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "energy_current_day",
+          "offset": 32114,
+          "stride": 0,
+          "count": 1,
+          "type": "U32",
+          "gain": 100,
+          "unit": "kWh",
+          "sign": "UNSIGNED",
+          "grade": "HYPOTHESIS"
+        }
+      ],
+      "withheld": [
+        "input_power",
+        "active_power",
+        "device_status",
+        "battery",
+        "meter"
+      ],
+      "fixture": "testdata/huawei/monitoring/sun2000_m3_smartlogger_monitoring.json",
+      "missing_evidence": []
+    },
+    {
+      "family": "SUN2000 M1 series",
+      "gateway_path": "S-Dongle",
+      "identity_card": "huawei.qualification.sdongle.observed-readonly@1.0.0",
+      "routed_units": "THE_OBSERVED_CHILD_UNIT",
+      "model": "SUN2000-8KTL-M1",
+      "profile_id": "huawei.sun2000.m1.monitoring-readonly@1.0.0",
+      "outcome": "OFFLINE_PROFILE_ADMITTED",
+      "document": {
+        "title": "SUN2000MC V200R023C00 Modbus Interface Definitions",
+        "version": "Issue 01",
+        "date": "2023-03-17"
+      },
+      "edition_binding": "EDITION_LAYOUT_LIVE_CHECKED",
+      "observed_units": [
+        1
+      ],
+      "read_plan": [
+        {
+          "offset": 32000,
+          "quantity": 16,
+          "use": "RETAINED_NO_FACTS"
+        },
+        {
+          "offset": 32016,
+          "quantity": 24,
+          "use": "CONSUMED"
+        },
+        {
+          "offset": 32064,
+          "quantity": 32,
+          "use": "CONSUMED"
+        },
+        {
+          "offset": 32106,
+          "quantity": 10,
+          "use": "CONSUMED"
+        }
+      ],
+      "refused_groups": [],
+      "facts": [
+        {
+          "key": "pv_string_voltage",
+          "offset": 32016,
+          "stride": 2,
+          "count": 8,
+          "type": "I16",
+          "gain": 10,
+          "unit": "V",
+          "sign": "TWOS_COMPLEMENT",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "pv_string_current",
+          "offset": 32017,
+          "stride": 2,
+          "count": 8,
+          "type": "I16",
+          "gain": 100,
+          "unit": "A",
+          "sign": "TWOS_COMPLEMENT",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "input_power",
+          "offset": 32064,
+          "stride": 0,
+          "count": 1,
+          "type": "I32",
+          "gain": 1000,
+          "unit": "kW",
+          "sign": "TWOS_COMPLEMENT",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "active_power",
+          "offset": 32080,
+          "stride": 0,
+          "count": 1,
+          "type": "I32",
+          "gain": 1000,
+          "unit": "kW",
+          "sign": "POSITIVE_WHILE_PRODUCING_NEGATIVE_UNKNOWN",
+          "grade": "PROVEN"
+        },
+        {
+          "key": "device_status",
+          "offset": 32089,
+          "stride": 0,
+          "count": 1,
+          "type": "U16",
+          "gain": 1,
+          "unit": "",
+          "sign": "OBSERVED_CODE_ONLY",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "energy_accumulated",
+          "offset": 32106,
+          "stride": 0,
+          "count": 1,
+          "type": "U32",
+          "gain": 100,
+          "unit": "kWh",
+          "sign": "UNSIGNED",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "energy_current_hour",
+          "offset": 32112,
+          "stride": 0,
+          "count": 1,
+          "type": "U32",
+          "gain": 100,
+          "unit": "kWh",
+          "sign": "UNSIGNED",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "energy_current_day",
+          "offset": 32114,
+          "stride": 0,
+          "count": 1,
+          "type": "U32",
+          "gain": 100,
+          "unit": "kWh",
+          "sign": "UNSIGNED",
+          "grade": "HYPOTHESIS"
+        }
+      ],
+      "withheld": [
+        "battery",
+        "meter"
+      ],
+      "fixture": "testdata/huawei/monitoring/sun2000_m1_sdongle_monitoring.json",
+      "missing_evidence": []
+    },
+    {
+      "family": "SUN2000 MAP0 series",
+      "gateway_path": "EMMA",
+      "outcome": "NO_ADMISSIBLE_PROFILE",
+      "reason": "no_consulted_edition",
+      "missing_evidence": [
+        "pinned_vendor_document_identity"
+      ]
+    }
+  ],
+  "version_gate": {
+    "group": {
+      "offset": 32064,
+      "quantity": 32
+    },
+    "refused_on": [
+      "SUN2000 M3 series",
+      "SUN2000 MAP0 series"
+    ],
+    "answered_on": [
+      "SUN2000 M1 series"
+    ],
+    "cause": "UNKNOWN",
+    "fail_closed": true,
+    "candidate_extents": [
+      {
+        "offset": 32064,
+        "quantity": 31,
+        "grade": "UNKNOWN"
+      },
+      {
+        "offset": 32064,
+        "quantity": 33,
+        "grade": "UNKNOWN"
+      }
+    ]
+  },
+  "battery_groups": {
+    "admitted": false,
+    "zero_word_reads": [
+      {
+        "offset": 37000,
+        "quantity": 1
+      },
+      {
+        "offset": 47000,
+        "quantity": 1
+      }
+    ],
+    "zero_word_on": [
+      "SUN2000 M3 series",
+      "SUN2000 M1 series"
+    ],
+    "zero_rule": "a zero word at a battery offset is never a state of charge, power or energy of zero, and presence is never decided from the absence of an exception"
+  },
+  "meters": {
+    "admitted": false,
+    "grade": "UNKNOWN",
+    "reason": "no meter register was read on any path and no meter class contract exists"
   },
   "capability_detection": {
     "positive_identity_required": [
-      "exact_model_identity",
-      "exact_firmware_identity",
-      "unit_identity",
-      "pinned_register_map"
+      "observed_gateway_identity_card",
+      "routed_unit",
+      "exact_routed_model_string",
+      "pinned_document_identity"
+    ],
+    "not_predicates": [
+      "firmware_identity"
     ],
     "forbidden_identity": [
       "serial_number",
@@ -58,91 +417,126 @@
     "default_outcome": "INSUFFICIENT_EVIDENCE",
     "multiple_positive_outcome": "AMBIGUOUS",
     "first_match_priority": false,
-    "executable": false,
+    "executable": true,
     "rows": [
       {
         "id": "no_identity_evidence",
         "outcome": "INSUFFICIENT_EVIDENCE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "no model, firmware or unit identity was read"
+        "reason": "no observed gateway identity was supplied"
+      },
+      {
+        "id": "gateway_identity_not_matched",
+        "outcome": "INSUFFICIENT_EVIDENCE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "the observed gateway card does not match its exact tuple"
       },
       {
         "id": "gateway_inventory_child_model_only",
         "outcome": "INSUFFICIENT_EVIDENCE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "a SmartLogger or EMMA inventory lists a child model; a gateway child listing is not unit identity"
+        "reason": "a listed child model without a routed model read is not unit identity"
       },
       {
-        "id": "model_without_firmware",
+        "id": "unit_not_routed",
         "outcome": "INSUFFICIENT_EVIDENCE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "model identity without an exact firmware identity"
+        "reason": "the unit is not a listed child behind the SmartLogger, or not the observed child behind the S-Dongle"
       },
       {
         "id": "serial_or_esn_only",
         "outcome": "INSUFFICIENT_EVIDENCE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "serial number or ESN is never a qualification predicate"
-      },
-      {
-        "id": "firmware_without_model",
-        "outcome": "INSUFFICIENT_EVIDENCE",
-        "selected_profile": "",
-        "native_fact_count": 0,
-        "reason": "firmware identity without an exact model identity"
+        "reason": "a serial-bearing block is not the model read and never identifies a unit"
       },
       {
         "id": "register_readability_only",
         "outcome": "INSUFFICIENT_EVIDENCE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "a successful read of any register is not identity"
+        "reason": "a readable model extent without a model string is not identity"
       },
       {
-        "id": "battery_group_absent",
+        "id": "listing_model_conflict",
         "outcome": "INSUFFICIENT_EVIDENCE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "optional group absent: facts stay unknown, never numeric zero"
+        "reason": "the routed model read disagrees with the model the listing names at that unit"
       },
       {
-        "id": "battery_group_exception",
-        "outcome": "INSUFFICIENT_EVIDENCE",
+        "id": "model_prefix_or_wildcard",
+        "outcome": "NO_ADMISSIBLE_PROFILE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "optional group read exception: no negation of an identified unit, last-known-good retained"
+        "reason": "a model string that only shares a prefix with an admitted model is a different model"
+      },
+      {
+        "id": "model_behind_another_gateway_path",
+        "outcome": "NO_ADMISSIBLE_PROFILE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "an admitted model behind a gateway path it was not observed on is not an admitted pair"
+      },
+      {
+        "id": "family_without_consulted_edition",
+        "outcome": "NO_ADMISSIBLE_PROFILE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "the MAP0 series has no consulted edition"
+      },
+      {
+        "id": "document_identity_mismatch",
+        "outcome": "NO_ADMISSIBLE_PROFILE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "a different title, version or date is a different edition, which admits nothing"
       },
       {
         "id": "multiple_positive_candidates",
         "outcome": "AMBIGUOUS",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "more than one candidate positive for one endpoint and unit: no winner chosen by order or priority"
+        "reason": "two exact pairs for one endpoint and unit: no winner chosen by order or priority"
       },
       {
-        "id": "exact_identity_with_pinned_register_map",
-        "outcome": "NO_ADMISSIBLE_PROFILE",
-        "selected_profile": "",
-        "native_fact_count": 0,
-        "reason": "would be positive, but no pinned register map is admissible today"
+        "id": "exact_m3_pair_behind_smartlogger",
+        "outcome": "PROFILE_SELECTED",
+        "selected_profile": "huawei.sun2000.m3.monitoring-readonly@1.0.0",
+        "native_fact_count": 19,
+        "reason": "the SmartLogger tuple, a listed unit, the M3 series model string and the pinned edition"
+      },
+      {
+        "id": "exact_m1_pair_behind_sdongle",
+        "outcome": "PROFILE_SELECTED",
+        "selected_profile": "huawei.sun2000.m1.monitoring-readonly@1.0.0",
+        "native_fact_count": 22,
+        "reason": "the S-Dongle tuple, the observed child unit, the M1 series model string and the pinned edition"
       }
     ]
   },
   "registers": {
-    "evidence_backed": [],
+    "evidence_backed": [
+      "32016+24 strings group",
+      "32106+10 energy group",
+      "32064+32 power group on the M1 series"
+    ],
+    "retained_not_facts": [
+      "32000+16 status group"
+    ],
     "candidate": [],
     "unknown": [
-      "model_identity",
-      "firmware_identity",
-      "unit_identity",
-      "monitoring_registers",
-      "scale_and_unit",
-      "access_mode",
-      "availability_markers"
+      "status_group_bit_meanings",
+      "power_group_on_m3_series",
+      "state_codes_other_than_the_observed_code",
+      "negative_active_power",
+      "energy_counter_rollover_and_reset",
+      "battery_group_meanings",
+      "meter_registers"
     ]
   },
   "optional_groups": {
@@ -157,16 +551,27 @@
     "FC0x17": "NO_SEND"
   },
   "writes": "DEFAULT_DENY",
-  "decoder_keys": [],
+  "decoder_keys": [
+    "huawei.sun2000.m3.pv_string_voltage",
+    "huawei.sun2000.m3.pv_string_current",
+    "huawei.sun2000.m3.energy_accumulated",
+    "huawei.sun2000.m3.energy_current_hour",
+    "huawei.sun2000.m3.energy_current_day",
+    "huawei.sun2000.m1.pv_string_voltage",
+    "huawei.sun2000.m1.pv_string_current",
+    "huawei.sun2000.m1.input_power",
+    "huawei.sun2000.m1.active_power",
+    "huawei.sun2000.m1.device_status",
+    "huawei.sun2000.m1.energy_accumulated",
+    "huawei.sun2000.m1.energy_current_hour",
+    "huawei.sun2000.m1.energy_current_day"
+  ],
   "catalog_registered": false,
   "automatic_runtime_admission": false,
+  "live_qualified": false,
   "support_claim": false,
   "write_authority": false,
   "reopen_requires": [
-    "pinned_vendor_document_version",
-    "companion_docs_modbus_protocol_page",
-    "clean_room_sanitized_identity_fixture",
-    "clean_room_sanitized_monitoring_fixture",
-    "negative_overlap_with_smartlogger_emma_sdongle"
+    "pinned_vendor_document_identity"
   ]
 }
