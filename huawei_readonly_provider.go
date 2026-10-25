@@ -1124,8 +1124,13 @@ func (r *huaweiCycleRun) exchange(record HuaweiProviderExchange, send func(conte
 		attemptCtx, cancel := context.WithTimeout(r.ctx, attemptDeadline)
 		sent := r.core.clock()
 		outcome, code := send(attemptCtx)
-		cancel()
 		end := r.core.clock()
+		// A reply that arrives after the attempt deadline is not current: the
+		// attempt context is read before it is cancelled.
+		if outcome == HuaweiProviderExchangeAnswered && (attemptCtx.Err() != nil || end.Sub(sent) > attemptDeadline) {
+			outcome, code = HuaweiProviderExchangeTimeout, 0
+		}
+		cancel()
 		r.link.sent, r.link.lastEnd = true, end
 		r.out.WireAttempts++
 		attempt := record

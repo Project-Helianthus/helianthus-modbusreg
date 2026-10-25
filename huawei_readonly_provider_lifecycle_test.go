@@ -800,3 +800,28 @@ func TestH06RefusalCoincidingWithStopIsRecorded(t *testing.T) {
 		})
 	}
 }
+
+func TestH06LateSuccessAfterTheAttemptDeadlineIsNotCurrent(t *testing.T) {
+	fixture, start := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "start_identification")
+	rig := newH06Rig(t, fixture.Path, h06Units(fixture.AllowedUnits))
+	script := h06Script(t, rig.sources, fixture.Path, start)
+	if len(script) == 0 || script[0].answer.err != nil {
+		t.Fatalf("unexpected start script shape")
+	}
+	script[0].answer.elapsed = 6 * time.Second
+	rig.session.Append(script[:1]...)
+	cycle, err := rig.provider.Refresh(context.Background())
+	if err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if len(cycle.Exchanges) == 0 {
+		t.Fatal("no exchange recorded")
+	}
+	first := cycle.Exchanges[0]
+	if first.Outcome != HuaweiProviderExchangeTimeout || first.Elapsed != HuaweiProviderAtDeadline {
+		t.Fatalf("late reply recorded as %v %v", first.Outcome, first.Elapsed)
+	}
+	if cycle.Outcome == HuaweiProviderCycleComplete {
+		t.Fatalf("a cycle with only a late reply completed")
+	}
+}
