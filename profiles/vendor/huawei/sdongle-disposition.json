@@ -128,6 +128,15 @@
         "protocols/huawei/sun2000-observed-identity-v1.md",
         "protocols/huawei/qualification-readiness-v1.md"
       ]
+    },
+    "vendor_documentation": {
+      "source_class": "OFFICIAL_VENDOR_DOCUMENTATION_ONLY",
+      "monitoring_profile_basis": [
+        "pinned_vendor_document_identity",
+        "operator_site_observation_fixtures"
+      ],
+      "consulted_documents": [],
+      "changes_outcome": false
     }
   },
   "observed_identity": {

@@ -12,7 +12,16 @@
       "sanitized_readonly_capability_fixture",
       "negative_overlap_with_smartlogger",
       "model_specific_capability_fixture"
-    ]
+    ],
+    "vendor_documentation": {
+      "source_class": "OFFICIAL_VENDOR_DOCUMENTATION_ONLY",
+      "monitoring_profile_basis": [
+        "pinned_vendor_document_identity",
+        "operator_site_observation_fixtures"
+      ],
+      "consulted_documents": [],
+      "changes_outcome": false
+    }
   },
   "observation_pointer": {
     "docs_contract": {

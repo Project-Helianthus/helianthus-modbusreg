@@ -58,7 +58,7 @@ func TestH03SmartLoggerDispositionSupersedesIdentityStatusAndKeepsProfileClosed(
 
 	evidence := huaweiObject(t, record["evidence"])
 	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence",
-		"closed_evidence", "partially_closed_evidence", "unknown_after_observation", "docs_contract")
+		"closed_evidence", "partially_closed_evidence", "unknown_after_observation", "docs_contract", "vendor_documentation")
 	if evidence["docs_merge_sha"] != smartLoggerDocsMergeSHA || evidence["candidate_id"] != "huawei.smartlogger.v1" ||
 		evidence["source_license"] != "CC0-1.0" || evidence["eligible"] != false {
 		t.Fatalf("unexpected SmartLogger evidence: %#v", evidence)
@@ -201,9 +201,9 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 		{"emma-disposition.json", "OFFLINE_IDENTITY_ADMITTED", "NO_MODBUS_RESPONSE", []string{gateway, observation}, []string{h03FixturePaths[2]},
 			"missing_capability_evidence", []string{"sanitized_readonly_capability_fixture", "negative_overlap_with_smartlogger", "model_specific_capability_fixture"}},
 		{"sun2000-disposition.json", "NO_ADMISSIBLE_PROFILE", "OBSERVED_IDENTITY_BEHIND_GATEWAY", []string{identity, observation}, []string{h03FixturePaths[1], h03FixturePaths[3]},
-			"missing_evidence", []string{"pinned_vendor_document_version", "companion_docs_modbus_protocol_page", "clean_room_sanitized_identity_fixture", "clean_room_sanitized_monitoring_fixture", "negative_overlap_with_smartlogger_emma_sdongle"}},
+			"missing_evidence", []string{"pinned_vendor_document_identity", "companion_docs_modbus_protocol_page", "clean_room_sanitized_identity_fixture", "clean_room_sanitized_monitoring_fixture", "negative_overlap_with_smartlogger_emma_sdongle"}},
 		{"luna2000-disposition.json", "NO_ADMISSIBLE_PROFILE", "NOT_OBSERVED", []string{identity}, []string{},
-			"missing_evidence", []string{"pinned_vendor_document_version", "companion_docs_modbus_protocol_page", "clean_room_sanitized_identity_fixture", "clean_room_sanitized_monitoring_fixture", "negative_overlap_with_smartlogger_emma_sdongle"}},
+			"missing_evidence", []string{"pinned_vendor_document_identity", "companion_docs_modbus_protocol_page", "clean_room_sanitized_identity_fixture", "clean_room_sanitized_monitoring_fixture", "negative_overlap_with_smartlogger_emma_sdongle"}},
 	}
 	for _, test := range tests {
 		t.Run(test.file, func(t *testing.T) {

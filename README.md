@@ -49,6 +49,16 @@ answers its status reads, and one child unit answers the model, basic and
 extended identification. It supersedes the recorded hard stop for that identity
 only; the profile outcome stays `PRE_LIVE_INSUFFICIENT_EVIDENCE`. See
 [`docs/huawei-sdongle-observed-identity.md`](docs/huawei-sdongle-observed-identity.md).
+A Huawei monitoring profile may rest on official vendor documentation that is
+cited, never copied: it needs a named document, pinned in its disposition as
+identity only (title, version, and date, each as the document states it, with no
+excerpt, link, or digest), together with observation fixtures from operator
+sites. The identity set is optional and empty until the operator supplies it. A
+pin changes no outcome, and exact tuples, negative overlap, and fail-closed
+admission stay required. See
+[`docs/huawei-vendor-documentation.md`](docs/huawei-vendor-documentation.md) and
+the
+[applicability and licensing policy](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/applicability-and-licensing.md).
 
 ## Ownership
 
