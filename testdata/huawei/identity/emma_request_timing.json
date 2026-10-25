@@ -1,0 +1,51 @@
+{
+  "schema": "helianthus-huawei-identity-fixture/v1",
+  "kind": "request_timing",
+  "family": "EMMA",
+  "license": "CC0-1.0",
+  "provenance": "synthetic re-creation of one sanitized read-only observation",
+  "sanitization": {
+    "rule": "digit to 0, upper-case letter to X, lower-case letter to x; punctuation and length kept; placeholder values are not kept distinct between entries"
+  },
+  "scope": "every request of one connection",
+  "required_by_card": false,
+  "attempt_deadline_ms": 5000,
+  "prompt_bound_ms": 100,
+  "requests": 30,
+  "retries": 0,
+  "classes": [
+    {
+      "elapsed_class": "within_prompt_bound",
+      "count": 29
+    },
+    {
+      "elapsed_class": "above_prompt_bound",
+      "count": 1
+    }
+  ],
+  "observations": [
+    {
+      "role": "first_request",
+      "unit": 0,
+      "function": "FC03",
+      "attempts": [
+        {
+          "outcome": "answered",
+          "elapsed_class": "within_prompt_bound"
+        }
+      ]
+    },
+    {
+      "role": "slowest_request",
+      "unit": 0,
+      "function": "FC03",
+      "offset": 65521,
+      "attempts": [
+        {
+          "outcome": "exception",
+          "elapsed_class": "above_prompt_bound"
+        }
+      ]
+    }
+  ]
+}

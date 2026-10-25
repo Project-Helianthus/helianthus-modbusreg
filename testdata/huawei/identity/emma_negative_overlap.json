@@ -1,0 +1,146 @@
+{
+  "schema": "helianthus-huawei-identity-fixture/v1",
+  "kind": "fc03_probe_set",
+  "family": "EMMA",
+  "license": "CC0-1.0",
+  "provenance": "synthetic re-creation of one sanitized read-only observation",
+  "sanitization": {
+    "rule": "digit to 0, upper-case letter to X, lower-case letter to x; punctuation and length kept; placeholder values are not kept distinct between entries"
+  },
+  "probes": [
+    {
+      "units": [
+        0
+      ],
+      "function": "FC03",
+      "offset": 65521,
+      "quantity": 1,
+      "roles": [
+        "smartlogger_counter"
+      ],
+      "outcome": {
+        "type": "exception",
+        "code": 3
+      }
+    },
+    {
+      "units": [
+        3
+      ],
+      "function": "FC03",
+      "offset": 65521,
+      "quantity": 1,
+      "roles": [
+        "smartlogger_counter"
+      ],
+      "outcome": {
+        "type": "exception",
+        "code": 3
+      }
+    },
+    {
+      "units": [
+        0
+      ],
+      "function": "FC03",
+      "offset": 40000,
+      "quantity": 2,
+      "roles": [
+        "sunspec_marker"
+      ],
+      "outcome": {
+        "type": "words",
+        "words": [
+          2,
+          1
+        ],
+        "synthetic": true
+      }
+    },
+    {
+      "units": [
+        3
+      ],
+      "function": "FC03",
+      "offset": 40000,
+      "quantity": 2,
+      "roles": [
+        "sunspec_marker"
+      ],
+      "outcome": {
+        "type": "words",
+        "words": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "units": [
+        3
+      ],
+      "function": "FC03",
+      "offset": 30222,
+      "quantity": 20,
+      "roles": [
+        "emma_model"
+      ],
+      "outcome": {
+        "type": "words",
+        "words": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20
+        ],
+        "synthetic": true
+      }
+    },
+    {
+      "units": [
+        3
+      ],
+      "function": "FC03",
+      "offset": 37410,
+      "quantity": 3,
+      "roles": [
+        "sdongle_search"
+      ],
+      "outcome": {
+        "type": "exception",
+        "code": 3
+      }
+    },
+    {
+      "units": [
+        3
+      ],
+      "function": "FC03",
+      "offset": 37429,
+      "quantity": 1,
+      "roles": [
+        "sdongle_capacity"
+      ],
+      "outcome": {
+        "type": "exception",
+        "code": 3
+      }
+    }
+  ]
+}

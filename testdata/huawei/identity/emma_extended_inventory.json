@@ -1,0 +1,121 @@
+{
+  "schema": "helianthus-huawei-identity-fixture/v1",
+  "kind": "mei_extended_inventory",
+  "family": "EMMA",
+  "license": "CC0-1.0",
+  "provenance": "synthetic re-creation of one sanitized read-only observation",
+  "sanitization": {
+    "rule": "digit to 0, upper-case letter to X, lower-case letter to x; punctuation and length kept; placeholder values are not kept distinct between entries"
+  },
+  "unit": 0,
+  "read": {
+    "function": "FC2B",
+    "mei_type": "0x0e",
+    "read_device_id_code": 3,
+    "start_object_id": "0x87"
+  },
+  "pages": [
+    {
+      "request_object_id": "0x87",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x88",
+      "declared_objects": 5,
+      "pdu_bytes": 10,
+      "objects": [
+        {
+          "object_id": "0x87",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x88",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x89",
+      "declared_objects": 5,
+      "pdu_bytes": 88,
+      "objects": [
+        {
+          "object_id": "0x88",
+          "entry": "1=EMMA-A02;2=V100R025C00SPC131;3=X0.00-X0.0;4=XX0000000000;5=0;6=0.0;8=HEMS;9=0",
+          "pad_to": 79,
+          "sanitized_attributes": [
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x89",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x8a",
+      "declared_objects": 5,
+      "pdu_bytes": 102,
+      "objects": [
+        {
+          "object_id": "0x89",
+          "entry": "1=XxxxxXxxxx-00X-X0;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=2;6=0.0;8=BackupBox;9=0",
+          "pad_to": 93,
+          "sanitized_attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x8a",
+      "conformity": "0x03",
+      "more_follows": "0xff",
+      "next_object_id": "0x8b",
+      "declared_objects": 5,
+      "pdu_bytes": 111,
+      "objects": [
+        {
+          "object_id": "0x8a",
+          "entry": "1=SUN2000-00X-XXX0;2=X000X000X00XXX000;3=X0.00-X0.0;4=000000000000;5=3;6=0.0;8=SUN2000;10=00XXXX00;9=0",
+          "pad_to": 102,
+          "sanitized_attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "10"
+          ]
+        }
+      ]
+    },
+    {
+      "request_object_id": "0x8b",
+      "conformity": "0x03",
+      "more_follows": "0x00",
+      "next_object_id": "0x00",
+      "declared_objects": 5,
+      "pdu_bytes": 111,
+      "objects": [
+        {
+          "object_id": "0x8b",
+          "entry": "1=SUN2000-00X-XXX0;2=X000X000X00XXX000;3=X0.00-X0.0;4=000000000000;5=4;6=0.0;8=SUN2000;10=X0XXXXXX;9=0",
+          "pad_to": 102,
+          "sanitized_attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "10"
+          ]
+        }
+      ]
+    }
+  ]
+}

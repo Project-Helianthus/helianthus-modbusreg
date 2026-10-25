@@ -1,0 +1,57 @@
+{
+  "schema": "helianthus-huawei-emma-observed-replay-expected/v1",
+  "card_id": "huawei.qualification.emma.observed-readonly@1.0.0",
+  "status": "QUALIFICATION_TEST_READY",
+  "reason": "IDENTITY_INVENTORY_MATCHED",
+  "selected_class": "EMMA",
+  "model_variant": "EMMA-A02",
+  "gateway": {
+    "unit": 0,
+    "family_label": "SmartHEMS",
+    "basic_identification": {
+      "vendor": "Huawei",
+      "product": "HEMS",
+      "opaque_extra_objects": 11,
+      "version_equals_software_token": true
+    },
+    "inventory": {
+      "pages": 5,
+      "objects": 5,
+      "count_object": 4,
+      "retained": true,
+      "retained_units": ["2", "3", "4"],
+      "self_entry_unit": "0",
+      "self_entry_model": "EMMA-A02"
+    }
+  },
+  "documentary_card": {
+    "card_id": "huawei.qualification.emma.readonly@1.0.0",
+    "status": "QUALIFICATION_EVIDENCE_BLOCKED",
+    "identity_matched": true,
+    "model_variant": "EMMA-A02"
+  },
+  "children": [
+    {"unit": 3, "family": "SUN2000", "model_block_residue_bytes": 10},
+    {"unit": 4, "family": "SUN2000", "model_block_residue_bytes": 10}
+  ],
+  "page_anomalies": {
+    "oversize_responses": 0,
+    "declared_object_field_differs": 5,
+    "next_object_without_continuation": 0
+  },
+  "request_timing": {"recorded": true, "required": false, "retries": 0},
+  "missing_evidence": [
+    "sanitized_readonly_capability_fixture",
+    "model_specific_capability_fixture",
+    "battery_addressing_behind_gateway_fixture"
+  ],
+  "hardware_test_ready": false,
+  "live_qualified": false,
+  "automatic_request_count": 0,
+  "native_fact_count": 0,
+  "default_denied": true,
+  "catalog_registered": false,
+  "automatic_runtime_admission": false,
+  "support_claim": false,
+  "write_authority": false
+}

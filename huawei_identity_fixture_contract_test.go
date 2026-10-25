@@ -572,7 +572,7 @@ func TestH03FixtureCorpusIsExactlyTheDocumentedSet(t *testing.T) {
 			t.Fatalf("%s carries the documentary model string as a self entry", entry.Name())
 		}
 	}
-	want := append(append([]string(nil), h03FixtureNames()...), h15FixtureNames()...)
+	want := append(append(append([]string(nil), h03FixtureNames()...), h15FixtureNames()...), h18FixtureNames()...)
 	sort.Strings(want)
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("identity fixtures=%v want=%v", names, want)

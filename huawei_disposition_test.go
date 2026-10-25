@@ -266,16 +266,16 @@ func TestHuaweiEMMAOfflineDispositionIsDefaultDeniedAndPinnedToDocs(t *testing.T
 		t.Fatal("disposition contains private endpoint or credential material")
 	}
 	record := decodeHuaweiObject(t, path)
-	requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "offline_identity_gate_registered", "catalog_registered", "automatic_runtime_admission", "support_claim", "detector", "firmware_gates", "child_enumeration", "decoder_keys", "reopen_requires", "observation_pointer")
-	if record["schema"] != "helianthus-modbusreg-huawei-emma-disposition/v2" || record["profile"] != HuaweiEMMAReadOnlyProfileID ||
+	requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "observed_identity", "offline_identity_gate_registered", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "detector", "firmware_gates", "child_enumeration", "private_functions", "decoder_keys", "reopen_requires")
+	if record["schema"] != "helianthus-modbusreg-huawei-emma-disposition/v3" || record["profile"] != HuaweiEMMAReadOnlyProfileID ||
 		record["profile_version"] != "1.0.0" || record["outcome"] != "OFFLINE_IDENTITY_ADMITTED" ||
 		record["offline_identity_gate_registered"] != true || record["catalog_registered"] != false ||
-		record["automatic_runtime_admission"] != false || record["support_claim"] != false || len(record["decoder_keys"].([]any)) != 0 {
+		record["automatic_runtime_admission"] != false || record["support_claim"] != false || record["write_authority"] != false || len(record["decoder_keys"].([]any)) != 0 {
 		t.Fatalf("unexpected disposition: %#v", record)
 	}
 
 	source := huaweiObject(t, record["evidence"])
-	requireHuaweiKeys(t, source, "docs_merge_sha", "candidate_id", "canonical_class", "eligible", "missing_capability_evidence", "vendor_documentation")
+	requireHuaweiKeys(t, source, "docs_merge_sha", "candidate_id", "canonical_class", "eligible", "missing_capability_evidence", "vendor_documentation", "closed_evidence", "unknown_after_observation", "earlier_observation", "docs_contract")
 	if source["docs_merge_sha"] != huaweiDocsMergeSHA || source["candidate_id"] != "huawei.emma.offline.v1" ||
 		source["canonical_class"] != HuaweiEMMACanonicalClass || source["eligible"] != true {
 		t.Fatalf("unexpected evidence: %#v", source)
