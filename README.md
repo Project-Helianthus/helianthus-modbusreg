@@ -86,6 +86,17 @@ series has no consulted edition and no profile, no battery or meter fact is
 admitted, and catalog registration, live qualification, support claims and
 write authority stay false. See
 [`docs/huawei-sun2000-monitoring-profiles.md`](docs/huawei-sun2000-monitoring-profiles.md).
+Two read-only providers drive a supplied session through the public Huawei read
+pacing and acquisition contract: one for the observed SmartLogger path and one
+for the observed S-Dongle path, each admitted by an enablement gate that reads
+the recorded dispositions and fails closed. Each cycle runs the observed
+gateway card, routes children only to listed and allowed units with a class
+contract, reads the admitted SUN2000 groups with the contract's gap, deadline
+and attempt bounds, and keeps stale, retained and fenced readings explicit. The
+EMMA path gets no provider while its inverter family has no consulted edition.
+The providers open no socket and start no goroutine, and they send only FC03
+and FC2B / MEI 0x0e reads. See
+[`docs/huawei-readonly-providers.md`](docs/huawei-readonly-providers.md).
 
 ## Ownership
 

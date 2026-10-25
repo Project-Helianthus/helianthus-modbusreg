@@ -1,0 +1,478 @@
+{
+  "schema": "helianthus-huawei-provider-cycle-fixture/v1",
+  "kind": "scripted_provider_cycles",
+  "path": "S-Dongle",
+  "provider_id": "huawei.sdongle.observed-readonly-provider@1.0.0",
+  "license": "CC0-1.0",
+  "provenance": "synthetic scripted session composed from the sanitized identity and monitoring fixtures named in sources; a source reply carries only what its fixture holds",
+  "sanitization": {
+    "rule": "every source reply inherits the sanitization of its fixture; a literal reply is a placeholder marked synthetic, never an observed value"
+  },
+  "sources": [
+    "identity/sdongle_gateway_fc03_replies.json",
+    "identity/sdongle_gateway_basic_exception.json",
+    "identity/sdongle_child_identity_blocks.json",
+    "identity/sdongle_child_basic_reply.json",
+    "identity/sdongle_child_extended_inventory.json",
+    "identity/sdongle_first_request_timing.json",
+    "monitoring/sun2000_m1_sdongle_monitoring.json"
+  ],
+  "allowed_units": [
+    1
+  ],
+  "cycles": [
+    {
+      "name": "start_identification",
+      "steps": [
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 37410,
+          "quantity": 3,
+          "reply": {
+            "kind": "timeout",
+            "elapsed_class": "at_deadline"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 37410,
+          "quantity": 3,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 100,
+          "code": 1,
+          "object": "0x00",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 37411,
+          "quantity": 1,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 30068,
+          "quantity": 2,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 37429,
+          "quantity": 1,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 30000,
+          "quantity": 15,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 1,
+          "code": 1,
+          "object": "0x00",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 1,
+          "code": 3,
+          "object": "0x87",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 37410,
+          "quantity": 3,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32064,
+          "quantity": 32,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32106,
+          "quantity": 10,
+          "reply": {
+            "kind": "source"
+          }
+        }
+      ],
+      "expect": {
+        "outcome": "COMPLETE",
+        "reason": "identified",
+        "children": [
+          {
+            "unit": 1,
+            "evidence": "CURRENT",
+            "reason": "read"
+          }
+        ]
+      }
+    },
+    {
+      "name": "guard_held",
+      "steps": [
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 37410,
+          "quantity": 3,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32064,
+          "quantity": 32,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32106,
+          "quantity": 10,
+          "reply": {
+            "kind": "source"
+          }
+        }
+      ],
+      "expect": {
+        "outcome": "COMPLETE",
+        "reason": "guard_held",
+        "children": [
+          {
+            "unit": 1,
+            "evidence": "CURRENT",
+            "reason": "read"
+          }
+        ]
+      }
+    },
+    {
+      "name": "child_timeout",
+      "steps": [
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 37410,
+          "quantity": 3,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "timeout",
+            "elapsed_class": "at_deadline"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "timeout",
+            "elapsed_class": "at_deadline"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "timeout",
+            "elapsed_class": "at_deadline"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "timeout",
+            "elapsed_class": "at_deadline"
+          }
+        }
+      ],
+      "expect": {
+        "outcome": "COMPLETE",
+        "reason": "guard_held",
+        "children": [
+          {
+            "unit": 1,
+            "evidence": "STALE",
+            "reason": "child_timeout",
+            "retained": [
+              32016,
+              32064,
+              32106
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "guard_changed",
+      "steps": [
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 37410,
+          "quantity": 3,
+          "reply": {
+            "kind": "words",
+            "words": [
+              4,
+              0,
+              8
+            ],
+            "synthetic": true
+          }
+        }
+      ],
+      "expect": {
+        "outcome": "INCOMPLETE",
+        "reason": "guard_changed",
+        "children": [
+          {
+            "unit": 1,
+            "evidence": "STALE",
+            "reason": "listing_unconfirmed",
+            "retained": [
+              32000,
+              32016,
+              32064,
+              32106
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "reidentification",
+      "steps": [
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 37410,
+          "quantity": 3,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 100,
+          "code": 1,
+          "object": "0x00",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 37411,
+          "quantity": 1,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 30068,
+          "quantity": 2,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 37429,
+          "quantity": 1,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 30000,
+          "quantity": 15,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 1,
+          "code": 1,
+          "object": "0x00",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 1,
+          "code": 3,
+          "object": "0x87",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 37410,
+          "quantity": 3,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32064,
+          "quantity": 32,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32106,
+          "quantity": 10,
+          "reply": {
+            "kind": "source"
+          }
+        }
+      ],
+      "expect": {
+        "outcome": "COMPLETE",
+        "reason": "identified",
+        "children": [
+          {
+            "unit": 1,
+            "evidence": "CURRENT",
+            "reason": "read"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -214,6 +214,62 @@
   "automatic_runtime_admission": false,
   "support_claim": false,
   "write_authority": false,
+  "production_provider": {
+    "issue": 349,
+    "provider_id": "huawei.smartlogger.observed-readonly-provider@1.0.0",
+    "enablement": "PROVIDER_ADMITTED_FOR_OBSERVED_TUPLE",
+    "scope": "OBSERVED_TUPLE_ONLY",
+    "requires": [
+      "observed_identity_offline_admitted",
+      "child_monitoring_profile_offline_admitted",
+      "authority_fields_false"
+    ],
+    "identity_card": "huawei.qualification.smartlogger.observed-readonly@1.0.0",
+    "child_profiles": [
+      "huawei.sun2000.m3.monitoring-readonly@1.0.0"
+    ],
+    "read_functions": [
+      "FC03",
+      "FC2B_MEI_0E"
+    ],
+    "units": "GATEWAY_UNIT_0_AND_LISTED_ALLOWLISTED_SUN2000_UNITS",
+    "never_read": [
+      "planned_logger_plant_groups",
+      "refused_groups",
+      "battery_offsets",
+      "units_without_class_contract",
+      "meter_units",
+      "plc_unit"
+    ],
+    "pacing": {
+      "gap_ms": 750,
+      "cycle_ms": 60000,
+      "attempt_deadline_ms": 5000,
+      "max_attempts": 4,
+      "backoff_ms": [
+        1000,
+        2000,
+        4000
+      ],
+      "first_request_extra_attempt": false
+    },
+    "docs_contract": {
+      "repository": "helianthus-docs-modbus",
+      "issue": 242,
+      "pull_request": 253,
+      "pages": [
+        "protocols/huawei/monitoring-readonly-v1.md",
+        "protocols/huawei/read-pacing-v1.md",
+        "architecture/smartlogger-provider-port.md"
+      ]
+    },
+    "issues": {
+      "slice": 206,
+      "parent": 201
+    },
+    "support_claim": false,
+    "live_qualified": false
+  },
   "reopen_requires": [
     "pairwise_negative_overlap_with_emma_fixture"
   ]
