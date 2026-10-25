@@ -1,18 +1,15 @@
 {
-  "schema": "helianthus-modbusreg-huawei-inverter-battery-disposition/v1",
+  "schema": "helianthus-modbusreg-huawei-inverter-battery-disposition/v2",
   "profile": "huawei.luna2000",
   "profile_version": "1.0.0",
   "outcome": "NO_ADMISSIBLE_PROFILE",
   "evidence": {
     "source_document": {
       "name": "Huawei SUN2000 MODBUS Interface Definitions",
-      "version": "UNPINNED",
-      "version_pinned": false,
       "classification": "UNVERIFIED_PROSPECTIVE_SOURCE",
       "redistributable": false,
-      "locator": "",
       "present_in_repository": false,
-      "publication_policy": "treated conservatively as vendor-copyright-inspection-only; applicability-and-licensing.md has no SUN2000 or LUNA2000 entry"
+      "publication_policy": "official vendor documentation may be consulted and cited under the applicability and licensing policy; the vendor keeps the copyright, the document is never copied here, and the registry records its identity only (title, version and date) in vendor_documentation"
     },
     "docs_modbus_page": {
       "exists": true,
@@ -24,12 +21,21 @@
     },
     "eligible": false,
     "missing_evidence": [
-      "pinned_vendor_document_version",
+      "pinned_vendor_document_identity",
       "companion_docs_modbus_protocol_page",
       "clean_room_sanitized_identity_fixture",
       "clean_room_sanitized_monitoring_fixture",
       "negative_overlap_with_smartlogger_emma_sdongle"
-    ]
+    ],
+    "vendor_documentation": {
+      "source_class": "OFFICIAL_VENDOR_DOCUMENTATION_ONLY",
+      "monitoring_profile_basis": [
+        "pinned_vendor_document_identity",
+        "operator_site_observation_fixtures"
+      ],
+      "consulted_documents": [],
+      "changes_outcome": false
+    }
   },
   "observation_pointer": {
     "docs_contract": {
@@ -177,7 +183,7 @@
   "support_claim": false,
   "write_authority": false,
   "reopen_requires": [
-    "pinned_vendor_document_version",
+    "pinned_vendor_document_identity",
     "companion_docs_modbus_protocol_page",
     "clean_room_sanitized_identity_fixture",
     "clean_room_sanitized_monitoring_fixture",

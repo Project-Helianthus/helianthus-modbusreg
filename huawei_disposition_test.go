@@ -145,7 +145,7 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 				t.Helper()
 				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "observed_identity", "change_counter", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "reopen_requires")
 				evidence := huaweiObject(t, record["evidence"])
-				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "closed_evidence", "partially_closed_evidence", "unknown_after_observation", "docs_contract")
+				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "closed_evidence", "partially_closed_evidence", "unknown_after_observation", "docs_contract", "vendor_documentation")
 				if evidence["candidate_id"] != "huawei.smartlogger.v1" || evidence["source_license"] != "CC0-1.0" ||
 					!reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), []string{"pairwise_negative_overlap_with_emma_fixture"}) {
 					t.Fatalf("unexpected SmartLogger evidence: %#v", evidence)
@@ -193,7 +193,7 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 				t.Helper()
 				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "protocol_version", "search_sequence", "capacity", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "qualification_plan", "observed_identity", "reopen_requires")
 				evidence := huaweiObject(t, record["evidence"])
-				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "closed_evidence", "partially_closed_evidence", "unknown_after_observation", "live_qualification", "docs_contract")
+				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "closed_evidence", "partially_closed_evidence", "unknown_after_observation", "live_qualification", "docs_contract", "vendor_documentation")
 				live := huaweiObject(t, evidence["live_qualification"])
 				requireHuaweiKeys(t, live, "status", "recorded_status", "superseded_by", "identification_claim", "incompatibility_claim", "subsequent_modbus_requests_sent", "attempts", "retry_matrix")
 				if evidence["candidate_id"] != "huawei.sdongle.v1" || evidence["source_license"] != "CC0-1.0" || live["status"] != "SUPERSEDED_FOR_OBSERVED_IDENTITY" ||
@@ -275,7 +275,7 @@ func TestHuaweiEMMAOfflineDispositionIsDefaultDeniedAndPinnedToDocs(t *testing.T
 	}
 
 	source := huaweiObject(t, record["evidence"])
-	requireHuaweiKeys(t, source, "docs_merge_sha", "candidate_id", "canonical_class", "eligible", "missing_capability_evidence")
+	requireHuaweiKeys(t, source, "docs_merge_sha", "candidate_id", "canonical_class", "eligible", "missing_capability_evidence", "vendor_documentation")
 	if source["docs_merge_sha"] != huaweiDocsMergeSHA || source["candidate_id"] != "huawei.emma.offline.v1" ||
 		source["canonical_class"] != HuaweiEMMACanonicalClass || source["eligible"] != true {
 		t.Fatalf("unexpected evidence: %#v", source)

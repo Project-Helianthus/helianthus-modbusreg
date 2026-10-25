@@ -32,7 +32,7 @@ func TestHuaweiSDongleDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 	}
 	evidence := huaweiObject(t, record["evidence"])
 	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence",
-		"closed_evidence", "partially_closed_evidence", "unknown_after_observation", "live_qualification", "docs_contract")
+		"closed_evidence", "partially_closed_evidence", "unknown_after_observation", "live_qualification", "docs_contract", "vendor_documentation")
 	if evidence["docs_merge_sha"] != sdongleDocsMergeSHA || evidence["candidate_id"] != "huawei.sdongle.v1" ||
 		evidence["source_license"] != "CC0-1.0" || evidence["eligible"] != false ||
 		!reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), missing) {

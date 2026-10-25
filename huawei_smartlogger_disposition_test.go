@@ -28,7 +28,7 @@ func TestHuaweiSmartLoggerDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 	missing := []string{"pairwise_negative_overlap_with_emma_fixture"}
 	evidence := huaweiObject(t, record["evidence"])
 	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence",
-		"closed_evidence", "partially_closed_evidence", "unknown_after_observation", "docs_contract")
+		"closed_evidence", "partially_closed_evidence", "unknown_after_observation", "docs_contract", "vendor_documentation")
 	if evidence["docs_merge_sha"] != smartLoggerDocsMergeSHA || evidence["candidate_id"] != "huawei.smartlogger.v1" ||
 		evidence["source_license"] != "CC0-1.0" || evidence["eligible"] != false ||
 		!reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), missing) {

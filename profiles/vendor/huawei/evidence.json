@@ -32,6 +32,11 @@
       "id": "huawei-gateway-power-meter-v1",
       "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/gateway-power-meter-v1.md",
       "license": "CC0-1.0"
+    },
+    {
+      "id": "modbus-applicability-and-licensing",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/applicability-and-licensing.md",
+      "license": "CC0-1.0"
     }
   ],
   "applicability": [
@@ -41,6 +46,7 @@
     "SUN2000 inverter and LUNA2000 battery: NO_ADMISSIBLE_PROFILE disposition; no register map or companion monitoring page",
     "SmartLogger observed tuple: self-entry model Smart Logger with one exact firmware string at gateway unit 0, exact identity only, default denied; the documentary tuples stay unobserved",
     "SUN2000 observed identity: model SUN2000-50KTL-M3 with one exact routed firmware text, identity applicability only, default denied; the LUNA2000 group and every power meter stay Unknown",
+    "vendor documentation: a profile may rest on official vendor documentation cited by its title, version and date; no document is consulted yet, so every disposition keeps an empty identity set, and observation fixtures, exact tuples and fail-closed admission stay required with every disposition default denied",
     "candidate evidence only; no detector, catalog, decoder, runtime acquisition, or support admission"
   ],
   "license": "CC0-1.0"

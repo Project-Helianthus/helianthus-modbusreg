@@ -65,7 +65,7 @@ func TestHuaweiInverterBatteryDispositionsFailClosedWithoutEvidence(t *testing.T
 				"private_functions", "writes", "decoder_keys", "catalog_registered",
 				"automatic_runtime_admission", "support_claim", "write_authority", "reopen_requires", "observation_pointer",
 			)
-			if record["schema"] != "helianthus-modbusreg-huawei-inverter-battery-disposition/v1" ||
+			if record["schema"] != "helianthus-modbusreg-huawei-inverter-battery-disposition/v2" ||
 				record["profile"] != tc.profile || record["profile_version"] != "1.0.0" ||
 				record["outcome"] != "NO_ADMISSIBLE_PROFILE" || record["catalog_registered"] != false ||
 				record["automatic_runtime_admission"] != false || record["support_claim"] != false ||
@@ -75,13 +75,14 @@ func TestHuaweiInverterBatteryDispositionsFailClosedWithoutEvidence(t *testing.T
 			}
 
 			evidence := huaweiObject(t, record["evidence"])
-			requireHuaweiKeys(t, evidence, "source_document", "docs_modbus_page", "eligible", "missing_evidence")
+			requireHuaweiKeys(t, evidence, "source_document", "docs_modbus_page", "eligible", "missing_evidence", "vendor_documentation")
 			source := huaweiObject(t, evidence["source_document"])
-			requireHuaweiKeys(t, source, "name", "version", "version_pinned", "classification", "present_in_repository", "publication_policy", "redistributable", "locator")
-			if source["name"] != "Huawei SUN2000 MODBUS Interface Definitions" || source["version"] != "UNPINNED" ||
-				source["version_pinned"] != false || source["classification"] != "UNVERIFIED_PROSPECTIVE_SOURCE" || source["present_in_repository"] != false ||
-				!strings.Contains(source["publication_policy"].(string), "no SUN2000 or LUNA2000 entry") ||
-				source["redistributable"] != false || source["locator"] != "" {
+			requireHuaweiKeys(t, source, "name", "classification", "present_in_repository", "publication_policy", "redistributable")
+			if source["name"] != "Huawei SUN2000 MODBUS Interface Definitions" ||
+				source["classification"] != "UNVERIFIED_PROSPECTIVE_SOURCE" || source["present_in_repository"] != false ||
+				!strings.Contains(source["publication_policy"].(string), "official vendor documentation may be consulted and cited") ||
+				!strings.Contains(source["publication_policy"].(string), "identity only (title, version and date)") ||
+				source["redistributable"] != false {
 				t.Fatalf("unexpected source document: %#v", source)
 			}
 			page := huaweiObject(t, evidence["docs_modbus_page"])
@@ -92,7 +93,7 @@ func TestHuaweiInverterBatteryDispositionsFailClosedWithoutEvidence(t *testing.T
 			}
 			missing := huaweiStringSlice(t, evidence["missing_evidence"])
 			for _, name := range []string{
-				"pinned_vendor_document_version",
+				"pinned_vendor_document_identity",
 				"companion_docs_modbus_protocol_page",
 				"clean_room_sanitized_identity_fixture",
 				"clean_room_sanitized_monitoring_fixture",
