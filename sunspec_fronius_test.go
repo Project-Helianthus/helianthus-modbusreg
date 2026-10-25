@@ -230,7 +230,7 @@ func TestFroniusObservedFlavorSelectorRequiresExactlyOneMatch(t *testing.T) {
 			if name == "v1.1" {
 				wantID = SunSpecFroniusObservedFlavorV11ID
 			}
-			if decision.FlavorID() != wantID || len(selection.Evaluations()) != 2 {
+			if decision.FlavorID() != wantID || len(selection.Evaluations()) != 3 {
 				t.Fatalf("selected id=%q evaluations=%d", decision.FlavorID(), len(selection.Evaluations()))
 			}
 		})
