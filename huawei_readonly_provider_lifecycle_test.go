@@ -396,3 +396,68 @@ func TestH06SmartLoggerInventoryDeadlineStopsPagination(t *testing.T) {
 		t.Fatalf("slow inventory: %s %s", cycle.Outcome, cycle.Reason)
 	}
 }
+
+// h06ReentrantSession calls back into the provider from Close, as a session
+// that reports its final state would.
+type h06ReentrantSession struct {
+	*h06Session
+	provider h06Provider
+}
+
+func (s *h06ReentrantSession) Close() error {
+	s.provider.LastComplete()
+	s.provider.NextRefreshAt()
+	return s.h06Session.Close()
+}
+
+func TestH06CloseOfTheSessionRunsOutsideTheProviderLock(t *testing.T) {
+	for name, act := range map[string]func(h06Provider, HuaweiProviderSession) error{
+		"stop":      func(p h06Provider, _ HuaweiProviderSession) error { return p.Stop() },
+		"close":     func(p h06Provider, _ HuaweiProviderSession) error { return p.Close() },
+		"reconnect": func(p h06Provider, next HuaweiProviderSession) error { return p.Reconnect(next) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			rig := newH06Rig(t, "SmartLogger", []uint8{1})
+			if err := rig.provider.Stop(); err != nil {
+				t.Fatal(err)
+			}
+			session := &h06ReentrantSession{h06Session: newH06Session("reentrant", rig.clock, rig.recorder), provider: rig.provider}
+			if err := rig.provider.Start(session); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() { done <- act(rig.provider, newH06Session("next", rig.clock, rig.recorder)) }()
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("deadlock: the session was closed under the provider lock")
+			}
+			if session.Closes() != 1 {
+				t.Fatalf("closes=%d", session.Closes())
+			}
+		})
+	}
+}
+
+func TestH06InventoryRetriesStayWithinTheEnumerationDeadline(t *testing.T) {
+	rig := newH06Rig(t, "SmartLogger", []uint8{1})
+	script := []h06Expected{h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{words: []uint16{1}})}
+	for i := 0; i < 3; i++ {
+		script = append(script, h06FC2B(0, 3, huaweiSmartLoggerInventoryStartObject, h06Answer{err: h06Timeout()}))
+	}
+	cycle := rig.refresh(t, script...)
+	if cycle.Outcome != HuaweiProviderCycleIncomplete || cycle.Reason != HuaweiProviderReasonListingUnstable {
+		t.Fatalf("cycle: %s %s", cycle.Outcome, cycle.Reason)
+	}
+	calls := rig.recorder.Calls()
+	start := calls[0].endAt
+	limit := time.Duration(NewHuaweiSmartLoggerObservedQualificationCard().Limits().DeadlineMilliseconds) * time.Millisecond
+	for _, call := range calls[1:] {
+		if call.sentAt.Sub(start) >= limit {
+			t.Fatalf("request sent %s into the enumeration, deadline %s", call.sentAt.Sub(start), limit)
+		}
+	}
+}

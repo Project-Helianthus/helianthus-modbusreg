@@ -190,9 +190,15 @@ func (r *huaweiCycleRun) identifySmartLogger() {
 	limits := card.Limits()
 	request := HuaweiIdentificationRequest{ReadDeviceIDCode: 3, ObjectID: huaweiSmartLoggerInventoryStartObject}
 	var pages []HuaweiSmartLoggerObservedInventoryPage
+	r.budgetEnd = bracketStart.Add(time.Duration(limits.DeadlineMilliseconds) * time.Millisecond)
+	defer func() { r.budgetEnd = time.Time{} }()
 	for {
 		page, result := r.readIdentification(0, request)
 		if result.status == huaweiReadStopped {
+			return
+		}
+		if result.overDeadline {
+			listingUnstable()
 			return
 		}
 		if result.status != huaweiReadAnswered {
@@ -216,7 +222,12 @@ func (r *huaweiCycleRun) identifySmartLogger() {
 		request.ObjectID = page.NextObjectID
 	}
 	after, result := r.readHolding(0, huaweiSmartLoggerCounterOffset, 1)
+	r.budgetEnd = time.Time{}
 	if result.status == huaweiReadStopped {
+		return
+	}
+	if result.overDeadline {
+		listingUnstable()
 		return
 	}
 	if result.status != huaweiReadAnswered {

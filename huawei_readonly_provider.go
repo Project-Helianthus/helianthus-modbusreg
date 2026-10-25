@@ -782,26 +782,35 @@ func (p *huaweiProviderCore) stop() error {
 		return ErrHuaweiProviderConfig
 	}
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	if p.closed {
+		p.mu.Unlock()
 		return ErrHuaweiProviderClosed
 	}
 	if !p.started {
+		p.mu.Unlock()
 		return ErrHuaweiProviderNotStarted
 	}
-	return p.unbindLocked()
+	session := p.unbindLocked()
+	p.mu.Unlock()
+	return closeHuaweiProviderSession(session)
 }
 
-// unbindLocked closes the current connection and fences any running cycle.
-func (p *huaweiProviderCore) unbindLocked() error {
+// unbindLocked detaches the current connection and fences any running cycle.
+// The caller closes the returned session after releasing the lock, so a Close
+// that calls back into the provider cannot deadlock.
+func (p *huaweiProviderCore) unbindLocked() HuaweiProviderSession {
 	session := p.session
 	p.session, p.started = nil, false
 	p.generation++
 	p.state.identified = false
-	if session != nil {
-		return session.Close()
+	return session
+}
+
+func closeHuaweiProviderSession(session HuaweiProviderSession) error {
+	if session == nil {
+		return nil
 	}
-	return nil
+	return session.Close()
 }
 
 func (p *huaweiProviderCore) reconnect(session HuaweiProviderSession) error {
@@ -809,16 +818,17 @@ func (p *huaweiProviderCore) reconnect(session HuaweiProviderSession) error {
 		return ErrHuaweiProviderConfig
 	}
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	if p.closed {
+		p.mu.Unlock()
 		return ErrHuaweiProviderClosed
 	}
-	var closeErr error
+	var old HuaweiProviderSession
 	if p.started {
-		closeErr = p.unbindLocked()
+		old = p.unbindLocked()
 	}
 	p.bindLocked(session)
-	return closeErr
+	p.mu.Unlock()
+	return closeHuaweiProviderSession(old)
 }
 
 func (p *huaweiProviderCore) close() error {
@@ -826,16 +836,19 @@ func (p *huaweiProviderCore) close() error {
 		return ErrHuaweiProviderConfig
 	}
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	if p.closed {
+		p.mu.Unlock()
 		return nil
 	}
 	p.closed = true
+	var old HuaweiProviderSession
 	if p.started {
-		return p.unbindLocked()
+		old = p.unbindLocked()
+	} else {
+		p.generation++
 	}
-	p.generation++
-	return nil
+	p.mu.Unlock()
+	return closeHuaweiProviderSession(old)
 }
 
 func (p *huaweiProviderCore) lastComplete() (HuaweiProviderCycle, bool) {
@@ -949,6 +962,9 @@ type huaweiReadResult struct {
 	exceptionCode uint8
 	// last is the outcome of the last attempt of a failed read.
 	last HuaweiProviderExchangeOutcome
+	// overDeadline reports that the read gave up because the budget set on the
+	// cycle run would have been exceeded.
+	overDeadline bool
 }
 
 type huaweiCycleRun struct {
@@ -963,7 +979,10 @@ type huaweiCycleRun struct {
 	out        HuaweiProviderCycle
 	// waitCycles is the number of further cycles to skip before the next one.
 	waitCycles int
-	err        error
+	// budgetEnd, when set, bounds every wait and attempt of the reads made
+	// while it is set; no request starts or runs past it.
+	budgetEnd time.Time
+	err       error
 }
 
 func (r *huaweiCycleRun) stopped() bool { return r.err != nil }
@@ -992,6 +1011,9 @@ func (r *huaweiCycleRun) exchange(record HuaweiProviderExchange, send func(conte
 		}
 		if r.link.sent {
 			required := r.link.lastEnd.Add(spacing)
+			if !r.budgetEnd.IsZero() && !required.Before(r.budgetEnd) {
+				return huaweiReadResult{status: huaweiReadFailed, last: HuaweiProviderExchangeTimeout, overDeadline: true}
+			}
 			if now := r.core.clock(); now.Before(required) {
 				if err := r.core.wait(r.ctx, required.Sub(now)); err != nil {
 					r.err = err
@@ -1011,7 +1033,17 @@ func (r *huaweiCycleRun) exchange(record HuaweiProviderExchange, send func(conte
 			r.err = ErrHuaweiProviderFenced
 			return huaweiReadResult{status: huaweiReadStopped}
 		}
-		attemptCtx, cancel := context.WithTimeout(r.ctx, pacing.AttemptDeadline)
+		attemptDeadline := pacing.AttemptDeadline
+		if !r.budgetEnd.IsZero() {
+			remaining := r.budgetEnd.Sub(r.core.clock())
+			if remaining <= 0 {
+				return huaweiReadResult{status: huaweiReadFailed, last: HuaweiProviderExchangeTimeout, overDeadline: true}
+			}
+			if remaining < attemptDeadline {
+				attemptDeadline = remaining
+			}
+		}
+		attemptCtx, cancel := context.WithTimeout(r.ctx, attemptDeadline)
 		sent := r.core.clock()
 		outcome, code := send(attemptCtx)
 		cancel()
