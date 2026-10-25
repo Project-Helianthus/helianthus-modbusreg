@@ -190,6 +190,7 @@ func (r *huaweiCycleRun) identifySmartLogger() {
 	limits := card.Limits()
 	request := HuaweiIdentificationRequest{ReadDeviceIDCode: 3, ObjectID: huaweiSmartLoggerInventoryStartObject}
 	var pages []HuaweiSmartLoggerObservedInventoryPage
+	wrapped := false
 	r.budgetEnd = bracketStart.Add(time.Duration(limits.DeadlineMilliseconds) * time.Millisecond)
 	defer func() { r.budgetEnd = time.Time{} }()
 	for {
@@ -215,7 +216,16 @@ func (r *huaweiCycleRun) identifySmartLogger() {
 		if !page.More {
 			break
 		}
-		if len(pages) >= int(limits.MaxPages) || page.NextObjectID <= request.ObjectID {
+		// The continuation rule of the observed inventory parser: ascending,
+		// with one bounded wrap past the last object identifier.
+		if page.NextObjectID <= request.ObjectID {
+			if wrapped || page.NextObjectID == request.ObjectID {
+				listingUnstable()
+				return
+			}
+			wrapped = true
+		}
+		if len(pages) >= int(limits.MaxPages) {
 			listingUnstable()
 			return
 		}

@@ -3,6 +3,7 @@ package modbusreg
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -460,6 +461,101 @@ func TestH06InventoryRetriesStayWithinTheEnumerationDeadline(t *testing.T) {
 	for _, call := range calls[1:] {
 		if call.sentAt.Sub(start) >= limit {
 			t.Fatalf("request sent %s into the enumeration, deadline %s", call.sentAt.Sub(start), limit)
+		}
+	}
+}
+
+func h06InventoryJump(next uint8) h06Answer {
+	return h06Answer{page: &HuaweiIdentificationPage{
+		ReadDeviceIDCode: 3, ResponseBytes: 10, DeclaredObjects: 1, More: true, NextObjectID: next,
+		Objects: []HuaweiGatewayInventoryObject{{ObjectID: huaweiSmartLoggerInventoryStartObject, Value: []byte{3}}},
+	}}
+}
+
+// The continuation rule is the observed inventory parser's: one bounded wrap
+// of the object identifier is valid, a second wrap or a repeated cursor is
+// unstable and is not requested.
+func TestH06InventoryContinuationAllowsOneBoundedWrap(t *testing.T) {
+	start := uint8(huaweiSmartLoggerInventoryStartObject)
+	requested := func(rig *h06Rig, object uint8) bool {
+		for _, call := range rig.recorder.Calls() {
+			if call.function == 0x2b && call.object == object {
+				return true
+			}
+		}
+		return false
+	}
+	run := func(steps ...h06Expected) (*h06Rig, HuaweiProviderCycle) {
+		rig := newH06Rig(t, "SmartLogger", []uint8{1})
+		rig.session.Append(h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{words: []uint16{1}}))
+		rig.session.Append(steps...)
+		cycle, err := rig.provider.Refresh(context.Background())
+		if err != nil {
+			t.Fatalf("refresh: %v", err)
+		}
+		return rig, cycle
+	}
+	wrapTo := func(next uint8) h06Answer {
+		answer := h06InventoryJump(next)
+		answer.page.Objects[0].ObjectID = 0xff
+		return answer
+	}
+
+	t.Run("a single wrap is followed", func(t *testing.T) {
+		rig, _ := run(h06FC2B(0, 3, start, h06InventoryJump(0xff)), h06FC2B(0, 3, 0xff, wrapTo(0x00)),
+			h06FC2B(0, 3, 0x00, h06Answer{err: h06Timeout()}))
+		if !requested(rig, 0x00) {
+			t.Fatal("the continuation after one wrap was not requested")
+		}
+	})
+	t.Run("a second wrap is unstable", func(t *testing.T) {
+		rig, cycle := run(h06FC2B(0, 3, start, h06InventoryJump(0xff)), h06FC2B(0, 3, 0xff, wrapTo(0x10)),
+			h06FC2B(0, 3, 0x10, wrapTo(0x05)))
+		if requested(rig, 0x05) || cycle.Reason != HuaweiProviderReasonListingUnstable {
+			t.Fatalf("second wrap: requested=%v reason=%s", requested(rig, 0x05), cycle.Reason)
+		}
+	})
+	t.Run("a repeated cursor is unstable", func(t *testing.T) {
+		rig, cycle := run(h06FC2B(0, 3, start, h06InventoryJump(start)))
+		if cycle.Reason != HuaweiProviderReasonListingUnstable || rig.session.Remaining() != 0 {
+			t.Fatalf("repeated cursor: %s", cycle.Reason)
+		}
+	})
+}
+
+// A reply of any kind that arrives after the attempt deadline is not current.
+func TestH06LateRepliesOfEveryKindAreNotCurrent(t *testing.T) {
+	fixture, start := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "start_identification")
+	for _, kind := range []struct {
+		name string
+		err  error
+	}{
+		{"answered", nil},
+		{"exception 3", h06Exception(0x03, 3)},
+		{"exception 2", h06Exception(0x03, 2)},
+	} {
+		for _, late := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s late=%v", kind.name, late), func(t *testing.T) {
+				rig := newH06Rig(t, fixture.Path, h06Units(fixture.AllowedUnits))
+				script := h06Script(t, rig.sources, fixture.Path, start)
+				first := script[0]
+				first.answer.err = kind.err
+				if late {
+					first.answer.elapsed = 6 * time.Second
+				}
+				rig.session.Append(first)
+				cycle, err := rig.provider.Refresh(context.Background())
+				if err != nil {
+					t.Fatalf("refresh: %v", err)
+				}
+				got := cycle.Exchanges[0]
+				if late && (got.Outcome != HuaweiProviderExchangeTimeout || got.Elapsed != HuaweiProviderAtDeadline || got.ExceptionCode != 0) {
+					t.Fatalf("late reply recorded as %v %v code %d", got.Outcome, got.Elapsed, got.ExceptionCode)
+				}
+				if !late && kind.err != nil && got.Outcome != HuaweiProviderExchangeException {
+					t.Fatalf("timely exception recorded as %v", got.Outcome)
+				}
+			})
 		}
 	}
 }
