@@ -43,7 +43,7 @@ var (
 
 	huaweiVendorDocumentationKeys = []string{"source_class", "monitoring_profile_basis", "consulted_documents", "changes_outcome"}
 
-	huaweiDocumentLocatorPattern = regexp.MustCompile(`(?i)(?:[a-z][a-z0-9+.-]*://|\bwww\.|\b(?:mailto|file|ftp):|(?:^|[\s(\[<])[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,24}(?:/|[\s)\]>,;]|$))`)
+	huaweiDocumentLocatorPattern = regexp.MustCompile(`(?i)(?:[a-z][a-z0-9+.-]*://|[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+|\bwww\.|\b(?:mailto|file|ftp):|(?:^|[\s(\[<])[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,24}(?:/|[\s)\]>,;]|$))`)
 	huaweiDocumentDigestPattern  = regexp.MustCompile(`(?i)(?:[0-9a-f]{32,}|\b(?:md5|sha-?[0-9]{1,3}|blake[0-9a-z]*|crc-?[0-9]+)\b|[a-z0-9+/]{40,})`)
 	huaweiDocumentRangePattern   = regexp.MustCompile(`[*<>~|]`)
 
@@ -376,6 +376,8 @@ func TestHuaweiConsultedDocumentsRejectInvalidFieldSets(t *testing.T) {
 		{"title carries a host and path", entry("documents.invalid/definitions", huaweiSampleVersion, huaweiSampleDate)},
 		{"title carries a host in parentheses", entry("Definitions (documents.invalid)", huaweiSampleVersion, huaweiSampleDate)},
 		{"title carries a mail address scheme", entry("mailto:owner@documents.invalid", huaweiSampleVersion, huaweiSampleDate)},
+		{"title carries a bare mail address", entry("Definitions owner@documents.invalid", huaweiSampleVersion, huaweiSampleDate)},
+		{"title carries a bare mail address alone", entry("owner@documents.invalid", huaweiSampleVersion, huaweiSampleDate)},
 		{"title carries a 64-digit hexadecimal digest", entry(huaweiSampleTitle+" "+hexDigits, huaweiSampleVersion, huaweiSampleDate)},
 		{"title carries a 40-digit hexadecimal digest", entry(huaweiSampleTitle+" "+hexDigits[:40], huaweiSampleVersion, huaweiSampleDate)},
 		{"title carries a base64 digest", entry(huaweiSampleTitle+" "+base64Digits, huaweiSampleVersion, huaweiSampleDate)},
@@ -391,6 +393,7 @@ func TestHuaweiConsultedDocumentsRejectInvalidFieldSets(t *testing.T) {
 		{"version is not text", entry(huaweiSampleTitle, 7, huaweiSampleDate)},
 		{"version is over the limit", entry(huaweiSampleTitle, huaweiTextOfLength(huaweiDocumentVersionLimit+1), huaweiSampleDate)},
 		{"version is the unpinned marker", entry(huaweiSampleTitle, "UNPINNED", huaweiSampleDate)},
+		{"version carries a bare mail address", entry(huaweiSampleTitle, "owner@documents.invalid", huaweiSampleDate)},
 		{"version is not stated", entry(huaweiSampleTitle, "not stated", huaweiSampleDate)},
 		{"version is a placeholder", entry(huaweiSampleTitle, "TBD", huaweiSampleDate)},
 		{"version carries a link", entry(huaweiSampleTitle, "https://documents.invalid/issue-7", huaweiSampleDate)},
