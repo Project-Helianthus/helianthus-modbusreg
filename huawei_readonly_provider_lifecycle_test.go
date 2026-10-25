@@ -461,3 +461,87 @@ func TestH06InventoryRetriesStayWithinTheEnumerationDeadline(t *testing.T) {
 		}
 	}
 }
+
+// h06BlockingCloseSession holds Close until released.
+type h06BlockingCloseSession struct {
+	*h06Session
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (s *h06BlockingCloseSession) Close() error {
+	close(s.entered)
+	<-s.release
+	return s.h06Session.Close()
+}
+
+func TestH06ReconnectBindsTheNewSessionOnlyAfterTheOldCloseReturns(t *testing.T) {
+	fixture, start := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "start_identification")
+	rig := newH06Rig(t, "SmartLogger", h06Units(fixture.AllowedUnits))
+	if err := rig.provider.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	old := &h06BlockingCloseSession{
+		h06Session: newH06Session("old", rig.clock, rig.recorder),
+		entered:    make(chan struct{}), release: make(chan struct{}),
+	}
+	if err := rig.provider.Start(old); err != nil {
+		t.Fatal(err)
+	}
+	next := newH06Session("next", rig.clock, rig.recorder)
+	done := make(chan error, 1)
+	go func() { done <- rig.provider.Reconnect(next) }()
+	<-old.entered
+	// The old Close has not returned: nothing may be read through the new session.
+	if _, err := rig.provider.Refresh(context.Background()); !errors.Is(err, ErrHuaweiProviderNotStarted) {
+		t.Fatalf("refresh while the old session closes: %v", err)
+	}
+	if calls := rig.recorder.Calls(); len(calls) != 0 {
+		t.Fatalf("requests sent while the old session closes: %d", len(calls))
+	}
+	close(old.release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if old.Closes() != 1 {
+		t.Fatalf("old session closes: %d", old.Closes())
+	}
+	rig.session = next
+	cycle := rig.refresh(t, h06Script(t, rig.sources, "SmartLogger", start)...)
+	if cycle.Reason != HuaweiProviderReasonIdentified {
+		t.Fatalf("after reconnect: %s", cycle.Reason)
+	}
+}
+
+func TestH06CancelledCycleKeepsAnExceptionThreeRefusal(t *testing.T) {
+	fixtureFile, _ := h06Load(t, "smartlogger_provider_cycles.json")
+	_, start := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "start_identification")
+	_, refusal := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "runtime_refusal")
+	_, notSent := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "refused_group_not_sent")
+	rig := newH06Rig(t, fixtureFile.Path, h06Units(fixtureFile.AllowedUnits))
+	rig.refresh(t, h06Script(t, rig.sources, fixtureFile.Path, start)...)
+
+	script := h06Script(t, rig.sources, fixtureFile.Path, refusal)
+	entered, release := make(chan struct{}), make(chan struct{})
+	// The refusal is answered at unit 1; the cycle is cancelled at unit 2.
+	script[4].answer.entered, script[4].answer.release = entered, release
+	rig.session.Append(script[:5]...)
+	rig.clock.Advance(rig.provider.NextRefreshAt().Sub(rig.clock.Now()))
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := rig.provider.Refresh(ctx)
+		done <- err
+	}()
+	<-entered
+	cancel()
+	close(release)
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled refresh: %v", err)
+	}
+	// The next cycle must not send the refused group again.
+	cycle := rig.refresh(t, h06Script(t, rig.sources, fixtureFile.Path, notSent)...)
+	if cycle.Outcome != HuaweiProviderCycleComplete {
+		t.Fatalf("cycle after the cancellation: %s %s", cycle.Outcome, cycle.Reason)
+	}
+}

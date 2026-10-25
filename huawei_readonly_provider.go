@@ -669,12 +669,22 @@ type huaweiProviderState struct {
 	smartLogger        *HuaweiSmartLoggerObservedQualificationInput
 	sdongle            *HuaweiSDongleObservedQualificationInput
 	children           map[uint8]*huaweiChildState
+	// carriedRefusals keeps exception 3 refusals learned in a cycle that was
+	// cancelled before it could commit, for children not yet in children.
+	carriedRefusals map[uint8]map[string]bool
 }
 
 func (s *huaweiProviderState) clone() *huaweiProviderState {
 	copied := *s
 	copied.guard = append([]uint16(nil), s.guard...)
 	copied.listing = append([]HuaweiGatewayInventoryChild(nil), s.listing...)
+	copied.carriedRefusals = make(map[uint8]map[string]bool, len(s.carriedRefusals))
+	for unit, keys := range s.carriedRefusals {
+		copied.carriedRefusals[unit] = make(map[string]bool, len(keys))
+		for key := range keys {
+			copied.carriedRefusals[unit][key] = true
+		}
+	}
 	copied.children = make(map[uint8]*huaweiChildState, len(s.children))
 	for unit, child := range s.children {
 		copied.children[unit] = child.clone()
@@ -687,6 +697,10 @@ func (s *huaweiProviderState) child(unit uint8) *huaweiChildState {
 		return c
 	}
 	c := &huaweiChildState{unit: unit, groups: map[uint16]huaweiGroupMeta{}, refused: map[string]bool{}}
+	for key := range s.carriedRefusals[unit] {
+		c.refused[key] = true
+	}
+	delete(s.carriedRefusals, unit)
 	s.children[unit] = c
 	return c
 }
@@ -813,6 +827,10 @@ func closeHuaweiProviderSession(session HuaweiProviderSession) error {
 	return session.Close()
 }
 
+// reconnect closes the old session before the new one is bound: while the old
+// Close runs the provider is stopped, so no cycle can read through the new
+// session until the old connection is released. The new session is bound
+// whether or not the old Close failed; that error is returned.
 func (p *huaweiProviderCore) reconnect(session HuaweiProviderSession) error {
 	if p == nil || session == nil {
 		return ErrHuaweiProviderConfig
@@ -826,9 +844,18 @@ func (p *huaweiProviderCore) reconnect(session HuaweiProviderSession) error {
 	if p.started {
 		old = p.unbindLocked()
 	}
-	p.bindLocked(session)
 	p.mu.Unlock()
-	return closeHuaweiProviderSession(old)
+	closeErr := closeHuaweiProviderSession(old)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return ErrHuaweiProviderClosed
+	}
+	if p.started {
+		return ErrHuaweiProviderStarted
+	}
+	p.bindLocked(session)
+	return closeErr
 }
 
 func (p *huaweiProviderCore) close() error {
@@ -932,7 +959,9 @@ func (p *huaweiProviderCore) refresh(ctx context.Context) (HuaweiProviderCycle, 
 	interval += time.Duration(run.waitCycles) * p.pacing.Cycle
 	p.nextAt = now.Add(interval)
 	if run.err != nil {
-		// A cancelled cycle or a pacing violation commits no reading.
+		// A cancelled cycle or a pacing violation commits no reading, but a
+		// group refused with exception 3 stays refused.
+		p.carryRefusals(run.state)
 		return HuaweiProviderCycle{}, run.err
 	}
 	run.out.CompletedAt = end
@@ -944,6 +973,25 @@ func (p *huaweiProviderCore) refresh(ctx context.Context) (HuaweiProviderCycle, 
 		p.last = &kept
 	}
 	return result, nil
+}
+
+// carryRefusals keeps the exception 3 refusals of an uncommitted cycle.
+func (p *huaweiProviderCore) carryRefusals(from *huaweiProviderState) {
+	for unit, child := range from.children {
+		for key := range child.refused {
+			if kept, ok := p.state.children[unit]; ok {
+				kept.refused[key] = true
+				continue
+			}
+			if p.state.carriedRefusals == nil {
+				p.state.carriedRefusals = map[uint8]map[string]bool{}
+			}
+			if p.state.carriedRefusals[unit] == nil {
+				p.state.carriedRefusals[unit] = map[string]bool{}
+			}
+			p.state.carriedRefusals[unit][key] = true
+		}
+	}
 }
 
 // ---- one cycle ---------------------------------------------------------------
