@@ -412,7 +412,9 @@ func TestSun2000EvidenceInputNoAdmission(t *testing.T) {
 	if err := json.Unmarshal(data, &disposition); err != nil {
 		t.Fatal(err)
 	}
-	if disposition.Outcome != "NO_ADMISSIBLE_PROFILE" || disposition.Catalog || disposition.Admission || disposition.Support || disposition.Write {
+	// The monitoring profiles of #348 admit two exact pairs offline; the
+	// documentary validator adds nothing to that and no authority exists.
+	if disposition.Outcome != "OFFLINE_PROFILE_ADMITTED" || disposition.Catalog || disposition.Admission || disposition.Support || disposition.Write {
 		t.Fatal("native disposition changed")
 	}
 }

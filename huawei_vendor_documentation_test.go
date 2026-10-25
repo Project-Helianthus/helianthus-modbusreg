@@ -209,7 +209,11 @@ const (
 	huaweiSampleDate    = "2025-03-14"
 )
 
-func TestHuaweiDispositionsCarryTheEmptyVendorDocumentationFieldSet(t *testing.T) {
+// TestHuaweiDispositionsCarryTheVendorDocumentationFieldSet checks the block
+// of every disposition: the SUN2000 disposition pins exactly the consulted
+// SUN2000MC edition that its monitoring profiles bind (#348); the other four
+// keep an empty identity set.
+func TestHuaweiDispositionsCarryTheVendorDocumentationFieldSet(t *testing.T) {
 	for _, path := range huaweiDispositionPaths {
 		t.Run(filepath.Base(path), func(t *testing.T) {
 			record := decodeHuaweiObject(t, path)
@@ -222,15 +226,26 @@ func TestHuaweiDispositionsCarryTheEmptyVendorDocumentationFieldSet(t *testing.T
 				}) {
 				t.Fatalf("unexpected vendor documentation policy: %#v", block)
 			}
-			if documents := h03Array(t, block["consulted_documents"]); len(documents) != 0 {
-				t.Fatalf("a document identity was supplied without the operator: %#v", documents)
-			}
 			identities, err := huaweiConsultedDocuments(evidence)
-			if err != nil || len(identities) != 0 || huaweiRestsOnConsultedDocument(evidence) {
-				t.Fatalf("empty field set read as %v, %v", identities, err)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if filepath.Base(path) == "sun2000-disposition.json" {
+				pinned := huaweiSUN2000MCEdition
+				if len(identities) != 1 || (HuaweiVendorDocumentIdentity{Title: identities[0].Title, Version: identities[0].Version, Date: identities[0].Date}) != pinned ||
+					!huaweiRestsOnConsultedDocument(evidence) {
+					t.Fatalf("SUN2000 pin=%v want %v", identities, pinned)
+				}
+				for _, profile := range HuaweiSUN2000MonitoringProfiles() {
+					if profile.Document() != pinned {
+						t.Fatalf("%s binds %v, not the pinned edition", profile.ID(), profile.Document())
+					}
+				}
+			} else if len(identities) != 0 || huaweiRestsOnConsultedDocument(evidence) {
+				t.Fatalf("a document identity was supplied without the operator: %v", identities)
 			}
 			if record["catalog_registered"] != false || record["automatic_runtime_admission"] != false || record["support_claim"] != false ||
-				len(h03Array(t, record["decoder_keys"])) != 0 {
+				(filepath.Base(path) != "sun2000-disposition.json" && len(h03Array(t, record["decoder_keys"])) != 0) {
 				t.Fatalf("the field set changed an authority field: %#v", record)
 			}
 		})
@@ -565,7 +580,7 @@ func TestHuaweiPublicEvidenceCitesTheVendorDocumentationPolicy(t *testing.T) {
 	}
 	applicability := strings.Join(huaweiStringSlice(t, evidence["applicability"]), "\n")
 	for _, phrase := range []string{
-		"official vendor documentation", "title, version and date", "no document is consulted", "default denied",
+		"official vendor documentation", "title, version and date", "one document is consulted", "SUN2000MC edition", "default denied",
 	} {
 		if !strings.Contains(applicability, phrase) {
 			t.Fatalf("applicability lacks %q", phrase)

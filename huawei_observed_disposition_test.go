@@ -200,8 +200,11 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 	tests := []expectation{
 		{"emma-disposition.json", "OFFLINE_IDENTITY_ADMITTED", "NO_MODBUS_RESPONSE", []string{gateway, observation}, []string{h03FixturePaths[2]},
 			"missing_capability_evidence", []string{"sanitized_readonly_capability_fixture", "negative_overlap_with_smartlogger", "model_specific_capability_fixture"}},
-		{"sun2000-disposition.json", "NO_ADMISSIBLE_PROFILE", "OBSERVED_IDENTITY_BEHIND_GATEWAY", []string{identity, observation}, []string{h03FixturePaths[1], h03FixturePaths[3]},
-			"missing_evidence", []string{"pinned_vendor_document_identity", "companion_docs_modbus_protocol_page", "clean_room_sanitized_identity_fixture", "clean_room_sanitized_monitoring_fixture", "negative_overlap_with_smartlogger_emma_sdongle"}},
+		// The SUN2000 monitoring profiles (#348) admit two exact pairs; the
+		// pointer row itself still changes nothing, and what stays missing is
+		// the pinned edition of the MAP0 series.
+		{"sun2000-disposition.json", "OFFLINE_PROFILE_ADMITTED", "OBSERVED_IDENTITY_BEHIND_GATEWAY", []string{identity, observation}, []string{h03FixturePaths[1], h03FixturePaths[3]},
+			"missing_evidence", []string{"pinned_vendor_document_identity"}},
 		{"luna2000-disposition.json", "NO_ADMISSIBLE_PROFILE", "NOT_OBSERVED", []string{identity}, []string{},
 			"missing_evidence", []string{"pinned_vendor_document_identity", "companion_docs_modbus_protocol_page", "clean_room_sanitized_identity_fixture", "clean_room_sanitized_monitoring_fixture", "negative_overlap_with_smartlogger_emma_sdongle"}},
 	}
@@ -220,7 +223,8 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 			// The pointer row records evidence only: outcome, lists and authority are untouched.
 			evidence := huaweiObject(t, record["evidence"])
 			if record["outcome"] != test.outcome || !reflect.DeepEqual(huaweiStringSlice(t, evidence[test.missing]), test.missingList) ||
-				record["catalog_registered"] != false || record["automatic_runtime_admission"] != false || record["support_claim"] != false || len(h03Array(t, record["decoder_keys"])) != 0 {
+				record["catalog_registered"] != false || record["automatic_runtime_admission"] != false || record["support_claim"] != false ||
+				(test.file != "sun2000-disposition.json" && len(h03Array(t, record["decoder_keys"])) != 0) {
 				t.Fatalf("pointer row changed the disposition: %#v", record)
 			}
 			if reopen, ok := record["reopen_requires"]; ok && !reflect.DeepEqual(huaweiStringSlice(t, reopen), test.missingList) {
@@ -231,12 +235,12 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 
 	sun2000 := decodeHuaweiObject(t, "profiles/vendor/huawei/sun2000-disposition.json")
 	families := huaweiObject(t, sun2000["model_families"])
-	if len(h03Array(t, families["covered"])) != 0 || families["unsupported"] != "ALL" {
+	if !reflect.DeepEqual(huaweiStringSlice(t, families["covered"]), []string{"SUN2000 M3 series", "SUN2000 M1 series"}) || families["unsupported"] != "ALL_OTHER_FAMILIES" {
 		t.Fatalf("SUN2000 coverage changed: %#v", families)
 	}
 	luna := decodeHuaweiObject(t, "profiles/vendor/huawei/luna2000-disposition.json")
 	if len(h03Array(t, huaweiObject(t, luna["observation_pointer"])["fixtures"])) != 0 {
-		t.Fatal("LUNA2000 must point at no fixture: no battery group was observed")
+		t.Fatal("LUNA2000 must point at no fixture: no LUNA2000 identity was observed")
 	}
 	// The S-Dongle disposition moved to schema v2 and carries its own observed
 	// identity instead of a pointer row; the S-Dongle tests pin it.

@@ -59,6 +59,18 @@ admission stay required. See
 [`docs/huawei-vendor-documentation.md`](docs/huawei-vendor-documentation.md) and
 the
 [applicability and licensing policy](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/applicability-and-licensing.md).
+Two SUN2000 monitoring profiles implement the public Huawei read-only
+monitoring contract for exact pairs only: the M3 series model behind the
+observed SmartLogger tuple and the M1 series model behind the observed S-Dongle
+tuple, each bound to the one pinned SUN2000MC edition. Capability detection
+evaluates the gateway card, the routed unit, the routed model string and the
+edition; everything else stays insufficient evidence or `NO_ADMISSIBLE_PROFILE`.
+The read plans are bounded FC03 groups that the family answered, a refused
+group is never read, and the observer session exposes reads only. The MAP0
+series has no consulted edition and no profile, no battery or meter fact is
+admitted, and catalog registration, live qualification, support claims and
+write authority stay false. See
+[`docs/huawei-sun2000-monitoring-profiles.md`](docs/huawei-sun2000-monitoring-profiles.md).
 
 ## Ownership
 
