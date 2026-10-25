@@ -27,8 +27,11 @@ card, fixture, detector, decoder, or admission.
 ## The field set
 
 Each Huawei disposition has an optional `evidence.vendor_documentation` block.
-All five dispositions carry it today, with an empty `consulted_documents` list,
-because the operator has not supplied a document identity yet.
+All five dispositions carry it. The SUN2000 disposition pins one consulted
+edition, `SUN2000MC V200R023C00 Modbus Interface Definitions`, `Issue 01`,
+`2023-03-17`, which binds its two monitoring profiles (see
+[SUN2000 monitoring profiles](huawei-sun2000-monitoring-profiles.md)); the
+other four keep an empty `consulted_documents` list.
 
 | Key | Content |
 | --- | --- |
@@ -74,6 +77,12 @@ accepted and refused field sets.
   `NO_ADMISSIBLE_PROFILE` and their reopen list keeps the four other items.
 - `evidence.json` lists the policy page as a public source and states the rule
   in its applicability lines.
+- The SUN2000 monitoring profiles (helianthus-modbusreg issue 348) move the
+  SUN2000 and LUNA2000 dispositions to schema v3. The SUN2000 pin supplies the
+  pinned document identity for the M3 and M1 series, so that reopen item stays
+  only for the MAP0 series, which has no consulted edition. The pin by itself
+  still changes no outcome: the outcome rests on the monitoring contract, the
+  observation fixtures, the exact pairs and the executable decision table.
 
 ## Rollback
 

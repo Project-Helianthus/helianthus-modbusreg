@@ -1,7 +1,7 @@
 {
-  "schema": "helianthus-modbusreg-huawei-inverter-battery-disposition/v2",
+  "schema": "helianthus-modbusreg-huawei-inverter-battery-disposition/v3",
   "profile": "huawei.luna2000",
-  "profile_version": "1.0.0",
+  "profile_version": "1.1.0",
   "outcome": "NO_ADMISSIBLE_PROFILE",
   "evidence": {
     "source_document": {
@@ -18,6 +18,18 @@
       "companion_state": "MERGED",
       "merge_companion_first": true,
       "docs_merge_sha": "5d8a25871a9fbc48ca6e87e249b6b8603a131920"
+    },
+    "monitoring_contract": {
+      "repository": "helianthus-docs-modbus",
+      "issue": 242,
+      "pull_request": 253,
+      "pages": [
+        "protocols/huawei/monitoring-readonly-v1.md",
+        "protocols/huawei/read-pacing-v1.md"
+      ],
+      "companion_required": true,
+      "companion_state": "MERGED",
+      "merge_companion_first": true
     },
     "eligible": false,
     "missing_evidence": [
@@ -102,6 +114,13 @@
         "reason": "the parent SUN2000 inverter has no positive identity, so no battery profile is selected"
       },
       {
+        "id": "parent_identified_battery_layout_unknown",
+        "outcome": "NO_ADMISSIBLE_PROFILE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "the parent inverter has a selected monitoring profile, but no consulted edition defines the battery group for its family, so no battery profile is selected"
+      },
+      {
         "id": "model_without_firmware",
         "outcome": "INSUFFICIENT_EVIDENCE",
         "selected_profile": "",
@@ -171,6 +190,32 @@
     ],
     "absent_semantics": "UNKNOWN_NOT_ZERO",
     "exception_semantics": "RETAIN_LAST_KNOWN_GOOD_NO_NEGATION"
+  },
+  "battery_groups": {
+    "status": "PRESENT_NOT_ADMITTED",
+    "groups": [
+      {
+        "offset": 37000,
+        "quantity": 30
+      },
+      {
+        "offset": 37066,
+        "quantity": 4
+      },
+      {
+        "offset": 47000,
+        "quantity": 1
+      }
+    ],
+    "answered_with_data_on": [
+      "SUN2000 MAP0 series"
+    ],
+    "presence_grade": "PROVEN",
+    "meanings_grade": "UNKNOWN",
+    "zero_word_rule_grade": "HYPOTHESIS",
+    "presence_word_grade": "UNKNOWN",
+    "facts_admitted": false,
+    "port_definitions": "the two consulted LUNA2000 port definitions cover commercial and utility-scale storage, not the residential packs behind the EMMA, so no battery field rests on them and no document is pinned here"
   },
   "private_functions": {
     "FC0x41": "NO_SEND",
