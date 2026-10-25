@@ -1035,6 +1035,9 @@ const (
 type huaweiReadResult struct {
 	status        huaweiReadStatus
 	exceptionCode uint8
+	// decodedException reports that the reply was decoded as a definitive
+	// exception before a stop or cancellation ended the read.
+	decodedException bool
 	// last is the outcome of the last attempt of a failed read.
 	last HuaweiProviderExchangeOutcome
 	// overDeadline reports that the read gave up because the budget set on the
@@ -1148,7 +1151,13 @@ func (r *huaweiCycleRun) exchange(record HuaweiProviderExchange, send func(conte
 		r.out.Exchanges = append(r.out.Exchanges, attempt)
 		if err := r.ctx.Err(); err != nil {
 			r.err = err
-			return huaweiReadResult{status: huaweiReadStopped}
+			// The reply was decoded before the cancellation: a definitive
+			// exception is handed to the caller so it is recorded.
+			stopped := huaweiReadResult{status: huaweiReadStopped}
+			if outcome == HuaweiProviderExchangeException && code != 5 && code != 6 && code != 11 {
+				stopped.exceptionCode, stopped.decodedException = code, true
+			}
+			return stopped
 		}
 		switch outcome {
 		case HuaweiProviderExchangeAnswered:
@@ -1307,6 +1316,10 @@ func (r *huaweiCycleRun) monitorChild(child *huaweiChildState) (HuaweiProviderEv
 				reason = HuaweiProviderReasonChildTimeout
 			}
 		default:
+			// Stopped: a refusal decoded before the stop is still recorded.
+			if result.decodedException && result.exceptionCode == huaweiSUN2000RefusalCode {
+				child.refused[huaweiRefusalKey(profile.ID(), step.Offset, step.Quantity)] = true
+			}
 			return "", "", nil
 		}
 		current[step.Offset] = reading

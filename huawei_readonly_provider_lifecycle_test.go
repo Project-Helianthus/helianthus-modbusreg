@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	modbus "github.com/Project-Helianthus/helianthus-modbus"
 )
 
 func h06FixtureCycle(t testing.TB, name, cycle string) (h06Fixture, h06Cycle) {
@@ -722,5 +724,79 @@ func TestH06SmartLoggerMismatchFenceSurvivesAGatewayReadFailure(t *testing.T) {
 		if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != HuaweiProviderReasonGatewayMismatch || len(child.Reading.Facts()) != 0 {
 			t.Fatalf("child %d released by a read failure after a mismatch: %+v", child.UnitID, child)
 		}
+	}
+}
+
+// The refusal is recorded where the reply is decoded, so a cancellation or a
+// fence that coincides with the exception 3 reply of the same exchange still
+// keeps the group from being sent again.
+func TestH06RefusalCoincidingWithStopIsRecorded(t *testing.T) {
+	for _, name := range []string{"cancel", "stop"} {
+		t.Run(name, func(t *testing.T) {
+			fixtureFile, _ := h06Load(t, "smartlogger_provider_cycles.json")
+			_, start := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "start_identification")
+			_, refusal := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "runtime_refusal")
+			_, notSent := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "refused_group_not_sent")
+			rig := newH06Rig(t, fixtureFile.Path, h06Units(fixtureFile.AllowedUnits))
+			rig.refresh(t, h06Script(t, rig.sources, fixtureFile.Path, start)...)
+
+			script := h06Script(t, rig.sources, fixtureFile.Path, refusal)
+			index := -1
+			for i, step := range script {
+				var protocol *modbus.ProtocolError
+				if step.function == 0x03 && errors.As(step.answer.err, &protocol) && protocol.ExceptionCode == huaweiSUN2000RefusalCode {
+					index = i
+					break
+				}
+			}
+			if index < 0 {
+				t.Fatal("no exception 3 step in the refusal cycle")
+			}
+			entered, release := make(chan struct{}), make(chan struct{})
+			script[index].answer.entered, script[index].answer.release = entered, release
+			rig.session.Append(script[:index+1]...)
+			rig.clock.Advance(rig.provider.NextRefreshAt().Sub(rig.clock.Now()))
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() {
+				_, err := rig.provider.Refresh(ctx)
+				done <- err
+			}()
+			<-entered
+			want := context.Canceled
+			if name == "cancel" {
+				cancel()
+			} else {
+				if err := rig.provider.Stop(); err != nil {
+					t.Fatal(err)
+				}
+				want = ErrHuaweiProviderFenced
+			}
+			close(release)
+			if err := <-done; !errors.Is(err, want) {
+				t.Fatalf("refresh: %v", err)
+			}
+			if name == "stop" {
+				next := newH06Session("next", rig.clock, rig.recorder)
+				if err := rig.provider.Start(next); err != nil {
+					t.Fatal(err)
+				}
+				rig.session = next
+				var kept []h06Expected
+				for _, step := range h06Script(t, rig.sources, fixtureFile.Path, start) {
+					if step.function == 0x03 && step.unit == 1 && step.offset == 32016 {
+						continue
+					}
+					kept = append(kept, step)
+				}
+				rig.refresh(t, kept...)
+				return
+			}
+			cycle := rig.refresh(t, h06Script(t, rig.sources, fixtureFile.Path, notSent)...)
+			if cycle.Outcome != HuaweiProviderCycleComplete {
+				t.Fatalf("cycle after the cancellation: %s %s", cycle.Outcome, cycle.Reason)
+			}
+		})
 	}
 }
