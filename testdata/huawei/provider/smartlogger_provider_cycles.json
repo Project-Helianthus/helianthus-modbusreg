@@ -1,0 +1,1336 @@
+{
+  "schema": "helianthus-huawei-provider-cycle-fixture/v1",
+  "kind": "scripted_provider_cycles",
+  "path": "SmartLogger",
+  "provider_id": "huawei.smartlogger.observed-readonly-provider@1.0.0",
+  "license": "CC0-1.0",
+  "provenance": "synthetic scripted session composed from the sanitized identity and monitoring fixtures named in sources; a source reply carries only what its fixture holds",
+  "sanitization": {
+    "rule": "every source reply inherits the sanitization of its fixture; a literal reply is a placeholder marked synthetic, never an observed value"
+  },
+  "sources": [
+    "identity/smartlogger_extended_inventory.json",
+    "identity/smartlogger_basic_reply.json",
+    "identity/sun2000_routed_identity.json",
+    "monitoring/sun2000_m3_smartlogger_monitoring.json"
+  ],
+  "allowed_units": [
+    1,
+    2,
+    9,
+    11,
+    20
+  ],
+  "cycles": [
+    {
+      "name": "start_identification",
+      "steps": [
+        {
+          "function": "FC03",
+          "unit": 0,
+          "offset": 65521,
+          "quantity": 1,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x87",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x88",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x89",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8a",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8b",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8c",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8d",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8e",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8f",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x90",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x91",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x92",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x93",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 0,
+          "offset": 65521,
+          "quantity": 1,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 1,
+          "object": "0x00",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 30000,
+          "quantity": 15,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32106,
+          "quantity": 10,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 30000,
+          "quantity": 15,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32106,
+          "quantity": 10,
+          "reply": {
+            "kind": "source"
+          }
+        }
+      ],
+      "expect": {
+        "outcome": "COMPLETE",
+        "reason": "identified",
+        "children": [
+          {
+            "unit": 1,
+            "evidence": "CURRENT",
+            "reason": "read"
+          },
+          {
+            "unit": 2,
+            "evidence": "CURRENT",
+            "reason": "read"
+          },
+          {
+            "unit": 3,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 4,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 5,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 6,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 7,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 8,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 9,
+            "evidence": "WITHHELD",
+            "reason": "no_class_contract"
+          },
+          {
+            "unit": 11,
+            "evidence": "WITHHELD",
+            "reason": "no_class_contract"
+          },
+          {
+            "unit": 19,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 20,
+            "evidence": "WITHHELD",
+            "reason": "not_listed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "guard_held_child_timeout",
+      "steps": [
+        {
+          "function": "FC03",
+          "unit": 0,
+          "offset": 65521,
+          "quantity": 1,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32106,
+          "quantity": 10,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "timeout",
+            "elapsed_class": "at_deadline"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "timeout",
+            "elapsed_class": "at_deadline"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "timeout",
+            "elapsed_class": "at_deadline"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "timeout",
+            "elapsed_class": "at_deadline"
+          }
+        }
+      ],
+      "expect": {
+        "outcome": "COMPLETE",
+        "reason": "guard_held",
+        "children": [
+          {
+            "unit": 1,
+            "evidence": "CURRENT",
+            "reason": "read"
+          },
+          {
+            "unit": 2,
+            "evidence": "STALE",
+            "reason": "child_timeout",
+            "retained": [
+              32000,
+              32016,
+              32106
+            ]
+          },
+          {
+            "unit": 3,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 4,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 5,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 6,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 7,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 8,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 9,
+            "evidence": "WITHHELD",
+            "reason": "no_class_contract"
+          },
+          {
+            "unit": 11,
+            "evidence": "WITHHELD",
+            "reason": "no_class_contract"
+          },
+          {
+            "unit": 19,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 20,
+            "evidence": "WITHHELD",
+            "reason": "not_listed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "guard_changed",
+      "steps": [
+        {
+          "function": "FC03",
+          "unit": 0,
+          "offset": 65521,
+          "quantity": 1,
+          "reply": {
+            "kind": "words",
+            "words": [
+              8
+            ],
+            "synthetic": true
+          }
+        }
+      ],
+      "expect": {
+        "outcome": "INCOMPLETE",
+        "reason": "guard_changed",
+        "children": [
+          {
+            "unit": 1,
+            "evidence": "STALE",
+            "reason": "listing_unconfirmed",
+            "retained": [
+              32000,
+              32016,
+              32106
+            ]
+          },
+          {
+            "unit": 2,
+            "evidence": "STALE",
+            "reason": "listing_unconfirmed",
+            "retained": [
+              32000,
+              32016,
+              32106
+            ]
+          },
+          {
+            "unit": 3,
+            "evidence": "WITHHELD",
+            "reason": "listing_unconfirmed"
+          },
+          {
+            "unit": 4,
+            "evidence": "WITHHELD",
+            "reason": "listing_unconfirmed"
+          },
+          {
+            "unit": 5,
+            "evidence": "WITHHELD",
+            "reason": "listing_unconfirmed"
+          },
+          {
+            "unit": 6,
+            "evidence": "WITHHELD",
+            "reason": "listing_unconfirmed"
+          },
+          {
+            "unit": 7,
+            "evidence": "WITHHELD",
+            "reason": "listing_unconfirmed"
+          },
+          {
+            "unit": 8,
+            "evidence": "WITHHELD",
+            "reason": "listing_unconfirmed"
+          },
+          {
+            "unit": 9,
+            "evidence": "WITHHELD",
+            "reason": "listing_unconfirmed"
+          },
+          {
+            "unit": 11,
+            "evidence": "WITHHELD",
+            "reason": "listing_unconfirmed"
+          },
+          {
+            "unit": 19,
+            "evidence": "WITHHELD",
+            "reason": "listing_unconfirmed"
+          },
+          {
+            "unit": 20,
+            "evidence": "WITHHELD",
+            "reason": "listing_unconfirmed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reenumeration_unstable",
+      "steps": [
+        {
+          "function": "FC03",
+          "unit": 0,
+          "offset": 65521,
+          "quantity": 1,
+          "reply": {
+            "kind": "words",
+            "words": [
+              8
+            ],
+            "synthetic": true
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x87",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x88",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x89",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8a",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8b",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8c",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8d",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8e",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8f",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x90",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x91",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x92",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x93",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 0,
+          "offset": 65521,
+          "quantity": 1,
+          "reply": {
+            "kind": "words",
+            "words": [
+              9
+            ],
+            "synthetic": true
+          }
+        }
+      ],
+      "expect": {
+        "outcome": "INCOMPLETE",
+        "reason": "listing_unstable",
+        "children": [
+          {
+            "unit": 1,
+            "evidence": "STALE",
+            "reason": "listing_unstable",
+            "retained": [
+              32000,
+              32016,
+              32106
+            ]
+          },
+          {
+            "unit": 2,
+            "evidence": "STALE",
+            "reason": "listing_unstable",
+            "retained": [
+              32000,
+              32016,
+              32106
+            ]
+          },
+          {
+            "unit": 3,
+            "evidence": "WITHHELD",
+            "reason": "listing_unstable"
+          },
+          {
+            "unit": 4,
+            "evidence": "WITHHELD",
+            "reason": "listing_unstable"
+          },
+          {
+            "unit": 5,
+            "evidence": "WITHHELD",
+            "reason": "listing_unstable"
+          },
+          {
+            "unit": 6,
+            "evidence": "WITHHELD",
+            "reason": "listing_unstable"
+          },
+          {
+            "unit": 7,
+            "evidence": "WITHHELD",
+            "reason": "listing_unstable"
+          },
+          {
+            "unit": 8,
+            "evidence": "WITHHELD",
+            "reason": "listing_unstable"
+          },
+          {
+            "unit": 9,
+            "evidence": "WITHHELD",
+            "reason": "listing_unstable"
+          },
+          {
+            "unit": 11,
+            "evidence": "WITHHELD",
+            "reason": "listing_unstable"
+          },
+          {
+            "unit": 19,
+            "evidence": "WITHHELD",
+            "reason": "listing_unstable"
+          },
+          {
+            "unit": 20,
+            "evidence": "WITHHELD",
+            "reason": "listing_unstable"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reenumeration",
+      "steps": [
+        {
+          "function": "FC03",
+          "unit": 0,
+          "offset": 65521,
+          "quantity": 1,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x87",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x88",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x89",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8a",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8b",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8c",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8d",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8e",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x8f",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x90",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x91",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x92",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 3,
+          "object": "0x93",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 0,
+          "offset": 65521,
+          "quantity": 1,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC2B",
+          "unit": 0,
+          "code": 1,
+          "object": "0x00",
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 30000,
+          "quantity": 15,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32106,
+          "quantity": 10,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 30000,
+          "quantity": 15,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32106,
+          "quantity": 10,
+          "reply": {
+            "kind": "source"
+          }
+        }
+      ],
+      "expect": {
+        "outcome": "COMPLETE",
+        "reason": "identified",
+        "children": [
+          {
+            "unit": 1,
+            "evidence": "CURRENT",
+            "reason": "read"
+          },
+          {
+            "unit": 2,
+            "evidence": "CURRENT",
+            "reason": "read"
+          },
+          {
+            "unit": 3,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 4,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 5,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 6,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 7,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 8,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 9,
+            "evidence": "WITHHELD",
+            "reason": "no_class_contract"
+          },
+          {
+            "unit": 11,
+            "evidence": "WITHHELD",
+            "reason": "no_class_contract"
+          },
+          {
+            "unit": 19,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 20,
+            "evidence": "WITHHELD",
+            "reason": "not_listed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "runtime_refusal",
+      "steps": [
+        {
+          "function": "FC03",
+          "unit": 0,
+          "offset": 65521,
+          "quantity": 1,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "exception",
+            "code": 3
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32106,
+          "quantity": 10,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32106,
+          "quantity": 10,
+          "reply": {
+            "kind": "source"
+          }
+        }
+      ],
+      "expect": {
+        "outcome": "COMPLETE",
+        "reason": "guard_held",
+        "children": [
+          {
+            "unit": 1,
+            "evidence": "STALE",
+            "reason": "child_exception",
+            "retained": [
+              32016
+            ]
+          },
+          {
+            "unit": 2,
+            "evidence": "CURRENT",
+            "reason": "read"
+          },
+          {
+            "unit": 3,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 4,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 5,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 6,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 7,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 8,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 9,
+            "evidence": "WITHHELD",
+            "reason": "no_class_contract"
+          },
+          {
+            "unit": 11,
+            "evidence": "WITHHELD",
+            "reason": "no_class_contract"
+          },
+          {
+            "unit": 19,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 20,
+            "evidence": "WITHHELD",
+            "reason": "not_listed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "refused_group_not_sent",
+      "steps": [
+        {
+          "function": "FC03",
+          "unit": 0,
+          "offset": 65521,
+          "quantity": 1,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 32106,
+          "quantity": 10,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32000,
+          "quantity": 16,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32016,
+          "quantity": 24,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 32106,
+          "quantity": 10,
+          "reply": {
+            "kind": "source"
+          }
+        }
+      ],
+      "expect": {
+        "outcome": "COMPLETE",
+        "reason": "guard_held",
+        "children": [
+          {
+            "unit": 1,
+            "evidence": "CURRENT",
+            "reason": "read",
+            "retained": [
+              32016
+            ]
+          },
+          {
+            "unit": 2,
+            "evidence": "CURRENT",
+            "reason": "read"
+          },
+          {
+            "unit": 3,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 4,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 5,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 6,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 7,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 8,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 9,
+            "evidence": "WITHHELD",
+            "reason": "no_class_contract"
+          },
+          {
+            "unit": 11,
+            "evidence": "WITHHELD",
+            "reason": "no_class_contract"
+          },
+          {
+            "unit": 19,
+            "evidence": "WITHHELD",
+            "reason": "not_allowlisted"
+          },
+          {
+            "unit": 20,
+            "evidence": "WITHHELD",
+            "reason": "not_listed"
+          }
+        ]
+      }
+    }
+  ]
+}

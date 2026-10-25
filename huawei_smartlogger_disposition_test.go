@@ -13,7 +13,7 @@ func TestHuaweiSmartLoggerDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 		"schema", "profile", "profile_version", "outcome", "evidence",
 		"admission", "observed_identity", "change_counter", "child_enumeration", "private_functions",
 		"decoder_keys", "catalog_registered", "automatic_runtime_admission",
-		"support_claim", "write_authority", "reopen_requires",
+		"support_claim", "write_authority", "production_provider", "reopen_requires",
 	)
 	if record["schema"] != "helianthus-modbusreg-huawei-smartlogger-disposition/v2" ||
 		record["profile"] != "huawei.smartlogger" || record["profile_version"] != "1.0.0" ||

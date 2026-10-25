@@ -13,7 +13,7 @@ func TestHuaweiSDongleDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 		"schema", "profile", "profile_version", "outcome", "evidence", "admission",
 		"protocol_version", "search_sequence", "capacity", "child_enumeration",
 		"private_functions", "decoder_keys", "catalog_registered",
-		"automatic_runtime_admission", "support_claim", "write_authority", "qualification_plan", "observed_identity", "reopen_requires",
+		"automatic_runtime_admission", "support_claim", "write_authority", "qualification_plan", "observed_identity", "production_provider", "reopen_requires",
 	)
 	if record["schema"] != "helianthus-modbusreg-huawei-sdongle-disposition/v2" ||
 		record["profile"] != "huawei.sdongle" || record["profile_version"] != "1.0.0" ||
