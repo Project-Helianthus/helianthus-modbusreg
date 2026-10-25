@@ -1130,6 +1130,16 @@ func huaweiWordsToBytes(words []uint16) []byte {
 
 // huaweiChildBackoffCycles is the registry's back-off of one child after
 // consecutive failures: none after the first, then doubling up to ten cycles.
+// huaweiChildSkipUntil returns the first cycle at which a failed child is read
+// again; the skip check is strict, so the backoff length is skipped in full.
+func huaweiChildSkipUntil(cycle uint64, failures int) uint64 {
+	wait := huaweiChildBackoffCycles(failures)
+	if wait == 0 {
+		return cycle
+	}
+	return cycle + wait + 1
+}
+
 func huaweiChildBackoffCycles(failures int) uint64 {
 	if failures < 2 {
 		return 0
@@ -1211,7 +1221,7 @@ func (r *huaweiCycleRun) monitorChild(child *huaweiChildState) (HuaweiProviderEv
 		child.failures, child.skipUntil = 0, 0
 	} else if reason != HuaweiProviderReasonChildException {
 		child.failures++
-		child.skipUntil = r.cycle + huaweiChildBackoffCycles(child.failures)
+		child.skipUntil = huaweiChildSkipUntil(r.cycle, child.failures)
 	}
 	return state, reason, current
 }

@@ -349,3 +349,50 @@ func TestH06SDongleGuardFailureBacksOffAndIdentifiesAgain(t *testing.T) {
 		t.Fatalf("after the guard failure: %s %s", again.Outcome, again.Reason)
 	}
 }
+
+func TestH06ChildBackoffSkipsTheDocumentedCycles(t *testing.T) {
+	for failures := 1; failures <= 8; failures++ {
+		wait := huaweiChildBackoffCycles(failures)
+		skipUntil := huaweiChildSkipUntil(100, failures)
+		var skipped uint64
+		for cycle := uint64(101); cycle < 200 && skipUntil > cycle; cycle++ {
+			skipped++
+		}
+		if skipped != wait {
+			t.Fatalf("%d failures: backoff %d cycles but %d skipped", failures, wait, skipped)
+		}
+	}
+}
+
+func TestH06SmartLoggerGuardFailureIdentifiesAgain(t *testing.T) {
+	fixture, start := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "start_identification")
+	rig := newH06Rig(t, fixture.Path, h06Units(fixture.AllowedUnits))
+	rig.refresh(t, h06Script(t, rig.sources, fixture.Path, start)...)
+	var timeouts []h06Expected
+	for attempt := 0; attempt < 4; attempt++ {
+		timeouts = append(timeouts, h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{err: h06Timeout()}))
+	}
+	failed := rig.refresh(t, timeouts...)
+	if failed.Reason != HuaweiProviderReasonGuardFailed {
+		t.Fatalf("guard failure: %s %s", failed.Outcome, failed.Reason)
+	}
+	// A matching counter alone must not resume the cached children.
+	again := rig.refresh(t, h06Script(t, rig.sources, fixture.Path, start)...)
+	if again.Reason != HuaweiProviderReasonIdentified || again.Outcome != HuaweiProviderCycleComplete {
+		t.Fatalf("after the guard failure: %s %s", again.Outcome, again.Reason)
+	}
+}
+
+func TestH06SmartLoggerInventoryDeadlineStopsPagination(t *testing.T) {
+	fixture, start := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "start_identification")
+	rig := newH06Rig(t, fixture.Path, h06Units(fixture.AllowedUnits))
+	script := h06Script(t, rig.sources, fixture.Path, start)
+	if len(script) < 3 || script[1].function != 0x2b {
+		t.Fatalf("unexpected start script shape")
+	}
+	script[1].answer.elapsed = 16 * time.Second
+	cycle := rig.refresh(t, script[:2]...)
+	if cycle.Outcome != HuaweiProviderCycleIncomplete || cycle.Reason != HuaweiProviderReasonListingUnstable {
+		t.Fatalf("slow inventory: %s %s", cycle.Outcome, cycle.Reason)
+	}
+}

@@ -137,6 +137,7 @@ func runHuaweiSmartLoggerCycle(r *huaweiCycleRun) {
 			s.reidentify = true
 			r.out.Outcome, r.out.Reason = HuaweiProviderCycleIncomplete, HuaweiProviderReasonGuardChanged
 		default:
+			s.reidentify = true
 			s.gateway.State = HuaweiProviderGatewayUnconfirmed
 			r.out.Outcome, r.out.Reason = HuaweiProviderCycleIncomplete, HuaweiProviderReasonGuardFailed
 			if result.status == huaweiReadFailed {
@@ -201,6 +202,10 @@ func (r *huaweiCycleRun) identifySmartLogger() {
 		pages = append(pages, HuaweiSmartLoggerObservedInventoryPage{
 			ResponseBytes: page.ResponseBytes, DeclaredObjects: page.DeclaredObjects, More: page.More, NextObjectID: page.NextObjectID, Objects: page.Objects,
 		})
+		if r.link.lastEnd.Sub(bracketStart) > time.Duration(limits.DeadlineMilliseconds)*time.Millisecond {
+			listingUnstable()
+			return
+		}
 		if !page.More {
 			break
 		}
@@ -363,7 +368,7 @@ func (r *huaweiCycleRun) identifySmartLoggerChild(child *huaweiChildState) bool 
 		return false
 	case huaweiReadFailed:
 		child.failures++
-		child.skipUntil = r.cycle + huaweiChildBackoffCycles(child.failures)
+		child.skipUntil = huaweiChildSkipUntil(r.cycle, child.failures)
 		reason := HuaweiProviderReasonChildReadFailed
 		if result.last == HuaweiProviderExchangeTimeout {
 			reason = HuaweiProviderReasonChildTimeout
