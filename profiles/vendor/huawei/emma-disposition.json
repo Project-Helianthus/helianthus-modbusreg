@@ -58,10 +58,11 @@
     },
     "docs_contract": {
       "repository": "helianthus-docs-modbus",
-      "issue": 241,
-      "pull_request": 243,
+      "issue": 249,
+      "pull_request": 252,
       "pages": [
         "protocols/huawei/gateway-readonly-v1.md",
+        "protocols/huawei/emma-observed-identity-v1.md",
         "protocols/huawei/smartlogger-observed-inventory-v1.md",
         "protocols/huawei/qualification-readiness-v1.md"
       ]

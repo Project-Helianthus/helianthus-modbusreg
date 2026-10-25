@@ -91,11 +91,25 @@ func TestH18EMMADispositionSupersedesTheNoResponseRecordForIdentityOnly(t *testi
 	}) {
 		t.Fatalf("unknown after observation: %#v", evidence["unknown_after_observation"])
 	}
-	h03RequireDocsContract(t, evidence["docs_contract"], []string{
+	// The EMMA contract is the observed-identity page of its own docs change, not the
+	// SmartLogger one.
+	docs := huaweiObject(t, evidence["docs_contract"])
+	requireHuaweiKeys(t, docs, "repository", "issue", "pull_request", "pages")
+	emmaPages := []string{
 		"protocols/huawei/gateway-readonly-v1.md",
+		"protocols/huawei/emma-observed-identity-v1.md",
 		"protocols/huawei/smartlogger-observed-inventory-v1.md",
 		"protocols/huawei/qualification-readiness-v1.md",
-	})
+	}
+	if docs["repository"] != "helianthus-docs-modbus" || huaweiInt(t, docs["issue"]) != 249 || huaweiInt(t, docs["pull_request"]) != 252 ||
+		!reflect.DeepEqual(huaweiStringSlice(t, docs["pages"]), emmaPages) {
+		t.Fatalf("EMMA docs contract pointer: %#v", docs)
+	}
+	for _, page := range emmaPages {
+		if !strings.HasPrefix(page, "protocols/huawei/") || !strings.HasSuffix(page, ".md") || strings.Contains(page, "#") || h03Digestlike.MatchString(page) {
+			t.Fatalf("docs page %q is not a plain repository-relative path", page)
+		}
+	}
 
 	// The recorded non-response stays on record and is superseded for the observed
 	// identity only; the earlier evidence it cited is still cited.
