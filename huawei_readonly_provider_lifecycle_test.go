@@ -587,3 +587,98 @@ func TestH06FencedCycleKeepsAnExceptionThreeRefusal(t *testing.T) {
 	}
 	rig.refresh(t, kept...)
 }
+
+func TestH06TransitionsDuringABlockingCloseAreRefusedAsClosing(t *testing.T) {
+	for name, transition := range map[string]func(p h06Provider, s HuaweiProviderSession) error{
+		"stop":      func(p h06Provider, _ HuaweiProviderSession) error { return p.Stop() },
+		"reconnect": func(p h06Provider, s HuaweiProviderSession) error { return p.Reconnect(s) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			rig := newH06Rig(t, "SmartLogger", []uint8{1})
+			if err := rig.provider.Stop(); err != nil {
+				t.Fatal(err)
+			}
+			old := &h06BlockingCloseSession{
+				h06Session: newH06Session("old", rig.clock, rig.recorder),
+				entered:    make(chan struct{}), release: make(chan struct{}),
+			}
+			if err := rig.provider.Start(old); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() { done <- transition(rig.provider, newH06Session("next", rig.clock, rig.recorder)) }()
+			<-old.entered
+			rival := newH06Session("rival", rig.clock, rig.recorder)
+			if err := rig.provider.Start(rival); !errors.Is(err, ErrHuaweiProviderClosing) {
+				t.Fatalf("start during the close: %v", err)
+			}
+			if err := rig.provider.Reconnect(rival); !errors.Is(err, ErrHuaweiProviderClosing) {
+				t.Fatalf("reconnect during the close: %v", err)
+			}
+			if err := rig.provider.Stop(); !errors.Is(err, ErrHuaweiProviderClosing) {
+				t.Fatalf("stop during the close: %v", err)
+			}
+			if _, err := rig.provider.Refresh(context.Background()); !errors.Is(err, ErrHuaweiProviderNotStarted) {
+				t.Fatalf("refresh during the close: %v", err)
+			}
+			if calls := rig.recorder.Calls(); len(calls) != 0 {
+				t.Fatalf("requests sent during the close: %d", len(calls))
+			}
+			close(old.release)
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			if rig.session != nil && old.Closes() != 1 {
+				t.Fatalf("old session closes: %d", old.Closes())
+			}
+			if err := rig.provider.Start(rival); name == "stop" && err != nil {
+				t.Fatalf("start after the close: %v", err)
+			}
+		})
+	}
+}
+
+func TestH06WithheldChildStaysWithheldAcrossAGatewayFailure(t *testing.T) {
+	fixture, start := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "start_identification")
+	rig := newH06Rig(t, fixture.Path, h06Units(fixture.AllowedUnits))
+	first := rig.refresh(t, h06Script(t, rig.sources, fixture.Path, start)...)
+	if child, _ := first.Child(1); child.Evidence != HuaweiProviderEvidenceCurrent {
+		t.Fatalf("first cycle child: %+v", child)
+	}
+	// The next enumeration lists every child with a class that has no contract.
+	sources := rig.sources
+	inventory := sources.smartLoggerInventory
+	for pageIndex := range inventory.Pages {
+		for objectIndex := range inventory.Pages[pageIndex].Objects {
+			object := &inventory.Pages[pageIndex].Objects[objectIndex]
+			object.Entry = strings.Replace(object.Entry, "8=SUN2000", "8=BACKUP0", 1)
+		}
+	}
+	sources.smartLoggerInventory = inventory
+	rig.sources = sources
+	next := newH06Session("generation-2", rig.clock, rig.recorder)
+	if err := rig.provider.Reconnect(next); err != nil {
+		t.Fatal(err)
+	}
+	rig.session = next
+	var script []h06Expected
+	for _, step := range h06IdentificationSteps() {
+		script = append(script, h06Script(t, sources, fixture.Path, h06Cycle{Steps: []h06Step{step}})...)
+	}
+	withheld := rig.refresh(t, script...)
+	if child, _ := withheld.Child(1); child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != HuaweiProviderReasonNoClassContract {
+		t.Fatalf("re-enumeration: %+v", child)
+	}
+	var timeouts []h06Expected
+	for attempt := 0; attempt < 4; attempt++ {
+		timeouts = append(timeouts, h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{err: h06Timeout()}))
+	}
+	failed := rig.refresh(t, timeouts...)
+	if failed.Reason != HuaweiProviderReasonGuardFailed {
+		t.Fatalf("failed cycle: %s %s", failed.Outcome, failed.Reason)
+	}
+	child, _ := failed.Child(1)
+	if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != HuaweiProviderReasonNoClassContract || len(child.Reading.Facts()) != 0 {
+		t.Fatalf("child after the gateway failure: %+v", child)
+	}
+}

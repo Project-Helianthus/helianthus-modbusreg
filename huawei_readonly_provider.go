@@ -35,6 +35,7 @@ var (
 	ErrHuaweiProviderStarted     = errors.New("huawei provider: a session is already bound")
 	ErrHuaweiProviderBusy        = errors.New("huawei provider: a refresh is in progress")
 	ErrHuaweiProviderClosed      = errors.New("huawei provider: closed")
+	ErrHuaweiProviderClosing     = errors.New("huawei provider: a session close is in progress")
 	ErrHuaweiProviderEarly       = errors.New("huawei provider: the cycle interval has not elapsed")
 	ErrHuaweiProviderFenced      = errors.New("huawei provider: the cycle was fenced by a stop or a reconnect")
 	ErrHuaweiProviderPacing      = errors.New("huawei provider: the caller's wait returned before the contract gap")
@@ -591,6 +592,9 @@ type huaweiChildState struct {
 	// definitive is a withhold reason that holds until the next
 	// identification event; empty when a failed read may be retried.
 	definitive HuaweiProviderReason
+	// ineligible is the routing reason the latest enumeration withheld the
+	// child for; it holds across failure cycles until the child is eligible.
+	ineligible HuaweiProviderReason
 	reading    HuaweiSUN2000MonitoringReading
 	groups     map[uint16]huaweiGroupMeta
 	refused    map[string]bool
@@ -731,6 +735,7 @@ type huaweiProviderCore struct {
 	started    bool
 	closed     bool
 	busy       bool
+	closing    bool
 	link       huaweiLinkState
 	cycle      uint64
 	nextAt     time.Time
@@ -774,6 +779,9 @@ func (p *huaweiProviderCore) start(session HuaweiProviderSession) error {
 	if p.closed {
 		return ErrHuaweiProviderClosed
 	}
+	if p.closing {
+		return ErrHuaweiProviderClosing
+	}
 	if p.started {
 		return ErrHuaweiProviderStarted
 	}
@@ -800,13 +808,22 @@ func (p *huaweiProviderCore) stop() error {
 		p.mu.Unlock()
 		return ErrHuaweiProviderClosed
 	}
+	if p.closing {
+		p.mu.Unlock()
+		return ErrHuaweiProviderClosing
+	}
 	if !p.started {
 		p.mu.Unlock()
 		return ErrHuaweiProviderNotStarted
 	}
 	session := p.unbindLocked()
+	p.closing = true
 	p.mu.Unlock()
-	return closeHuaweiProviderSession(session)
+	err := closeHuaweiProviderSession(session)
+	p.mu.Lock()
+	p.closing = false
+	p.mu.Unlock()
+	return err
 }
 
 // unbindLocked detaches the current connection and fences any running cycle.
@@ -840,14 +857,20 @@ func (p *huaweiProviderCore) reconnect(session HuaweiProviderSession) error {
 		p.mu.Unlock()
 		return ErrHuaweiProviderClosed
 	}
+	if p.closing {
+		p.mu.Unlock()
+		return ErrHuaweiProviderClosing
+	}
 	var old HuaweiProviderSession
 	if p.started {
 		old = p.unbindLocked()
 	}
+	p.closing = true
 	p.mu.Unlock()
 	closeErr := closeHuaweiProviderSession(old)
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.closing = false
 	if p.closed {
 		return ErrHuaweiProviderClosed
 	}
@@ -1359,11 +1382,14 @@ func (r *huaweiCycleRun) staleChildren(reason HuaweiProviderReason, withheld boo
 	sort.Ints(units)
 	for _, unit := range units {
 		child := r.state.children[uint8(unit)]
-		state := HuaweiProviderEvidenceStale
-		if withheld || child.identity == nil || child.reading.ProfileID() == "" {
+		state, why := HuaweiProviderEvidenceStale, reason
+		if withheld || child.identity == nil || child.reading.ProfileID() == "" || child.ineligible != "" {
 			state = HuaweiProviderEvidenceWithheld
 		}
-		r.out.Children = append(r.out.Children, r.childObservation(child, state, reason, nil))
+		if child.ineligible != "" && !withheld && child.reading.ProfileID() != "" {
+			why = child.ineligible
+		}
+		r.out.Children = append(r.out.Children, r.childObservation(child, state, why, nil))
 	}
 }
 

@@ -313,6 +313,11 @@ func (r *huaweiCycleRun) readSmartLoggerChildren() {
 		ordered = append(ordered, int(unit))
 	}
 	sort.Ints(ordered)
+	for unit, child := range s.children {
+		if !units[unit] {
+			child.ineligible = HuaweiProviderReasonNotListed
+		}
+	}
 	for _, value := range ordered {
 		unit := uint8(value)
 		entry, isListed := listed[unit]
@@ -324,17 +329,20 @@ func (r *huaweiCycleRun) readSmartLoggerChildren() {
 				child.listedClass = entry.Attribute("model")
 			}
 		}
+		child.ineligible = ""
 		withhold := func(reason HuaweiProviderReason) {
 			r.out.Children = append(r.out.Children, r.childObservation(child, HuaweiProviderEvidenceWithheld, reason, nil))
 		}
 		switch {
 		case !isListed:
+			child.ineligible = HuaweiProviderReasonNotListed
 			withhold(HuaweiProviderReasonNotListed)
 			continue
 		case !allowed[unit]:
 			withhold(HuaweiProviderReasonNotAllowlisted)
 			continue
 		case entry.Attribute("product_type") != huaweiSUN2000ClassLabel:
+			child.ineligible = HuaweiProviderReasonNoClassContract
 			withhold(HuaweiProviderReasonNoClassContract)
 			continue
 		case child.definitive != "":
