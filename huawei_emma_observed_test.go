@@ -347,13 +347,13 @@ func h18Mutations() []h18Mutation {
 		add("Gateway.Software", name, "accepting a software label that is not the family label, a space and a version-style token", invalid,
 			func(i *HuaweiEMMAObservedQualificationInput) { i.Gateway.Software = block })
 	}
-	for _, token := range []string{"V100R025C00SPC132", "V100R025C00SPC102", "V100R025C00SPC999", "V100R024C00SPC100", "V100R024C00SPC555"} {
+	for _, token := range []string{"V100R025C00SPC132", "V100R025C00SPC102", "V100R025C00SPC999"} {
 		token := token
 		add("Gateway.Software", fmt.Sprintf("token %q alone", token), "not requiring the software label token to equal the version object of the basic reply", basic,
 			func(i *HuaweiEMMAObservedQualificationInput) { i.Gateway.Software = h18Block(h18Label+" "+token, 30) })
 	}
 	for _, token := range []string{
-		"V100R025C00SPC101", "V100R025C00SPC000", "V100R024C00SPC099", "V100R026C00SPC200", "V100R025C01SPC131", "V200R025C00SPC131", "V100R025C00SPC13",
+		"V100R025C00SPC101", "V100R025C00SPC000", "V100R024C00SPC100", "V100R024C00SPC555", "V100R024C00SPC099", "V100R026C00SPC200", "V100R025C01SPC131", "V200R025C00SPC131", "V100R025C00SPC13",
 		"V100R025C00SPC1311", "V100R025C00SPC13A", "v100r025c00spc131", h18Fill, h18Fill[:16], "A", "V1.0", "",
 	} {
 		token := token
@@ -996,7 +996,7 @@ func TestH18ObservedCardAcceptsTheToleratedVariationsOfAnExactTuple(t *testing.T
 	// The version-style token is compared with its two other places and with the
 	// branch rule and floors of the documentary gate, so any token that meets
 	// them and that all three places share is the same tuple.
-	for _, token := range []string{"V100R025C00SPC131", "V100R025C00SPC102", "V100R025C00SPC999", "V100R024C00SPC100", "V100R024C00SPC555"} {
+	for _, token := range []string{"V100R025C00SPC131", "V100R025C00SPC102", "V100R025C00SPC999"} {
 		token := token
 		accept(fmt.Sprintf("token %q", token), h18SetVersionEverywhere(token))
 	}
@@ -1143,7 +1143,7 @@ func TestH18ObservedCardOutsideAdmittedSetIsInsufficientEvidence(t *testing.T) {
 	// A software token that the documentary gate refuses, even when the label,
 	// the basic reply and the entry all carry it: below its floor, in an unknown
 	// branch, a placeholder or free text.
-	for _, token := range []string{"V100R025C00SPC101", "V100R024C00SPC099", "V100R026C00SPC200", "V100R025C00SPC13", h18Fill, "A"} {
+	for _, token := range []string{"V100R025C00SPC101", "V100R024C00SPC099", "V100R026C00SPC200", "V100R025C00SPC13", h18Fill, "A", "V100R024C00SPC100", "V100R024C00SPC555"} {
 		input := h18ValidInput(t)
 		h18SetVersionEverywhere(token)(&input)
 		h18RequireRejected(t, "agreeing software token "+token, card.Evaluate(input))

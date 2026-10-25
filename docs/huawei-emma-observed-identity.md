@@ -53,7 +53,7 @@ capability evidence. The card evaluates already-read evidence and returns
 | --- | --- |
 | Gateway unit the gateway reads were addressed to | `0`; an inverter unit and unit 100 are outside the tuple |
 | Family label (FC03 offset 30000, quantity 15) | the text `SmartHEMS`, then NUL padding to the 30-byte extent |
-| Model (FC03 offset 30222, quantity 20) | the text `EMMA-A02`, then NUL padding to the 40-byte extent; the other documented alias is outside the tuple |
+| Model (FC03 offset 30222, quantity 20) | the observed model alias of the contract, then NUL padding to the 40-byte extent; the other documented alias is outside the tuple |
 | Software label (FC03 offset 30035, quantity 15) | the family label, one space and a version-style token, then NUL padding; the three blocks satisfy the documentary EMMA identity gate, so the token meets the branch rule and floor of that gate |
 | Basic identification | vendor `Huawei`, product `HEMS`, a version object equal to the token of the software label; each object once; objects beyond the basic category are counted as opaque |
 | Extended inventory | read code 3, conformity `0x03`, at most five responses of at most 253 bytes, count object `4`, then four entries |

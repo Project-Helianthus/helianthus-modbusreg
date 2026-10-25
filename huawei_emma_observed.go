@@ -193,6 +193,10 @@ func (card HuaweiEMMAObservedQualificationCard) EmptyResult() HuaweiQualificatio
 	return HuaweiQualificationResult{candidateClass: card.CandidateClass(), readiness: HuaweiQualificationInsufficientEvidence, reason: HuaweiQualificationIdentityInvalid}
 }
 
+// huaweiEMMAObservedBranchPrefix is the software branch of the observed tuple;
+// the floor of that branch is applied by the documentary gate.
+const huaweiEMMAObservedBranchPrefix = "V100R025C00SPC"
+
 // Evaluate returns a test-ready result only for the exact observed tuple. A
 // gateway block outside the tuple, a basic reply that disagrees with the
 // gateway, an inventory outside the observed shape and a child read that is not
@@ -225,6 +229,10 @@ func (card HuaweiEMMAObservedQualificationCard) Evaluate(input HuaweiEMMAObserve
 		return rejected
 	}
 	token := strings.TrimPrefix(software, card.FamilyLabel()+" ")
+	// The gate admits two branches; only the observed one is in the tuple.
+	if !strings.HasPrefix(token, huaweiEMMAObservedBranchPrefix) {
+		return rejected
+	}
 	if gateway.Basic == nil {
 		return rejected
 	}
