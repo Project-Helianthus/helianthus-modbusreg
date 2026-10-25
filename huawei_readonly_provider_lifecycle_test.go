@@ -545,3 +545,45 @@ func TestH06CancelledCycleKeepsAnExceptionThreeRefusal(t *testing.T) {
 		t.Fatalf("cycle after the cancellation: %s %s", cycle.Outcome, cycle.Reason)
 	}
 }
+
+func TestH06FencedCycleKeepsAnExceptionThreeRefusal(t *testing.T) {
+	fixtureFile, _ := h06Load(t, "smartlogger_provider_cycles.json")
+	_, start := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "start_identification")
+	_, refusal := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "runtime_refusal")
+	rig := newH06Rig(t, fixtureFile.Path, h06Units(fixtureFile.AllowedUnits))
+	rig.refresh(t, h06Script(t, rig.sources, fixtureFile.Path, start)...)
+
+	script := h06Script(t, rig.sources, fixtureFile.Path, refusal)
+	entered, release := make(chan struct{}), make(chan struct{})
+	// The refusal is answered at unit 1; the cycle is fenced at unit 2.
+	script[4].answer.entered, script[4].answer.release = entered, release
+	rig.session.Append(script[:5]...)
+	rig.clock.Advance(rig.provider.NextRefreshAt().Sub(rig.clock.Now()))
+	done := make(chan error, 1)
+	go func() {
+		_, err := rig.provider.Refresh(context.Background())
+		done <- err
+	}()
+	<-entered
+	if err := rig.provider.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-done; !errors.Is(err, ErrHuaweiProviderFenced) {
+		t.Fatalf("fenced refresh: %v", err)
+	}
+	next := newH06Session("next", rig.clock, rig.recorder)
+	if err := rig.provider.Start(next); err != nil {
+		t.Fatal(err)
+	}
+	rig.session = next
+	// The refused group (unit 1, 32016) is not requested again.
+	var kept []h06Expected
+	for _, step := range h06Script(t, rig.sources, fixtureFile.Path, start) {
+		if step.function == 0x03 && step.unit == 1 && step.offset == 32016 {
+			continue
+		}
+		kept = append(kept, step)
+	}
+	rig.refresh(t, kept...)
+}

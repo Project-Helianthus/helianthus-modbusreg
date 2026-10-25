@@ -948,6 +948,9 @@ func (p *huaweiProviderCore) refresh(ctx context.Context) (HuaweiProviderCycle, 
 		return HuaweiProviderCycle{}, ErrHuaweiProviderClosed
 	}
 	if p.generation != run.generation {
+		// A fenced cycle commits no reading, but a group refused with
+		// exception 3 stays refused for the next generation.
+		p.carryRefusals(run.state)
 		return HuaweiProviderCycle{}, ErrHuaweiProviderFenced
 	}
 	p.link = run.link
