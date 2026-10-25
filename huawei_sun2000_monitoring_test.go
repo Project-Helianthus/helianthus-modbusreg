@@ -409,6 +409,40 @@ func h05SessionFromFixture(t testing.TB, profileID string, unit uint8) *h05Sessi
 	return session
 }
 
+type h05CancelSession struct {
+	*h05Session
+	cancel context.CancelFunc
+}
+
+func (s *h05CancelSession) ReadHolding(ctx context.Context, unit byte, request modbus.ReadRegistersRequest) (modbus.ReadRegistersResponse, error) {
+	response, err := s.h05Session.ReadHolding(ctx, unit, request)
+	if request.Offset() == 32016 {
+		s.cancel()
+	}
+	return response, err
+}
+
+func TestH05CancellationReturnsTheGroupsAlreadyRead(t *testing.T) {
+	selection := h05Select(t, h05M3Input(t, 2), HuaweiSUN2000M3MonitoringProfileID)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	session := &h05CancelSession{h05Session: h05SessionFromFixture(t, HuaweiSUN2000M3MonitoringProfileID, selection.UnitID()), cancel: cancel}
+	observer, err := NewHuaweiSUN2000MonitoringObserver(selection, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reading, err := observer.Observe(ctx, 5)
+	if !errors.Is(err, context.Canceled) || reading.ProfileID() != HuaweiSUN2000M3MonitoringProfileID {
+		t.Fatalf("profile=%q err=%v", reading.ProfileID(), err)
+	}
+	if len(reading.Facts()) == 0 {
+		t.Fatal("completed string group was discarded")
+	}
+	if len(session.calls) != 2 {
+		t.Fatalf("calls=%v", session.calls)
+	}
+}
+
 func TestH05ObserverSessionHasNoWritePathAndReadsOnlyThePlan(t *testing.T) {
 	sessionType := reflect.TypeOf((*HuaweiSUN2000MonitoringSession)(nil)).Elem()
 	if sessionType.NumMethod() != 1 || sessionType.Method(0).Name != "ReadHolding" {

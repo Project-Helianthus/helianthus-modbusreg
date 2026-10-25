@@ -278,7 +278,8 @@ func NewHuaweiSUN2000MonitoringObserver(selection HuaweiSUN2000CapabilitySelecti
 // Observe reads each group of the plan once, in order. An exception reply is
 // recorded with its code and the next group is read. A timeout, a transport
 // error or a reply that does not match the request fails the group and ends
-// the unit's cycle: the remaining groups are not read.
+// the unit's cycle: the remaining groups are not read. A cancelled context
+// returns the groups already read together with the context error.
 func (o *HuaweiSUN2000MonitoringObserver) Observe(ctx context.Context, cycle uint64) (HuaweiSUN2000MonitoringReading, error) {
 	if o == nil || o.session == nil || ctx == nil {
 		return HuaweiSUN2000MonitoringReading{}, ErrHuaweiSUN2000MonitoringObserverInvalid
@@ -287,7 +288,11 @@ func (o *HuaweiSUN2000MonitoringObserver) Observe(ctx context.Context, cycle uin
 	readings := make([]HuaweiSUN2000GroupReading, 0, len(plan))
 	for _, step := range plan {
 		if err := ctx.Err(); err != nil {
-			return HuaweiSUN2000MonitoringReading{}, err
+			partial, decodeErr := o.profile.Decode(o.unitID, readings)
+			if decodeErr != nil {
+				return HuaweiSUN2000MonitoringReading{}, err
+			}
+			return partial, err
 		}
 		reading := HuaweiSUN2000GroupReading{Offset: step.Offset, Quantity: step.Quantity, Cycle: cycle}
 		request, err := modbus.NewReadRegistersRequest(modbus.FunctionReadHoldingRegisters, step.Offset, step.Quantity)

@@ -19,7 +19,7 @@ the SUN2000 disposition as identity only (see
 
 | Profile | Family and path | Identity | Edition binding | Read plan (FC03) |
 | --- | --- | --- | --- | --- |
-| `huawei.sun2000.m3.monitoring-readonly@1.0.0` | SUN2000 M3 series behind the SmartLogger | the observed SmartLogger card matches, the unit is a listed child of the validated listing, and the routed model read at offset 30000 is `SUN2000-50KTL-M3` with NUL padding | the edition's supported-model table names the model | 32000/16, 32016/24, 32106/10 |
+| `huawei.sun2000.m3.monitoring-readonly@1.0.0` | SUN2000 M3 series behind the SmartLogger | the observed SmartLogger card matches, the unit is a listed child of the validated listing, and the routed model read at offset 30000 is the exact M3 series model string of the fixtures, with NUL padding | the edition's supported-model table names the model | 32000/16, 32016/24, 32106/10 |
 | `huawei.sun2000.m1.monitoring-readonly@1.0.0` | SUN2000 M1 series behind the S-Dongle | the observed S-Dongle card matches, which binds the child model, and the unit is the observed child unit 1 | the edition does not list the model; the contract checked the edition's layout against the child's reading | 32000/16, 32016/24, 32064/32, 32106/10 |
 
 The SUN2000 MAP0 series behind the EMMA has no consulted edition. It has a
