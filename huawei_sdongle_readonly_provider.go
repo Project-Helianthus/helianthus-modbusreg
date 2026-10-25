@@ -242,7 +242,7 @@ func (r *huaweiCycleRun) identifySDongle(before []uint16) {
 	evaluation := card.Evaluate(input)
 	if !evaluation.IdentityMatched() || !evaluation.QualificationTestReady() {
 		// A gateway mismatch withholds the instance.
-		s.identified, s.reidentify = false, true
+		s.identified, s.reidentify, s.gatewayFenced = false, true, true
 		s.gateway = HuaweiProviderGatewayIdentity{CardID: card.ID(), Class: card.CandidateClass(), UnitID: gateway,
 			State: HuaweiProviderGatewayInsufficient, CardReason: evaluation.Reason(), Generation: r.generation, IdentifiedAt: r.link.lastEnd}
 		r.out.Outcome, r.out.Reason = HuaweiProviderCycleInsufficient, HuaweiProviderReasonGatewayMismatch
@@ -250,7 +250,7 @@ func (r *huaweiCycleRun) identifySDongle(before []uint16) {
 		return
 	}
 	s.endpointFailures = 0
-	s.identified, s.identityGeneration, s.reidentify = true, r.generation, false
+	s.identified, s.identityGeneration, s.reidentify, s.gatewayFenced = true, r.generation, false, false
 	s.guard = append([]uint16(nil), input.Gateway.SearchAfter...)
 	s.sdongle = &input
 	s.gateway = HuaweiProviderGatewayIdentity{

@@ -682,3 +682,45 @@ func TestH06WithheldChildStaysWithheldAcrossAGatewayFailure(t *testing.T) {
 		t.Fatalf("child after the gateway failure: %+v", child)
 	}
 }
+
+func TestH06SmartLoggerMismatchFenceSurvivesAGatewayReadFailure(t *testing.T) {
+	fixture, start := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "start_identification")
+	rig := newH06Rig(t, fixture.Path, h06Units(fixture.AllowedUnits))
+	first := rig.refresh(t, h06Script(t, rig.sources, fixture.Path, start)...)
+	if child, _ := first.Child(1); child.Evidence != HuaweiProviderEvidenceCurrent {
+		t.Fatalf("first cycle child: %+v", child)
+	}
+	rig.refresh(t, h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{words: []uint16{8}}))
+	sources := rig.sources
+	inventory := sources.smartLoggerInventory
+	inventory.Pages = append([]h03InventoryPage(nil), inventory.Pages...)
+	for index := range inventory.Pages {
+		inventory.Pages[index].Objects = append([]h03Object(nil), inventory.Pages[index].Objects...)
+	}
+	object := &inventory.Pages[1].Objects[0]
+	object.Entry = strings.Replace(object.Entry, "V300R023C10SPC620", "V300R023C10SPC621", 1)
+	sources.smartLoggerInventory = inventory
+	var script []h06Expected
+	for _, step := range h06IdentificationSteps() {
+		script = append(script, h06Script(t, sources, fixture.Path, h06Cycle{Steps: []h06Step{step}})...)
+	}
+	if mismatch := rig.refresh(t, script...); mismatch.Reason != HuaweiProviderReasonGatewayMismatch {
+		t.Fatalf("mismatch cycle: %s %s", mismatch.Outcome, mismatch.Reason)
+	}
+	var timeouts []h06Expected
+	for attempt := 0; attempt < 4; attempt++ {
+		timeouts = append(timeouts, h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{err: h06Timeout()}))
+	}
+	failed := rig.refresh(t, timeouts...)
+	if failed.Reason != HuaweiProviderReasonGatewayReadFail {
+		t.Fatalf("failed cycle: %s %s", failed.Outcome, failed.Reason)
+	}
+	if len(failed.Children) == 0 {
+		t.Fatal("no child rendered")
+	}
+	for _, child := range failed.Children {
+		if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != HuaweiProviderReasonGatewayMismatch || len(child.Reading.Facts()) != 0 {
+			t.Fatalf("child %d released by a read failure after a mismatch: %+v", child.UnitID, child)
+		}
+	}
+}

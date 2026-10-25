@@ -667,6 +667,7 @@ type huaweiProviderState struct {
 	gateway            HuaweiProviderGatewayIdentity
 	guard              []uint16
 	reidentify         bool
+	gatewayFenced      bool
 	unstable           int
 	endpointFailures   int
 	listing            []HuaweiGatewayInventoryChild
@@ -1383,6 +1384,11 @@ func (r *huaweiCycleRun) staleChildren(reason HuaweiProviderReason, withheld boo
 	for _, unit := range units {
 		child := r.state.children[uint8(unit)]
 		state, why := HuaweiProviderEvidenceStale, reason
+		if r.state.gatewayFenced {
+			// A gateway mismatch holds until the identity is read again and
+			// matches; a later read failure never releases the readings.
+			withheld, why = true, HuaweiProviderReasonGatewayMismatch
+		}
 		if withheld || child.identity == nil || child.reading.ProfileID() == "" || child.ineligible != "" {
 			state = HuaweiProviderEvidenceWithheld
 		}

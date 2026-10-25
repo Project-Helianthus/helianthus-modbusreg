@@ -260,7 +260,7 @@ func (r *huaweiCycleRun) identifySmartLogger() {
 		}
 		// A gateway mismatch withholds the instance: no child is read and no
 		// child emits a fact.
-		s.identified = false
+		s.identified, s.gatewayFenced = false, true
 		s.gateway = HuaweiProviderGatewayIdentity{CardID: card.ID(), Class: card.CandidateClass(), UnitID: card.UnitID(),
 			State: HuaweiProviderGatewayInsufficient, CardReason: evaluation.Reason(), Generation: r.generation, IdentifiedAt: r.link.lastEnd}
 		r.out.Outcome, r.out.Reason = HuaweiProviderCycleInsufficient, HuaweiProviderReasonGatewayMismatch
@@ -268,7 +268,7 @@ func (r *huaweiCycleRun) identifySmartLogger() {
 		return
 	}
 	s.unstable, s.endpointFailures = 0, 0
-	s.identified, s.identityGeneration, s.reidentify = true, r.generation, false
+	s.identified, s.identityGeneration, s.reidentify, s.gatewayFenced = true, r.generation, false, false
 	s.guard = []uint16{after[0]}
 	s.smartLogger = &input
 	s.listing = inventory.Children()
