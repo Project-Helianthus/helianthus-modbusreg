@@ -346,7 +346,7 @@ of each protocol section.
 | register rows | 3393 |
 | read-only rows | 2564 (1275 reviewed, 1170 conditional, 4 raw-only, 115 conflict) |
 | control rows | 829 (593 readable configuration, 236 no-send) |
-| dictionaries | 215 (203 value enumerations, 12 alarm dictionaries) |
+| dictionaries | 209 (197 value enumerations, 12 alarm dictionaries) |
 | alarm records | 1034 (671 tuples, 363 narratives) |
 | quarantines | 33 |
 

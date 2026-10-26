@@ -85,7 +85,7 @@ func TestCodeListReadsOnlyCompleteEnumerations(t *testing.T) {
 	}{
 		{"Codes: 0 unavailable; 2 WLAN; 3 4G; 5 WLAN-FE.", []string{"0=unavailable", "2=WLAN", "3=4G", "5=WLAN-FE"}},
 		{"0 invalid; 1 operating. One operating inverter is enough.", []string{"0=invalid", "1=operating"}},
-		{"Bit 0 exposes the condition: 0 normal; 1 abnormal. Every other bit is reserved.", []string{"0=normal", "1=abnormal"}},
+		{"Bit 0 exposes the condition: 0 normal; 1 abnormal. Every other bit is reserved.", nil},
 		{"State 0 means running; 1 means fault shutdown.", nil},
 		{"ESS modes: 1 and 3 reserved; 2 self-consumption priority.", nil},
 		{"Record periods: 5, 15, 30 or 60 minutes; source default 5.", nil},
@@ -214,6 +214,7 @@ func TestRowQuarantineBindingsCoverEveryTwinCode(t *testing.T) {
 		row(endpointGatewaySelf, "U16", codeWidth), row(endpointAttachedMeter, "U32", codeWidth),
 		row(endpointRemappedInverter, "U32", codeOutsideBlock), row(endpointRemappedInverter, "I16", codeEnvApplicability),
 		row(endpointGatewaySelf, "U16", "invented_code"),
+		row(endpointRemappedInverter, "U32", codeOutsideBlock, codeRemapLayout, "invented_code"),
 	} {
 		if _, err := rowQuarantines(unbound); err == nil {
 			t.Fatalf("unbound codes %v on %s were accepted", unbound.Codes, unbound.Row.Endpoint)

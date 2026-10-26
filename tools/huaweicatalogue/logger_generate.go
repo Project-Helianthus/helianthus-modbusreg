@@ -809,6 +809,11 @@ func rowQuarantines(row *gatewayRow) ([]string, error) {
 		if !containsString(codes, codeRemapLayout) || !containsString(codes, codeOutsideBlock) || row.Row.Endpoint != endpointRemappedInverter {
 			return nil, fmt.Errorf("remap layout codes %v on %s", codes, row.Row.Endpoint)
 		}
+		for _, code := range codes {
+			if code != codeRemapLayout && code != codeOutsideBlock && code != codeWidth {
+				return nil, fmt.Errorf("code %q on a remapped inverter row has no binding", code)
+			}
+		}
 		return []string{topicRemapLayouts}, nil
 	case len(codes) == 1 && codes[0] == codeEnvApplicability:
 		if row.Row.Endpoint != endpointRemappedEnvironmental {

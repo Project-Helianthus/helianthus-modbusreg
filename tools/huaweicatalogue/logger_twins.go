@@ -247,6 +247,7 @@ var (
 	floorStatementPattern = regexp.MustCompile(`^(?:(\S+) )?(V\d{3}R\d{3}C\d{2}(?:SPC\d{3})?) or later$`)
 	twoDigitIssuePattern  = regexp.MustCompile(`^\d{2}$`)
 	codeItemPattern       = regexp.MustCompile(`^(0x[0-9A-Fa-f]+|\d+) (?:means |is |= )?(\S.*)$`)
+	bitLabelPattern       = regexp.MustCompile(`(?i)\bbits?\b`)
 	gatewayFamilies       = []string{"S-Dongle", "EMMA", "SmartLogger"}
 )
 
@@ -447,7 +448,8 @@ func convertGatewayRegister(register gatewayRegister, sourceID string, order int
 // codeList reads an enumeration from the first sentence of a cell note: an
 // optional label ending in a colon, then two or more distinct "code meaning"
 // items separated by semicolons. Any other form yields no enumeration; the
-// note stays the row condition.
+// note stays the row condition. A label that names a bit withholds the
+// enumeration, since the codes then select within a register.
 func codeList(summary string) []dictValue {
 	sentences := splitSentences(cleanText(summary))
 	if len(sentences) == 0 {
@@ -455,6 +457,9 @@ func codeList(summary string) []dictValue {
 	}
 	first := strings.TrimSuffix(sentences[0], ".")
 	if index := strings.Index(first, ": "); index >= 0 && codeItemPattern.FindStringSubmatch(first) == nil {
+		if bitLabelPattern.MatchString(first[:index]) {
+			return nil
+		}
 		first = first[index+2:]
 	}
 	items := strings.Split(first, "; ")

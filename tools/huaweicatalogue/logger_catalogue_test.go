@@ -111,8 +111,13 @@ func TestGatewayCatalogueMatchesTheReferenceAccounting(t *testing.T) {
 		tuples += len(item.Bits)
 		narratives += len(item.Narratives)
 	}
-	if !reflect.DeepEqual(kinds, map[string]int{kindValueEnum: 203, kindAlarmBits: 12}) || tuples != 671 || narratives != 363 {
+	if !reflect.DeepEqual(kinds, map[string]int{kindValueEnum: 197, kindAlarmBits: 12}) || tuples != 671 || narratives != 363 {
 		t.Fatalf("dictionaries %v with %d alarm tuples and %d narratives", kinds, tuples, narratives)
+	}
+	for _, item := range c.Dictionaries.Dictionaries {
+		if item.Kind == kindValueEnum && containsInt(item.Offsets, 42454) {
+			t.Fatalf("%s turns the bit selection at 42454 into a whole-register enumeration", item.ID)
+		}
 	}
 }
 
