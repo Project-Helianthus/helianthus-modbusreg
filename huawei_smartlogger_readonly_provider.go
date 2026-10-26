@@ -398,12 +398,19 @@ func (r *huaweiCycleRun) identifySmartLoggerChild(child *huaweiChildState) bool 
 	if !r.childAdmissionRead(child, result) {
 		return false
 	}
+	input := HuaweiSUN2000CapabilityInput{
+		SmartLogger: r.state.smartLogger, UnitID: child.unit, RoutedModelBlock: huaweiWordsToBytes(model),
+	}
+	// A routed model that contradicts the listing withholds the child before
+	// any further read, so a later failed read cannot keep the old identity.
+	if early := SelectHuaweiSUN2000MonitoringProfile(input); early.Reason() == HuaweiSUN2000ReasonListingModelConflict {
+		return r.bindChildSelection(child, early)
+	}
 	identity, ok := r.readChildIdentityWords(child)
 	if !ok {
 		return false
 	}
-	selection := SelectHuaweiSUN2000MonitoringProfile(HuaweiSUN2000CapabilityInput{
-		SmartLogger: r.state.smartLogger, UnitID: child.unit, RoutedModelBlock: huaweiWordsToBytes(model), Identity: identity,
-	})
+	input.Identity = identity
+	selection := SelectHuaweiSUN2000MonitoringProfile(input)
 	return r.bindChildSelection(child, selection)
 }

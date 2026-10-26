@@ -172,7 +172,6 @@ func TestH06SmartLoggerChildIdentityChangeFencesItsReading(t *testing.T) {
 	model := make([]uint16, 15)
 	copy(model, []uint16{0x5355, 0x4e32, 0x3030, 0x302d, 0x4f54, 0x4845, 0x522d, 0x5800})
 	script = append(script, h06FC03(1, 30000, 15, h06Answer{words: model}))
-	script = append(script, h06AdmissionWords(t, rig.sources, fixture.Path, 1, "m3_series_identifier_selects_the_mc_card")...)
 	cycle := rig.refresh(t, script...)
 	child, _ := cycle.Child(1)
 	if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != HuaweiProviderReasonIdentityMismatch || len(child.Reading.Facts()) != 0 ||

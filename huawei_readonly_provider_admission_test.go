@@ -385,6 +385,9 @@ func TestM89AdmissionVariesEveryIdentityWord(t *testing.T) {
 					words = tc.words
 				}
 				script = append(script, h06FC03(unit, offset, uint16(len(base[offset])), h06Answer{words: words}))
+				if tc.reason == HuaweiProviderReasonIdentityMismatch {
+					break // a model that contradicts the listing ends the admission
+				}
 			}
 			if tc.reason == HuaweiProviderReasonRead {
 				for _, step := range h05Profile(t, HuaweiSUN2000M3MonitoringProfileID).Plan(unit) {
@@ -524,5 +527,45 @@ func TestM89AGuardChangeMakesTheAdmissionRunAgainAfterAFailedRead(t *testing.T) 
 	if child, _ := again.Child(1); again.Reason != HuaweiProviderReasonGuardHeld || child.Evidence != HuaweiProviderEvidenceCurrent ||
 		child.IdentifiedGeneration != again.Generation || child.Catalogue == nil {
 		t.Fatalf("retried admission: %s %+v", again.Reason, child)
+	}
+}
+
+// TestM89AModelContradictingTheListingWithholdsBeforeAnyIdentityRead
+// re-identifies a SmartLogger child whose routed model now contradicts the
+// listing: the child is withheld as identity_mismatch with its earlier reading
+// fenced, and no identity word is read after the model, so a failing later read
+// cannot keep the earlier identity's facts.
+func TestM89AModelContradictingTheListingWithholdsBeforeAnyIdentityRead(t *testing.T) {
+	fixture, _ := h06Load(t, "smartlogger_provider_admission_cycles.json")
+	rig := newH06Rig(t, fixture.Path, h06Units(fixture.AllowedUnits))
+	for _, cycle := range fixture.Cycles[:3] {
+		rig.refresh(t, h06Script(t, rig.sources, fixture.Path, cycle)...)
+	}
+	var script []h06Expected
+	for _, step := range h06IdentificationSteps() {
+		script = append(script, h06Script(t, rig.sources, fixture.Path, h06Cycle{Steps: []h06Step{step}})...)
+	}
+	script = append(script, h06FC03(1, huaweiSUN2000ModelOffset, huaweiSUN2000ModelQuantity, h06Answer{words: m89Text("SUN2000-99KTL-ZZ")}))
+	script = append(script, h06Script(t, rig.sources, fixture.Path, h06Cycle{Steps: []h06Step{
+		{Function: "FC03", Unit: 2, Offset: huaweiSUN2000ModelOffset, Quantity: huaweiSUN2000ModelQuantity, Reply: h06Reply{Kind: "source"}},
+	}})...)
+	script = append(script, h06AdmissionWords(t, rig.sources, fixture.Path, 2, "m3_series_identifier_selects_the_mc_card")...)
+	for _, step := range h05Profile(t, HuaweiSUN2000M3MonitoringProfileID).Plan(2) {
+		script = append(script, h06FC03(2, step.Offset, step.Quantity, h06MonitoringAnswer(t, rig.sources.m3, 2, step.Offset, step.Quantity)))
+	}
+	script = append(script, h06Script(t, rig.sources, fixture.Path, h06Cycle{Steps: []h06Step{
+		{Function: "FC03", Unit: 3, Offset: huaweiSUN2000ModelOffset, Quantity: huaweiSUN2000ModelQuantity, Reply: h06Reply{Kind: "source"}},
+	}})...)
+	for attempt := 0; attempt < 4; attempt++ {
+		script = append(script, h06FC03(3, huaweiSUN2000IdentifierOffset, 1, h06Answer{err: h06Timeout()}))
+	}
+	script = append(script, h06Script(t, rig.sources, fixture.Path, h06Cycle{Steps: []h06Step{
+		{Function: "FC03", Unit: 4, Offset: huaweiSUN2000ModelOffset, Quantity: huaweiSUN2000ModelQuantity, Reply: h06Reply{Kind: "source"}},
+	}})...)
+	script = append(script, h06AdmissionWords(t, rig.sources, fixture.Path, 4, "m3_series_token_with_identifier_449_stays_ambiguous_between_two_cards")...)
+	cycle := rig.refresh(t, script...)
+	child, _ := cycle.Child(1)
+	if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != HuaweiProviderReasonIdentityMismatch || child.Fenced == nil || len(child.Reading.Facts()) != 0 {
+		t.Fatalf("child 1 after the contradicting model: %s %s fenced %v", child.Evidence, child.Reason, child.Fenced != nil)
 	}
 }
