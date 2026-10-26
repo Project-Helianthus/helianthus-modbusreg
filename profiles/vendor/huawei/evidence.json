@@ -47,6 +47,11 @@
       "id": "huawei-read-pacing-v1",
       "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/read-pacing-v1.md",
       "license": "CC0-1.0"
+    },
+    {
+      "id": "huawei-pv-inverter-reference-2026-10-26.1",
+      "locator": "https://github.com/Project-Helianthus/helianthus-modbusreg/blob/main/docs/huawei-catalogue.md",
+      "license": "CC0-1.0"
     }
   ],
   "applicability": [
@@ -58,6 +63,7 @@
     "SUN2000 observed identity: model SUN2000-50KTL-M3 with one exact routed firmware text, identity applicability only, default denied; the LUNA2000 group and every power meter stay Unknown",
     "vendor documentation: a profile may rest on official vendor documentation cited by its title, version and date; one document is consulted, the SUN2000MC edition pinned in the SUN2000 disposition, and every other disposition keeps an empty identity set; observation fixtures, exact tuples and fail-closed admission stay required with every disposition default denied",
     "read-only providers: one per gateway path whose disposition admits one, the observed SmartLogger path with the M3 series profile and the observed S-Dongle path with the M1 series profile, each reading a supplied session under the read pacing and acquisition contract; the EMMA path has no provider while its inverter family has no consulted edition; default denied, with no catalog registration, live qualification, support claim or write authority",
+    "SUN2000 catalogue: generated registry data from the consulted CC0 Huawei PV inverter Modbus reference, baseline 2026-10-26.1 of 2026-10-26, cited by title, baseline and date, with source pages carried per row and no digest; data only, with no profile selection, catalog registration, admission, support claim or write authority",
     "candidate evidence only outside the two SUN2000 monitoring profiles and the two read-only providers; no catalog registration or support admission"
   ],
   "license": "CC0-1.0"

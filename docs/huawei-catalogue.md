@@ -11,6 +11,8 @@ dedicated under CC0-1.0; vendor publications keep their own rights, and the
 catalogue copies no vendor text, link, locator or digest (see
 [vendor documentation identity](huawei-vendor-documentation.md)).
 
+Applicability: `evidence.json` lists the consulted source as `huawei-pv-inverter-reference-2026-10-26.1`, the Huawei PV inverter Modbus reference at baseline 2026-10-26.1 of 2026-10-26 (CC0-1.0), cited by title, baseline and date; source pages are carried per row in the catalogue, and no digest is published.
+
 This change adds data only. No code reads the catalogue: it registers no
 profile, selects nothing, admits nothing and grants no write. The two SUN2000
 monitoring profiles and every disposition are unchanged (see
@@ -175,7 +177,8 @@ bytes.
 
 ## Rollback
 
-Removing the catalogue directory, `tools/huaweicatalogue`, this page and the
-README paragraph, and restoring the vendor directory listing in
+Removing the catalogue directory, `tools/huaweicatalogue`, this page, the
+README paragraph and the catalogue source and applicability line of
+`evidence.json`, and restoring the vendor directory listing in
 `huawei_inverter_battery_disposition_test.go`, restores the registry as it was.
 No product code changes.
