@@ -282,6 +282,7 @@ func (card HuaweiSDongleObservedQualificationCard) Evaluate(input HuaweiSDongleO
 		// Key 8 is held as the product type by the shared entry decoder; the
 		// S-Dongle card does not compare it, so it is retained as native evidence.
 		childOpaque = append(childOpaque, HuaweiGatewayOpaqueAttribute{Key: "8", Value: productType})
+		orderHuaweiSDongleOpaqueByEntry(childOpaque, input.Child.Inventory.Objects, entry.ObjectID())
 	}
 	return HuaweiQualificationResult{
 		candidateClass:     card.CandidateClass(),
@@ -463,4 +464,25 @@ func huaweiSDongleObservedEntryKeySet(value []byte) bool {
 		}
 	}
 	return true
+}
+
+// orderHuaweiSDongleOpaqueByEntry restores entry order: the attributes are
+// sorted by the position of their key in the text of the entry object.
+func orderHuaweiSDongleOpaqueByEntry(attributes []HuaweiGatewayOpaqueAttribute, objects []HuaweiGatewayInventoryObject, objectID uint8) {
+	var text string
+	for _, object := range objects {
+		if object.ObjectID == objectID {
+			text = string(object.Value)
+		}
+	}
+	position := make(map[string]int)
+	for index, pair := range strings.Split(text, ";") {
+		key, _, _ := strings.Cut(pair, "=")
+		if _, seen := position[key]; !seen {
+			position[key] = index
+		}
+	}
+	slices.SortStableFunc(attributes, func(a, b HuaweiGatewayOpaqueAttribute) int {
+		return position[a.Key] - position[b.Key]
+	})
 }
