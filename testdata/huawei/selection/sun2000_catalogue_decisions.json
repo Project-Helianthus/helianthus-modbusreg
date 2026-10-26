@@ -1,0 +1,627 @@
+{
+  "schema": "helianthus-huawei-catalogue-selection-fixture/v1",
+  "kind": "catalogue_decision_table",
+  "family": "SUN2000",
+  "license": "CC0-1.0",
+  "provenance": "synthetic decision cases over the vendor-published model tokens, wire alias and identifiers of the catalogue; every software and firmware text is a synthetic placeholder in the documented branch form, never an observed value",
+  "qualification_families": [
+    {
+      "family": "SUN2000 M3 series",
+      "gateway_path": "SmartLogger",
+      "case": "m3_series_identifier_selects_the_mc_card",
+      "card": "MC"
+    },
+    {
+      "family": "SUN2000 MAP0 series",
+      "gateway_path": "EMMA",
+      "case": "map0_series_wire_alias_selects_the_ma_v200_card",
+      "card": "MA-V200"
+    },
+    {
+      "family": "SUN2000 M1 series",
+      "gateway_path": "S-Dongle",
+      "case": "m1_series_identifier_selects_the_ma_c00_card",
+      "card": "MA-C00"
+    }
+  ],
+  "cases": [
+    {
+      "name": "m3_series_identifier_selects_the_mc_card",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-50KTL-M3",
+        "identifier": 471,
+        "software_text": "V200R023C00SPC100",
+        "firmware_text": "",
+        "protocol_words": [
+          5,
+          0
+        ]
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "MC",
+        "matched_by": "TOKEN",
+        "candidates": [
+          {
+            "card": "MC",
+            "identifier": 471
+          }
+        ]
+      }
+    },
+    {
+      "name": "map0_series_wire_alias_selects_the_ma_v200_card",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-12K-MAP0",
+        "identifier": 1006,
+        "software_text": "V200R024C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "MA-V200",
+        "matched_by": "WIRE_ALIAS",
+        "candidates": [
+          {
+            "card": "MA-V200",
+            "identifier": 1006
+          }
+        ]
+      }
+    },
+    {
+      "name": "map0_series_source_token_selects_the_ma_v200_card",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000_12K_MAP0",
+        "identifier": 1006,
+        "software_text": "V200R024C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "MA-V200",
+        "matched_by": "TOKEN",
+        "candidates": [
+          {
+            "card": "MA-V200",
+            "identifier": 1006
+          }
+        ]
+      }
+    },
+    {
+      "name": "m1_series_identifier_selects_the_ma_c00_card",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-8KTL-M1",
+        "identifier": 428,
+        "software_text": "V100R001C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "MA-C00",
+        "matched_by": "TOKEN",
+        "candidates": [
+          {
+            "card": "MA-C00",
+            "identifier": 428
+          }
+        ]
+      }
+    },
+    {
+      "name": "m3_series_token_without_identifier_is_ambiguous",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-50KTL-M3",
+        "identifier": null,
+        "software_text": "V200R023C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "AMBIGUOUS",
+        "reason": "multiple_candidate_rows",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": [
+          {
+            "card": "MA-C00",
+            "identifier": 449
+          },
+          {
+            "card": "MA-C20",
+            "identifier": 449
+          },
+          {
+            "card": "MC",
+            "identifier": 471
+          }
+        ]
+      }
+    },
+    {
+      "name": "m3_series_token_with_identifier_449_stays_ambiguous_between_two_cards",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-50KTL-M3",
+        "identifier": 449,
+        "software_text": "V200R023C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "AMBIGUOUS",
+        "reason": "multiple_candidate_rows",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": [
+          {
+            "card": "MA-C00",
+            "identifier": 449
+          },
+          {
+            "card": "MA-C20",
+            "identifier": 449
+          }
+        ]
+      }
+    },
+    {
+      "name": "m3_series_shortened_firmware_text_is_compared_on_its_parts",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-50KTL-M3",
+        "identifier": 471,
+        "software_text": "",
+        "firmware_text": "V200R023",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "equal_on_carried_parts",
+        "grade": "HYPOTHESIS",
+        "card": "MC",
+        "matched_by": "TOKEN",
+        "candidates": [
+          {
+            "card": "MC",
+            "identifier": 471
+          }
+        ]
+      }
+    },
+    {
+      "name": "m3_series_build_of_an_unrelated_branch_is_admitted_as_hypothesis",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-50KTL-M3",
+        "identifier": 471,
+        "software_text": "V200R025C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "no_documented_branch_relation",
+        "grade": "HYPOTHESIS",
+        "card": "MC",
+        "matched_by": "TOKEN",
+        "candidates": [
+          {
+            "card": "MC",
+            "identifier": 471
+          }
+        ]
+      }
+    },
+    {
+      "name": "m3_series_identifier_of_another_model_is_not_selected",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-50KTL-M3",
+        "identifier": 470,
+        "software_text": "V200R023C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "identifier_mismatch",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": [
+          {
+            "card": "MA-C00",
+            "identifier": 449
+          },
+          {
+            "card": "MA-C20",
+            "identifier": 449
+          },
+          {
+            "card": "MC",
+            "identifier": 471
+          }
+        ]
+      }
+    },
+    {
+      "name": "m1_series_token_with_the_m3_identifier_is_not_selected",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-8KTL-M1",
+        "identifier": 471,
+        "software_text": "V100R001C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "identifier_mismatch",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": [
+          {
+            "card": "MA-C00",
+            "identifier": 428
+          }
+        ]
+      }
+    },
+    {
+      "name": "token_without_catalogue_row_is_not_selected",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-50KTL-M4",
+        "identifier": 471,
+        "software_text": "V200R023C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "no_catalogue_row",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": []
+      }
+    },
+    {
+      "name": "wire_alias_with_another_identifier_is_not_selected",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-12K-MAP0",
+        "identifier": 1005,
+        "software_text": "V200R024C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "identifier_mismatch",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": [
+          {
+            "card": "MA-V200",
+            "identifier": 1006
+          }
+        ]
+      }
+    },
+    {
+      "name": "wire_alias_without_identifier_is_not_selected",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-12K-MAP0",
+        "identifier": null,
+        "software_text": "V200R024C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "identifier_absent",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": [
+          {
+            "card": "MA-V200",
+            "identifier": 1006
+          }
+        ]
+      }
+    },
+    {
+      "name": "m1_series_token_without_identifier_is_not_selected",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-8KTL-M1",
+        "identifier": null,
+        "software_text": "V100R001C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "identifier_absent",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": [
+          {
+            "card": "MA-C00",
+            "identifier": 428
+          }
+        ]
+      }
+    },
+    {
+      "name": "m3_series_identity_in_the_c81_map_is_a_scope_mismatch",
+      "input": {
+        "scope": "C81_MAP",
+        "model_text": "SUN2000-50KTL-M3",
+        "identifier": 471,
+        "software_text": "V200R023C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "scope_mismatch",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": [
+          {
+            "card": "MC",
+            "identifier": 471
+          }
+        ]
+      }
+    },
+    {
+      "name": "m3_series_identity_in_a_gateway_namespace_is_a_scope_mismatch",
+      "input": {
+        "scope": "GATEWAY_NAMESPACE",
+        "model_text": "SUN2000-50KTL-M3",
+        "identifier": 471,
+        "software_text": "V200R023C00SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "scope_mismatch",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": [
+          {
+            "card": "MC",
+            "identifier": 471
+          }
+        ]
+      }
+    },
+    {
+      "name": "pair_listed_on_two_maps_selects_the_inverter_map_card",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-17KTL",
+        "identifier": 1,
+        "software_text": "V100R001C81SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "MA-C00",
+        "matched_by": "TOKEN",
+        "candidates": [
+          {
+            "card": "MA-C00",
+            "identifier": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "pair_listed_on_two_maps_selects_the_c81_map_card",
+      "input": {
+        "scope": "C81_MAP",
+        "model_text": "SUN2000-17KTL",
+        "identifier": 1,
+        "software_text": "V100R001C81SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "SUN-C81",
+        "matched_by": "TOKEN",
+        "candidates": [
+          {
+            "card": "SUN-C81",
+            "identifier": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "pair_listed_on_two_maps_in_a_gateway_namespace_is_a_scope_mismatch",
+      "input": {
+        "scope": "GATEWAY_NAMESPACE",
+        "model_text": "SUN2000-17KTL",
+        "identifier": 1,
+        "software_text": "V100R001C81SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "scope_mismatch",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": [
+          {
+            "card": "MA-C00",
+            "identifier": 1
+          },
+          {
+            "card": "SUN-C81",
+            "identifier": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "build_above_the_floor_is_selected",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-4.95K-LB0-NH",
+        "identifier": 380,
+        "software_text": "V300R024C10SPC101",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "LB-C10",
+        "matched_by": "TOKEN",
+        "candidates": [
+          {
+            "card": "LB-C10",
+            "identifier": 380
+          }
+        ]
+      }
+    },
+    {
+      "name": "build_at_the_floor_is_selected",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-4.95K-LB0-NH",
+        "identifier": 380,
+        "software_text": "V300R024C10SPC100",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "LB-C10",
+        "matched_by": "TOKEN",
+        "candidates": [
+          {
+            "card": "LB-C10",
+            "identifier": 380
+          }
+        ]
+      }
+    },
+    {
+      "name": "build_below_the_floor_is_not_selected",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-4.95K-LB0-NH",
+        "identifier": 380,
+        "software_text": "V300R024C10SPC099",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "below_floor",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": [
+          {
+            "card": "LB-C10",
+            "identifier": 380
+          }
+        ]
+      }
+    },
+    {
+      "name": "build_of_an_unrelated_branch_above_a_build_floor_is_admitted_as_hypothesis",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-4.95K-LB0-NH",
+        "identifier": 380,
+        "software_text": "V300R025C00SPC001",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "no_documented_branch_relation",
+        "grade": "HYPOTHESIS",
+        "card": "LB-C10",
+        "matched_by": "TOKEN",
+        "candidates": [
+          {
+            "card": "LB-C10",
+            "identifier": 380
+          }
+        ]
+      }
+    },
+    {
+      "name": "identifier_without_software_text_is_not_selected",
+      "input": {
+        "scope": "INVERTER_MAP",
+        "model_text": "SUN2000-50KTL-M3",
+        "identifier": 471,
+        "software_text": "",
+        "firmware_text": "",
+        "protocol_words": []
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "software_absent",
+        "grade": "UNKNOWN",
+        "card": "",
+        "matched_by": "",
+        "candidates": [
+          {
+            "card": "MC",
+            "identifier": 471
+          }
+        ]
+      }
+    }
+  ]
+}

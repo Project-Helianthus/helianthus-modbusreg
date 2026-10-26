@@ -33,7 +33,7 @@
     },
     "eligible": true,
     "missing_evidence": [
-      "pinned_vendor_document_identity"
+      "catalogue_monitoring_profile"
     ],
     "vendor_documentation": {
       "source_class": "OFFICIAL_VENDOR_DOCUMENTATION_ONLY",
@@ -75,12 +75,13 @@
       "SUN2000 M3 series",
       "SUN2000 M1 series"
     ],
-    "unsupported": "ALL_OTHER_FAMILIES"
+    "selectable": "CATALOGUE_MODEL_ROWS",
+    "without_catalogue_row": "NOT_SELECTED"
   },
   "firmware_ranges": {
     "covered": [],
-    "predicate": false,
-    "reason": "the routed firmware texts differ by family and the cause of the power-group refusal is Unknown, so no firmware range is claimed and firmware never selects a profile"
+    "predicate": "SOFTWARE_FLOOR_ONLY",
+    "reason": "the software text read at 30050, or the firmware text read at 30035 when no software text is read, is compared with the floor of each candidate catalogue row within its branch only; no row carries an upper bound, a text below a floor within its branch removes that row, and a text with no documented relation to a floor keeps the row with grade Hypothesis"
   },
   "monitoring_profiles": [
     {
@@ -97,6 +98,45 @@
         "date": "2023-03-17"
       },
       "edition_binding": "EDITION_SUPPORTED_MODEL_TABLE",
+      "catalogue_selection": {
+        "decision_case": "m3_series_identifier_selects_the_mc_card",
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "MC",
+        "edition": {
+          "title": "SUN2000MC V200R023C00 Modbus Interface Definitions",
+          "issue": "Issue 01",
+          "date": "2023-03-17"
+        },
+        "page": 5,
+        "token": "SUN2000-50KTL-M3",
+        "identifier": 471,
+        "matched_by": "TOKEN",
+        "wire_alias": "",
+        "floor": "SUN2000MC V200R023C00",
+        "floor_basis": "row"
+      },
+      "observed_path": {
+        "identifier_read": false,
+        "catalogue_outcome": "AMBIGUOUS",
+        "catalogue_reason": "multiple_candidate_rows",
+        "candidates": [
+          {
+            "card": "MA-C00",
+            "identifier": 449
+          },
+          {
+            "card": "MA-C20",
+            "identifier": 449
+          },
+          {
+            "card": "MC",
+            "identifier": 471
+          }
+        ],
+        "selection_reason": "OBSERVED_PATH_IDENTIFIER_NOT_READ"
+      },
       "observed_units": [
         1,
         2
@@ -213,6 +253,37 @@
         "date": "2023-03-17"
       },
       "edition_binding": "EDITION_LAYOUT_LIVE_CHECKED",
+      "catalogue_selection": {
+        "decision_case": "m1_series_identifier_selects_the_ma_c00_card",
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "MA-C00",
+        "edition": {
+          "title": "SUN2000MA V100R001C00SPC178 Modbus Interface Definitions",
+          "issue": "Issue 10",
+          "date": "2026-09-09"
+        },
+        "page": 7,
+        "token": "SUN2000-8KTL-M1",
+        "identifier": 428,
+        "matched_by": "TOKEN",
+        "wire_alias": "",
+        "floor": "SUN2000MA V100R001C00",
+        "floor_basis": "row"
+      },
+      "observed_path": {
+        "identifier_read": false,
+        "catalogue_outcome": "NOT_SELECTED",
+        "catalogue_reason": "identifier_absent",
+        "candidates": [
+          {
+            "card": "MA-C00",
+            "identifier": 428
+          }
+        ],
+        "selection_reason": "OBSERVED_PATH_IDENTIFIER_NOT_READ"
+      },
       "observed_units": [
         1
       ],
@@ -340,9 +411,28 @@
       "family": "SUN2000 MAP0 series",
       "gateway_path": "EMMA",
       "outcome": "NO_ADMISSIBLE_PROFILE",
-      "reason": "no_consulted_edition",
+      "reason": "catalogue_card_without_monitoring_profile",
+      "catalogue_selection": {
+        "decision_case": "map0_series_wire_alias_selects_the_ma_v200_card",
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "MA-V200",
+        "edition": {
+          "title": "SUN2000MA V200R024C00SPC111 Modbus Interface Definitions",
+          "issue": "Issue 10",
+          "date": "2026-09-09"
+        },
+        "page": 6,
+        "token": "SUN2000_12K_MAP0",
+        "identifier": 1006,
+        "matched_by": "WIRE_ALIAS",
+        "wire_alias": "SUN2000-12K-MAP0",
+        "floor": "V200R024C00",
+        "floor_basis": "row"
+      },
       "missing_evidence": [
-        "pinned_vendor_document_identity"
+        "catalogue_monitoring_profile"
       ]
     }
   ],
@@ -400,12 +490,34 @@
     "positive_identity_required": [
       "observed_gateway_identity_card",
       "routed_unit",
-      "exact_routed_model_string",
-      "pinned_document_identity"
+      "catalogue_model_row"
     ],
     "not_predicates": [
-      "firmware_identity"
+      "protocol_words"
     ],
+    "catalogue_decision": {
+      "inputs": [
+        "model_text_30000",
+        "model_identifier_30070",
+        "software_text_30050",
+        "firmware_text_30035",
+        "protocol_words_30068"
+      ],
+      "candidate_row": "exact source token or a wire alias within its recorded scope, the identifier read, and the map scope of the card",
+      "scope": "INVERTER_MAP",
+      "floor": "row minimum, or the document-wide requirement when the row states none, compared within its branch only",
+      "outcomes": [
+        "SELECTED",
+        "NOT_SELECTED",
+        "AMBIGUOUS"
+      ],
+      "selected_grade": "HYPOTHESIS",
+      "without_identifier": "NOT_SELECTED_OR_AMBIGUOUS",
+      "observed_path_without_identifier": "OBSERVED_PATH_IDENTIFIER_NOT_READ",
+      "routing": "the selected row of the profile's family on the profile's gateway path",
+      "fixture": "testdata/huawei/selection/sun2000_catalogue_decisions.json",
+      "docs_page": "protocols/huawei/sun2000-inverter-catalogue-v1.md"
+    },
     "forbidden_identity": [
       "serial_number",
       "esn",
@@ -469,53 +581,95 @@
         "reason": "the routed model read disagrees with the model the listing names at that unit"
       },
       {
+        "id": "identity_words_invalid",
+        "outcome": "INSUFFICIENT_EVIDENCE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "an identifier, software, firmware or protocol read that does not have the shape of its read is not identity evidence"
+      },
+      {
         "id": "model_prefix_or_wildcard",
         "outcome": "NO_ADMISSIBLE_PROFILE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "a model string that only shares a prefix with an admitted model is a different model"
+        "reason": "a model text that only shares a prefix with a catalogue token is a different token: it matches its own row or none"
       },
       {
         "id": "model_behind_another_gateway_path",
         "outcome": "NO_ADMISSIBLE_PROFILE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "an admitted model behind a gateway path it was not observed on is not an admitted pair"
+        "reason": "a catalogue row whose monitoring profile is on another gateway path is no admitted pair on this path; the path routes and never decides applicability"
       },
       {
-        "id": "family_without_consulted_edition",
+        "id": "family_without_catalogue_row",
         "outcome": "NO_ADMISSIBLE_PROFILE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "the MAP0 series has no consulted edition"
+        "reason": "a model text that no catalogue row carries is not selected, reason no_catalogue_row"
       },
       {
-        "id": "document_identity_mismatch",
+        "id": "catalogue_row_without_profile_on_path",
         "outcome": "NO_ADMISSIBLE_PROFILE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "a different title, version or date is a different edition, which admits nothing"
+        "reason": "the catalogue selects a row whose family has no monitoring profile on this path; the selection is recorded and nothing is read"
+      },
+      {
+        "id": "catalogue_identifier_mismatch",
+        "outcome": "NO_ADMISSIBLE_PROFILE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "the identifier read is not the identifier of any catalogue row that carries the model text"
+      },
+      {
+        "id": "catalogue_software_malformed_or_absent",
+        "outcome": "NO_ADMISSIBLE_PROFILE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "with the identifier read, a software text outside the branch form, or no software or firmware text, leaves the floor unchecked and selects nothing"
+      },
+      {
+        "id": "catalogue_rows_not_told_apart",
+        "outcome": "AMBIGUOUS",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "two catalogue rows carry the model text and the identifier in one map scope and the software text admits both: no row is chosen"
       },
       {
         "id": "multiple_positive_candidates",
         "outcome": "AMBIGUOUS",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "two exact pairs for one endpoint and unit: no winner chosen by order or priority"
+        "reason": "two observed gateway identities for one endpoint and unit, each admitting its profile: no winner chosen by order or priority"
       },
       {
-        "id": "exact_m3_pair_behind_smartlogger",
+        "id": "catalogue_m3_row_behind_smartlogger",
         "outcome": "PROFILE_SELECTED",
         "selected_profile": "huawei.sun2000.m3.monitoring-readonly@1.0.0",
         "native_fact_count": 19,
-        "reason": "the SmartLogger tuple, a listed unit, the M3 series model string and the pinned edition"
+        "reason": "the SmartLogger tuple, a listed unit, and the catalogue row selected by the M3 series token, its identifier and a software text at or above its floor, or of a branch with no documented relation to it"
       },
       {
-        "id": "exact_m1_pair_behind_sdongle",
+        "id": "catalogue_m1_row_behind_sdongle",
         "outcome": "PROFILE_SELECTED",
         "selected_profile": "huawei.sun2000.m1.monitoring-readonly@1.0.0",
         "native_fact_count": 22,
-        "reason": "the S-Dongle tuple, the observed child unit, the M1 series model string and the pinned edition"
+        "reason": "the S-Dongle tuple, the observed child unit, and the catalogue row selected by the M1 series token, its identifier and a software text at or above its floor"
+      },
+      {
+        "id": "observed_m3_path_identifier_not_read",
+        "outcome": "PROFILE_SELECTED",
+        "selected_profile": "huawei.sun2000.m3.monitoring-readonly@1.0.0",
+        "native_fact_count": 19,
+        "reason": "the SmartLogger tuple, a listed unit and the M3 series source token, with no identifier read: the catalogue keeps the M3 row among its candidates and the observed path admits its profile"
+      },
+      {
+        "id": "observed_m1_path_identifier_not_read",
+        "outcome": "PROFILE_SELECTED",
+        "selected_profile": "huawei.sun2000.m1.monitoring-readonly@1.0.0",
+        "native_fact_count": 22,
+        "reason": "the S-Dongle tuple, the observed child unit and the M1 series source token, with no identifier read: the catalogue keeps the M1 row as its only candidate and the observed path admits its profile"
       }
     ]
   },
@@ -572,6 +726,6 @@
   "support_claim": false,
   "write_authority": false,
   "reopen_requires": [
-    "pinned_vendor_document_identity"
+    "catalogue_monitoring_profile"
   ]
 }

@@ -260,7 +260,7 @@ func (r *huaweiCycleRun) identifySDongle(before []uint16) {
 	child := s.child(childUnit)
 	child.listedClass = card.ChildFamily()
 	child.definitive, child.skipUntil = "", 0
-	selection := SelectHuaweiSUN2000MonitoringProfile(HuaweiSUN2000CapabilityInput{SDongle: s.sdongle, UnitID: childUnit, Document: huaweiSUN2000MCEdition})
+	selection := SelectHuaweiSUN2000MonitoringProfile(HuaweiSUN2000CapabilityInput{SDongle: s.sdongle, UnitID: childUnit})
 	r.out.Reason = HuaweiProviderReasonIdentified
 	if !r.bindChildSelection(child, selection) {
 		r.out.Outcome = HuaweiProviderCycleComplete

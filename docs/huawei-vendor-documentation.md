@@ -83,6 +83,11 @@ accepted and refused field sets.
   only for the MAP0 series, which has no consulted edition. The pin by itself
   still changes no outcome: the outcome rests on the monitoring contract, the
   observation fixtures, the exact pairs and the executable decision table.
+- The SUN2000 catalogue selection (helianthus-modbusreg issue 362) takes the
+  edition of every family from its catalogue row, cited by title, issue and
+  date, so the MAP0 series has a catalogue row; the SUN2000 reopen item is now
+  a monitoring profile built on the catalogue. The pin stays the identity of
+  the layout the monitoring profiles read.
 
 ## Rollback
 

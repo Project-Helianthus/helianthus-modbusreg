@@ -13,12 +13,15 @@ catalogue copies no vendor text, link, locator or digest (see
 
 Applicability: `evidence.json` lists the consulted source as `huawei-pv-inverter-reference-2026-10-26.1`, the Huawei PV inverter Modbus reference at baseline 2026-10-26.1 of 2026-10-26 (CC0-1.0), cited by title, baseline and date; source pages are carried per row in the catalogue, and no digest is published.
 
-This change adds data only. No code reads the catalogue: it registers no
-profile, selects nothing, admits nothing and grants no write. The two SUN2000
-monitoring profiles and every disposition are unchanged (see
-[SUN2000 monitoring profiles](huawei-sun2000-monitoring-profiles.md)). The
-selection predicate (token or qualified alias, identifier and floor), the
-monitoring profiles built on the catalogue are follow-ups.
+The SUN2000 selection (helianthus-modbusreg issue 362) is the one consumer: it
+embeds `editions.json`, `models.json` and the register files, and reads the
+card editions, their model rows and the identity rows of each card to decide a
+model row from the model text or a recorded wire alias, the model identifier,
+the map scope and the row floor (see
+[SUN2000 monitoring profiles](huawei-sun2000-monitoring-profiles.md#capability-detection)).
+It decodes no register, registers no profile, admits nothing beyond the two
+SUN2000 monitoring profiles and grants no write. The monitoring profiles built
+on the catalogue are a follow-up.
 
 Companion: the public documentation for this catalogue is merged as
 [helianthus-docs-modbus#260](https://github.com/Project-Helianthus/helianthus-docs-modbus/pull/260).
@@ -184,5 +187,5 @@ bytes.
 Removing the catalogue directory, `tools/huaweicatalogue`, this page, the
 README paragraph and the catalogue source and applicability line of
 `evidence.json`, and restoring the vendor directory listing in
-`huawei_inverter_battery_disposition_test.go`, restores the registry as it was.
-No product code changes.
+`huawei_inverter_battery_disposition_test.go`, restores the registry as it was,
+once the SUN2000 selection that embeds the catalogue is reverted.

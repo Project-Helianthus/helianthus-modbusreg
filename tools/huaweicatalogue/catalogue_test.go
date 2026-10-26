@@ -330,11 +330,16 @@ func TestReadExtentsKeepValuesWhole(t *testing.T) {
 	}
 }
 
-func TestCatalogueIsDataOnly(t *testing.T) {
+// TestCatalogueIsReadOnlyByTheSelection keeps the SUN2000 selection
+// (helianthus-modbusreg issue 362) the one product file that reads the
+// catalogue, and keeps it to the editions, the model rows and the register
+// files: no dictionary or quarantine reaches product code.
+func TestCatalogueIsReadOnlyByTheSelection(t *testing.T) {
 	files, err := filepath.Glob("../../*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
+	readers := 0
 	for _, file := range files {
 		if strings.HasSuffix(file, "_test.go") {
 			continue
@@ -343,9 +348,21 @@ func TestCatalogueIsDataOnly(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bytes.Contains(data, []byte("huawei/catalogue")) || bytes.Contains(data, []byte("registers-")) {
-			t.Fatalf("%s reads the catalogue; selection is out of scope here", file)
+		if !bytes.Contains(data, []byte("huawei/catalogue")) && !bytes.Contains(data, []byte("registers-")) {
+			continue
 		}
+		if filepath.Base(file) != "huawei_sun2000_catalogue_selection.go" {
+			t.Fatalf("%s reads the catalogue; only the SUN2000 selection does", file)
+		}
+		for _, name := range []string{"dictionaries", "quarantines"} {
+			if bytes.Contains(data, []byte(name)) {
+				t.Fatalf("%s reads the %s", file, name)
+			}
+		}
+		readers++
+	}
+	if readers != 1 {
+		t.Fatalf("%d product files read the catalogue", readers)
 	}
 }
 

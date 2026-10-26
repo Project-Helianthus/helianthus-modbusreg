@@ -31,11 +31,33 @@ const (
 	HuaweiSUN2000ReasonUnitNotRouted            HuaweiSUN2000CapabilityReason = "UNIT_NOT_ROUTED"
 	HuaweiSUN2000ReasonModelBlockInvalid        HuaweiSUN2000CapabilityReason = "MODEL_BLOCK_INVALID"
 	HuaweiSUN2000ReasonListingModelConflict     HuaweiSUN2000CapabilityReason = "LISTING_MODEL_CONFLICT"
-	HuaweiSUN2000ReasonModelNotAdmitted         HuaweiSUN2000CapabilityReason = "MODEL_NOT_ADMITTED"
-	HuaweiSUN2000ReasonDocumentNotAdmitted      HuaweiSUN2000CapabilityReason = "DOCUMENT_NOT_ADMITTED"
+	HuaweiSUN2000ReasonIdentityWordsInvalid     HuaweiSUN2000CapabilityReason = "IDENTITY_WORDS_INVALID"
+	HuaweiSUN2000ReasonCatalogueNotSelected     HuaweiSUN2000CapabilityReason = "CATALOGUE_NOT_SELECTED"
+	HuaweiSUN2000ReasonCatalogueAmbiguous       HuaweiSUN2000CapabilityReason = "CATALOGUE_AMBIGUOUS"
+	HuaweiSUN2000ReasonCatalogueRowNoProfile    HuaweiSUN2000CapabilityReason = "CATALOGUE_ROW_WITHOUT_PROFILE"
 	HuaweiSUN2000ReasonMatched                  HuaweiSUN2000CapabilityReason = "MATCHED"
+	HuaweiSUN2000ReasonObservedPathNoIdentifier HuaweiSUN2000CapabilityReason = "OBSERVED_PATH_IDENTIFIER_NOT_READ"
 	HuaweiSUN2000ReasonMultipleProfilesSelected HuaweiSUN2000CapabilityReason = "MULTIPLE_PROFILES_SELECTED"
 )
+
+const (
+	huaweiSUN2000TextBlockBytes = 2 * 15
+	huaweiSUN2000ProtocolWords  = 2
+)
+
+// HuaweiSUN2000RoutedIdentity is the identity evidence read at the routed unit
+// besides the model text, each part as read. A nil part was not read.
+type HuaweiSUN2000RoutedIdentity struct {
+	// IdentifierWords are the words of the FC03 offset 30070 quantity 1 read.
+	IdentifierWords []uint16
+	// SoftwareBlock is the raw extent of the FC03 offset 30050 quantity 15 read.
+	SoftwareBlock []byte
+	// FirmwareBlock is the raw extent of the FC03 offset 30035 quantity 15 read.
+	FirmwareBlock []byte
+	// ProtocolWords are the words of the FC03 offset 30068 quantity 2 read;
+	// they are recorded and never compared.
+	ProtocolWords []uint16
+}
 
 // HuaweiSUN2000CapabilityInput is detached, already-read evidence for one
 // endpoint and one unit. It carries no endpoint, session or transport state.
@@ -50,8 +72,9 @@ type HuaweiSUN2000CapabilityInput struct {
 	// RoutedModelBlock is the raw extent of the FC03 offset 30000 quantity 15
 	// read at UnitID behind the SmartLogger.
 	RoutedModelBlock []byte
-	// Document is the consulted document edition that the caller pins.
-	Document HuaweiVendorDocumentIdentity
+	// Identity is the rest of the identity evidence read at UnitID. The
+	// catalogue decision selects a row only when the model identifier was read.
+	Identity HuaweiSUN2000RoutedIdentity
 }
 
 // HuaweiSUN2000ProfileEvaluation is the result of one profile against the input.
@@ -59,6 +82,7 @@ type HuaweiSUN2000ProfileEvaluation struct {
 	profileID string
 	outcome   HuaweiSUN2000CapabilityOutcome
 	reason    HuaweiSUN2000CapabilityReason
+	catalogue *HuaweiSUN2000CatalogueDecision
 }
 
 func (e HuaweiSUN2000ProfileEvaluation) ProfileID() string { return e.profileID }
@@ -67,15 +91,34 @@ func (e HuaweiSUN2000ProfileEvaluation) Outcome() HuaweiSUN2000CapabilityOutcome
 }
 func (e HuaweiSUN2000ProfileEvaluation) Reason() HuaweiSUN2000CapabilityReason { return e.reason }
 
+// Catalogue is the catalogue decision taken for the profile's path, if the
+// gateway evidence reached it.
+func (e HuaweiSUN2000ProfileEvaluation) Catalogue() (HuaweiSUN2000CatalogueDecision, bool) {
+	if e.catalogue == nil {
+		return HuaweiSUN2000CatalogueDecision{}, false
+	}
+	return *e.catalogue, true
+}
+
 // HuaweiSUN2000CapabilitySelection is the result of capability detection. A
-// profile is selected only when exactly one exact pair matches; order,
-// priority and vendor name never choose a winner.
+// profile is selected only when exactly one profile evaluation selects it;
+// order, priority and vendor name never choose a winner.
 type HuaweiSUN2000CapabilitySelection struct {
 	outcome     HuaweiSUN2000CapabilityOutcome
 	reason      HuaweiSUN2000CapabilityReason
 	unitID      uint8
 	profile     *HuaweiSUN2000MonitoringProfile
+	catalogue   *HuaweiSUN2000CatalogueDecision
 	evaluations []HuaweiSUN2000ProfileEvaluation
+}
+
+// Catalogue is the catalogue decision that the outcome rests on: the one of
+// the selected profile, or of the evaluation that decided the outcome.
+func (s HuaweiSUN2000CapabilitySelection) Catalogue() (HuaweiSUN2000CatalogueDecision, bool) {
+	if s.catalogue == nil {
+		return HuaweiSUN2000CatalogueDecision{}, false
+	}
+	return *s.catalogue, true
 }
 
 func (s HuaweiSUN2000CapabilitySelection) Outcome() HuaweiSUN2000CapabilityOutcome {
@@ -111,12 +154,21 @@ func (HuaweiSUN2000CapabilitySelection) SupportClaim() bool              { retur
 func (HuaweiSUN2000CapabilitySelection) WriteAuthority() bool            { return false }
 func (HuaweiSUN2000CapabilitySelection) AutomaticRequestCount() int      { return 0 }
 
-// SelectHuaweiSUN2000MonitoringProfile evaluates every exact profile against
-// the input. Identity comes from the observed gateway card, the routed unit and
-// the routed model string; the document gate requires the exact consulted
-// edition of the profile. A missing piece of evidence is insufficient
-// evidence; identity established at a routed unit that no exact pair admits is
-// no admissible profile.
+// SelectHuaweiSUN2000MonitoringProfile evaluates every monitoring profile
+// against the input. The gateway identity comes from the observed gateway card,
+// the routed unit and the routed model text; the model row comes from the
+// catalogue decision over the routed identity words in the inverter map scope,
+// and a profile is routed by the selected row of its family. A missing piece
+// of gateway evidence is insufficient evidence; identity established at a
+// routed unit that no profile serves is no admissible profile; a catalogue
+// decision that cannot tell two rows apart is ambiguous.
+//
+// The observed gateway paths read the model text only. While the model
+// identifier is not read, the catalogue cannot select a row, and a profile
+// stays admitted on its observed path when the model text is the source token
+// of its family and the catalogue keeps that row as a candidate; the decision
+// is recorded with the selection. Once the identifier is read, the catalogue
+// decision alone routes.
 func SelectHuaweiSUN2000MonitoringProfile(input HuaweiSUN2000CapabilityInput) HuaweiSUN2000CapabilitySelection {
 	profiles := HuaweiSUN2000MonitoringProfiles()
 	selection := HuaweiSUN2000CapabilitySelection{
@@ -126,14 +178,17 @@ func SelectHuaweiSUN2000MonitoringProfile(input HuaweiSUN2000CapabilityInput) Hu
 		evaluations: make([]HuaweiSUN2000ProfileEvaluation, 0, len(profiles)),
 	}
 	var matched []int
-	noAdmissible := -1
-	firstInsufficient := -1
+	ambiguous, noAdmissible, firstInsufficient := -1, -1, -1
 	for index, profile := range profiles {
 		evaluation := evaluateHuaweiSUN2000Profile(profile, input)
 		selection.evaluations = append(selection.evaluations, evaluation)
 		switch evaluation.outcome {
 		case HuaweiSUN2000ProfileSelected:
 			matched = append(matched, index)
+		case HuaweiSUN2000AmbiguousMultipleProfiles:
+			if ambiguous < 0 {
+				ambiguous = index
+			}
 		case HuaweiSUN2000NoAdmissibleProfile:
 			if noAdmissible < 0 {
 				noAdmissible = index
@@ -144,16 +199,26 @@ func SelectHuaweiSUN2000MonitoringProfile(input HuaweiSUN2000CapabilityInput) Hu
 			}
 		}
 	}
+	decided := -1
 	switch {
 	case len(matched) > 1:
 		selection.outcome, selection.reason = HuaweiSUN2000AmbiguousMultipleProfiles, HuaweiSUN2000ReasonMultipleProfilesSelected
 	case len(matched) == 1:
 		profile := profiles[matched[0]]
-		selection.outcome, selection.reason, selection.profile = HuaweiSUN2000ProfileSelected, HuaweiSUN2000ReasonMatched, &profile
+		selection.outcome, selection.reason, selection.profile = HuaweiSUN2000ProfileSelected, selection.evaluations[matched[0]].reason, &profile
+		decided = matched[0]
+	case ambiguous >= 0:
+		selection.outcome, selection.reason = HuaweiSUN2000AmbiguousMultipleProfiles, HuaweiSUN2000ReasonCatalogueAmbiguous
+		decided = ambiguous
 	case noAdmissible >= 0:
 		selection.outcome, selection.reason = HuaweiSUN2000NoAdmissibleProfile, selection.evaluations[noAdmissible].reason
+		decided = noAdmissible
 	case firstInsufficient >= 0:
 		selection.reason = selection.evaluations[firstInsufficient].reason
+		decided = firstInsufficient
+	}
+	if decided >= 0 {
+		selection.catalogue = selection.evaluations[decided].catalogue
 	}
 	return selection
 }
@@ -204,13 +269,80 @@ func evaluateHuaweiSUN2000Profile(profile HuaweiSUN2000MonitoringProfile, input 
 	default:
 		return insufficient(HuaweiSUN2000ReasonNoGatewayIdentity)
 	}
-	if model != profile.model {
-		return result(HuaweiSUN2000NoAdmissibleProfile, HuaweiSUN2000ReasonModelNotAdmitted)
+	catalogueInput, valid := huaweiSUN2000CatalogueInputOf(model, input.Identity)
+	if !valid {
+		return insufficient(HuaweiSUN2000ReasonIdentityWordsInvalid)
 	}
-	if input.Document != profile.document {
-		return result(HuaweiSUN2000NoAdmissibleProfile, HuaweiSUN2000ReasonDocumentNotAdmitted)
+	decision := DecideHuaweiSUN2000CatalogueSelection(catalogueInput)
+	evaluated := func(outcome HuaweiSUN2000CapabilityOutcome, reason HuaweiSUN2000CapabilityReason) HuaweiSUN2000ProfileEvaluation {
+		evaluation := result(outcome, reason)
+		evaluation.catalogue = &decision
+		return evaluation
 	}
-	return result(HuaweiSUN2000ProfileSelected, HuaweiSUN2000ReasonMatched)
+	if row, selected := decision.Row(); selected {
+		if row.Token != profile.model {
+			return evaluated(HuaweiSUN2000NoAdmissibleProfile, HuaweiSUN2000ReasonCatalogueRowNoProfile)
+		}
+		return evaluated(HuaweiSUN2000ProfileSelected, HuaweiSUN2000ReasonMatched)
+	}
+	if catalogueInput.ModelIdentifier == nil && model == profile.model && huaweiSUN2000ObservedPathCandidate(decision, profile.model) {
+		return evaluated(HuaweiSUN2000ProfileSelected, HuaweiSUN2000ReasonObservedPathNoIdentifier)
+	}
+	if decision.Outcome() == HuaweiSUN2000CatalogueAmbiguous {
+		return evaluated(HuaweiSUN2000AmbiguousMultipleProfiles, HuaweiSUN2000ReasonCatalogueAmbiguous)
+	}
+	return evaluated(HuaweiSUN2000NoAdmissibleProfile, HuaweiSUN2000ReasonCatalogueNotSelected)
+}
+
+// huaweiSUN2000ObservedPathCandidate reports a decision that only the missing
+// identifier kept from selecting a row of the family: the row matched by its
+// source token in the inverter map and its floor does not exclude it.
+func huaweiSUN2000ObservedPathCandidate(decision HuaweiSUN2000CatalogueDecision, family string) bool {
+	switch decision.Reason() {
+	case HuaweiSUN2000CatalogueIdentifierAbsent, HuaweiSUN2000CatalogueMultipleCandidateRows:
+	default:
+		return false
+	}
+	for _, row := range decision.Candidates() {
+		if row.Token == family && row.MatchedBy == HuaweiSUN2000CatalogueMatchToken &&
+			row.Scope == HuaweiSUN2000ScopeInverterMap && row.FloorRelation != HuaweiSUN2000FloorBelow {
+			return true
+		}
+	}
+	return false
+}
+
+// huaweiSUN2000CatalogueInputOf decodes the routed identity words. A part that
+// was read but does not have the shape of its read is invalid evidence.
+func huaweiSUN2000CatalogueInputOf(model string, identity HuaweiSUN2000RoutedIdentity) (HuaweiSUN2000CatalogueInput, bool) {
+	input := HuaweiSUN2000CatalogueInput{Scope: HuaweiSUN2000ScopeInverterMap, ModelText: model}
+	if identity.IdentifierWords != nil {
+		if len(identity.IdentifierWords) != 1 {
+			return HuaweiSUN2000CatalogueInput{}, false
+		}
+		identifier := identity.IdentifierWords[0]
+		input.ModelIdentifier = &identifier
+	}
+	for _, part := range []struct {
+		block  []byte
+		target *string
+	}{{identity.SoftwareBlock, &input.SoftwareText}, {identity.FirmwareBlock, &input.FirmwareText}} {
+		if part.block == nil {
+			continue
+		}
+		text, valid := parseHuaweiSUN2000TextBlock(part.block, huaweiSUN2000TextBlockBytes)
+		if !valid {
+			return HuaweiSUN2000CatalogueInput{}, false
+		}
+		*part.target = text
+	}
+	if identity.ProtocolWords != nil {
+		if len(identity.ProtocolWords) != huaweiSUN2000ProtocolWords {
+			return HuaweiSUN2000CatalogueInput{}, false
+		}
+		input.ProtocolWords = append([]uint16(nil), identity.ProtocolWords...)
+	}
+	return input, true
 }
 
 // huaweiSUN2000ListedChild finds the child that the validated listing names at
@@ -232,7 +364,13 @@ func huaweiSUN2000ListedChild(inventory HuaweiGatewayInventory, unit uint8) (str
 // SmartLogger: printable text ended by a NUL, then NUL padding only, as
 // observed for the M3 series units.
 func parseHuaweiSUN2000RoutedModelBlock(block []byte) (string, bool) {
-	if len(block) != huaweiSUN2000ModelBlockBytes {
+	return parseHuaweiSUN2000TextBlock(block, huaweiSUN2000ModelBlockBytes)
+}
+
+// parseHuaweiSUN2000TextBlock decodes a text read of the given extent:
+// printable text ended by a NUL, then NUL padding only.
+func parseHuaweiSUN2000TextBlock(block []byte, extent int) (string, bool) {
+	if len(block) != extent {
 		return "", false
 	}
 	end := bytes.IndexByte(block, 0)
