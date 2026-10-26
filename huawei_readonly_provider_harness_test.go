@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,8 +19,9 @@ import (
 
 // The H06 harness drives the providers through scripted sessions. A script is
 // the exact request order of one or more cycles; every reply is taken from the
-// sanitized identity and monitoring fixtures, or is a timeout, an exception or
-// a value the provider-cycle fixture marks synthetic.
+// sanitized identity and monitoring fixtures or from a case of the catalogue
+// decision table, or is a timeout, an exception or a value the provider-cycle
+// fixture marks synthetic.
 
 const h06FixtureDirectory = "testdata/huawei/provider"
 
@@ -270,7 +272,10 @@ func h06FC2B(unit uint8, code, object uint8, answer h06Answer) h06Expected {
 // ---- provider-cycle fixtures -------------------------------------------------
 
 type h06Reply struct {
-	Kind         string   `json:"kind"`
+	Kind string `json:"kind"`
+	// Case names the case of the catalogue decision table that a source reply
+	// of an identity read comes from (see h06CaseAnswer).
+	Case         string   `json:"case,omitempty"`
 	Words        []uint16 `json:"words,omitempty"`
 	Code         uint8    `json:"code,omitempty"`
 	Synthetic    bool     `json:"synthetic,omitempty"`
@@ -288,10 +293,13 @@ type h06Step struct {
 }
 
 type h06ExpectChild struct {
-	Unit     uint8    `json:"unit"`
-	Evidence string   `json:"evidence"`
-	Reason   string   `json:"reason"`
-	Retained []uint16 `json:"retained,omitempty"`
+	Unit     uint8  `json:"unit"`
+	Evidence string `json:"evidence"`
+	Reason   string `json:"reason"`
+	// Catalogue is h06CatalogueSummary of the child's catalogue decision, or
+	// empty when no admission of the child completed.
+	Catalogue string   `json:"catalogue,omitempty"`
+	Retained  []uint16 `json:"retained,omitempty"`
 }
 
 type h06Expect struct {
@@ -322,7 +330,10 @@ type h06Fixture struct {
 }
 
 func h06FixtureNames() []string {
-	return []string{"sdongle_provider_cycles.json", "smartlogger_provider_cycles.json"}
+	return []string{
+		"sdongle_provider_admission_cycles.json", "sdongle_provider_cycles.json",
+		"smartlogger_provider_admission_cycles.json", "smartlogger_provider_cycles.json",
+	}
 }
 
 func h06Load(t testing.TB, name string) (h06Fixture, []byte) {
@@ -412,8 +423,68 @@ func h06MonitoringAnswer(t testing.TB, fixture h05Fixture, unit uint8, offset, q
 	return h06Answer{}
 }
 
+// h06DecisionTableSource is the source entry of the catalogue decision table.
+const h06DecisionTableSource = "selection/sun2000_catalogue_decisions.json"
+
+// h06BlockWords returns the register words of a read extent.
+func h06BlockWords(block []byte) []uint16 {
+	words := make([]uint16, 0, len(block)/2)
+	for index := 0; index+1 < len(block); index += 2 {
+		words = append(words, uint16(block[index])<<8|uint16(block[index+1]))
+	}
+	return words
+}
+
+// h06CaseAnswer resolves an identity read from a case of the catalogue decision
+// table, as the routed read returns it: the model text at 30000 and the
+// software text at 30050 as NUL padded 15-word extents, and the identifier word
+// at 30070. The table's identifiers are the vendor-published ones and its
+// software texts are synthetic placeholders in the branch form.
+func h06CaseAnswer(t testing.TB, step h06Step) h06Answer {
+	t.Helper()
+	tc := m85Case(t, step.Reply.Case)
+	text := func(value string) h06Answer {
+		if value == "" || len(value) >= huaweiSUN2000ModelBlockBytes {
+			t.Fatalf("case %s has no text for %+v", tc.Name, step)
+		}
+		return h06Answer{words: h06BlockWords(h05RoutedModelBlock(value))}
+	}
+	switch {
+	case step.Function != "FC03":
+	case step.Offset == huaweiSUN2000ModelOffset && step.Quantity == huaweiSUN2000ModelQuantity:
+		return text(tc.Input.ModelText)
+	case step.Offset == huaweiSUN2000IdentifierOffset && step.Quantity == 1 && tc.Input.Identifier != nil:
+		return h06Answer{words: []uint16{*tc.Input.Identifier}}
+	case step.Offset == huaweiSUN2000SoftwareOffset && step.Quantity == huaweiSUN2000TextQuantity:
+		return text(tc.Input.SoftwareText)
+	}
+	t.Fatalf("case %s does not answer %+v", tc.Name, step)
+	return h06Answer{}
+}
+
+// h06CatalogueSummary is the compact form of a child's catalogue decision in
+// the provider-cycle fixtures: the outcome, the closed reason and every row the
+// decision names, as card/identifier.
+func h06CatalogueSummary(decision *HuaweiSUN2000CatalogueDecision) string {
+	if decision == nil {
+		return ""
+	}
+	parts := []string{string(decision.Outcome()), string(decision.Reason())}
+	var rows []string
+	for _, row := range m85Rows(decision.Candidates()) {
+		rows = append(rows, fmt.Sprintf("%s/%d", row.Card, row.Identifier))
+	}
+	if len(rows) != 0 {
+		parts = append(parts, strings.Join(rows, ","))
+	}
+	return strings.Join(parts, " ")
+}
+
 func (s h06Sources) resolve(t testing.TB, path string, step h06Step) h06Answer {
 	t.Helper()
+	if step.Reply.Case != "" {
+		return h06CaseAnswer(t, step)
+	}
 	var object uint8
 	if step.Object != nil {
 		object = uint8(*step.Object)
@@ -439,7 +510,7 @@ func (s h06Sources) resolve(t testing.TB, path string, step h06Step) h06Answer {
 				t.Fatal(err)
 			}
 			return h06Answer{page: h06PageFromPDU(t, pdu)}
-		case step.Function == "FC03" && step.Offset == huaweiSUN2000ModelOffset:
+		case step.Function == "FC03" && (step.Offset == huaweiSUN2000ModelOffset || step.Offset == huaweiSUN2000FirmwareOffset):
 			return h06ProbeAnswer(t, h15ProbeAt(t, s.routed, int(step.Unit), step.Offset))
 		case step.Function == "FC03":
 			return h06MonitoringAnswer(t, s.m3, step.Unit, step.Offset, step.Quantity)
@@ -459,7 +530,7 @@ func (s h06Sources) resolve(t testing.TB, path string, step h06Step) h06Answer {
 				t.Fatal(err)
 			}
 			return h06Answer{err: h06Exception(0x2b, code)}
-		case step.Function == "FC03" && step.Unit == 1 && step.Offset == huaweiSUN2000ModelOffset:
+		case step.Function == "FC03" && step.Unit == 1 && (step.Offset == huaweiSUN2000ModelOffset || step.Offset == huaweiSUN2000FirmwareOffset):
 			return h06ProbeAnswer(t, h15ProbeAt(t, f.ChildBlocks, 1, step.Offset))
 		case step.Function == "FC2B" && step.Unit == 1 && step.Code == 1:
 			pdu, err := h03BasicPDU(f.ChildBasic.Read, f.ChildBasic.Reply)
@@ -479,6 +550,19 @@ func (s h06Sources) resolve(t testing.TB, path string, step h06Step) h06Answer {
 	}
 	t.Fatalf("%s: no source for %+v", path, step)
 	return h06Answer{}
+}
+
+// h06AdmissionWords is the script of a child's identity reads after its model
+// read: the identifier and the software text of a case of the catalogue
+// decision table and the firmware text of the path's identity fixture.
+func h06AdmissionWords(t testing.TB, sources h06Sources, path string, unit uint8, decisionCase string) []h06Expected {
+	t.Helper()
+	fromCase := h06Reply{Kind: "source", Case: decisionCase}
+	return h06Script(t, sources, path, h06Cycle{Name: "admission " + decisionCase, Steps: []h06Step{
+		{Function: "FC03", Unit: unit, Offset: huaweiSUN2000IdentifierOffset, Quantity: 1, Reply: fromCase},
+		{Function: "FC03", Unit: unit, Offset: huaweiSUN2000SoftwareOffset, Quantity: huaweiSUN2000TextQuantity, Reply: fromCase},
+		{Function: "FC03", Unit: unit, Offset: huaweiSUN2000FirmwareOffset, Quantity: huaweiSUN2000TextQuantity, Reply: h06Reply{Kind: "source"}},
+	}})
 }
 
 func h06ElapsedOf(class string) time.Duration {
@@ -637,6 +721,9 @@ func h06RequireExpect(t testing.TB, name string, cycle HuaweiProviderCycle, expe
 		got := cycle.Children[index]
 		if got.UnitID != want.Unit || string(got.Evidence) != want.Evidence || string(got.Reason) != want.Reason {
 			t.Fatalf("%s: child %d = unit %d %s %s, want unit %d %s %s", name, index, got.UnitID, got.Evidence, got.Reason, want.Unit, want.Evidence, want.Reason)
+		}
+		if summary := h06CatalogueSummary(got.Catalogue); summary != want.Catalogue {
+			t.Fatalf("%s: unit %d catalogue decision %q, want %q", name, got.UnitID, summary, want.Catalogue)
 		}
 		var retained []uint16
 		for _, group := range got.Groups {

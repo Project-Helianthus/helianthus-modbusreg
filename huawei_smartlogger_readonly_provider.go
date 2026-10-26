@@ -18,10 +18,12 @@ const (
 
 // HuaweiSmartLoggerReadOnlyProvider reads the observed SmartLogger path over a
 // supplied session: the counter guard and the extended inventory at unit 0
-// under the observed card, the routed model read at each listed and allowed
-// SUN2000 unit, and the M3 series monitoring groups at each child whose
-// capability selection admits the profile. The PLC, meter and every other unit
-// without a class contract are never read. Do not copy it.
+// under the observed card, the admission of each listed and allowed SUN2000
+// unit (the routed model read, the model identifier, the software text and the
+// firmware text, read on each identification event only), and the M3 series
+// monitoring groups at each child whose catalogue decision selects the M3
+// series row. The PLC, meter and every other unit without a class contract are
+// never read. Do not copy it.
 type HuaweiSmartLoggerReadOnlyProvider struct {
 	core *huaweiProviderCore
 }
@@ -289,7 +291,7 @@ func (r *huaweiCycleRun) identifySmartLogger() {
 	// An identification event: every child is identified again at its routed
 	// unit before it counts as identified.
 	for _, child := range s.children {
-		child.definitive, child.identifiedGeneration, child.skipUntil = "", 0, 0
+		child.identificationEvent()
 	}
 	r.out.Reason = HuaweiProviderReasonIdentified
 	r.readSmartLoggerChildren()
@@ -385,61 +387,23 @@ func huaweiStaleOrWithheld(child *huaweiChildState) HuaweiProviderEvidenceState 
 	return HuaweiProviderEvidenceWithheld
 }
 
-// identifySmartLoggerChild reads the routed model at the child's unit and
-// runs the SUN2000 capability selection. It reports whether the child is
+// identifySmartLoggerChild runs the child's admission at its routed unit: the
+// model read, then the model identifier, the software text and the firmware
+// text, and the SUN2000 capability selection over them, whose catalogue
+// decision admits or withholds the child. It reports whether the child is
 // identified on this connection generation; otherwise it has already added the
-// child's observation.
+// child's observation, or the cycle was stopped.
 func (r *huaweiCycleRun) identifySmartLoggerChild(child *huaweiChildState) bool {
-	s := r.state
-	words, result := r.readHolding(child.unit, huaweiSUN2000ModelOffset, huaweiSUN2000ModelQuantity)
-	switch result.status {
-	case huaweiReadStopped:
+	model, result := r.readHolding(child.unit, huaweiSUN2000ModelOffset, huaweiSUN2000ModelQuantity)
+	if !r.childAdmissionRead(child, result) {
 		return false
-	case huaweiReadFailed:
-		child.failures++
-		child.skipUntil = huaweiChildSkipUntil(r.cycle, child.failures)
-		reason := HuaweiProviderReasonChildReadFailed
-		if result.last == HuaweiProviderExchangeTimeout {
-			reason = HuaweiProviderReasonChildTimeout
-		}
-		r.out.Children = append(r.out.Children, r.childObservation(child, huaweiStaleOrWithheld(child), reason, nil))
-		return false
-	case huaweiReadException:
-		child.definitive = HuaweiProviderReasonIdentityInsuff
-		child.fence()
-		child.identity = nil
-		r.out.Children = append(r.out.Children, r.childObservation(child, HuaweiProviderEvidenceWithheld, child.definitive, nil))
+	}
+	identity, ok := r.readChildIdentityWords(child)
+	if !ok {
 		return false
 	}
 	selection := SelectHuaweiSUN2000MonitoringProfile(HuaweiSUN2000CapabilityInput{
-		SmartLogger: s.smartLogger, UnitID: child.unit, RoutedModelBlock: huaweiWordsToBytes(words),
+		SmartLogger: r.state.smartLogger, UnitID: child.unit, RoutedModelBlock: huaweiWordsToBytes(model), Identity: identity,
 	})
 	return r.bindChildSelection(child, selection)
-}
-
-// bindChildSelection binds a selected profile to the child. A changed identity
-// fences the earlier reading; anything other than one selected profile
-// withholds the child until the next identification event.
-func (r *huaweiCycleRun) bindChildSelection(child *huaweiChildState, selection HuaweiSUN2000CapabilitySelection) bool {
-	profile, ok := selection.Profile()
-	if selection.Outcome() == HuaweiSUN2000ProfileSelected && ok {
-		identity := &huaweiChildIdentity{profile: profile, model: profile.Model()}
-		if child.identity != nil && child.identity.key() != identity.key() {
-			child.fence()
-		}
-		child.identity, child.identifiedGeneration, child.definitive = identity, r.generation, ""
-		return true
-	}
-	switch {
-	case selection.Outcome() == HuaweiSUN2000NoAdmissibleProfile:
-		child.definitive = HuaweiProviderReasonNoProfile
-	case selection.Reason() == HuaweiSUN2000ReasonListingModelConflict:
-		child.definitive = HuaweiProviderReasonIdentityMismatch
-	default:
-		child.definitive = HuaweiProviderReasonIdentityInsuff
-	}
-	child.fence()
-	child.identity = nil
-	r.out.Children = append(r.out.Children, r.childObservation(child, HuaweiProviderEvidenceWithheld, child.definitive, nil))
-	return false
 }

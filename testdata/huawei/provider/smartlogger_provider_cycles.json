@@ -4,7 +4,7 @@
   "path": "SmartLogger",
   "provider_id": "huawei.smartlogger.observed-readonly-provider@1.0.0",
   "license": "CC0-1.0",
-  "provenance": "synthetic scripted session composed from the sanitized identity and monitoring fixtures named in sources; a source reply carries only what its fixture holds",
+  "provenance": "synthetic scripted session composed from the fixtures named in sources: the sanitized identity and monitoring fixtures, and the catalogue decision table, whose model identifiers are the vendor-published ones and whose software texts are synthetic placeholders; a source reply carries only what its fixture holds",
   "sanitization": {
     "rule": "every source reply inherits the sanitization of its fixture; a literal reply is a placeholder marked synthetic, never an observed value"
   },
@@ -12,7 +12,8 @@
     "identity/smartlogger_extended_inventory.json",
     "identity/smartlogger_basic_reply.json",
     "identity/sun2000_routed_identity.json",
-    "monitoring/sun2000_m3_smartlogger_monitoring.json"
+    "monitoring/sun2000_m3_smartlogger_monitoring.json",
+    "selection/sun2000_catalogue_decisions.json"
   ],
   "allowed_units": [
     1,
@@ -181,6 +182,35 @@
         {
           "function": "FC03",
           "unit": 1,
+          "offset": 30070,
+          "quantity": 1,
+          "reply": {
+            "kind": "source",
+            "case": "m3_series_identifier_selects_the_mc_card"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 30050,
+          "quantity": 15,
+          "reply": {
+            "kind": "source",
+            "case": "m3_series_identifier_selects_the_mc_card"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 30035,
+          "quantity": 15,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
           "offset": 32000,
           "quantity": 16,
           "reply": {
@@ -209,6 +239,35 @@
           "function": "FC03",
           "unit": 2,
           "offset": 30000,
+          "quantity": 15,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 30070,
+          "quantity": 1,
+          "reply": {
+            "kind": "source",
+            "case": "m3_series_identifier_selects_the_mc_card"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 30050,
+          "quantity": 15,
+          "reply": {
+            "kind": "source",
+            "case": "m3_series_identifier_selects_the_mc_card"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 30035,
           "quantity": 15,
           "reply": {
             "kind": "source"
@@ -249,12 +308,14 @@
           {
             "unit": 1,
             "evidence": "CURRENT",
-            "reason": "read"
+            "reason": "read",
+            "catalogue": "SELECTED at_or_above_floor MC/471"
           },
           {
             "unit": 2,
             "evidence": "CURRENT",
-            "reason": "read"
+            "reason": "read",
+            "catalogue": "SELECTED at_or_above_floor MC/471"
           },
           {
             "unit": 3,
@@ -396,12 +457,14 @@
           {
             "unit": 1,
             "evidence": "CURRENT",
-            "reason": "read"
+            "reason": "read",
+            "catalogue": "SELECTED at_or_above_floor MC/471"
           },
           {
             "unit": 2,
             "evidence": "STALE",
             "reason": "child_timeout",
+            "catalogue": "SELECTED at_or_above_floor MC/471",
             "retained": [
               32000,
               32016,
@@ -486,6 +549,7 @@
             "unit": 1,
             "evidence": "STALE",
             "reason": "listing_unconfirmed",
+            "catalogue": "SELECTED at_or_above_floor MC/471",
             "retained": [
               32000,
               32016,
@@ -496,6 +560,7 @@
             "unit": 2,
             "evidence": "STALE",
             "reason": "listing_unconfirmed",
+            "catalogue": "SELECTED at_or_above_floor MC/471",
             "retained": [
               32000,
               32016,
@@ -710,6 +775,7 @@
             "unit": 1,
             "evidence": "STALE",
             "reason": "listing_unstable",
+            "catalogue": "SELECTED at_or_above_floor MC/471",
             "retained": [
               32000,
               32016,
@@ -720,6 +786,7 @@
             "unit": 2,
             "evidence": "STALE",
             "reason": "listing_unstable",
+            "catalogue": "SELECTED at_or_above_floor MC/471",
             "retained": [
               32000,
               32016,
@@ -938,6 +1005,35 @@
         {
           "function": "FC03",
           "unit": 1,
+          "offset": 30070,
+          "quantity": 1,
+          "reply": {
+            "kind": "source",
+            "case": "m3_series_identifier_selects_the_mc_card"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 30050,
+          "quantity": 15,
+          "reply": {
+            "kind": "source",
+            "case": "m3_series_identifier_selects_the_mc_card"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 30035,
+          "quantity": 15,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
           "offset": 32000,
           "quantity": 16,
           "reply": {
@@ -966,6 +1062,35 @@
           "function": "FC03",
           "unit": 2,
           "offset": 30000,
+          "quantity": 15,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 30070,
+          "quantity": 1,
+          "reply": {
+            "kind": "source",
+            "case": "m3_series_identifier_selects_the_mc_card"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 30050,
+          "quantity": 15,
+          "reply": {
+            "kind": "source",
+            "case": "m3_series_identifier_selects_the_mc_card"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 2,
+          "offset": 30035,
           "quantity": 15,
           "reply": {
             "kind": "source"
@@ -1006,12 +1131,14 @@
           {
             "unit": 1,
             "evidence": "CURRENT",
-            "reason": "read"
+            "reason": "read",
+            "catalogue": "SELECTED at_or_above_floor MC/471"
           },
           {
             "unit": 2,
             "evidence": "CURRENT",
-            "reason": "read"
+            "reason": "read",
+            "catalogue": "SELECTED at_or_above_floor MC/471"
           },
           {
             "unit": 3,
@@ -1142,6 +1269,7 @@
             "unit": 1,
             "evidence": "STALE",
             "reason": "child_exception",
+            "catalogue": "SELECTED at_or_above_floor MC/471",
             "retained": [
               32016
             ]
@@ -1149,7 +1277,8 @@
           {
             "unit": 2,
             "evidence": "CURRENT",
-            "reason": "read"
+            "reason": "read",
+            "catalogue": "SELECTED at_or_above_floor MC/471"
           },
           {
             "unit": 3,
@@ -1270,6 +1399,7 @@
             "unit": 1,
             "evidence": "CURRENT",
             "reason": "read",
+            "catalogue": "SELECTED at_or_above_floor MC/471",
             "retained": [
               32016
             ]
@@ -1277,7 +1407,8 @@
           {
             "unit": 2,
             "evidence": "CURRENT",
-            "reason": "read"
+            "reason": "read",
+            "catalogue": "SELECTED at_or_above_floor MC/471"
           },
           {
             "unit": 3,

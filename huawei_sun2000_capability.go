@@ -36,7 +36,6 @@ const (
 	HuaweiSUN2000ReasonCatalogueAmbiguous       HuaweiSUN2000CapabilityReason = "CATALOGUE_AMBIGUOUS"
 	HuaweiSUN2000ReasonCatalogueRowNoProfile    HuaweiSUN2000CapabilityReason = "CATALOGUE_ROW_WITHOUT_PROFILE"
 	HuaweiSUN2000ReasonMatched                  HuaweiSUN2000CapabilityReason = "MATCHED"
-	HuaweiSUN2000ReasonObservedPathNoIdentifier HuaweiSUN2000CapabilityReason = "OBSERVED_PATH_IDENTIFIER_NOT_READ"
 	HuaweiSUN2000ReasonMultipleProfilesSelected HuaweiSUN2000CapabilityReason = "MULTIPLE_PROFILES_SELECTED"
 )
 
@@ -163,12 +162,10 @@ func (HuaweiSUN2000CapabilitySelection) AutomaticRequestCount() int      { retur
 // routed unit that no profile serves is no admissible profile; a catalogue
 // decision that cannot tell two rows apart is ambiguous.
 //
-// The observed gateway paths read the model text only. While the model
-// identifier is not read, the catalogue cannot select a row, and a profile
-// stays admitted on its observed path when the model text is the source token
-// of its family and the catalogue keeps that row as a candidate; the decision
-// is recorded with the selection. Once the identifier is read, the catalogue
-// decision alone routes.
+// The catalogue decision alone routes: without the model identifier it selects
+// no row, so no profile is selected on the model text alone. The read-only
+// providers read the identifier, the software text and the firmware text at
+// child admission and pass them here.
 func SelectHuaweiSUN2000MonitoringProfile(input HuaweiSUN2000CapabilityInput) HuaweiSUN2000CapabilitySelection {
 	profiles := HuaweiSUN2000MonitoringProfiles()
 	selection := HuaweiSUN2000CapabilitySelection{
@@ -285,31 +282,10 @@ func evaluateHuaweiSUN2000Profile(profile HuaweiSUN2000MonitoringProfile, input 
 		}
 		return evaluated(HuaweiSUN2000ProfileSelected, HuaweiSUN2000ReasonMatched)
 	}
-	if catalogueInput.ModelIdentifier == nil && model == profile.model && huaweiSUN2000ObservedPathCandidate(decision, profile.model) {
-		return evaluated(HuaweiSUN2000ProfileSelected, HuaweiSUN2000ReasonObservedPathNoIdentifier)
-	}
 	if decision.Outcome() == HuaweiSUN2000CatalogueAmbiguous {
 		return evaluated(HuaweiSUN2000AmbiguousMultipleProfiles, HuaweiSUN2000ReasonCatalogueAmbiguous)
 	}
 	return evaluated(HuaweiSUN2000NoAdmissibleProfile, HuaweiSUN2000ReasonCatalogueNotSelected)
-}
-
-// huaweiSUN2000ObservedPathCandidate reports a decision that only the missing
-// identifier kept from selecting a row of the family: the row matched by its
-// source token in the inverter map and its floor does not exclude it.
-func huaweiSUN2000ObservedPathCandidate(decision HuaweiSUN2000CatalogueDecision, family string) bool {
-	switch decision.Reason() {
-	case HuaweiSUN2000CatalogueIdentifierAbsent, HuaweiSUN2000CatalogueMultipleCandidateRows:
-	default:
-		return false
-	}
-	for _, row := range decision.Candidates() {
-		if row.Token == family && row.MatchedBy == HuaweiSUN2000CatalogueMatchToken &&
-			row.Scope == HuaweiSUN2000ScopeInverterMap && row.FloorRelation != HuaweiSUN2000FloorBelow {
-			return true
-		}
-	}
-	return false
 }
 
 // huaweiSUN2000CatalogueInputOf decodes the routed identity words. A part that

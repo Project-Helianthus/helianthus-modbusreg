@@ -4,7 +4,7 @@
   "path": "S-Dongle",
   "provider_id": "huawei.sdongle.observed-readonly-provider@1.0.0",
   "license": "CC0-1.0",
-  "provenance": "synthetic scripted session composed from the sanitized identity and monitoring fixtures named in sources; a source reply carries only what its fixture holds",
+  "provenance": "synthetic scripted session composed from the fixtures named in sources: the sanitized identity and monitoring fixtures, and the catalogue decision table, whose model identifiers are the vendor-published ones and whose software texts are synthetic placeholders; a source reply carries only what its fixture holds",
   "sanitization": {
     "rule": "every source reply inherits the sanitization of its fixture; a literal reply is a placeholder marked synthetic, never an observed value"
   },
@@ -15,7 +15,8 @@
     "identity/sdongle_child_basic_reply.json",
     "identity/sdongle_child_extended_inventory.json",
     "identity/sdongle_first_request_timing.json",
-    "monitoring/sun2000_m1_sdongle_monitoring.json"
+    "monitoring/sun2000_m1_sdongle_monitoring.json",
+    "selection/sun2000_catalogue_decisions.json"
   ],
   "allowed_units": [
     1
@@ -118,6 +119,35 @@
         {
           "function": "FC03",
           "unit": 1,
+          "offset": 30070,
+          "quantity": 1,
+          "reply": {
+            "kind": "source",
+            "case": "m1_series_identifier_selects_the_ma_c00_card"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 30050,
+          "quantity": 15,
+          "reply": {
+            "kind": "source",
+            "case": "m1_series_identifier_selects_the_ma_c00_card"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 30035,
+          "quantity": 15,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
           "offset": 32000,
           "quantity": 16,
           "reply": {
@@ -159,7 +189,8 @@
           {
             "unit": 1,
             "evidence": "CURRENT",
-            "reason": "read"
+            "reason": "read",
+            "catalogue": "SELECTED at_or_above_floor MA-C00/428"
           }
         ]
       }
@@ -220,7 +251,8 @@
           {
             "unit": 1,
             "evidence": "CURRENT",
-            "reason": "read"
+            "reason": "read",
+            "catalogue": "SELECTED at_or_above_floor MA-C00/428"
           }
         ]
       }
@@ -295,6 +327,7 @@
             "unit": 1,
             "evidence": "STALE",
             "reason": "child_timeout",
+            "catalogue": "SELECTED at_or_above_floor MA-C00/428",
             "retained": [
               32016,
               32064,
@@ -331,6 +364,7 @@
             "unit": 1,
             "evidence": "STALE",
             "reason": "listing_unconfirmed",
+            "catalogue": "SELECTED at_or_above_floor MA-C00/428",
             "retained": [
               32000,
               32016,
@@ -428,6 +462,35 @@
         {
           "function": "FC03",
           "unit": 1,
+          "offset": 30070,
+          "quantity": 1,
+          "reply": {
+            "kind": "source",
+            "case": "m1_series_identifier_selects_the_ma_c00_card"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 30050,
+          "quantity": 15,
+          "reply": {
+            "kind": "source",
+            "case": "m1_series_identifier_selects_the_ma_c00_card"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
+          "offset": 30035,
+          "quantity": 15,
+          "reply": {
+            "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 1,
           "offset": 32000,
           "quantity": 16,
           "reply": {
@@ -469,7 +532,8 @@
           {
             "unit": 1,
             "evidence": "CURRENT",
-            "reason": "read"
+            "reason": "read",
+            "catalogue": "SELECTED at_or_above_floor MA-C00/428"
           }
         ]
       }

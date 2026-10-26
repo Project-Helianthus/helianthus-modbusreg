@@ -2,6 +2,7 @@ package modbusreg
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
@@ -200,21 +201,23 @@ func TestH06ProductionProviderRowsMatchTheProviders(t *testing.T) {
 		page       string
 		requires   []string
 		issues     map[string]int
+		fixture    string
+		modelText  string
 	}{
 		{HuaweiProviderPathSmartLogger, "smartlogger-disposition.json", HuaweiSmartLoggerReadOnlyProviderID, HuaweiSUN2000M3MonitoringProfileID,
 			"architecture/smartlogger-provider-port.md",
 			[]string{"observed_identity_offline_admitted", "child_monitoring_profile_offline_admitted", "authority_fields_false"},
-			map[string]int{"slice": 206, "parent": 201}},
+			map[string]int{"slice": 206, "parent": 201}, "smartlogger_provider_cycles.json", "ROUTED_MODEL_READ_30000"},
 		{HuaweiProviderPathSDongle, "sdongle-disposition.json", HuaweiSDongleReadOnlyProviderID, HuaweiSUN2000M1MonitoringProfileID,
 			"architecture/sdongle-provider-port.md",
 			[]string{"observed_identity_offline_admitted", "child_monitoring_profile_offline_admitted", "recorded_stop_superseded_for_observed_identity", "authority_fields_false"},
-			map[string]int{"parent": 201}},
+			map[string]int{"parent": 201}, "sdongle_provider_cycles.json", "CARD_TUPLE_CHILD_MODEL_30000"},
 	} {
 		t.Run(string(test.path), func(t *testing.T) {
 			record := decodeHuaweiObject(t, "profiles/vendor/huawei/"+test.file)
 			row := huaweiObject(t, record["production_provider"])
 			keys := []string{"issue", "provider_id", "enablement", "scope", "requires", "identity_card", "child_profiles", "read_functions",
-				"units", "never_read", "pacing", "docs_contract", "issues", "support_claim", "live_qualified"}
+				"units", "never_read", "child_admission", "pacing", "docs_contract", "issues", "support_claim", "live_qualified"}
 			if test.path == HuaweiProviderPathSDongle {
 				keys = append(keys, "recorded_stop", "further_live_io")
 			}
@@ -256,6 +259,33 @@ func TestH06ProductionProviderRowsMatchTheProviders(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, test.issues) {
 				t.Fatalf("issues=%v want %v", got, test.issues)
+			}
+			// The child admission row (issue 365) names the identity reads that
+			// the provider sends at the child in its scripted identification,
+			// after the model text and before the first monitoring group.
+			admission := huaweiObject(t, row["child_admission"])
+			requireHuaweiKeys(t, admission, "issue", "model_text", "identity_reads", "read_on", "decision", "admits_on", "withholds_on", "failed_read")
+			var reads []string
+			for _, value := range h03Array(t, admission["identity_reads"]) {
+				read := huaweiObject(t, value)
+				requireHuaweiKeys(t, read, "offset", "quantity", "word")
+				reads = append(reads, fmt.Sprintf("%d/%d %v", huaweiInt(t, read["offset"]), huaweiInt(t, read["quantity"]), read["word"]))
+			}
+			_, cycles := h06RunFixture(t, test.fixture)
+			var sent []string
+			words := map[uint16]string{30070: "model_identifier", 30050: "software_text", 30035: "firmware_text"}
+			for _, exchange := range cycles[0].Exchanges {
+				if exchange.UnitID == 1 && exchange.Function == 0x03 && exchange.Offset > huaweiSUN2000ModelOffset && exchange.Offset < 32000 {
+					sent = append(sent, fmt.Sprintf("%d/%d %s", exchange.Offset, exchange.Quantity, words[exchange.Offset]))
+				}
+			}
+			if huaweiInt(t, admission["issue"]) != 365 || admission["model_text"] != test.modelText || !reflect.DeepEqual(reads, sent) ||
+				!reflect.DeepEqual(reads, []string{"30070/1 model_identifier", "30050/15 software_text", "30035/15 firmware_text"}) ||
+				admission["read_on"] != "EACH_IDENTIFICATION_EVENT" || admission["decision"] != "catalogue_selection" ||
+				admission["admits_on"] != string(HuaweiSUN2000CatalogueSelected) ||
+				!reflect.DeepEqual(huaweiStringSlice(t, admission["withholds_on"]), []string{string(HuaweiSUN2000CatalogueNotSelected), string(HuaweiSUN2000CatalogueAmbiguous)}) ||
+				admission["failed_read"] != "UNADMITTED_RETRIED_AFTER_CHILD_BACKOFF" {
+				t.Fatalf("child admission row %#v; the provider sent %v", admission, sent)
 			}
 			// The disposition outcome of the gateway's own profile is unchanged.
 			if record["catalog_registered"] != false || record["automatic_runtime_admission"] != false || record["support_claim"] != false || record["write_authority"] != false {
