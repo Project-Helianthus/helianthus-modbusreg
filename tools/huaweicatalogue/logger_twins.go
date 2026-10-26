@@ -300,7 +300,7 @@ func quarantineCodes(entries []json.RawMessage) ([]string, error) {
 			Code   string `json:"code"`
 			Status string `json:"status"`
 		}
-		if err := json.Unmarshal(raw, &object); err != nil || object.Code == "" || object.Status != "unresolved_vendor_source" {
+		if err := decodeStrict(raw, &object); err != nil || object.Code == "" || object.Status != "unresolved_vendor_source" {
 			return nil, fmt.Errorf("quarantine entry %s is neither a code nor an unresolved code object", string(raw))
 		}
 		codes = append(codes, object.Code)
