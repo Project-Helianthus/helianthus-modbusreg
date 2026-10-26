@@ -786,7 +786,8 @@ func huaweiGatewayFamilyHoldsModel(familyName, model string) bool {
 // huaweiGatewayModelInRows reports whether a model text is held by an
 // edition's model rows. An exhaustive list holds exactly its rows. A list that
 // is not exhaustive names a family, not models, so it holds a model token of
-// that family: the family name, a hyphen and a non-empty token. The family
+// that family: the family name, a hyphen and a non-empty token. A row may carry an explanatory
+// parenthetical after the family name; only the name before it is compared. The family
 // name alone is not a model.
 func huaweiGatewayModelInRows(model string, rows []string, exhaustive bool) bool {
 	if exhaustive {
@@ -805,7 +806,8 @@ func huaweiGatewayModelInRows(model string, rows []string, exhaustive bool) bool
 		return false
 	}
 	for _, row := range rows {
-		if family == row {
+		name, _, _ := strings.Cut(row, " (")
+		if family == strings.TrimSpace(name) {
 			return true
 		}
 	}

@@ -1148,3 +1148,27 @@ func TestH15ObservedCardCarriesNoAuthority(t *testing.T) {
 		t.Fatalf("a changed buffer still matched: %#v", rejected)
 	}
 }
+
+func TestH15ChildEntryOpaqueAttributesAreRetained(t *testing.T) {
+	card := NewHuaweiSDongleObservedQualificationCard()
+	input := h15ValidInput(t)
+	if got := card.Evaluate(input).ChildOpaqueAttributes(); len(got) != 0 {
+		t.Fatalf("observed entry retained opaque attributes %v", got)
+	}
+	input = h15ValidInput(t)
+	h15SetEntryBytes(&input, append(append([]byte(nil), input.Child.Inventory.Objects[1].Value...), ";11=extra"...))
+	result := card.Evaluate(input)
+	if !result.IdentityMatched() {
+		t.Fatalf("entry with a further key was not admitted: %v", result.Reason())
+	}
+	got := result.ChildOpaqueAttributes()
+	found := false
+	for _, attribute := range got {
+		if attribute.Key == "11" && attribute.Value == "extra" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("opaque attribute 11=extra not retained: %v", got)
+	}
+}

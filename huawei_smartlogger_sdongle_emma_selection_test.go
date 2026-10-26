@@ -633,3 +633,18 @@ func TestM86OpaqueAttributesKeepTheChildComparable(t *testing.T) {
 		t.Fatal("a child without opaque attributes lists some")
 	}
 }
+
+func TestHuaweiGatewayModelWithCatalogueParentheticalRow(t *testing.T) {
+	selection := DecideHuaweiGatewaySelection(HuaweiGatewaySelectionInput{
+		Family:   "SmartLogger",
+		Scope:    HuaweiGatewayScope{Endpoint: HuaweiGatewayEndpointSelf, Unit: 0},
+		Model:    "SmartLogger-3000A",
+		Software: "V300R023C10SPC620",
+	})
+	if !selection.Admitted() {
+		t.Fatalf("model of the family refused: %v", selection.Reason())
+	}
+	if huaweiGatewayModelInRows("SmartLogger", []string{"SmartLogger (generic source scope)"}, false) {
+		t.Fatal("the family name alone was held as a model")
+	}
+}

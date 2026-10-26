@@ -269,12 +269,12 @@ func (card HuaweiSDongleObservedQualificationCard) Evaluate(input HuaweiSDongleO
 		rejected.reason = HuaweiQualificationBasicIdentityConflict
 		return rejected
 	}
-	entryModel, anomalies, err := parseHuaweiSDongleObservedChildInventory(child.UnitID, child.Inventory)
+	entry, anomalies, err := parseHuaweiSDongleObservedChildInventory(child.UnitID, child.Inventory)
 	if err != nil {
 		rejected.reason = HuaweiQualificationInventoryInvalid
 		return rejected
 	}
-	if entryModel != model {
+	if entry.model != model {
 		return rejected
 	}
 	return HuaweiQualificationResult{
@@ -291,6 +291,7 @@ func (card HuaweiSDongleObservedQualificationCard) Evaluate(input HuaweiSDongleO
 		selection:          &selection,
 		protocolWords:      slices.Clone(input.Gateway.Protocol),
 		typeWord:           &typeWord,
+		childOpaque:        entry.OpaqueAttributes(),
 	}
 }
 
@@ -388,11 +389,11 @@ func parseHuaweiSDongleObservedModelBlock(block []byte) (string, int, bool) {
 // are the observed key set and response length; the policy bounds the objects,
 // one entry, the response and the aggregate bytes. The declared-object field
 // and a next object identifier set without a continuation are retained as
-// anomalies and never compared. The model of the entry of the unit read is
-// returned for the agreement check.
-func parseHuaweiSDongleObservedChildInventory(unit uint8, page HuaweiSDongleObservedChildInventoryPage) (string, HuaweiInventoryPageAnomalies, error) {
-	invalid := func() (string, HuaweiInventoryPageAnomalies, error) {
-		return "", HuaweiInventoryPageAnomalies{}, errHuaweiSDongleObservedInventoryInvalid
+// anomalies and never compared. The entry of the unit read is returned for the
+// agreement check and for its retained opaque attributes.
+func parseHuaweiSDongleObservedChildInventory(unit uint8, page HuaweiSDongleObservedChildInventoryPage) (HuaweiSmartLoggerInventoryChild, HuaweiInventoryPageAnomalies, error) {
+	invalid := func() (HuaweiSmartLoggerInventoryChild, HuaweiInventoryPageAnomalies, error) {
+		return HuaweiSmartLoggerInventoryChild{}, HuaweiInventoryPageAnomalies{}, errHuaweiSDongleObservedInventoryInvalid
 	}
 	if page.ReadDeviceIDCode != huaweiSDongleObservedReadCode || page.Conformity != huaweiSDongleObservedConformity || page.More ||
 		page.DeclaredObjects < 0 || page.DeclaredObjects > 255 || len(page.Objects) < 2 || len(page.Objects) > huaweiSDongleChildMaxObjects {
@@ -403,7 +404,8 @@ func parseHuaweiSDongleObservedChildInventory(unit uint8, page HuaweiSDongleObse
 		return invalid()
 	}
 	responseBytes := huaweiMEIResponseHeaderBytes + 2 + len(count.Value)
-	model, matched := "", 0
+	var read HuaweiSmartLoggerInventoryChild
+	matched := 0
 	seen := make(map[string]struct{}, len(page.Objects)-1)
 	for index, entry := range page.Objects[1:] {
 		if entry.ObjectID != uint8(huaweiSDongleObservedCountObject+1+index) {
@@ -419,7 +421,7 @@ func parseHuaweiSDongleObservedChildInventory(unit uint8, page HuaweiSDongleObse
 		}
 		seen[child.address] = struct{}{}
 		if child.address == strconv.Itoa(int(unit)) {
-			model, matched = child.model, matched+1
+			read, matched = child, matched+1
 		}
 	}
 	if responseBytes != page.ResponseBytes || responseBytes > huaweiSmartLoggerObservedMaxResponseBytes ||
@@ -436,7 +438,7 @@ func parseHuaweiSDongleObservedChildInventory(unit uint8, page HuaweiSDongleObse
 	if page.NextObjectID != 0 {
 		anomalies.NextObjectWithoutContinuation++
 	}
-	return model, anomalies, nil
+	return read, anomalies, nil
 }
 
 // huaweiSDongleObservedEntryKeySet reports whether the entry holds at least the

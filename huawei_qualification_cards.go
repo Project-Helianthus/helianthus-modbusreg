@@ -89,6 +89,8 @@ type HuaweiQualificationResult struct {
 	// compares beyond its floor form.
 	protocolWords []uint16
 	typeWord      *uint16
+	// childOpaque holds the opaque attributes of the admitted child entry.
+	childOpaque []HuaweiGatewayOpaqueAttribute
 }
 
 func (result HuaweiQualificationResult) CandidateClass() string { return result.candidateClass }
@@ -113,6 +115,12 @@ func (result HuaweiQualificationResult) PageAnomalies() HuaweiInventoryPageAnoma
 func (result HuaweiQualificationResult) BasicCorroborated() bool { return result.basicCorroborated }
 func (result HuaweiQualificationResult) BasicOpaqueObjectCount() int {
 	return result.basicOpaqueObjects
+}
+
+// ChildOpaqueAttributes lists the opaque attributes of the admitted child
+// entry in entry order; they are retained evidence only.
+func (result HuaweiQualificationResult) ChildOpaqueAttributes() []HuaweiGatewayOpaqueAttribute {
+	return slices.Clone(result.childOpaque)
 }
 
 // ModelResidueBytes is the length of the printable residue that followed the
