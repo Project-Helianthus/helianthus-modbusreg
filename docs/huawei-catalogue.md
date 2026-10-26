@@ -18,8 +18,10 @@ profile, selects nothing, admits nothing and grants no write. The two SUN2000
 monitoring profiles and every disposition are unchanged (see
 [SUN2000 monitoring profiles](huawei-sun2000-monitoring-profiles.md)). The
 selection predicate (token or qualified alias, identifier and floor), the
-monitoring profiles built on the catalogue and any public page text are
-follow-ups.
+monitoring profiles built on the catalogue are follow-ups.
+
+Companion: the public documentation for this catalogue is merged as
+[helianthus-docs-modbus#260](https://github.com/Project-Helianthus/helianthus-docs-modbus/pull/260).
 
 ## Inputs
 
