@@ -200,9 +200,10 @@ of the consulted CC0 gateway reference, through the same schema family,
 canonical encoder, validator and publication guard as the inverter part; a
 byte-for-byte round-trip test checks it. The directory is named after the
 three families because the registry boundary policy refuses ownership
-directories named after gateways. Data only: no code reads it (the SUN2000
-selection embeds only the inverter files), and the gateway dispositions,
-observed cards and fixtures are unchanged.
+directories named after gateways. One product file reads it: the
+[gateway selection](#gateway-selection) embeds `editions.json` and
+`services.json` and nothing else (the SUN2000 selection embeds only the
+inverter files), and a catalogue test keeps both selections the only readers.
 
 ### Gateway inputs
 
@@ -338,6 +339,32 @@ object, wrap beyond FF (no cursor contract), attribute 6 grammar, descriptor
 attributes, spacing (required or advisory), query periods and the page range
 of each protocol section.
 
+### Gateway selection
+
+`huawei_smartlogger_sdongle_emma_selection.go` (helianthus-modbusreg issue 366)
+decides which documented floor of a family a gateway's own software text falls
+under. Its inputs are the family of the card that asks, the endpoint class and
+unit the identity was read at, an optional model text and the software text
+as already read: the SmartLogger self-entry attribute 2, the EMMA software
+label at 30035 and, when a caller has it, the S-Dongle software text at 30050.
+
+| Step | Rule |
+| --- | --- |
+| family and scope | the family must be one of the catalogue's and the scope its self endpoint at its self unit (0 for SmartLogger and EMMA, 100 for S-Dongle); a model, when given, must be held by the family's model rows: exactly where the list is exhaustive, and as the family name, a hyphen and a token where the rows name the family; otherwise `NOT_SELECTED`, `family_mismatch` |
+| software form | `V`, `R`, `C` and an optional `SPC` build number; the EMMA text carries its `SmartHEMS` label and a build number, since every EMMA floor names one; a label of another family is `family_mismatch`, any other form `software_malformed` |
+| floors | the floors of the family's own component, grouped by minimum with every edition that states it: editions that state one floor document one applicability and are one candidate |
+| floor domain | a line is ordered across its releases when an edition issued for a release of that line states a floor in another release or branch of the same line (the SmartLogger V300 line from `V300R001C00`, the S-Dongle V200 line from `V200R022C10`); every other floor is a branch floor, ordered by build number within its branch only (the EMMA `R024C00` and `R025C00` floors, the S-Dongle `V100R001C00SPC100` floor); a text without a build number is the base of its branch |
+| outcome | exactly one floor of the text's domain at or above its minimum: `SELECTED`, `at_or_above_floor`, grade Hypothesis; several: `AMBIGUOUS`, `multiple_floors`, no edition bound; only floors the text is below: `NOT_SELECTED`, `below_floor`; no floor of the text's domain: admitted with grade Hypothesis, `no_documented_branch_relation` (`SELECTED` for one family floor, `AMBIGUOUS` naming every floor otherwise); no software text: `AMBIGUOUS`, `software_not_read` |
+| dictionary | the device-list attributes that the admitted editions define (`descriptor_attributes` of their services entries) and their attribute 6 grammars, recorded and never decoded |
+
+A selection grants no authority. A card refuses an identity when the
+selection is `NOT_SELECTED` and records the selection in its result
+(`Selection`, `SoftwareGrade`), in its observed replay result
+(`catalogue_selection`) and in its disposition (`software_selection`). Cover
+labels identify editions and order nothing; no edition, issue number or date
+chooses a winner, and the decision does not change when the editions are read
+in another order.
+
 ### Gateway counts
 
 | Count | Value |
@@ -382,7 +409,8 @@ Removing the gateway directory, the `logger_*` files of
 `tools/huaweicatalogue`, the gateway section of this page and the gateway
 applicability line of `evidence.json`, and reverting the gateway changes to the
 shared generator files (`main.go`, `model.go`, `prose.go`, `registers.go`,
-`validate.go`), restores the inverter part alone.
+`validate.go`), restores the inverter part alone, once the gateway selection
+that embeds the gateway part is reverted.
 Removing the catalogue directory, `tools/huaweicatalogue`, this page, the
 README paragraph and the catalogue source and applicability line of
 `evidence.json`, and restoring the vendor directory listing in

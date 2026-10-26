@@ -426,8 +426,10 @@ func h03Digest(pdus [][]byte) [sha256.Size]byte {
 // ---- structural sanitization ---------------------------------------------
 
 var (
-	h03FillText      = regexp.MustCompile(`^[0Xx._\-]+$`)
-	h03FirmwareShape = regexp.MustCompile(`^V[0-9]{3}R[0-9]{3}(?:C[0-9]{2}SPC[0-9]{3})?$`)
+	h03FillText = regexp.MustCompile(`^[0Xx._\-]+$`)
+	// The documented version form: line and release, then optionally the branch
+	// and optionally its build number, as the gateway catalogue floors print it.
+	h03FirmwareShape = regexp.MustCompile(`^V[0-9]{3}R[0-9]{3}(?:C[0-9]{2}(?:SPC[0-9]{3})?)?$`)
 	h03Decimal       = regexp.MustCompile(`^(0|[1-9][0-9]{0,2})$`)
 )
 

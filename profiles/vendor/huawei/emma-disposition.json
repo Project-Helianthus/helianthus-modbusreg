@@ -85,10 +85,37 @@
       "gateway_fc03_30222_q20_model_exact",
       "gateway_fc03_30035_q15_family_label_space_version_token_meeting_the_documentary_floor",
       "gateway_basic_mei_vendor_and_product_exact_version_equals_software_token",
-      "gateway_extended_inventory_count_4_self_backup_box_unit_2_sun2000_units_3_and_4",
+      "gateway_extended_inventory_counting_self_and_listing_backup_box_unit_2_sun2000_units_3_and_4_in_order_further_entries_retained",
       "gateway_self_entry_model_product_type_and_version_equal_the_blocks",
       "inverter_units_3_and_4_fc03_30000_q15_sun2000_family_model_equals_own_entry"
     ],
+    "software_selection": {
+      "observed_build": "REGISTRY_FIXTURE",
+      "observed_build_grade": "PROVEN",
+      "inherited_build_grade": "HYPOTHESIS",
+      "record": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "floor": "V100R025C00SPC102",
+        "floor_domain": "BRANCH",
+        "editions": [
+          "emma-v100r025c00spc102-2025-08-14"
+        ],
+        "grade": "PROVEN",
+        "descriptor_keys": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          8
+        ],
+        "attribute_6_grammars": [
+          "feature-version string"
+        ]
+      }
+    },
     "exact_tuple": {
       "gateway_unit": 0,
       "gateway_family_label": "SmartHEMS",
@@ -100,7 +127,7 @@
         "version": "EQUALS_SOFTWARE_LABEL_TOKEN"
       },
       "inventory": {
-        "count_object": 4,
+        "count_object": "COUNTS_SELF_AND_ENTRIES_OBSERVED_4_LOWER_BOUND",
         "self_entry_unit": 0,
         "children": [
           {
@@ -131,12 +158,15 @@
     "tolerance": {
       "model_block_residue": "PRINTABLE_ASCII_OR_NUL_AFTER_FIRST_NUL_RETAINED_NOT_COMPARED",
       "declared_object_field": "RETAINED_NOT_COMPARED",
-      "page_layout": "NOT_COMPARED_EACH_RESPONSE_WITHIN_THE_CLASSIC_FRAME",
+      "page_layout": "NOT_COMPARED_EACH_RESPONSE_WITHIN_THE_RESOURCE_CAP",
       "entry_padding": "NOT_REQUIRED",
       "attribute_order": "NOT_VALIDATED",
-      "unknown_or_repeated_keys": "REJECT_INVENTORY",
-      "max_pages": 5,
-      "max_response_bytes": 253
+      "undocumented_attribute_keys": "RETAINED_OPAQUE",
+      "repeated_or_malformed_keys": "REJECT_INVENTORY",
+      "max_pages": 248,
+      "max_response_bytes": 1024,
+      "inventory_members": "OBSERVED_MEMBERS_IN_OBJECT_ORDER_FURTHER_ENTRIES_RETAINED",
+      "observed_values": "LOWER_BOUNDS"
     },
     "retained_not_gating": [
       "gateway_serial_bearing_block_30015",
@@ -336,14 +366,15 @@
     "executable": true,
     "default_denied": true,
     "normalization": "terminal_nul_or_space_only",
-    "model_aliases": [
+    "model_scope": "EMMA_FAMILY_BY_CATALOGUE_MODEL_ROWS",
+    "observed_models": [
       "EMMA-A01",
       "EMMA-A02"
     ],
     "required_tuple": [
       "bounded_contextual_offering",
-      "exact_model_alias",
-      "same_branch_firmware_floor"
+      "emma_family_model_token",
+      "software_admitted_by_catalogue_floors"
     ],
     "optional_enrichment": [
       "basic_mei",
@@ -358,13 +389,42 @@
     "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",
     "first_match_priority": false
   },
-  "firmware_gates": {
-    "V100R024C00": {
-      "minimum_spc": 100
+  "software_selection": {
+    "issue": 366,
+    "catalogue": "profiles/vendor/huawei/catalogue/smartlogger-sdongle-emma",
+    "catalogue_files": [
+      "editions.json",
+      "services.json"
+    ],
+    "family": "EMMA",
+    "scope": {
+      "endpoint": "gateway-self",
+      "unit": 0
     },
-    "V100R025C00": {
-      "minimum_spc": 102
-    }
+    "floors": [
+      {
+        "minimum": "V100R024C00SPC100",
+        "domain": "BRANCH"
+      },
+      {
+        "minimum": "V100R025C00SPC102",
+        "domain": "BRANCH"
+      }
+    ],
+    "comparison": "WITHIN_FLOOR_DOMAIN",
+    "at_or_above_floor": "SELECTED_HYPOTHESIS",
+    "below_floor_in_domain": "NOT_SELECTED",
+    "no_documented_relation": "ADMITTED_HYPOTHESIS",
+    "several_admitting_floors": "AMBIGUOUS_NO_EDITION_BOUND",
+    "not_selected_reasons": [
+      "family_mismatch",
+      "below_floor",
+      "software_malformed",
+      "catalogue_invalid"
+    ],
+    "edition_cover_labels": "IDENTIFY_EDITIONS_NOT_FLOORS",
+    "attribute_dictionary": "SERVICES_DESCRIPTOR_ATTRIBUTES_OF_THE_ADMITTED_EDITIONS",
+    "attribute_6": "EDITION_GRAMMAR_RECORDED_NEVER_DECODED"
   },
   "child_enumeration": {
     "operation": "FC2B_MEI_0E",

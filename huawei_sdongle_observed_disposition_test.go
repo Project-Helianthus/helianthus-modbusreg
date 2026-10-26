@@ -89,9 +89,10 @@ func TestH15SDongleDispositionSupersedesHardStopForIdentityOnly(t *testing.T) {
 	}
 	admission := huaweiObject(t, record["admission"])
 	if admission["registered"] != false || admission["executable"] != false || admission["default_denied"] != true ||
-		admission["version_comparison"] != "EXACT_TUPLE_ONLY" || admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || admission["first_match_priority"] != false {
+		admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || admission["first_match_priority"] != false {
 		t.Fatalf("the documentary candidate changed: %#v", admission)
 	}
+	m86RequireSoftwareSelection(t, record, HuaweiSDongleCanonicalClass, 100)
 	private := huaweiObject(t, record["private_functions"])
 	enumeration := huaweiObject(t, record["child_enumeration"])
 	if private["FC0x41"] != "NO_SEND" || private["FC0x17"] != "NO_SEND" || enumeration["gateway_unit_100"] != "NO_SEND" || enumeration["executable"] != false {
@@ -163,7 +164,7 @@ func TestH15SDongleDispositionSupersedesHardStopForIdentityOnly(t *testing.T) {
 	}
 
 	requireHuaweiKeys(t, observed, "status", "scope", "qualification_card", "gate_registered", "default_denied", "hard_stop", "required_tuple",
-		"exact_tuple", "tolerance", "retained_not_gating", "forbidden_identity", "outside_admitted_set_outcome", "multiple_positive_outcome",
+		"software_selection", "exact_tuple", "tolerance", "retained_not_gating", "forbidden_identity", "outside_admitted_set_outcome", "multiple_positive_outcome",
 		"first_match_priority", "timing", "negative_overlap", "fixtures", "profile_status")
 	if observed["status"] != "OFFLINE_IDENTITY_ADMITTED" || observed["scope"] != "OBSERVED_TUPLE_ONLY" || observed["qualification_card"] != card.ID() ||
 		observed["gate_registered"] != true || observed["default_denied"] != true || observed["outside_admitted_set_outcome"] != "INSUFFICIENT_EVIDENCE" ||
@@ -175,8 +176,9 @@ func TestH15SDongleDispositionSupersedesHardStopForIdentityOnly(t *testing.T) {
 
 	// The exact tuple in the record is the card's.
 	tuple := huaweiObject(t, observed["exact_tuple"])
-	requireHuaweiKeys(t, tuple, "gateway_unit", "gateway_basic_mei", "gateway_protocol_words", "gateway_search", "child_unit", "child_model",
+	requireHuaweiKeys(t, tuple, "gateway_unit", "gateway_basic_mei", "gateway_protocol_words", "gateway_protocol_comparison", "gateway_search", "child_unit", "child_model",
 		"child_basic_mei", "selected_class", "gateway_model_variant")
+	requireHuaweiKeys(t, huaweiObject(t, tuple["gateway_search"]), "type", "observed_type", "state", "sequence")
 	basicMEI := huaweiObject(t, tuple["gateway_basic_mei"])
 	search := huaweiObject(t, tuple["gateway_search"])
 	childBasic := huaweiObject(t, tuple["child_basic_mei"])
@@ -185,31 +187,38 @@ func TestH15SDongleDispositionSupersedesHardStopForIdentityOnly(t *testing.T) {
 		tuple["child_model"] != card.ChildModel() || tuple["selected_class"] != card.CandidateClass() || tuple["gateway_model_variant"] != "UNKNOWN" ||
 		basicMEI["outcome"] != "EXCEPTION" || huaweiInt(t, basicMEI["code"]) != int(card.GatewayBasicException()) ||
 		len(words) != 2 || huaweiInt(t, words[0]) != int(card.GatewayProtocolWords()[0]) || huaweiInt(t, words[1]) != int(card.GatewayProtocolWords()[1]) ||
-		huaweiInt(t, search["type"]) != 4 || huaweiInt(t, search["state"]) != 0 || search["sequence"] != "EQUAL_BEFORE_AFTER" ||
+		tuple["gateway_protocol_comparison"] != "LEADING_WORD_EQUAL_SECOND_WORD_AT_OR_ABOVE_NEVER_DECODED" ||
+		search["type"] != "RECORDED_NOT_COMPARED" || huaweiInt(t, search["observed_type"]) != 4 || huaweiInt(t, search["state"]) != 0 || search["sequence"] != "EQUAL_BEFORE_AFTER" ||
 		childBasic["vendor"] != card.ChildVendor() || childBasic["product"] != card.ChildFamily() || childBasic["version"] != "PRESENT" {
 		t.Fatalf("exact tuple: %#v", tuple)
 	}
 	if !reflect.DeepEqual(huaweiStringSlice(t, observed["required_tuple"]), []string{
-		"gateway_unit_100", "gateway_basic_mei_exception_1", "gateway_fc03_37411_q1_search_state_0", "gateway_fc03_30068_q2_protocol_words_50_0",
-		"gateway_fc03_37410_q3_type_4_state_0_sequence_equal_before_after", "gateway_fc03_37429_q1_capacity_covers_one_child",
+		"gateway_unit_100", "gateway_basic_mei_exception_1", "gateway_fc03_37411_q1_search_state_0",
+		"gateway_fc03_30068_q2_protocol_leading_word_50_second_word_at_or_above_0",
+		"gateway_fc03_37410_q3_state_0_sequence_equal_before_after_type_recorded", "gateway_fc03_37429_q1_capacity_covers_one_child",
+		"gateway_fc03_30050_q15_software_admitted_by_catalogue_floors_when_read",
 		"child_unit_1", "child_fc03_30000_q15_model_exact_residue_opaque", "child_basic_mei_vendor_and_product_family_exact",
-		"child_extended_inventory_one_page_count_1_one_entry_keys_1_to_6", "child_entry_model_equals_routed_model", "child_entry_unit_equals_unit_read",
+		"child_extended_inventory_one_page_count_equals_entries_keys_1_to_6_at_least", "child_entry_model_equals_routed_model", "child_entry_unit_equals_unit_read",
 	}) || !reflect.DeepEqual(huaweiStringSlice(t, observed["retained_not_gating"]), []string{
 		"child_firmware_text_30035", "child_protocol_words_30068", "child_entry_attributes_2_3_4_6", "child_basic_mei_version_object",
-		"child_basic_mei_objects_beyond_the_basic_category", "gateway_capacity_value", "model_block_residue",
+		"child_basic_mei_objects_beyond_the_basic_category", "gateway_capacity_value", "model_block_residue", "gateway_search_type_word",
 	}) || !reflect.DeepEqual(huaweiStringSlice(t, observed["forbidden_identity"]), []string{
 		"serial_number", "esn", "register_readability", "unit_100_readability_only", "search_status_only", "basic_mei_only",
 		"dongle_registers_answered_at_the_child", "child_listing", "mei_request_unit_identifier", "prefix_wildcard_case_folded_or_whitespace_normalized_match",
 	}) {
 		t.Fatalf("observed identity lists: %#v", observed)
 	}
+	m86RequireObservedSelection(t, observed["software_selection"], card.Evaluate(h15ValidInput(t)), map[string]any{
+		"software_read": "NO", "observed_tuple_grade": "PROVEN",
+	})
 	tolerance := huaweiObject(t, observed["tolerance"])
 	requireHuaweiKeys(t, tolerance, "model_block_residue", "declared_object_field", "next_object_id_without_more_follows", "entry_padding",
-		"attribute_order", "unknown_or_repeated_keys", "max_response_bytes")
+		"attribute_order", "undocumented_attribute_keys", "repeated_or_malformed_keys", "entry_count", "max_response_bytes", "observed_values")
 	if huaweiInt(t, tolerance["max_response_bytes"]) != int(card.Limits().MaxResponseBytes) || tolerance["declared_object_field"] != "RETAINED_NOT_COMPARED" ||
 		tolerance["next_object_id_without_more_follows"] != "RETAINED_NOT_COMPARED" || tolerance["entry_padding"] != "NOT_REQUIRED" ||
-		tolerance["attribute_order"] != "NOT_VALIDATED" || tolerance["unknown_or_repeated_keys"] != "REJECT_INVENTORY" ||
-		tolerance["model_block_residue"] != "PRINTABLE_ASCII_AFTER_FIRST_NUL_RETAINED_NOT_COMPARED" {
+		tolerance["attribute_order"] != "NOT_VALIDATED" || tolerance["undocumented_attribute_keys"] != "RETAINED_OPAQUE" ||
+		tolerance["repeated_or_malformed_keys"] != "REJECT_INVENTORY" || tolerance["entry_count"] != "FROM_THE_COUNT_OBJECT_ONE_ENTRY_OF_THE_CHILD_UNIT" ||
+		tolerance["observed_values"] != "LOWER_BOUNDS" || tolerance["model_block_residue"] != "PRINTABLE_ASCII_AFTER_FIRST_NUL_RETAINED_NOT_COMPARED" {
 		t.Fatalf("tolerance: %#v", tolerance)
 	}
 	timing := huaweiObject(t, observed["timing"])

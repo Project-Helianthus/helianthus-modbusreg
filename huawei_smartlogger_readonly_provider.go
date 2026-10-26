@@ -283,9 +283,15 @@ func (r *huaweiCycleRun) identifySmartLogger() {
 	s.identified, s.identityGeneration, s.reidentify, s.gatewayFenced = true, r.generation, false, false
 	s.guard = []uint16{after[0]}
 	s.smartLogger = &input
+	// The identity publishes the software text that was read, which may be a
+	// build above the card's observed one.
+	software := card.Firmware()
+	if selection, selected := evaluation.Selection(); selected && selection.Build() != "" {
+		software = selection.Build()
+	}
 	s.listing = inventory.Children()
 	s.gateway = HuaweiProviderGatewayIdentity{
-		CardID: card.ID(), Class: card.CandidateClass(), UnitID: card.UnitID(), Model: card.Model(), Firmware: card.Firmware(),
+		CardID: card.ID(), Class: card.CandidateClass(), UnitID: card.UnitID(), Model: card.Model(), Firmware: software,
 		State: HuaweiProviderGatewayIdentified, CardReason: evaluation.Reason(), Generation: r.generation, IdentifiedAt: r.link.lastEnd,
 	}
 	// An identification event: every child is identified again at its routed

@@ -7,11 +7,11 @@ import (
 
 const smartLoggerDocsMergeSHA = "2abcb26a06ffa71149177de2cc2817a24d82081f"
 
-func TestHuaweiSmartLoggerDispositionPinsExactCandidateAndNoSend(t *testing.T) {
+func TestHuaweiSmartLoggerDispositionPinsFloorCandidateAndNoSend(t *testing.T) {
 	record := decodeHuaweiObject(t, "profiles/vendor/huawei/smartlogger-disposition.json")
 	requireHuaweiKeys(t, record,
 		"schema", "profile", "profile_version", "outcome", "evidence",
-		"admission", "observed_identity", "change_counter", "child_enumeration", "private_functions",
+		"admission", "software_selection", "observed_identity", "change_counter", "child_enumeration", "private_functions",
 		"decoder_keys", "catalog_registered", "automatic_runtime_admission",
 		"support_claim", "write_authority", "production_provider", "reopen_requires",
 	)
@@ -36,24 +36,21 @@ func TestHuaweiSmartLoggerDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 	}
 
 	admission := huaweiObject(t, record["admission"])
-	requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "required_tuple", "forbidden_identity", "firmware_gates", "exact_tuples", "tuple_independence", "version_comparison", "multiple_positive_outcome", "first_match_priority")
+	requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "required_tuple", "forbidden_identity", "undocumented_attribute_keys", "count_object", "multiple_positive_outcome", "first_match_priority")
 	if huaweiInt(t, admission["unit_id"]) != 0 || admission["registered"] != false || admission["executable"] != false ||
-		admission["version_comparison"] != "EXACT_TUPLE_ONLY" || admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" ||
-		admission["first_match_priority"] != false ||
+		admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || admission["first_match_priority"] != false ||
 		!reflect.DeepEqual(huaweiStringSlice(t, admission["required_tuple"]), []string{
 			"fc03_65521_q1_u16_counter_stable",
 			"fc2b_mei0e_code03_object87_inventory",
 			"self_entry_model_smartlogger",
-			"exact_firmware_tuple",
+			"self_entry_software_admitted_by_catalogue_floors",
 		}) ||
 		!reflect.DeepEqual(huaweiStringSlice(t, admission["forbidden_identity"]), []string{
 			"writable_device_name_65524", "esn_40713", "basic_mei_only", "optional_offering_string",
-		}) ||
-		!reflect.DeepEqual(huaweiStringSlice(t, admission["firmware_gates"]), []string{
-			"V300R024C10SPC191", "V300R024C10SPC210",
 		}) {
 		t.Fatalf("unexpected SmartLogger admission: %#v", admission)
 	}
+	m86RequireSoftwareSelection(t, record, HuaweiSmartLoggerCanonicalClass, 0)
 
 	counter := huaweiObject(t, record["change_counter"])
 	requireHuaweiKeys(t, counter, "function", "offset", "quantity", "type", "equal_before_after")

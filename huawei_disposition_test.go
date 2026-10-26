@@ -120,12 +120,12 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 			docsMergeSHA: smartLoggerDocsMergeSHA,
 			admission: func(t *testing.T, admission map[string]any) {
 				t.Helper()
-				requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "required_tuple", "forbidden_identity", "firmware_gates", "exact_tuples", "tuple_independence", "version_comparison", "multiple_positive_outcome", "first_match_priority")
+				requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "required_tuple", "forbidden_identity", "undocumented_attribute_keys", "count_object", "multiple_positive_outcome", "first_match_priority")
 				if huaweiInt(t, admission["unit_id"]) != 0 || admission["registered"] != false || admission["executable"] != false ||
-					admission["version_comparison"] != "EXACT_TUPLE_ONLY" || admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || admission["first_match_priority"] != false ||
-					!reflect.DeepEqual(huaweiStringSlice(t, admission["required_tuple"]), []string{"fc03_65521_q1_u16_counter_stable", "fc2b_mei0e_code03_object87_inventory", "self_entry_model_smartlogger", "exact_firmware_tuple"}) ||
-					!reflect.DeepEqual(huaweiStringSlice(t, admission["forbidden_identity"]), []string{"writable_device_name_65524", "esn_40713", "basic_mei_only", "optional_offering_string"}) ||
-					!reflect.DeepEqual(huaweiStringSlice(t, admission["firmware_gates"]), []string{"V300R024C10SPC191", "V300R024C10SPC210"}) {
+					admission["undocumented_attribute_keys"] != "RETAINED_OPAQUE" || admission["count_object"] != "COUNTS_CHILDREN_ONLY" ||
+					admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || admission["first_match_priority"] != false ||
+					!reflect.DeepEqual(huaweiStringSlice(t, admission["required_tuple"]), []string{"fc03_65521_q1_u16_counter_stable", "fc2b_mei0e_code03_object87_inventory", "self_entry_model_smartlogger", "self_entry_software_admitted_by_catalogue_floors"}) ||
+					!reflect.DeepEqual(huaweiStringSlice(t, admission["forbidden_identity"]), []string{"writable_device_name_65524", "esn_40713", "basic_mei_only", "optional_offering_string"}) {
 					t.Fatalf("unexpected SmartLogger admission: %#v", admission)
 				}
 			},
@@ -143,7 +143,8 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 			},
 			remaining: func(t *testing.T, record map[string]any) {
 				t.Helper()
-				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "observed_identity", "change_counter", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "production_provider", "reopen_requires")
+				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "software_selection", "observed_identity", "change_counter", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "production_provider", "reopen_requires")
+				m86RequireSoftwareSelection(t, record, HuaweiSmartLoggerCanonicalClass, 0)
 				evidence := huaweiObject(t, record["evidence"])
 				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "closed_evidence", "partially_closed_evidence", "unknown_after_observation", "docs_contract", "vendor_documentation")
 				if evidence["candidate_id"] != "huawei.smartlogger.v1" || evidence["source_license"] != "CC0-1.0" ||
@@ -167,11 +168,11 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 			docsMergeSHA: sdongleDocsMergeSHA,
 			admission: func(t *testing.T, admission map[string]any) {
 				t.Helper()
-				requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "default_denied", "models", "firmware_gates", "protocol_gate", "required_tuple", "forbidden_identity", "version_comparison", "multiple_positive_outcome", "first_match_priority")
+				requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "default_denied", "models", "protocol_gate", "required_tuple", "forbidden_identity", "multiple_positive_outcome", "first_match_priority")
 				if huaweiInt(t, admission["unit_id"]) != 100 || admission["registered"] != false || admission["executable"] != false || admission["default_denied"] != true ||
-					admission["protocol_gate"] != "D5.0" || admission["version_comparison"] != "EXACT_TUPLE_ONLY" || admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || admission["first_match_priority"] != false ||
+					admission["protocol_gate"] != "MAIN_REVISION_5_RELEASE_REVISION_FROM_0" || admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || admission["first_match_priority"] != false ||
 					!reflect.DeepEqual(huaweiStringSlice(t, admission["models"]), []string{"S-DongleA-05", "S-DongleB-03", "S-DongleB-06"}) ||
-					!reflect.DeepEqual(huaweiStringSlice(t, admission["required_tuple"]), []string{"basic_mei_product_identity", "fc03_30068_q2_protocol_version", "fc03_37410_q3_type_search_state_change_sequence", "fc03_37429_q1_capacity", "exact_model_firmware_protocol_tuple"}) ||
+					!reflect.DeepEqual(huaweiStringSlice(t, admission["required_tuple"]), []string{"basic_mei_product_identity", "fc03_30068_q2_protocol_version", "fc03_37410_q3_type_search_state_change_sequence", "fc03_37429_q1_capacity", "admitted_model_software_floor_protocol_main_revision"}) ||
 					!reflect.DeepEqual(huaweiStringSlice(t, admission["forbidden_identity"]), []string{"unit_100_readability_only", "search_status_only", "serial_number", "basic_mei_only"}) {
 					t.Fatalf("unexpected S-Dongle admission: %#v", admission)
 				}
@@ -191,7 +192,8 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 			},
 			remaining: func(t *testing.T, record map[string]any) {
 				t.Helper()
-				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "protocol_version", "search_sequence", "capacity", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "qualification_plan", "observed_identity", "production_provider", "reopen_requires")
+				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "software_selection", "protocol_version", "search_sequence", "capacity", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "qualification_plan", "observed_identity", "production_provider", "reopen_requires")
+				m86RequireSoftwareSelection(t, record, HuaweiSDongleCanonicalClass, 100)
 				evidence := huaweiObject(t, record["evidence"])
 				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "closed_evidence", "partially_closed_evidence", "unknown_after_observation", "live_qualification", "docs_contract", "vendor_documentation")
 				live := huaweiObject(t, evidence["live_qualification"])
@@ -266,7 +268,7 @@ func TestHuaweiEMMAOfflineDispositionIsDefaultDeniedAndPinnedToDocs(t *testing.T
 		t.Fatal("disposition contains private endpoint or credential material")
 	}
 	record := decodeHuaweiObject(t, path)
-	requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "observed_identity", "offline_identity_gate_registered", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "detector", "firmware_gates", "child_enumeration", "private_functions", "decoder_keys", "reopen_requires")
+	requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "observed_identity", "offline_identity_gate_registered", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "detector", "software_selection", "child_enumeration", "private_functions", "decoder_keys", "reopen_requires")
 	if record["schema"] != "helianthus-modbusreg-huawei-emma-disposition/v3" || record["profile"] != HuaweiEMMAReadOnlyProfileID ||
 		record["profile_version"] != "1.0.0" || record["outcome"] != "OFFLINE_IDENTITY_ADMITTED" ||
 		record["offline_identity_gate_registered"] != true || record["catalog_registered"] != false ||
@@ -282,22 +284,18 @@ func TestHuaweiEMMAOfflineDispositionIsDefaultDeniedAndPinnedToDocs(t *testing.T
 	}
 
 	detector := huaweiObject(t, record["detector"])
-	requireHuaweiKeys(t, detector, "registered", "executable", "default_denied", "normalization", "model_aliases", "required_tuple", "optional_enrichment", "forbidden_identity", "multiple_positive_outcome", "first_match_priority")
+	requireHuaweiKeys(t, detector, "registered", "executable", "default_denied", "normalization", "model_scope", "observed_models", "required_tuple", "optional_enrichment", "forbidden_identity", "multiple_positive_outcome", "first_match_priority")
 	if detector["registered"] != false || detector["executable"] != true || detector["default_denied"] != true ||
 		detector["normalization"] != "terminal_nul_or_space_only" || detector["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || detector["first_match_priority"] != false ||
-		!reflect.DeepEqual(huaweiStringSlice(t, detector["model_aliases"]), []string{"EMMA-A01", "EMMA-A02"}) ||
-		!reflect.DeepEqual(huaweiStringSlice(t, detector["required_tuple"]), []string{"bounded_contextual_offering", "exact_model_alias", "same_branch_firmware_floor"}) ||
+		detector["model_scope"] != "EMMA_FAMILY_BY_CATALOGUE_MODEL_ROWS" ||
+		!reflect.DeepEqual(huaweiStringSlice(t, detector["observed_models"]), NewHuaweiEMMAQualificationCard().ModelVariants()) ||
+		!reflect.DeepEqual(huaweiStringSlice(t, detector["required_tuple"]), []string{"bounded_contextual_offering", "emma_family_model_token", "software_admitted_by_catalogue_floors"}) ||
 		!reflect.DeepEqual(huaweiStringSlice(t, detector["optional_enrichment"]), []string{"basic_mei", "extended_mei"}) ||
 		!reflect.DeepEqual(huaweiStringSlice(t, detector["forbidden_identity"]), []string{"serial_number_30015", "basic_mei_only", "extended_mei_only", "prefix_or_wildcard_model_match"}) {
 		t.Fatalf("unexpected detector disposition: %#v", detector)
 	}
 
-	gates := huaweiObject(t, record["firmware_gates"])
-	requireHuaweiKeys(t, gates, "V100R024C00", "V100R025C00")
-	if huaweiInt(t, huaweiObject(t, gates["V100R024C00"])["minimum_spc"]) != 100 ||
-		huaweiInt(t, huaweiObject(t, gates["V100R025C00"])["minimum_spc"]) != 102 {
-		t.Fatalf("unexpected firmware gates: %#v", gates)
-	}
+	m86RequireSoftwareSelection(t, record, HuaweiEMMACanonicalClass, 0)
 }
 
 func TestHuaweiFamilyDispositionsPinOwnDocumentation(t *testing.T) {

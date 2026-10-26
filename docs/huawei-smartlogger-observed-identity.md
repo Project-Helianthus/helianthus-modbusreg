@@ -26,25 +26,31 @@ the finite response cap, and the entry padding, unit and ASCII rules.
 
 `HuaweiSmartLoggerObservedQualificationCard`
 (`huawei.qualification.smartlogger.observed-readonly@1.0.0`) is separate from
-the documentary SmartLogger card. The documentary card keeps its identity, its
-two documentary firmware values and its behavior: applied to the observed
-gateway it returns `INSUFFICIENT_EVIDENCE`, as the documentation states.
+the documentary SmartLogger card. The documentary card keeps its identity and
+its model `SmartLogger`; its software rule is the
+[gateway selection](huawei-catalogue.md#gateway-selection): a build of the
+V300 line at or above `V300R001C00`. Applied to the observed gateway it returns
+`INSUFFICIENT_EVIDENCE` because of the model, as the documentation states.
 
 The card evaluates already-read evidence and returns `QUALIFICATION_TEST_READY`
-only for this exact tuple:
+for this entry:
 
-| Field | Exact value |
+| Field | Value |
 | --- | --- |
 | Unit the reads were addressed to | `0` |
 | Change counter (FC03 offset 65521, quantity 1) | equal before and after one complete inventory |
-| Self-entry model (attribute 1) | `Smart Logger` (one space) |
-| Self-entry firmware (attribute 2) | `V300R023C10SPC620` |
-| Self-entry unit (attribute 5) | `0`, equal to the unit the reads were addressed to |
+| Self-entry model (attribute 1) | exactly `Smart Logger` (one space) |
+| Self-entry software (attribute 2) | admitted by the gateway selection and at or above the observed build `V300R023C10SPC620`, the floor of the observed facts, within the V300 line, or of a line that no floor documents |
+| Self-entry unit (attribute 5) | exactly `0`, equal to the unit the reads were addressed to |
 
-Every field is compared byte for byte and case-sensitively. A one-character
-change of any field, another family's self entry, the documentary tuples,
-a prefix, a range or an ordering produce `INSUFFICIENT_EVIDENCE`, an empty
-selection and no retained child list. Serial numbers, ESNs, register
+The model and the unit are compared byte for byte and case-sensitively. The
+software text is compared with its floors: the observed build is graded Proven,
+every other admitted build Hypothesis, and a build below the observed build or
+below the catalogue floor, a text outside the version form, another family's
+self entry, a prefix or a case change produce `INSUFFICIENT_EVIDENCE` and no retained child list; the result keeps
+the selection that was decided. The result records the gateway selection
+(`Selection`), the observed floor and the relation of the software text to it
+(`ObservedFloor`) and the software grade (`SoftwareGrade`). Serial numbers, ESNs, register
 readability, a child listing and the unit identifier of a basic read are never
 predicates. A positive result next to another positive Huawei result is
 `AMBIGUOUS` through the shared resolution, and the retained S-Dongle hard stop
@@ -80,15 +86,20 @@ observation fixed a behavior:
   the number of objects present. It is never compared.
 - The count object counts the self entry, so the child count is the count minus
   one.
-- Attribute keys 9 and 10 are known opaque keys. Key order is free. Any other
-  key and any repeated key reject the inventory.
+- Attribute keys 9 and 10 are known opaque keys, and the observed key set is a
+  lower bound: a key outside the named ones is retained as opaque native
+  evidence (`OpaqueAttributes`) when it is a canonical attribute number from 1
+  through 255. Key 4 is validated and never retained. Key order is free. A
+  repeated key or a key outside the number grammar rejects the inventory.
 - An entry is at most 254 bytes of printable ASCII followed by terminal NUL or
   space padding. A unit is a canonical decimal number: the self entry names the
   unit the reads were addressed to, every other entry names a distinct unit from
   1 through 247.
 
 The ceilings of 15 seconds, 248 pages, 248 objects, 65536 bytes and 247
-children are unchanged, and a failure never leaves a partial child list.
+children are resource policy and unchanged; every page count, entry length,
+key set and response size the observation showed is a lower bound. A failure
+never leaves a partial child list.
 
 ## Fixtures
 
@@ -126,7 +137,11 @@ stays `NO_ADMISSIBLE_PROFILE`, because only part of the overlap gap closes: the
 EMMA probes read at the SmartLogger endpoint are rejected, while the SmartLogger
 probes at an EMMA endpoint have no evidence. The two gaps that the fixtures
 close leave `missing_evidence` and `reopen_requires`; the partly closed gap
-stays in both. The three exact tuples are independent entries.
+stays in both. The documentary candidate and the observed entry are separate
+entries with software floors and no exact firmware tuple: `software_selection`
+records the catalogue floors of the family, and
+`observed_identity.software_selection` records the observed floor and the
+selection of the observed fixture.
 
 The EMMA, S-Dongle, SUN2000 and LUNA2000 dispositions gain only an
 `observation_pointer` row. It names the documentation pages and the fixtures

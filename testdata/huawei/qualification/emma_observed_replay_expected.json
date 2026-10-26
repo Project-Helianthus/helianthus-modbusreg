@@ -40,6 +40,16 @@
     "next_object_without_continuation": 0
   },
   "request_timing": {"recorded": true, "required": false, "retries": 0},
+  "catalogue_selection": {
+    "outcome": "SELECTED",
+    "reason": "at_or_above_floor",
+    "grade": "PROVEN",
+    "floor": "V100R025C00SPC102",
+    "floor_domain": "BRANCH",
+    "edition_count": 1,
+    "descriptor_keys": [1, 2, 3, 4, 5, 6, 8],
+    "attribute_6_grammars": ["feature-version string"]
+  },
   "missing_evidence": [
     "sanitized_readonly_capability_fixture",
     "model_specific_capability_fixture",

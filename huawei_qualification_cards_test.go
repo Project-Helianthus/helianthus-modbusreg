@@ -10,7 +10,7 @@ import (
 func TestHuaweiQualificationCardsAreBoundedDefaultDeniedAndClassLocal(t *testing.T) {
 	smartLogger := NewHuaweiSmartLoggerQualificationCard()
 	if smartLogger.ID() != HuaweiSmartLoggerQualificationCardID || smartLogger.CandidateClass() != HuaweiSmartLoggerCanonicalClass ||
-		smartLogger.UnitID() != 0 || !reflect.DeepEqual(smartLogger.FirmwareTuples(), []string{"V300R024C10SPC191", "V300R024C10SPC210"}) ||
+		smartLogger.UnitID() != 0 ||
 		smartLogger.Limits() != (HuaweiQualificationInventoryLimits{DeadlineMilliseconds: 15000, MaxPages: 248, MaxObjects: 248, MaxBytes: 65536, MaxChildren: 247}) {
 		t.Fatalf("unexpected SmartLogger card: %#v", smartLogger)
 	}
@@ -66,8 +66,11 @@ func TestHuaweiSmartLoggerQualificationCardUsesStableSelfBackedInventory(t *test
 		mutate func(*HuaweiSmartLoggerQualificationInput)
 	}{
 		{"wrong unit", func(input *HuaweiSmartLoggerQualificationInput) { input.UnitID = 1 }},
-		{"wrong firmware", func(input *HuaweiSmartLoggerQualificationInput) {
-			input.Inventory.Pages[0].Objects[1].Value = []byte("1=SmartLogger;2=V300R024C10SPC999;5=0")
+		{"firmware below the V300 floor", func(input *HuaweiSmartLoggerQualificationInput) {
+			input.Inventory.Pages[0].Objects[1].Value = []byte("1=SmartLogger;2=V300R000C10SPC999;5=0")
+		}},
+		{"malformed firmware", func(input *HuaweiSmartLoggerQualificationInput) {
+			input.Inventory.Pages[0].Objects[1].Value = []byte("1=SmartLogger;2=V300R024C10SPC99;5=0")
 		}},
 		{"EMMA self is not SmartLogger", func(input *HuaweiSmartLoggerQualificationInput) {
 			input.Inventory.Pages[0].Objects[1].Value = []byte("1=EMMA-A02;2=SmartHEMS V100R025C00SPC131;5=0")
@@ -76,8 +79,8 @@ func TestHuaweiSmartLoggerQualificationCardUsesStableSelfBackedInventory(t *test
 		{"malformed child", func(input *HuaweiSmartLoggerQualificationInput) {
 			input.Inventory.Pages[0].Objects[2].Value = []byte("1=SUN2000;5")
 		}},
-		{"unknown child attribute", func(input *HuaweiSmartLoggerQualificationInput) {
-			input.Inventory.Pages[0].Objects[2].Value = []byte("1=SUN2000;5=1;9=unknown")
+		{"child attribute key that is not a number", func(input *HuaweiSmartLoggerQualificationInput) {
+			input.Inventory.Pages[0].Objects[2].Value = []byte("1=SUN2000;5=1;x9=unknown")
 		}},
 		{"cursor loop", func(input *HuaweiSmartLoggerQualificationInput) {
 			input.Inventory.Pages[0].More = true

@@ -98,6 +98,32 @@ func TestH06SmartLoggerReconnectIdentifiesAgainAndKeepsRetainedHistory(t *testin
 	}
 }
 
+func TestH06SmartLoggerPublishesTheSoftwareTextThatWasRead(t *testing.T) {
+	sources := h06LoadSources(t)
+	inventory := sources.smartLoggerInventory
+	inventory.Pages = append([]h03InventoryPage(nil), inventory.Pages...)
+	for index := range inventory.Pages {
+		inventory.Pages[index].Objects = append([]h03Object(nil), inventory.Pages[index].Objects...)
+	}
+	object := &inventory.Pages[1].Objects[0]
+	object.Entry = strings.Replace(object.Entry, "V300R023C10SPC620", "V300R023C10SPC621", 1)
+	sources.smartLoggerInventory = inventory
+	basic := sources.smartLoggerBasic
+	basic.Reply.Objects = append([]h03BasicObject(nil), basic.Reply.Objects...)
+	for index := range basic.Reply.Objects {
+		if basic.Reply.Objects[index].Text == "V300R023C10SPC620" {
+			basic.Reply.Objects[index].Text = "V300R023C10SPC621"
+		}
+	}
+	sources.smartLoggerBasic = basic
+	rig := newH06Rig(t, "SmartLogger", []uint8{1, 2})
+	_, start := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "start_identification")
+	cycle := rig.refresh(t, h06Script(t, sources, "SmartLogger", start)...)
+	if cycle.Gateway.State != HuaweiProviderGatewayIdentified || cycle.Gateway.Firmware != "V300R023C10SPC621" {
+		t.Fatalf("gateway identity: %+v", cycle.Gateway)
+	}
+}
+
 func TestH06SmartLoggerGatewayMismatchWithholdsTheInstance(t *testing.T) {
 	sources := h06LoadSources(t)
 	for name, mutate := range map[string]func(*h03InventoryFixture){

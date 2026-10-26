@@ -21,13 +21,16 @@ func TestK20EMMARequiredIdentityIndependentOfOptionalInventory(t *testing.T) {
 		{"missing offering", "", "EMMA-A02", "SmartHEMS V100R025C00SPC102", false, HuaweiEMMAOfflineOfferingMismatch},
 		{"malformed offering", "Smart\nHEMS", "EMMA-A02", "SmartHEMS V100R025C00SPC102", false, HuaweiEMMAOfflineOfferingMismatch},
 		{"missing model", "SmartHEMS", "", "SmartHEMS V100R025C00SPC102", false, HuaweiEMMAOfflineModelMismatch},
-		{"near EMMA string", "SmartHEMS", "EMMA-A02-extra", "SmartHEMS V100R025C00SPC102", false, HuaweiEMMAOfflineModelMismatch},
+		// The catalogue's model rows name the EMMA family, so a model token of the
+		// family is admitted as its own variant, never as an alias of another.
+		{"other EMMA family token", "SmartHEMS", "EMMA-A02-extra", "SmartHEMS V100R025C00SPC102", true, HuaweiEMMAOfflineMatched},
 		{"SmartLogger model with EMMA firmware", "SmartHEMS", "SmartLogger", "SmartHEMS V100R025C00SPC102", false, HuaweiEMMAOfflineModelMismatch},
 		{"S-Dongle model with EMMA firmware", "SmartHEMS", "S-DongleA-05", "SmartHEMS V100R025C00SPC102", false, HuaweiEMMAOfflineModelMismatch},
 		{"missing firmware", "SmartHEMS", "EMMA-A02", "", false, HuaweiEMMAOfflineFirmwareMismatch},
 		{"malformed firmware", "SmartHEMS", "EMMA-A02", "SmartHEMS V100R025C00SPC10x", false, HuaweiEMMAOfflineFirmwareMismatch},
 		{"below branch floor", "SmartHEMS", "EMMA-A02", "SmartHEMS V100R025C00SPC101", false, HuaweiEMMAOfflineFirmwareMismatch},
-		{"unknown branch", "SmartHEMS", "EMMA-A02", "SmartHEMS V100R026C00SPC999", false, HuaweiEMMAOfflineFirmwareMismatch},
+		// A branch that no floor documents is admitted with grade Hypothesis.
+		{"undocumented branch", "SmartHEMS", "EMMA-A02", "SmartHEMS V100R026C00SPC999", true, HuaweiEMMAOfflineMatched},
 		{"SmartLogger firmware", "SmartHEMS", "EMMA-A02", "V300R024C10SPC191", false, HuaweiEMMAOfflineFirmwareMismatch},
 		{"S-Dongle firmware", "SmartHEMS", "EMMA-A02", "V200R025C00SPC120", false, HuaweiEMMAOfflineFirmwareMismatch},
 	}

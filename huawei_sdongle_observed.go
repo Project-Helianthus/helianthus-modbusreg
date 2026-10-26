@@ -27,26 +27,34 @@ const (
 	huaweiSDongleObservedChildVendor  = "Huawei"
 	huaweiSDongleObservedChildFamily  = "SUN2000"
 
-	huaweiSDongleObservedSearchType   = 4
-	huaweiSDongleObservedSearchState  = 0
-	huaweiSDongleObservedModelExtent  = 30
-	huaweiSDongleObservedCountObject  = huaweiSmartLoggerInventoryStartObject
-	huaweiSDongleObservedEntryObject  = huaweiSmartLoggerInventoryStartObject + 1
-	huaweiSDongleObservedConformity   = 0x03
-	huaweiSDongleObservedReadCode     = 3
-	huaweiSDongleObservedMaxObjects   = 2
-	huaweiSDongleObservedMaxObjectSum = huaweiClassicMaxPDUBytes - huaweiMEIResponseHeaderBytes
+	huaweiSDongleObservedSearchState    = 0
+	huaweiSDongleObservedModelExtent    = 30
+	huaweiSDongleObservedSoftwareExtent = 30
+	huaweiSDongleObservedCountObject    = huaweiSmartLoggerInventoryStartObject
+	huaweiSDongleObservedConformity     = 0x03
+	huaweiSDongleObservedReadCode       = 3
+
+	// The resource policy of a separately qualified S-Dongle child unit: 121
+	// objects (the count and up to 120 entries) and 32768 bytes. The observed
+	// two objects, one entry and 87-byte response are lower bounds, never caps;
+	// one response is bounded by the shared cap of the observed dialect.
+	huaweiSDongleChildMaxObjects = 121
+	huaweiSDongleChildMaxBytes   = 32768
 )
 
 var errHuaweiSDongleObservedInventoryInvalid = errors.New("invalid observed S-Dongle child inventory")
 
 // huaweiSDongleObservedProtocolWords are the gateway protocol words as read.
-// Their encoding is not established, so they are compared as words and never
-// decoded.
+// Their encoding is not established, so they are never decoded. They are
+// compared in the floor form of the editions' compatibility note, word by
+// word as read: the leading word, which stands where the main revision
+// stands, is the same, and the second word, which stands where the release
+// revision stands, is at or above the observed one.
 var huaweiSDongleObservedProtocolWords = []uint16{50, 0}
 
-// huaweiSDongleObservedEntryKeys is the key set of the one observed child
-// entry. Order is not validated.
+// huaweiSDongleObservedEntryKeys are the keys of the observed child entry. They
+// are a lower bound: each must be present once, and a further key is retained
+// as opaque native evidence. Order is not validated.
 var huaweiSDongleObservedEntryKeys = []string{"1", "2", "3", "4", "5", "6"}
 
 // HuaweiSDongleObservedBasicReply is a decoded basic identification reply.
@@ -74,6 +82,11 @@ type HuaweiSDongleObservedGatewayReads struct {
 	SearchBefore []uint16
 	SearchAfter  []uint16
 	Capacity     []uint16
+	// Software is the raw extent of an FC03 offset 30050 quantity 15 read of
+	// the gateway's own software text, or empty when it was not read. The
+	// observation did not read it; a caller that has it supplies it, and the
+	// catalogue decision then compares it with the S-Dongle floors.
+	Software []byte
 }
 
 // HuaweiSDongleObservedChildInventoryPage is one already-decoded extended
@@ -113,14 +126,20 @@ type HuaweiSDongleObservedQualificationInput struct {
 // observed S-Dongle single-inverter tuple:
 //
 //   - gateway unit 100 answers basic device identification with exception 1,
-//     answers the search status read with 0, the protocol read with the words 50
-//     and 0, the search sequence read with type 4, state 0 and an equal sequence
-//     before and after the child reads, and a capacity that covers one child;
+//     answers the search status read with 0, the protocol read with the leading
+//     word 50 and a second word of 0 or more, the search sequence read with state
+//     0 and an equal sequence before and after the child reads, and a capacity
+//     that covers one child; the type word of the search sequence is recorded
+//     and never compared, because the editions define it as the network
+//     connection type, a configuration value;
+//   - a software text at gateway unit 100, when one was read, is admitted by the
+//     catalogue decision over the S-Dongle floors;
 //   - child unit 1 answers the model read with the text SUN2000-8KTL-M1, a NUL,
 //     opaque printable residue and NUL padding; answers basic identification with
 //     vendor Huawei and product SUN2000; and answers the extended inventory with
-//     one page, a count of 1 and one entry whose model equals the model read and
-//     whose unit attribute equals the child unit.
+//     one page whose count object equals its entries, each carrying keys 1
+//     through 6 at least, and exactly one of which has the child unit as its
+//     unit attribute and the model read as its model.
 //
 // Every other tuple is insufficient evidence. The card sends nothing and grants
 // no authority.
@@ -184,16 +203,17 @@ func (HuaweiSDongleObservedQualificationCard) Steps() []HuaweiQualificationStep 
 	}
 }
 
-// Limits narrows the S-Dongle child inventory ceilings to the one observed
-// page: the classic frame limit applies and no child list is retained.
+// Limits are the resource policy of a separately qualified S-Dongle child
+// unit within the one page the card reads; no child list is retained. The
+// observed entry count, key set and response length are lower bounds.
 func (HuaweiSDongleObservedQualificationCard) Limits() HuaweiQualificationInventoryLimits {
 	return HuaweiQualificationInventoryLimits{
 		DeadlineMilliseconds: 15000,
 		MaxPages:             1,
-		MaxObjects:           huaweiSDongleObservedMaxObjects,
-		MaxBytes:             huaweiSDongleObservedMaxObjectSum,
+		MaxObjects:           huaweiSDongleChildMaxObjects,
+		MaxBytes:             huaweiSDongleChildMaxBytes,
 		MaxChildren:          0,
-		MaxResponseBytes:     huaweiClassicMaxPDUBytes,
+		MaxResponseBytes:     huaweiSmartLoggerObservedMaxResponseBytes,
 	}
 }
 
@@ -201,16 +221,36 @@ func (card HuaweiSDongleObservedQualificationCard) EmptyResult() HuaweiQualifica
 	return HuaweiQualificationResult{candidateClass: card.CandidateClass(), readiness: HuaweiQualificationInsufficientEvidence, reason: HuaweiQualificationIdentityInvalid}
 }
 
-// Evaluate returns a test-ready result only for the exact observed tuple. A
-// gateway read outside the tuple, a child unit other than the observed one, a
-// model block or basic reply outside the tuple and an extended inventory that
-// is not the one observed entry each produce an empty insufficient result.
-// Register readability, a serial or ESN, the child's firmware text and the
-// protocol words of the child are never predicates.
+// Evaluate returns a test-ready result for the observed tuple. A gateway read
+// outside the tuple, a gateway software text that the catalogue decision
+// refuses, a child unit other than the observed one, a model block or basic
+// reply outside the tuple and an extended inventory without the child's entry
+// each produce an empty insufficient result. Register readability, a serial or
+// ESN, the type word, the child's firmware text and the protocol words of the
+// child are never predicates.
 func (card HuaweiSDongleObservedQualificationCard) Evaluate(input HuaweiSDongleObservedQualificationInput) HuaweiQualificationResult {
 	rejected := card.EmptyResult()
-	if !card.gatewayMatches(input.Gateway) {
+	typeWord, ok := card.gatewayMatches(input.Gateway)
+	if !ok {
 		rejected.reason = HuaweiQualificationGatewayBehaviourMismatch
+		return rejected
+	}
+	software := ""
+	if len(input.Gateway.Software) > 0 {
+		text, ok := parseHuaweiEMMAObservedGatewayBlock(input.Gateway.Software, huaweiSDongleObservedSoftwareExtent)
+		if !ok {
+			rejected.reason = HuaweiQualificationGatewayBehaviourMismatch
+			return rejected
+		}
+		software = text
+	}
+	selection := DecideHuaweiGatewaySelection(HuaweiGatewaySelectionInput{
+		Family:   card.CandidateClass(),
+		Scope:    HuaweiGatewayScope{Endpoint: HuaweiGatewayEndpointSelf, Unit: input.Gateway.UnitID},
+		Software: software,
+	})
+	rejected.selection = &selection
+	if !selection.Admitted() {
 		return rejected
 	}
 	child := input.Child
@@ -229,13 +269,20 @@ func (card HuaweiSDongleObservedQualificationCard) Evaluate(input HuaweiSDongleO
 		rejected.reason = HuaweiQualificationBasicIdentityConflict
 		return rejected
 	}
-	entryModel, anomalies, err := parseHuaweiSDongleObservedChildInventory(child.UnitID, child.Inventory)
+	entry, anomalies, err := parseHuaweiSDongleObservedChildInventory(child.UnitID, child.Inventory)
 	if err != nil {
 		rejected.reason = HuaweiQualificationInventoryInvalid
 		return rejected
 	}
-	if entryModel != model {
+	if entry.model != model {
 		return rejected
+	}
+	childOpaque := entry.OpaqueAttributes()
+	if productType := entry.Attribute("product_type"); productType != "" {
+		// Key 8 is held as the product type by the shared entry decoder; the
+		// S-Dongle card does not compare it, so it is retained as native evidence.
+		childOpaque = append(childOpaque, HuaweiGatewayOpaqueAttribute{Key: "8", Value: productType})
+		orderHuaweiSDongleOpaqueByEntry(childOpaque, input.Child.Inventory.Objects, entry.ObjectID())
 	}
 	return HuaweiQualificationResult{
 		candidateClass:     card.CandidateClass(),
@@ -248,25 +295,42 @@ func (card HuaweiSDongleObservedQualificationCard) Evaluate(input HuaweiSDongleO
 		basicCorroborated:  true,
 		basicOpaqueObjects: opaque,
 		modelResidueBytes:  residue,
+		selection:          &selection,
+		protocolWords:      slices.Clone(input.Gateway.Protocol),
+		typeWord:           &typeWord,
+		childOpaque:        childOpaque,
 	}
 }
 
-// gatewayMatches compares the gateway-unit reads with the observed behavior.
-// The sequence value is a counter and is compared only with itself; the
-// capacity must cover the one child.
-func (card HuaweiSDongleObservedQualificationCard) gatewayMatches(gateway HuaweiSDongleObservedGatewayReads) bool {
+// gatewayMatches compares the gateway-unit reads with the observed behavior and
+// returns the type word, which it records and never compares. The protocol
+// words take the floor form; the state word must be the completed state before
+// and after; the sequence value is a counter and is compared only with itself;
+// the capacity must cover the one child.
+func (card HuaweiSDongleObservedQualificationCard) gatewayMatches(gateway HuaweiSDongleObservedGatewayReads) (uint16, bool) {
 	if gateway.UnitID != card.UnitID() || gateway.Basic.Reply != nil || gateway.Basic.ExceptionCode != card.GatewayBasicException() {
-		return false
+		return 0, false
 	}
-	if !slices.Equal(gateway.SearchStatus, []uint16{huaweiSDongleObservedSearchState}) ||
-		!slices.Equal(gateway.Protocol, huaweiSDongleObservedProtocolWords) {
-		return false
+	if !slices.Equal(gateway.SearchStatus, []uint16{huaweiSDongleObservedSearchState}) || !huaweiSDongleProtocolWordsAtOrAbove(gateway.Protocol) {
+		return 0, false
 	}
-	if len(gateway.SearchBefore) != 3 || !slices.Equal(gateway.SearchBefore, gateway.SearchAfter) ||
-		gateway.SearchBefore[0] != huaweiSDongleObservedSearchType || gateway.SearchBefore[1] != huaweiSDongleObservedSearchState {
-		return false
+	if len(gateway.SearchBefore) != 3 || len(gateway.SearchAfter) != 3 ||
+		gateway.SearchBefore[1] != huaweiSDongleObservedSearchState || gateway.SearchAfter[1] != huaweiSDongleObservedSearchState ||
+		gateway.SearchBefore[2] != gateway.SearchAfter[2] {
+		return 0, false
 	}
-	return len(gateway.Capacity) == 1 && gateway.Capacity[0] >= 1
+	if len(gateway.Capacity) != 1 || gateway.Capacity[0] < 1 {
+		return 0, false
+	}
+	return gateway.SearchBefore[0], true
+}
+
+// huaweiSDongleProtocolWordsAtOrAbove applies the floor form to the protocol
+// words as read: two words, the leading one equal to the observed leading word
+// and the second at or above the observed second word.
+func huaweiSDongleProtocolWordsAtOrAbove(words []uint16) bool {
+	observed := huaweiSDongleObservedProtocolWords
+	return len(words) == len(observed) && words[0] == observed[0] && words[1] >= observed[1]
 }
 
 // corroborateChildBasic requires vendor and product to be exactly the observed
@@ -325,56 +389,100 @@ func parseHuaweiSDongleObservedModelBlock(block []byte) (string, int, bool) {
 	return trimHuaweiTerminalPadding(string(block[:end])), residue, true
 }
 
-// parseHuaweiSDongleObservedChildInventory validates the one observed page: the
-// count object 1, then one entry whose key set is exactly 1 through 6 and whose
-// unit attribute is the unit that was read. The declared-object field and a
-// next object identifier set without a continuation are retained as anomalies
-// and never compared. The entry model is returned for the agreement check.
-func parseHuaweiSDongleObservedChildInventory(unit uint8, page HuaweiSDongleObservedChildInventoryPage) (string, HuaweiInventoryPageAnomalies, error) {
-	invalid := func() (string, HuaweiInventoryPageAnomalies, error) {
-		return "", HuaweiInventoryPageAnomalies{}, errHuaweiSDongleObservedInventoryInvalid
+// parseHuaweiSDongleObservedChildInventory validates the one page: the count
+// object, then as many entries as it counts in object order, each carrying at
+// least keys 1 through 6 and a distinct unit attribute, and exactly one of them
+// naming the unit that was read. The observed count of 1 is a lower bound, as
+// are the observed key set and response length; the policy bounds the objects,
+// one entry, the response and the aggregate bytes. The declared-object field
+// and a next object identifier set without a continuation are retained as
+// anomalies and never compared. The entry of the unit read is returned for the
+// agreement check and for its retained opaque attributes.
+func parseHuaweiSDongleObservedChildInventory(unit uint8, page HuaweiSDongleObservedChildInventoryPage) (HuaweiSmartLoggerInventoryChild, HuaweiInventoryPageAnomalies, error) {
+	invalid := func() (HuaweiSmartLoggerInventoryChild, HuaweiInventoryPageAnomalies, error) {
+		return HuaweiSmartLoggerInventoryChild{}, HuaweiInventoryPageAnomalies{}, errHuaweiSDongleObservedInventoryInvalid
 	}
 	if page.ReadDeviceIDCode != huaweiSDongleObservedReadCode || page.Conformity != huaweiSDongleObservedConformity || page.More ||
-		page.DeclaredObjects < 0 || page.DeclaredObjects > 255 || len(page.Objects) != huaweiSDongleObservedMaxObjects {
+		page.DeclaredObjects < 0 || page.DeclaredObjects > 255 || len(page.Objects) < 2 || len(page.Objects) > huaweiSDongleChildMaxObjects {
 		return invalid()
 	}
-	count, entry := page.Objects[0], page.Objects[1]
-	if count.ObjectID != huaweiSDongleObservedCountObject || len(count.Value) != 1 || count.Value[0] != 1 ||
-		entry.ObjectID != huaweiSDongleObservedEntryObject {
+	count := page.Objects[0]
+	if count.ObjectID != huaweiSDongleObservedCountObject || len(count.Value) != 1 || int(count.Value[0]) != len(page.Objects)-1 {
 		return invalid()
 	}
-	responseBytes := huaweiMEIResponseHeaderBytes + 2 + len(count.Value) + 2 + len(entry.Value)
-	if responseBytes != page.ResponseBytes || responseBytes > huaweiClassicMaxPDUBytes {
-		return invalid()
+	responseBytes := huaweiMEIResponseHeaderBytes + 2 + len(count.Value)
+	var read HuaweiSmartLoggerInventoryChild
+	matched := 0
+	seen := make(map[string]struct{}, len(page.Objects)-1)
+	for index, entry := range page.Objects[1:] {
+		if entry.ObjectID != uint8(huaweiSDongleObservedCountObject+1+index) {
+			return invalid()
+		}
+		responseBytes += 2 + len(entry.Value)
+		child, err := parseHuaweiObservedEntry(entry)
+		if err != nil || !huaweiSDongleObservedEntryKeySet(entry.Value) {
+			return invalid()
+		}
+		if _, repeated := seen[child.address]; repeated {
+			return invalid()
+		}
+		seen[child.address] = struct{}{}
+		if child.address == strconv.Itoa(int(unit)) {
+			read, matched = child, matched+1
+		}
 	}
-	child, err := parseHuaweiObservedEntry(entry)
-	if err != nil || child.address != strconv.Itoa(int(unit)) || !huaweiSDongleObservedEntryKeySet(entry.Value) {
+	if responseBytes != page.ResponseBytes || responseBytes > huaweiSmartLoggerObservedMaxResponseBytes ||
+		responseBytes-huaweiMEIResponseHeaderBytes > huaweiSDongleChildMaxBytes || matched != 1 {
 		return invalid()
 	}
 	var anomalies HuaweiInventoryPageAnomalies
+	if responseBytes > huaweiClassicMaxPDUBytes {
+		anomalies.OversizeResponses++
+	}
 	if page.DeclaredObjects != len(page.Objects) {
 		anomalies.DeclaredObjectFieldDiffers++
 	}
 	if page.NextObjectID != 0 {
 		anomalies.NextObjectWithoutContinuation++
 	}
-	return child.model, anomalies, nil
+	return read, anomalies, nil
 }
 
-// huaweiSDongleObservedEntryKeySet reports whether the entry holds exactly the
+// huaweiSDongleObservedEntryKeySet reports whether the entry holds at least the
 // observed keys. The entry has already passed the observed-dialect decoder, so
-// keys are unique and well formed.
+// keys are unique and well formed, and a further key is retained as opaque.
 func huaweiSDongleObservedEntryKeySet(value []byte) bool {
 	text := string(bytes.TrimRight(value, "\x00 "))
-	attributes := strings.Split(text, ";")
-	if len(attributes) != len(huaweiSDongleObservedEntryKeys) {
-		return false
-	}
-	for _, attribute := range attributes {
+	present := map[string]struct{}{}
+	for _, attribute := range strings.Split(text, ";") {
 		key, _, _ := strings.Cut(attribute, "=")
-		if !slices.Contains(huaweiSDongleObservedEntryKeys, key) {
+		present[key] = struct{}{}
+	}
+	for _, key := range huaweiSDongleObservedEntryKeys {
+		if _, ok := present[key]; !ok {
 			return false
 		}
 	}
 	return true
+}
+
+// orderHuaweiSDongleOpaqueByEntry restores entry order: the attributes are
+// sorted by the position of their key in the text of the entry object.
+func orderHuaweiSDongleOpaqueByEntry(attributes []HuaweiGatewayOpaqueAttribute, objects []HuaweiGatewayInventoryObject, objectID uint8) {
+	var text string
+	for _, object := range objects {
+		if object.ObjectID == objectID {
+			text = string(object.Value)
+		}
+	}
+	position := make(map[string]int)
+	for index, pair := range strings.Split(text, ";") {
+		key, _, _ := strings.Cut(pair, "=")
+		if _, seen := position[key]; !seen {
+			position[key] = index
+		}
+	}
+	slices.SortStableFunc(attributes, func(a, b HuaweiGatewayOpaqueAttribute) int {
+		return position[a.Key] - position[b.Key]
+	})
 }

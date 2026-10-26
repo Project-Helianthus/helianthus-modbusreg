@@ -1,0 +1,587 @@
+{
+  "schema": "helianthus-huawei-catalogue-selection-fixture/v1",
+  "kind": "gateway_catalogue_decision_table",
+  "families": [
+    "SmartLogger",
+    "S-Dongle",
+    "EMMA"
+  ],
+  "license": "CC0-1.0",
+  "provenance": "synthetic decision cases over the documented software minima, model rows and self units of the SmartLogger, S-Dongle and EMMA catalogue; editions are counted, not named; every software text is a synthetic placeholder in the documented version form, apart from the observed builds that the observed-card fixtures already carry",
+  "cases": [
+    {
+      "name": "smartlogger_observed_build_falls_under_the_v300_floor",
+      "input": {
+        "family": "SmartLogger",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "",
+        "software": "V300R023C10SPC620"
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "floor": "V300R001C00",
+        "domain": "LINE",
+        "edition_count": 11,
+        "candidates": [
+          "V300R001C00"
+        ]
+      }
+    },
+    {
+      "name": "smartlogger_build_above_the_floor_in_a_later_branch",
+      "input": {
+        "family": "SmartLogger",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "",
+        "software": "V300R026C10SPC100"
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "floor": "V300R001C00",
+        "domain": "LINE",
+        "edition_count": 11,
+        "candidates": [
+          "V300R001C00"
+        ]
+      }
+    },
+    {
+      "name": "smartlogger_cover_label_of_issue_49_is_a_build_not_a_tuple",
+      "input": {
+        "family": "SmartLogger",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "",
+        "software": "V300R024C10SPC210"
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "floor": "V300R001C00",
+        "domain": "LINE",
+        "edition_count": 11,
+        "candidates": [
+          "V300R001C00"
+        ]
+      }
+    },
+    {
+      "name": "smartlogger_build_below_the_v300_floor",
+      "input": {
+        "family": "SmartLogger",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "",
+        "software": "V300R000C10SPC620"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "below_floor",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": [
+          "V300R001C00"
+        ]
+      }
+    },
+    {
+      "name": "smartlogger_base_of_the_floor_release",
+      "input": {
+        "family": "SmartLogger",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "",
+        "software": "V300R001C00"
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "floor": "V300R001C00",
+        "domain": "LINE",
+        "edition_count": 11,
+        "candidates": [
+          "V300R001C00"
+        ]
+      }
+    },
+    {
+      "name": "smartlogger_line_without_a_documented_floor",
+      "input": {
+        "family": "SmartLogger",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "",
+        "software": "V400R001C00SPC100"
+      },
+      "expect": {
+        "outcome": "AMBIGUOUS",
+        "reason": "no_documented_branch_relation",
+        "grade": "HYPOTHESIS",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": [
+          "V100R001C00",
+          "V100R002C00",
+          "V200R001C00",
+          "V300R001C00"
+        ]
+      }
+    },
+    {
+      "name": "smartlogger_software_of_the_emma_family",
+      "input": {
+        "family": "SmartLogger",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "",
+        "software": "SmartHEMS V100R025C00SPC131"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "family_mismatch",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": []
+      }
+    },
+    {
+      "name": "smartlogger_identity_read_at_the_dongle_unit",
+      "input": {
+        "family": "SmartLogger",
+        "endpoint": "gateway-self",
+        "unit": 100,
+        "model": "",
+        "software": "V300R023C10SPC620"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "family_mismatch",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": []
+      }
+    },
+    {
+      "name": "smartlogger_identity_read_outside_the_self_endpoint",
+      "input": {
+        "family": "SmartLogger",
+        "endpoint": "child-alias",
+        "unit": 0,
+        "model": "",
+        "software": "V300R023C10SPC620"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "family_mismatch",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": []
+      }
+    },
+    {
+      "name": "smartlogger_build_number_split_by_a_space",
+      "input": {
+        "family": "SmartLogger",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "",
+        "software": "V300R023C10 SPC620"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "software_malformed",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": []
+      }
+    },
+    {
+      "name": "emma_observed_branch_at_or_above_its_floor",
+      "input": {
+        "family": "EMMA",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "EMMA-A02",
+        "software": "SmartHEMS V100R025C00SPC131"
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "floor": "V100R025C00SPC102",
+        "domain": "BRANCH",
+        "edition_count": 1,
+        "candidates": [
+          "V100R025C00SPC102"
+        ]
+      }
+    },
+    {
+      "name": "emma_other_documented_branch_above_its_floor",
+      "input": {
+        "family": "EMMA",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "EMMA-A01",
+        "software": "SmartHEMS V100R024C00SPC200"
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "floor": "V100R024C00SPC100",
+        "domain": "BRANCH",
+        "edition_count": 1,
+        "candidates": [
+          "V100R024C00SPC100"
+        ]
+      }
+    },
+    {
+      "name": "emma_build_below_the_floor_of_its_own_branch",
+      "input": {
+        "family": "EMMA",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "EMMA-A02",
+        "software": "SmartHEMS V100R025C00SPC101"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "below_floor",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": [
+          "V100R025C00SPC102"
+        ]
+      }
+    },
+    {
+      "name": "emma_branch_without_a_documented_floor",
+      "input": {
+        "family": "EMMA",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "EMMA-A02",
+        "software": "SmartHEMS V100R026C00SPC100"
+      },
+      "expect": {
+        "outcome": "AMBIGUOUS",
+        "reason": "no_documented_branch_relation",
+        "grade": "HYPOTHESIS",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": [
+          "V100R024C00SPC100",
+          "V100R025C00SPC102"
+        ]
+      }
+    },
+    {
+      "name": "emma_family_token_beyond_the_observed_models",
+      "input": {
+        "family": "EMMA",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "EMMA-B01",
+        "software": "SmartHEMS V100R025C00SPC131"
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "floor": "V100R025C00SPC102",
+        "domain": "BRANCH",
+        "edition_count": 1,
+        "candidates": [
+          "V100R025C00SPC102"
+        ]
+      }
+    },
+    {
+      "name": "emma_model_of_another_family",
+      "input": {
+        "family": "EMMA",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "SUN2000-12K-MAP0",
+        "software": "SmartHEMS V100R025C00SPC131"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "family_mismatch",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": []
+      }
+    },
+    {
+      "name": "emma_family_name_alone_is_no_model",
+      "input": {
+        "family": "EMMA",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "EMMA",
+        "software": "SmartHEMS V100R025C00SPC131"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "family_mismatch",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": []
+      }
+    },
+    {
+      "name": "emma_software_without_its_family_label",
+      "input": {
+        "family": "EMMA",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "EMMA-A02",
+        "software": "V100R025C00SPC131"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "software_malformed",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": []
+      }
+    },
+    {
+      "name": "emma_software_without_a_build_number",
+      "input": {
+        "family": "EMMA",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "EMMA-A02",
+        "software": "SmartHEMS V100R025C00"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "software_malformed",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": []
+      }
+    },
+    {
+      "name": "sdongle_qualification_target_falls_under_the_one_floor",
+      "input": {
+        "family": "S-Dongle",
+        "endpoint": "gateway-self",
+        "unit": 100,
+        "model": "",
+        "software": "V200R022C10SPC312"
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "floor": "V200R022C10",
+        "domain": "LINE",
+        "edition_count": 3,
+        "candidates": [
+          "V200R022C10"
+        ]
+      }
+    },
+    {
+      "name": "sdongle_cover_label_of_the_spc120_edition_is_a_build",
+      "input": {
+        "family": "S-Dongle",
+        "endpoint": "gateway-self",
+        "unit": 100,
+        "model": "",
+        "software": "V200R025C00SPC120"
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "floor": "V200R022C10",
+        "domain": "LINE",
+        "edition_count": 3,
+        "candidates": [
+          "V200R022C10"
+        ]
+      }
+    },
+    {
+      "name": "sdongle_build_above_every_edition",
+      "input": {
+        "family": "S-Dongle",
+        "endpoint": "gateway-self",
+        "unit": 100,
+        "model": "",
+        "software": "V200R026C10SPC010"
+      },
+      "expect": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "floor": "V200R022C10",
+        "domain": "LINE",
+        "edition_count": 3,
+        "candidates": [
+          "V200R022C10"
+        ]
+      }
+    },
+    {
+      "name": "sdongle_build_below_the_v200_floor",
+      "input": {
+        "family": "S-Dongle",
+        "endpoint": "gateway-self",
+        "unit": 100,
+        "model": "",
+        "software": "V200R022C00SPC900"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "below_floor",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": [
+          "V200R022C10"
+        ]
+      }
+    },
+    {
+      "name": "sdongle_line_without_a_documented_floor",
+      "input": {
+        "family": "S-Dongle",
+        "endpoint": "gateway-self",
+        "unit": 100,
+        "model": "",
+        "software": "V300R001C00SPC100"
+      },
+      "expect": {
+        "outcome": "AMBIGUOUS",
+        "reason": "no_documented_branch_relation",
+        "grade": "HYPOTHESIS",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": [
+          "V100R001C00SPC100",
+          "V200R022C10"
+        ]
+      }
+    },
+    {
+      "name": "sdongle_build_below_the_v100_branch_floor",
+      "input": {
+        "family": "S-Dongle",
+        "endpoint": "gateway-self",
+        "unit": 100,
+        "model": "",
+        "software": "V100R001C00SPC099"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "below_floor",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": [
+          "V100R001C00SPC100"
+        ]
+      }
+    },
+    {
+      "name": "sdongle_software_not_read",
+      "input": {
+        "family": "S-Dongle",
+        "endpoint": "gateway-self",
+        "unit": 100,
+        "model": "",
+        "software": ""
+      },
+      "expect": {
+        "outcome": "AMBIGUOUS",
+        "reason": "software_not_read",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": [
+          "V100R001C00SPC100",
+          "V200R022C10"
+        ]
+      }
+    },
+    {
+      "name": "sdongle_identity_read_at_unit_0",
+      "input": {
+        "family": "S-Dongle",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "",
+        "software": "V200R022C10SPC312"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "family_mismatch",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": []
+      }
+    },
+    {
+      "name": "family_outside_the_catalogue",
+      "input": {
+        "family": "SUN2000",
+        "endpoint": "gateway-self",
+        "unit": 0,
+        "model": "",
+        "software": "V300R023C10SPC620"
+      },
+      "expect": {
+        "outcome": "NOT_SELECTED",
+        "reason": "family_mismatch",
+        "grade": "UNKNOWN",
+        "floor": "",
+        "domain": "",
+        "edition_count": 0,
+        "candidates": []
+      }
+    }
+  ]
+}

@@ -70,7 +70,7 @@
       "fc03_65521_q1_u16_counter_stable",
       "fc2b_mei0e_code03_object87_inventory",
       "self_entry_model_smartlogger",
-      "exact_firmware_tuple"
+      "self_entry_software_admitted_by_catalogue_floors"
     ],
     "forbidden_identity": [
       "writable_device_name_65524",
@@ -78,38 +78,55 @@
       "basic_mei_only",
       "optional_offering_string"
     ],
-    "firmware_gates": [
-      "V300R024C10SPC191",
-      "V300R024C10SPC210"
-    ],
-    "exact_tuples": [
-      {
-        "branch": "documentary",
-        "self_entry_model": "SmartLogger",
-        "firmware": "V300R024C10SPC191",
-        "basis": "documentary_candidate",
-        "observed": false
-      },
-      {
-        "branch": "documentary",
-        "self_entry_model": "SmartLogger",
-        "firmware": "V300R024C10SPC210",
-        "basis": "documentary_candidate",
-        "observed": false
-      },
-      {
-        "branch": "observed",
-        "self_entry_model": "Smart Logger",
-        "firmware": "V300R023C10SPC620",
-        "self_entry_unit": "0",
-        "basis": "sanitized_readonly_observation",
-        "observed": true
-      }
-    ],
-    "tuple_independence": "NO_RANGE_PREFIX_ORDER_OR_INHERITANCE",
-    "version_comparison": "EXACT_TUPLE_ONLY",
+    "undocumented_attribute_keys": "RETAINED_OPAQUE",
+    "count_object": "COUNTS_CHILDREN_ONLY",
     "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",
     "first_match_priority": false
+  },
+  "software_selection": {
+    "issue": 366,
+    "catalogue": "profiles/vendor/huawei/catalogue/smartlogger-sdongle-emma",
+    "catalogue_files": [
+      "editions.json",
+      "services.json"
+    ],
+    "family": "SmartLogger",
+    "scope": {
+      "endpoint": "gateway-self",
+      "unit": 0
+    },
+    "floors": [
+      {
+        "minimum": "V100R001C00",
+        "domain": "BRANCH"
+      },
+      {
+        "minimum": "V100R002C00",
+        "domain": "BRANCH"
+      },
+      {
+        "minimum": "V200R001C00",
+        "domain": "BRANCH"
+      },
+      {
+        "minimum": "V300R001C00",
+        "domain": "LINE"
+      }
+    ],
+    "comparison": "WITHIN_FLOOR_DOMAIN",
+    "at_or_above_floor": "SELECTED_HYPOTHESIS",
+    "below_floor_in_domain": "NOT_SELECTED",
+    "no_documented_relation": "ADMITTED_HYPOTHESIS",
+    "several_admitting_floors": "AMBIGUOUS_NO_EDITION_BOUND",
+    "not_selected_reasons": [
+      "family_mismatch",
+      "below_floor",
+      "software_malformed",
+      "catalogue_invalid"
+    ],
+    "edition_cover_labels": "IDENTIFY_EDITIONS_NOT_FLOORS",
+    "attribute_dictionary": "SERVICES_DESCRIPTOR_ATTRIBUTES_OF_THE_ADMITTED_EDITIONS",
+    "attribute_6": "EDITION_GRAMMAR_RECORDED_NEVER_DECODED"
   },
   "observed_identity": {
     "status": "OFFLINE_IDENTITY_ADMITTED",
@@ -122,9 +139,52 @@
       "fc03_65521_q1_u16_counter_equal_before_after",
       "complete_valid_extended_inventory",
       "self_entry_model_exact",
-      "self_entry_firmware_exact",
+      "self_entry_software_admitted_by_catalogue_floors_and_at_or_above_observed_floor",
       "self_entry_unit_equals_gateway_unit"
     ],
+    "software_selection": {
+      "observed_floor": "V300R023C10SPC620",
+      "observed_floor_domain": "LINE",
+      "observed_build_grade": "PROVEN",
+      "inherited_build_grade": "HYPOTHESIS",
+      "below_observed_floor": "INSUFFICIENT_EVIDENCE",
+      "record": {
+        "outcome": "SELECTED",
+        "reason": "at_or_above_floor",
+        "floor": "V300R001C00",
+        "floor_domain": "LINE",
+        "editions": [
+          "smartlogger-36-2020-04-13",
+          "smartlogger-37-2020-06-24",
+          "smartlogger-v300r024c10-01-2026-10-15",
+          "smartlogger-v300r024c10-53-2025-10-29",
+          "smartlogger-v300r024c10-54-2026-02-06",
+          "smartlogger-v300r024c10spc180-01-2025-06-23",
+          "smartlogger-v300r024c10spc191-52-2025-06-06",
+          "smartlogger-v300r024c10spc210-49-2025-03-19",
+          "smartlogger-v300r025c10-01-2025-12-22",
+          "smartlogger-v300r025c10-02-2026-10-09",
+          "smartlogger-v300r026c10-02-2026-10-09"
+        ],
+        "grade": "PROVEN",
+        "observed_floor_relation": "AT_OR_ABOVE",
+        "descriptor_keys": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          8,
+          9,
+          10
+        ],
+        "attribute_6_grammars": [
+          "feature-version integer",
+          "parallel-network integer"
+        ]
+      }
+    },
     "optional_corroboration": {
       "basic_mei": {
         "vendor": "HUAWEI",
@@ -159,7 +219,9 @@
         "10"
       ],
       "attribute_order": "NOT_VALIDATED",
-      "unknown_or_repeated_keys": "REJECT_INVENTORY"
+      "undocumented_attribute_keys": "RETAINED_OPAQUE",
+      "repeated_or_malformed_keys": "REJECT_INVENTORY",
+      "observed_values": "LOWER_BOUNDS"
     },
     "fixtures": [
       "testdata/huawei/identity/smartlogger_basic_reply.json",

@@ -77,6 +77,20 @@ type HuaweiQualificationResult struct {
 	basicCorroborated  bool
 	basicOpaqueObjects int
 	modelResidueBytes  int
+
+	// selection is the catalogue decision over the gateway's own software
+	// text, recorded whenever the card reached it.
+	selection *HuaweiGatewaySelection
+	// observedFloor is the card's own floor, the observed build, and
+	// observedRelation how the software text relates to it.
+	observedFloor    string
+	observedRelation HuaweiGatewayFloorRelation
+	// protocolWords and typeWord are gateway words the card records and never
+	// compares beyond its floor form.
+	protocolWords []uint16
+	typeWord      *uint16
+	// childOpaque holds the opaque attributes of the admitted child entry.
+	childOpaque []HuaweiGatewayOpaqueAttribute
 }
 
 func (result HuaweiQualificationResult) CandidateClass() string { return result.candidateClass }
@@ -103,9 +117,57 @@ func (result HuaweiQualificationResult) BasicOpaqueObjectCount() int {
 	return result.basicOpaqueObjects
 }
 
+// ChildOpaqueAttributes lists the opaque attributes of the admitted child
+// entry in entry order; they are retained evidence only.
+func (result HuaweiQualificationResult) ChildOpaqueAttributes() []HuaweiGatewayOpaqueAttribute {
+	return slices.Clone(result.childOpaque)
+}
+
 // ModelResidueBytes is the length of the printable residue that followed the
 // terminating NUL of a model block. The residue is retained evidence only.
 func (result HuaweiQualificationResult) ModelResidueBytes() int { return result.modelResidueBytes }
+
+// Selection is the catalogue decision over the gateway's own software text:
+// the selected floor and its editions, the grade and the reason, or the
+// candidates of an ambiguous decision, or the closed reason of a refusal. It is
+// absent when the card stopped before the software text.
+func (result HuaweiQualificationResult) Selection() (HuaweiGatewaySelection, bool) {
+	if result.selection == nil {
+		return HuaweiGatewaySelection{}, false
+	}
+	return *result.selection, true
+}
+
+// SoftwareGrade is the grade of the software applicability: Proven for the
+// observed build of an observed card, Hypothesis for an inherited build, and
+// Unknown when no software text was compared.
+func (result HuaweiQualificationResult) SoftwareGrade() HuaweiEvidenceGrade {
+	if result.selection == nil || !result.IdentityMatched() {
+		return HuaweiGradeUnknown
+	}
+	return result.selection.Grade()
+}
+
+// ObservedFloor is the card's own floor, the build its observation fixed, and
+// how the software text relates to it. It is empty for a card without one.
+func (result HuaweiQualificationResult) ObservedFloor() (string, HuaweiGatewayFloorRelation) {
+	return result.observedFloor, result.observedRelation
+}
+
+// GatewayProtocolWords are the protocol words that the card read at the
+// gateway unit, recorded as read.
+func (result HuaweiQualificationResult) GatewayProtocolWords() []uint16 {
+	return append([]uint16(nil), result.protocolWords...)
+}
+
+// GatewayTypeWord is the type word that the card recorded at the gateway unit.
+// It is a configuration value and never a predicate.
+func (result HuaweiQualificationResult) GatewayTypeWord() (uint16, bool) {
+	if result.typeWord == nil {
+		return 0, false
+	}
+	return *result.typeWord, true
+}
 func (result HuaweiQualificationResult) QualificationTestReady() bool {
 	return result.Readiness() == HuaweiQualificationTestReady
 }
@@ -150,9 +212,6 @@ func (HuaweiSmartLoggerQualificationCard) CandidateClass() string {
 	return HuaweiSmartLoggerCanonicalClass
 }
 func (HuaweiSmartLoggerQualificationCard) UnitID() uint8 { return 0 }
-func (HuaweiSmartLoggerQualificationCard) FirmwareTuples() []string {
-	return []string{"V300R024C10SPC191", "V300R024C10SPC210"}
-}
 func (HuaweiSmartLoggerQualificationCard) Steps() []HuaweiQualificationStep {
 	return []HuaweiQualificationStep{
 		{operation: "FC03_COUNTER_BEFORE", unitID: 0, offset: 65521, quantity: 1},
@@ -172,12 +231,24 @@ func (HuaweiSmartLoggerQualificationCard) Limits() HuaweiQualificationInventoryL
 func (card HuaweiSmartLoggerQualificationCard) EmptyResult() HuaweiQualificationResult {
 	return HuaweiQualificationResult{candidateClass: card.CandidateClass(), readiness: HuaweiQualificationInsufficientEvidence, reason: HuaweiQualificationIdentityInvalid}
 }
+
+// Evaluate admits a stable, complete inventory at unit 0 whose self entry is
+// exactly the model SmartLogger and whose software text the catalogue
+// decision admits: a build of the V300 line at or above the documented
+// minimum, or a build that no documented floor relates to (grade Hypothesis).
+// Child attributes follow the device-list dictionary of the admitted editions,
+// which the selection records; a key that no admitted edition defines is
+// retained as opaque native evidence. The count object counts the children
+// only; the observed dialect that counts the self entry stays with the
+// observed card.
 func (card HuaweiSmartLoggerQualificationCard) Evaluate(input HuaweiSmartLoggerQualificationInput) HuaweiQualificationResult {
 	rejected := card.EmptyResult()
 	if input.UnitID != card.UnitID() {
 		return rejected
 	}
-	inventory, err := ParseHuaweiSmartLoggerOfflineInventory(input.Inventory)
+	inventory, err := parseHuaweiExtendedMEIOfflineInventory(input.Inventory, func(model string) bool {
+		return model == HuaweiSmartLoggerCanonicalClass
+	}, parseHuaweiDocumentaryInventoryChild)
 	if err != nil {
 		rejected.reason = HuaweiQualificationInventoryInvalid
 		return rejected
@@ -188,7 +259,7 @@ func (card HuaweiSmartLoggerQualificationCard) Evaluate(input HuaweiSmartLoggerQ
 			if object.ObjectID != huaweiSmartLoggerInventoryStartObject+1 {
 				continue
 			}
-			decoded, err := parseHuaweiSmartLoggerInventoryChild(object)
+			decoded, err := parseHuaweiDocumentaryInventoryChild(object)
 			if err != nil {
 				rejected.reason = HuaweiQualificationInventoryInvalid
 				return rejected
@@ -196,7 +267,16 @@ func (card HuaweiSmartLoggerQualificationCard) Evaluate(input HuaweiSmartLoggerQ
 			self = &decoded
 		}
 	}
-	if self == nil || self.Attribute("model") != card.CandidateClass() || !containsHuaweiQualificationString(card.FirmwareTuples(), self.Attribute("software_version")) {
+	if self == nil || self.Attribute("model") != card.CandidateClass() {
+		return rejected
+	}
+	selection := DecideHuaweiGatewaySelection(HuaweiGatewaySelectionInput{
+		Family:   card.CandidateClass(),
+		Scope:    HuaweiGatewayScope{Endpoint: HuaweiGatewayEndpointSelf, Unit: input.UnitID},
+		Software: self.Attribute("software_version"),
+	})
+	if !selection.Admitted() || selection.Build() == "" {
+		rejected.selection = &selection
 		return rejected
 	}
 	retained := inventory
@@ -208,6 +288,7 @@ func (card HuaweiSmartLoggerQualificationCard) Evaluate(input HuaweiSmartLoggerQ
 		identityMatched: true,
 		inventory:       &retained,
 		missingEvidence: []string{"connected_smartlogger_identity_inventory_capture"},
+		selection:       &selection,
 	}
 }
 
@@ -223,10 +304,15 @@ type HuaweiEMMAQualificationInput struct {
 func NewHuaweiEMMAQualificationCard() HuaweiEMMAQualificationCard {
 	return HuaweiEMMAQualificationCard{}
 }
-func (HuaweiEMMAQualificationCard) ID() string              { return HuaweiEMMAQualificationCardID }
-func (HuaweiEMMAQualificationCard) CandidateClass() string  { return HuaweiEMMACanonicalClass }
-func (HuaweiEMMAQualificationCard) UnitID() uint8           { return 0 }
-func (HuaweiEMMAQualificationCard) ModelVariants() []string { return []string{"EMMA-A01", "EMMA-A02"} }
+func (HuaweiEMMAQualificationCard) ID() string             { return HuaweiEMMAQualificationCardID }
+func (HuaweiEMMAQualificationCard) CandidateClass() string { return HuaweiEMMACanonicalClass }
+func (HuaweiEMMAQualificationCard) UnitID() uint8          { return 0 }
+
+// ModelVariants are the observed models of the card. Admission follows the
+// catalogue's model rows and holds every model token of the EMMA family.
+func (HuaweiEMMAQualificationCard) ModelVariants() []string {
+	return append([]string(nil), huaweiEMMAObservedModels...)
+}
 func (HuaweiEMMAQualificationCard) Steps() []HuaweiQualificationStep {
 	return []HuaweiQualificationStep{
 		{operation: "FC03_OFFERING", unitID: 0, offset: 30000, quantity: 15},
@@ -247,8 +333,13 @@ func (card HuaweiEMMAQualificationCard) Evaluate(input HuaweiEMMAQualificationIn
 	}
 	identity := EvaluateHuaweiEMMAOfflineIdentity(input.Offering, input.Model, input.Firmware)
 	if !identity.Matched() {
+		if identity.Reason() == HuaweiEMMAOfflineFirmwareMismatch {
+			selection := identity.Selection()
+			rejected.selection = &selection
+		}
 		return rejected
 	}
+	selection := identity.Selection()
 	return HuaweiQualificationResult{
 		candidateClass:  card.CandidateClass(),
 		selectedClass:   card.CandidateClass(),
@@ -257,6 +348,7 @@ func (card HuaweiEMMAQualificationCard) Evaluate(input HuaweiEMMAQualificationIn
 		reason:          HuaweiQualificationIdentityMatchedCapabilitiesMissing,
 		identityMatched: true,
 		missingEvidence: card.MissingCapabilityEvidence(),
+		selection:       &selection,
 	}
 }
 
@@ -342,8 +434,8 @@ func ResolveHuaweiQualification(results ...HuaweiQualificationResult) HuaweiQual
 }
 
 // withoutHuaweiSiblingNonMatches drops a non-matching result when another card
-// of the same class matched. Cards of one class are alternative exact tuples, so
-// the rejection of one says nothing against the tuple that matched. A persistent
+// of the same class matched. Cards of one class are alternative entries, so the
+// rejection of one says nothing against the entry that matched. A persistent
 // non-response record is a non-matching result of its own class: an exact tuple
 // of that class contradicts it and supersedes it, and nothing else does. A
 // match never hides a result of a different class.
@@ -394,15 +486,6 @@ func withoutHuaweiSupersededMatches(results []HuaweiQualificationResult) []Huawe
 		kept = append(kept, result)
 	}
 	return kept
-}
-
-func containsHuaweiQualificationString(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
 }
 
 type HuaweiQualificationPackage struct{}

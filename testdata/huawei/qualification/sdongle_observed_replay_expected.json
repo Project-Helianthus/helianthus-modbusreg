@@ -31,6 +31,14 @@
     "next_object_without_continuation": 1
   },
   "first_request_timeout": {"recorded": true, "required": false},
+  "catalogue_selection": {
+    "outcome": "AMBIGUOUS",
+    "reason": "software_not_read",
+    "grade": "UNKNOWN",
+    "candidates": ["V100R001C00SPC100", "V200R022C10"],
+    "descriptor_keys": [1, 2, 3, 4, 5, 6],
+    "attribute_6_grammars": ["parallel-network integer"]
+  },
   "missing_evidence": [
     "sanitized_basic_mei_product_model_fixture",
     "exact_protocol_version_encoding_fixture",

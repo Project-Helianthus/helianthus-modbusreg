@@ -188,18 +188,13 @@ func h15Mutations() []h15Mutation {
 		add("Gateway.SearchStatus", fmt.Sprintf("search status %v", words), "dropping the complete-search check or its length", gateway,
 			func(i *HuaweiSDongleObservedQualificationInput) { i.Gateway.SearchStatus = words })
 	}
-	for _, words := range [][]uint16{nil, {50}, {0, 50}, {5, 0}, {50, 1}, {51, 0}, {49, 0}, {50, 0, 0}, {0, 0}, {65535, 0}} {
+	// The protocol words take the floor form: the leading word equal and the
+	// second at or above the observed one. Another leading word, a missing or
+	// further word, or the child's words are refused.
+	for _, words := range [][]uint16{nil, {50}, {0, 50}, {5, 0}, {51, 0}, {49, 0}, {50, 0, 0}, {0, 0}, {65535, 0}, {51, 1}} {
 		words := words
-		add("Gateway.Protocol", fmt.Sprintf("protocol words %v", words), "comparing one protocol word, or only the leading word, or the child's words", gateway,
+		add("Gateway.Protocol", fmt.Sprintf("protocol words %v", words), "comparing only the second word, dropping the length check, or accepting the child's words", gateway,
 			func(i *HuaweiSDongleObservedQualificationInput) { i.Gateway.Protocol = words })
-	}
-	for _, kind := range []uint16{0, 1, 3, 5, 255, 65535} {
-		kind := kind
-		add("Gateway.SearchBefore", fmt.Sprintf("search type %d", kind), "dropping the type comparison", gateway,
-			func(i *HuaweiSDongleObservedQualificationInput) {
-				i.Gateway.SearchBefore = []uint16{kind, 0, i.Gateway.SearchBefore[2]}
-				i.Gateway.SearchAfter = []uint16{kind, 0, i.Gateway.SearchAfter[2]}
-			})
 	}
 	for _, state := range []uint16{1, 2, 255, 65535} {
 		state := state
@@ -217,10 +212,31 @@ func h15Mutations() []h15Mutation {
 				i.Gateway.SearchAfter = words
 			})
 	}
-	for _, after := range [][]uint16{nil, {4, 0, 8}, {4, 0, 6}, {4, 0, 0}, {4, 0, 65535}, {4, 1, 7}, {5, 0, 7}, {4, 0}} {
+	for _, after := range [][]uint16{nil, {4, 0, 8}, {4, 0, 6}, {4, 0, 0}, {4, 0, 65535}, {4, 1, 7}, {4, 0}, {4, 0, 7, 0}} {
 		after := after
-		add("Gateway.SearchAfter", fmt.Sprintf("sequence after %v", after), "comparing only the first words, or comparing before with itself", gateway,
+		add("Gateway.SearchAfter", fmt.Sprintf("sequence after %v", after), "comparing only the type word, or comparing before with itself", gateway,
 			func(i *HuaweiSDongleObservedQualificationInput) { i.Gateway.SearchAfter = after })
+	}
+	// A software text, when one was read, is compared with the S-Dongle floors.
+	for name, block := range map[string][]byte{
+		"block of 29 bytes":        h18Block("V200R022C10SPC312", 30)[:29],
+		"block of 31 bytes":        append(h18Block("V200R022C10SPC312", 30), 0),
+		"no terminating NUL":       []byte(strings.Repeat("V", 30)),
+		"residue after the text":   h18With(h18Block("V200R022C10SPC312", 30), 28, 'Z'),
+		"control byte in the text": h18Block("V200R022C10\x01PC312", 30),
+		"empty text":               make([]byte, 30),
+	} {
+		block := block
+		add("Gateway.Software", "software block "+name, "decoding the software text without the block rules", gateway,
+			func(i *HuaweiSDongleObservedQualificationInput) { i.Gateway.Software = block })
+	}
+	for _, text := range []string{
+		"V200R022C00SPC900", "V200R021C10SPC312", "V200R001C00", "V100R001C00SPC099", "V100R001C00", "V200R025C00SPC12", "v200r022c10spc312",
+		"SmartHEMS V100R025C00SPC131", "SmartLogger V300R023C10SPC620", "X000X000X00XXX000",
+	} {
+		text := text
+		add("Gateway.Software", "software text "+text, "admitting a software text below the floor of its domain, of another family or outside the version form", invalid,
+			func(i *HuaweiSDongleObservedQualificationInput) { i.Gateway.Software = h18Block(text, 30) })
 	}
 	for _, capacity := range [][]uint16{nil, {0}, {10, 10}, {}} {
 		capacity := capacity
@@ -396,32 +412,51 @@ func h15Mutations() []h15Mutation {
 		add("Child.Inventory.Objects", fmt.Sprintf("entry with %q in place of %q", swap[1], swap[0]), "checking the key count without the key membership", listing,
 			h15ReplaceEntry(swap[0], swap[1]))
 	}
-	for _, extra := range []string{";7=0", ";8=SUN2000", ";9=0", ";10=XXXX0XXX", ";6=0.0", ";1=SUN2000-8KTL-M1", ";x=0", ";", ";5"} {
+	for _, extra := range []string{";6=0.0", ";1=SUN2000-8KTL-M1", ";x=0", ";", ";5", ";07=0", ";256=0"} {
 		extra := extra
-		add("Child.Inventory.Objects", fmt.Sprintf("entry with %q appended", extra), "accepting the logger's extra keys, repeated keys or empty attributes", listing,
+		add("Child.Inventory.Objects", fmt.Sprintf("entry with %q appended", extra), "accepting repeated keys, keys outside the number grammar or empty attributes", listing,
 			func(i *HuaweiSDongleObservedQualificationInput) {
 				h15SetEntryBytes(i, append(i.Child.Inventory.Objects[1].Value, extra...))
 			})
 	}
-	for _, padTo := range []int{242, 243, 250, 254} {
-		padTo := padTo
-		add("Child.Inventory.Objects", fmt.Sprintf("valid entry padded to %d bytes", padTo), "applying the logger's frame cap instead of the classic 253-byte limit, or none", listing,
-			func(i *HuaweiSDongleObservedQualificationInput) {
-				value := make([]byte, padTo)
-				copy(value, h15EntryText(*i))
-				h15SetEntryBytes(i, value)
-			})
-	}
+	add("Child.Inventory.Objects", "valid entry padded to 255 bytes", "applying no entry length bound", listing,
+		func(i *HuaweiSDongleObservedQualificationInput) {
+			value := make([]byte, 255)
+			copy(value, h15EntryText(*i))
+			h15SetEntryBytes(i, value)
+		})
+	add("Child.Inventory.Objects", "a counted second entry at the child unit", "matching the child by its first entry and accepting a repeated unit", listing,
+		func(i *HuaweiSDongleObservedQualificationInput) {
+			entry := i.Child.Inventory.Objects[1]
+			second := HuaweiGatewayInventoryObject{ObjectID: 0x89, Value: append([]byte(nil), entry.Value...)}
+			i.Child.Inventory.Objects = append([]HuaweiGatewayInventoryObject{{ObjectID: 0x87, Value: []byte{2}}, entry}, second)
+			i.Child.Inventory.ResponseBytes += 2 + len(second.Value)
+		})
+	add("Child.Inventory.Objects", "a counted second entry without the child unit", "accepting a listing that does not name the unit that was read", listing,
+		func(i *HuaweiSDongleObservedQualificationInput) {
+			entry := i.Child.Inventory.Objects[1]
+			first := HuaweiGatewayInventoryObject{ObjectID: 0x88, Value: bytes.Replace(entry.Value, []byte("5=1"), []byte("5=2"), 1)}
+			second := HuaweiGatewayInventoryObject{ObjectID: 0x89, Value: bytes.Replace(entry.Value, []byte("5=1"), []byte("5=3"), 1)}
+			i.Child.Inventory.Objects = []HuaweiGatewayInventoryObject{{ObjectID: 0x87, Value: []byte{2}}, first, second}
+			i.Child.Inventory.ResponseBytes += 2 + len(second.Value)
+		})
+	add("Child.Inventory.Objects", "a counted second entry out of object order", "accepting entries out of object order", listing,
+		func(i *HuaweiSDongleObservedQualificationInput) {
+			entry := i.Child.Inventory.Objects[1]
+			second := HuaweiGatewayInventoryObject{ObjectID: 0x8a, Value: bytes.Replace(entry.Value, []byte("5=1"), []byte("5=2"), 1)}
+			i.Child.Inventory.Objects = []HuaweiGatewayInventoryObject{{ObjectID: 0x87, Value: []byte{2}}, entry, second}
+			i.Child.Inventory.ResponseBytes += 2 + len(second.Value)
+		})
 	for name, value := range map[string][]byte{
-		"empty entry":               {},
-		"spaces only":               []byte("   "),
-		"NUL only":                  make([]byte, 75),
-		"control byte":              []byte("1=SUN2000-8KTL-M1;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=1;6=0.\x01"),
-		"embedded NUL":              []byte("1=SUN2000-8KTL-M1;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=1;\x006=0.0"),
-		"non-ASCII byte":            []byte("1=SUN2000-8KTL-M1;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=1;6=0.\xe9"),
-		"empty value":               []byte("1=SUN2000-8KTL-M1;2=;3=X0.00-X0.0;4=XX0000000000;5=1;6=0.0"),
-		"second equals sign":        []byte("1=SUN2000-8KTL-M1;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=1;6=0=0"),
-		"entry above the frame cap": []byte("1=SUN2000-8KTL-M1;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=1;6=0.0" + strings.Repeat(" ", 200) + ";7"),
+		"empty entry":                 {},
+		"spaces only":                 []byte("   "),
+		"NUL only":                    make([]byte, 75),
+		"control byte":                []byte("1=SUN2000-8KTL-M1;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=1;6=0.\x01"),
+		"embedded NUL":                []byte("1=SUN2000-8KTL-M1;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=1;\x006=0.0"),
+		"non-ASCII byte":              []byte("1=SUN2000-8KTL-M1;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=1;6=0.\xe9"),
+		"empty value":                 []byte("1=SUN2000-8KTL-M1;2=;3=X0.00-X0.0;4=XX0000000000;5=1;6=0.0"),
+		"second equals sign":          []byte("1=SUN2000-8KTL-M1;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=1;6=0=0"),
+		"entry above the entry bound": []byte("1=SUN2000-8KTL-M1;2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=1;6=0.0" + strings.Repeat(" ", 200) + ";7"),
 	} {
 		value := value
 		add("Child.Inventory.Objects", name, "decoding the entry with less than the observed-dialect rules", listing,
@@ -454,7 +489,7 @@ func TestH15ObservedCardIdentityAndReplayProcedure(t *testing.T) {
 		t.Fatal("GatewayProtocolWords exposes the card's own slice")
 	}
 	if limits := card.Limits(); limits != (HuaweiQualificationInventoryLimits{
-		DeadlineMilliseconds: 15000, MaxPages: 1, MaxObjects: 2, MaxBytes: 246, MaxChildren: 0, MaxResponseBytes: 253,
+		DeadlineMilliseconds: 15000, MaxPages: 1, MaxObjects: 121, MaxBytes: 32768, MaxChildren: 0, MaxResponseBytes: 1024,
 	}) {
 		t.Fatalf("unexpected observed limits: %#v", limits)
 	}
@@ -564,6 +599,7 @@ func TestH15ObservedReplayMatchesSanitizedExpectedResult(t *testing.T) {
 			"next_object_without_continuation": anomalies.NextObjectWithoutContinuation,
 		},
 		"first_request_timeout":       map[string]any{"recorded": len(f.Timing.Observations) > 0, "required": f.Timing.RequiredByCard},
+		"catalogue_selection":         m86ReplaySelection(result),
 		"missing_evidence":            result.MissingEvidence(),
 		"hardware_test_ready":         result.HardwareTestReady(),
 		"live_qualified":              result.LiveQualified(),
@@ -728,6 +764,79 @@ func TestH15ObservedCardAcceptsTheToleratedVariationsOfAnExactTuple(t *testing.T
 		}
 	}
 
+	// The type word is the network connection type, a configuration value: it
+	// is recorded and never compared, also between the two sequence reads.
+	for _, kind := range []uint16{0, 1, 2, 3, 5, 255, 65535} {
+		kind := kind
+		result := accept(fmt.Sprintf("type word %d", kind), func(i *HuaweiSDongleObservedQualificationInput) {
+			i.Gateway.SearchBefore = []uint16{kind, 0, i.Gateway.SearchBefore[2]}
+			i.Gateway.SearchAfter = []uint16{kind ^ 1, 0, i.Gateway.SearchAfter[2]}
+		})
+		if recorded, ok := result.GatewayTypeWord(); !ok || recorded != kind {
+			t.Fatalf("type word %d recorded as %d %t", kind, recorded, ok)
+		}
+	}
+	// The protocol words take the floor form: the same leading word and a
+	// second word at or above the observed one.
+	for _, words := range [][]uint16{{50, 1}, {50, 7}, {50, 65535}} {
+		words := words
+		result := accept(fmt.Sprintf("protocol words %v", words), func(i *HuaweiSDongleObservedQualificationInput) { i.Gateway.Protocol = words })
+		if !reflect.DeepEqual(result.GatewayProtocolWords(), words) {
+			t.Fatalf("protocol words %v recorded as %v", words, result.GatewayProtocolWords())
+		}
+	}
+	// A gateway software text, when one was read, is compared with the
+	// S-Dongle floors: the V200 line from V200R022C10, the V100R001C00 branch
+	// from its SPC100, and a line that no floor documents with grade Hypothesis.
+	for text, want := range map[string]HuaweiGatewaySelectionReason{
+		"V200R022C10SPC312": HuaweiGatewayAtOrAboveFloor, "V200R025C00SPC120": HuaweiGatewayAtOrAboveFloor, "V200R026C10": HuaweiGatewayAtOrAboveFloor,
+		"V100R001C00SPC100": HuaweiGatewayAtOrAboveFloor, "V300R001C00SPC100": HuaweiGatewayNoDocumentedRelation,
+	} {
+		text, want := text, want
+		result := accept("software text "+text, func(i *HuaweiSDongleObservedQualificationInput) { i.Gateway.Software = h18Block(text, 30) })
+		selection, ok := result.Selection()
+		if !ok || selection.Reason() != want || result.SoftwareGrade() != HuaweiGradeHypothesis || selection.Build() != text {
+			t.Fatalf("software text %s: selection %+v grade %s", text, selection, result.SoftwareGrade())
+		}
+	}
+	if selection, ok := control.Selection(); !ok || selection.Outcome() != HuaweiGatewayAmbiguous || selection.Reason() != HuaweiGatewaySoftwareNotRead ||
+		control.SoftwareGrade() != HuaweiGradeUnknown || len(selection.Candidates()) != 2 {
+		t.Fatalf("observed tuple without a software read: %+v grade %s", selection, control.SoftwareGrade())
+	}
+	// The observed keys 1 through 6 are a lower bound: a further key is
+	// retained as opaque native evidence.
+	for _, extra := range []string{";7=0", ";8=SUN2000", ";9=0", ";10=XXXX0XXX", ";8=SUN2000;9=0", ";255=x"} {
+		extra := extra
+		accept(fmt.Sprintf("entry with %q appended", extra), func(i *HuaweiSDongleObservedQualificationInput) {
+			h15SetEntryBytes(i, append(append([]byte(nil), i.Child.Inventory.Objects[1].Value...), extra...))
+		})
+	}
+	// The observed 87-byte response within the classic frame is a lower bound:
+	// an entry up to the 254-byte entry bound, whose response exceeds the frame,
+	// is admitted within the resource cap and counted as oversize.
+	for _, padTo := range []int{241, 242, 243, 250, 254} {
+		padTo := padTo
+		result := accept(fmt.Sprintf("entry padded to %d bytes", padTo), func(i *HuaweiSDongleObservedQualificationInput) {
+			value := make([]byte, padTo)
+			copy(value, h15EntryText(*i))
+			h15SetEntryBytes(i, value)
+		})
+		if got, want := result.PageAnomalies().OversizeResponses, map[bool]int{true: 1, false: 0}[7+3+2+padTo > 253]; got != want {
+			t.Fatalf("entry padded to %d: oversize %d want %d", padTo, got, want)
+		}
+	}
+	// The observed count of one entry is a lower bound: a counted further entry
+	// at another unit is listing evidence and the child's entry still matches.
+	for _, unit := range []string{"2", "3", "247"} {
+		unit := unit
+		accept("a counted second entry at unit "+unit, func(i *HuaweiSDongleObservedQualificationInput) {
+			entry := i.Child.Inventory.Objects[1]
+			second := HuaweiGatewayInventoryObject{ObjectID: 0x89, Value: bytes.Replace(entry.Value, []byte("5=1"), []byte("5="+unit), 1)}
+			i.Child.Inventory.Objects = []HuaweiGatewayInventoryObject{{ObjectID: 0x87, Value: []byte{2}}, entry, second}
+			i.Child.Inventory.ResponseBytes += 2 + len(second.Value)
+		})
+	}
+
 	// Objects beyond the basic category are counted and never read; the version
 	// object is any printable text.
 	result := accept("extra and changed basic objects", func(i *HuaweiSDongleObservedQualificationInput) {
@@ -845,10 +954,11 @@ func TestH15ObservedCardOutsideAdmittedSetIsInsufficientEvidence(t *testing.T) {
 		}
 		h15RequireRejected(t, fmt.Sprintf("logger response %d at the child", index), card.Evaluate(input))
 	}
-	// The logger's self entry in the child's one-page frame, padded as the logger pads.
+	// The logger's self entry in the child's one-page frame, padded as the logger
+	// pads. The child's own entry with the logger's further keys 8 and 9 is no
+	// longer refused: the observed keys are a lower bound (the tolerance test).
 	for name, entry := range map[string]string{
 		"self entry padded to 254":           "1=Smart Logger;2=V300R023C10SPC620;3=X0.00-X0.0;4=000000000000;5=1;6=0.0;10=XXXX0XXX;9=0",
-		"inverter entry with keys 8 and 9":   "1=" + h15Model + ";2=X000X000X00XXX000;3=X0.00-X0.0;4=XX0000000000;5=1;6=0.0;8=SUN2000;9=0",
 		"inverter entry of the logger model": "1=SUN2000-50KTL-M3;2=V200R023C00SPC128;3=X0.00-X0.0;4=0X0000000000;5=1;6=0.0;8=SUN2000;9=0",
 	} {
 		for _, padTo := range []int{len(entry), 100, 241, 254} {
@@ -1036,5 +1146,62 @@ func TestH15ObservedCardCarriesNoAuthority(t *testing.T) {
 	}
 	if rejected := card.Evaluate(input); rejected.IdentityMatched() {
 		t.Fatalf("a changed buffer still matched: %#v", rejected)
+	}
+}
+
+func TestH15ChildEntryOpaqueAttributesAreRetained(t *testing.T) {
+	card := NewHuaweiSDongleObservedQualificationCard()
+	input := h15ValidInput(t)
+	if got := card.Evaluate(input).ChildOpaqueAttributes(); len(got) != 0 {
+		t.Fatalf("observed entry retained opaque attributes %v", got)
+	}
+	input = h15ValidInput(t)
+	h15SetEntryBytes(&input, append(append([]byte(nil), input.Child.Inventory.Objects[1].Value...), ";11=extra"...))
+	result := card.Evaluate(input)
+	if !result.IdentityMatched() {
+		t.Fatalf("entry with a further key was not admitted: %v", result.Reason())
+	}
+	got := result.ChildOpaqueAttributes()
+	found := false
+	for _, attribute := range got {
+		if attribute.Key == "11" && attribute.Value == "extra" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("opaque attribute 11=extra not retained: %v", got)
+	}
+}
+
+func TestH15ChildEntryProductTypeIsRetainedAsOpaque(t *testing.T) {
+	card := NewHuaweiSDongleObservedQualificationCard()
+	input := h15ValidInput(t)
+	h15SetEntryBytes(&input, append(append([]byte(nil), input.Child.Inventory.Objects[1].Value...), ";8=SUN2000"...))
+	result := card.Evaluate(input)
+	if !result.IdentityMatched() {
+		t.Fatalf("entry with key 8 was not admitted: %v", result.Reason())
+	}
+	found := false
+	for _, attribute := range result.ChildOpaqueAttributes() {
+		if attribute.Key == "8" && attribute.Value == "SUN2000" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("attribute 8=SUN2000 not retained: %v", result.ChildOpaqueAttributes())
+	}
+}
+
+func TestH15ChildEntryOpaqueAttributesKeepEntryOrderWithProductType(t *testing.T) {
+	card := NewHuaweiSDongleObservedQualificationCard()
+	input := h15ValidInput(t)
+	h15SetEntryBytes(&input, append(append([]byte(nil), input.Child.Inventory.Objects[1].Value...), ";8=SUN2000;11=extra"...))
+	result := card.Evaluate(input)
+	if !result.IdentityMatched() {
+		t.Fatalf("entry was not admitted: %v", result.Reason())
+	}
+	got := result.ChildOpaqueAttributes()
+	if len(got) != 2 || got[0].Key != "8" || got[1].Key != "11" {
+		t.Fatalf("opaque attributes not in entry order: %v", got)
 	}
 }

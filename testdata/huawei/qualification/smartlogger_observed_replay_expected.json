@@ -27,6 +27,18 @@
     "agrees": true,
     "opaque_extra_objects": 9
   },
+  "catalogue_selection": {
+    "outcome": "SELECTED",
+    "reason": "at_or_above_floor",
+    "grade": "PROVEN",
+    "floor": "V300R001C00",
+    "floor_domain": "LINE",
+    "edition_count": 11,
+    "descriptor_keys": [1, 2, 3, 4, 5, 6, 8, 9, 10],
+    "attribute_6_grammars": ["feature-version integer", "parallel-network integer"],
+    "observed_floor": "V300R023C10SPC620",
+    "observed_floor_relation": "AT_OR_ABOVE"
+  },
   "missing_evidence": ["pairwise_negative_overlap_with_emma_fixture"],
   "hardware_test_ready": false,
   "live_qualified": false,

@@ -2,12 +2,13 @@ package modbusreg
 
 import "testing"
 
-func TestEvaluateHuaweiEMMAOfflineIdentityUsesFiniteAliasesAndBranchFloors(t *testing.T) {
+func TestEvaluateHuaweiEMMAOfflineIdentityUsesFamilyRowsAndBranchFloors(t *testing.T) {
 	tests := []struct {
 		name, offering, model, firmware string
 		matched                         bool
 		variant                         string
 		reason                          HuaweiEMMAOfflineReason
+		selection                       HuaweiGatewaySelectionReason
 	}{
 		{
 			name: "A01 R024 below floor", offering: "SmartHEMS", model: "EMMA-A01", firmware: "SmartHEMS V100R024C00SPC099",
@@ -38,12 +39,28 @@ func TestEvaluateHuaweiEMMAOfflineIdentityUsesFiniteAliasesAndBranchFloors(t *te
 			matched: true, variant: "EMMA-A02", reason: HuaweiEMMAOfflineMatched,
 		},
 		{
-			name: "unknown R branch", offering: "SmartHEMS", model: "EMMA-A02", firmware: "SmartHEMS V100R026C00SPC999",
+			name: "undocumented R branch admitted with grade Hypothesis", offering: "SmartHEMS", model: "EMMA-A02", firmware: "SmartHEMS V100R026C00SPC999",
+			matched: true, variant: "EMMA-A02", reason: HuaweiEMMAOfflineMatched, selection: HuaweiGatewayNoDocumentedRelation,
+		},
+		{
+			name: "other EMMA family token is its own variant", offering: "SmartHEMS", model: "EMMA-A02-Pro", firmware: "SmartHEMS V100R025C00SPC131",
+			matched: true, variant: "EMMA-A02-Pro", reason: HuaweiEMMAOfflineMatched, selection: HuaweiGatewayAtOrAboveFloor,
+		},
+		{
+			name: "family token with an empty remainder", offering: "SmartHEMS", model: "EMMA-", firmware: "SmartHEMS V100R025C00SPC131",
+			matched: false, reason: HuaweiEMMAOfflineModelMismatch,
+		},
+		{
+			name: "another family token", offering: "SmartHEMS", model: "EMMB-A02", firmware: "SmartHEMS V100R025C00SPC131",
+			matched: false, reason: HuaweiEMMAOfflineModelMismatch,
+		},
+		{
+			name: "EMMA software text without the family label", offering: "SmartHEMS", model: "EMMA-A02", firmware: "V100R025C00SPC131",
 			matched: false, reason: HuaweiEMMAOfflineFirmwareMismatch,
 		},
 		{
-			name: "near model suffix", offering: "SmartHEMS", model: "EMMA-A02-Pro", firmware: "SmartHEMS V100R025C00SPC131",
-			matched: false, reason: HuaweiEMMAOfflineModelMismatch,
+			name: "EMMA software text without a build number", offering: "SmartHEMS", model: "EMMA-A02", firmware: "SmartHEMS V100R025C00",
+			matched: false, reason: HuaweiEMMAOfflineFirmwareMismatch,
 		},
 		{
 			name: "canonical class alone is not an alias", offering: "SmartHEMS", model: "EMMA", firmware: "SmartHEMS V100R025C00SPC131",
@@ -89,6 +106,14 @@ func TestEvaluateHuaweiEMMAOfflineIdentityUsesFiniteAliasesAndBranchFloors(t *te
 			if decision.CanonicalClass() != HuaweiEMMACanonicalClass || decision.ModelVariant() != test.variant ||
 				decision.ProfileID() != HuaweiEMMAReadOnlyProfileID {
 				t.Fatalf("unexpected accepted decision: %+v", decision)
+			}
+			want := test.selection
+			if want == "" {
+				want = HuaweiGatewayAtOrAboveFloor
+			}
+			if selection := decision.Selection(); !selection.Admitted() || selection.Reason() != want || selection.Grade() != HuaweiGradeHypothesis ||
+				decision.ObservedModel() != (test.variant == "EMMA-A01" || test.variant == "EMMA-A02") {
+				t.Fatalf("selection %+v observed model %t", selection, decision.ObservedModel())
 			}
 		})
 	}

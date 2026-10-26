@@ -2,6 +2,7 @@ package modbusreg
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -137,21 +138,32 @@ func TestH03ObservedInventoryAcceptsEveryToleranceRequirement(t *testing.T) {
 		}
 	})
 
-	t.Run("keys 9 and 10 are known opaque keys and key order is not validated", func(t *testing.T) {
-		for _, text := range []string{
-			"9=0;10=ABCD;1=Smart Logger;2=V300R023C10SPC620;5=0",
-			"5=0;2=V300R023C10SPC620;1=Smart Logger;10=ABCD;9=0;4=0;3=0;6=0",
-			"10=0;9=0;8=SUN2000;6=0;5=0;4=0;3=0;2=V300R023C10SPC620;1=Smart Logger",
+	t.Run("keys outside the named ones are retained opaque and key order is not validated", func(t *testing.T) {
+		for text, opaque := range map[string][]HuaweiGatewayOpaqueAttribute{
+			"9=0;10=ABCD;1=Smart Logger;2=V300R023C10SPC620;5=0":                    {{Key: "9", Value: "0"}, {Key: "10", Value: "ABCD"}},
+			"5=0;2=V300R023C10SPC620;1=Smart Logger;10=ABCD;9=0;4=0;3=0;6=0":        {{Key: "10", Value: "ABCD"}, {Key: "9", Value: "0"}},
+			"10=0;9=0;8=SUN2000;6=0;5=0;4=0;3=0;2=V300R023C10SPC620;1=Smart Logger": {{Key: "10", Value: "0"}, {Key: "9", Value: "0"}},
+			// The observed key set is a lower bound: a key outside it is retained.
+			"1=Smart Logger;5=0;7=0":   {{Key: "7", Value: "0"}},
+			"1=Smart Logger;5=0;11=0":  {{Key: "11", Value: "0"}},
+			"1=Smart Logger;5=0;255=x": {{Key: "255", Value: "x"}},
 		} {
 			input := h03SyntheticInput(2, 1)
 			input.Pages[1].Objects[0].Value = h03SyntheticEntry(text)
-			if _, err := parseHuaweiSmartLoggerObservedInventory(0, input); err != nil {
+			parsed, err := parseHuaweiSmartLoggerObservedInventory(0, input)
+			if err != nil {
 				t.Fatalf("%q: %v", text, err)
+			}
+			if got := parsed.self.OpaqueAttributes(); !reflect.DeepEqual(got, opaque) {
+				t.Fatalf("%q: opaque attributes %v want %v", text, got, opaque)
+			}
+			if value, ok := parsed.self.OpaqueAttribute("4"); ok || value != "" {
+				t.Fatalf("%q: the sensitive key was retained", text)
 			}
 		}
 		for _, text := range []string{
-			"1=Smart Logger;5=0;7=0", "1=Smart Logger;5=0;11=0", "1=Smart Logger;5=0;1=Smart Logger", "1=Smart Logger;5=0;9=0;9=0",
-			"1=Smart Logger;5=0;=0", "1=Smart Logger;5=0;x=0",
+			"1=Smart Logger;5=0;1=Smart Logger", "1=Smart Logger;5=0;9=0;9=0",
+			"1=Smart Logger;5=0;=0", "1=Smart Logger;5=0;x=0", "1=Smart Logger;5=0;07=0", "1=Smart Logger;5=0;256=0", "1=Smart Logger;5=0;0=0",
 		} {
 			input := h03SyntheticInput(2, 1)
 			input.Pages[1].Objects[0].Value = h03SyntheticEntry(text)
