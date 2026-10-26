@@ -385,8 +385,8 @@ func TestM89AdmissionVariesEveryIdentityWord(t *testing.T) {
 					words = tc.words
 				}
 				script = append(script, h06FC03(unit, offset, uint16(len(base[offset])), h06Answer{words: words}))
-				if tc.reason == HuaweiProviderReasonIdentityMismatch {
-					break // a model that contradicts the listing ends the admission
+				if tc.reason == HuaweiProviderReasonIdentityMismatch || tc.name == "model without text" {
+					break // a model that contradicts the listing or is not text ends the admission
 				}
 			}
 			if tc.reason == HuaweiProviderReasonRead {
@@ -536,6 +536,19 @@ func TestM89AGuardChangeMakesTheAdmissionRunAgainAfterAFailedRead(t *testing.T) 
 // fenced, and no identity word is read after the model, so a failing later read
 // cannot keep the earlier identity's facts.
 func TestM89AModelContradictingTheListingWithholdsBeforeAnyIdentityRead(t *testing.T) {
+	m89ReidentifyWithRoutedModel(t, m89Text("SUN2000-99KTL-ZZ"), HuaweiProviderReasonIdentityMismatch)
+}
+
+// TestM89AMalformedRoutedModelWithholdsBeforeAnyIdentityRead is the same
+// re-identification with a routed model block that is not text: the child is
+// withheld as identity_insufficient with its earlier reading fenced, and a
+// later failing identity read is never reached.
+func TestM89AMalformedRoutedModelWithholdsBeforeAnyIdentityRead(t *testing.T) {
+	m89ReidentifyWithRoutedModel(t, make([]uint16, len(m89Text("SUN2000-99KTL-ZZ"))), HuaweiProviderReasonIdentityInsuff)
+}
+
+func m89ReidentifyWithRoutedModel(t *testing.T, routed []uint16, want HuaweiProviderReason) {
+	t.Helper()
 	fixture, _ := h06Load(t, "smartlogger_provider_admission_cycles.json")
 	rig := newH06Rig(t, fixture.Path, h06Units(fixture.AllowedUnits))
 	for _, cycle := range fixture.Cycles[:3] {
@@ -545,7 +558,7 @@ func TestM89AModelContradictingTheListingWithholdsBeforeAnyIdentityRead(t *testi
 	for _, step := range h06IdentificationSteps() {
 		script = append(script, h06Script(t, rig.sources, fixture.Path, h06Cycle{Steps: []h06Step{step}})...)
 	}
-	script = append(script, h06FC03(1, huaweiSUN2000ModelOffset, huaweiSUN2000ModelQuantity, h06Answer{words: m89Text("SUN2000-99KTL-ZZ")}))
+	script = append(script, h06FC03(1, huaweiSUN2000ModelOffset, huaweiSUN2000ModelQuantity, h06Answer{words: routed}))
 	script = append(script, h06Script(t, rig.sources, fixture.Path, h06Cycle{Steps: []h06Step{
 		{Function: "FC03", Unit: 2, Offset: huaweiSUN2000ModelOffset, Quantity: huaweiSUN2000ModelQuantity, Reply: h06Reply{Kind: "source"}},
 	}})...)
@@ -565,7 +578,7 @@ func TestM89AModelContradictingTheListingWithholdsBeforeAnyIdentityRead(t *testi
 	script = append(script, h06AdmissionWords(t, rig.sources, fixture.Path, 4, "m3_series_token_with_identifier_449_stays_ambiguous_between_two_cards")...)
 	cycle := rig.refresh(t, script...)
 	child, _ := cycle.Child(1)
-	if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != HuaweiProviderReasonIdentityMismatch || child.Fenced == nil || len(child.Reading.Facts()) != 0 {
+	if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != want || child.Fenced == nil || len(child.Reading.Facts()) != 0 {
 		t.Fatalf("child 1 after the contradicting model: %s %s fenced %v", child.Evidence, child.Reason, child.Fenced != nil)
 	}
 }
