@@ -277,6 +277,12 @@ func (card HuaweiSDongleObservedQualificationCard) Evaluate(input HuaweiSDongleO
 	if entry.model != model {
 		return rejected
 	}
+	childOpaque := entry.OpaqueAttributes()
+	if productType := entry.Attribute("product_type"); productType != "" {
+		// Key 8 is held as the product type by the shared entry decoder; the
+		// S-Dongle card does not compare it, so it is retained as native evidence.
+		childOpaque = append(childOpaque, HuaweiGatewayOpaqueAttribute{Key: "8", Value: productType})
+	}
 	return HuaweiQualificationResult{
 		candidateClass:     card.CandidateClass(),
 		selectedClass:      card.CandidateClass(),
@@ -291,7 +297,7 @@ func (card HuaweiSDongleObservedQualificationCard) Evaluate(input HuaweiSDongleO
 		selection:          &selection,
 		protocolWords:      slices.Clone(input.Gateway.Protocol),
 		typeWord:           &typeWord,
-		childOpaque:        entry.OpaqueAttributes(),
+		childOpaque:        childOpaque,
 	}
 }
 

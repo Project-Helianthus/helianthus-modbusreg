@@ -1172,3 +1172,22 @@ func TestH15ChildEntryOpaqueAttributesAreRetained(t *testing.T) {
 		t.Fatalf("opaque attribute 11=extra not retained: %v", got)
 	}
 }
+
+func TestH15ChildEntryProductTypeIsRetainedAsOpaque(t *testing.T) {
+	card := NewHuaweiSDongleObservedQualificationCard()
+	input := h15ValidInput(t)
+	h15SetEntryBytes(&input, append(append([]byte(nil), input.Child.Inventory.Objects[1].Value...), ";8=SUN2000"...))
+	result := card.Evaluate(input)
+	if !result.IdentityMatched() {
+		t.Fatalf("entry with key 8 was not admitted: %v", result.Reason())
+	}
+	found := false
+	for _, attribute := range result.ChildOpaqueAttributes() {
+		if attribute.Key == "8" && attribute.Value == "SUN2000" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("attribute 8=SUN2000 not retained: %v", result.ChildOpaqueAttributes())
+	}
+}

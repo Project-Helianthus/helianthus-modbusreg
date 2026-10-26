@@ -1,5 +1,7 @@
 package modbusreg
 
+import "strings"
+
 // HuaweiSDongleOfflineReason explains a transport-free gateway-observation
 // result. A matched observation remains default denied.
 type HuaweiSDongleOfflineReason string
@@ -94,6 +96,7 @@ func EvaluateHuaweiSDongleOfflineObservation(observation HuaweiSDongleOfflineObs
 	selection := DecideHuaweiGatewaySelection(HuaweiGatewaySelectionInput{
 		Family:   HuaweiSDongleCanonicalClass,
 		Scope:    HuaweiGatewayScope{Endpoint: HuaweiGatewayEndpointSelf, Unit: observation.UnitID},
+		Model:    huaweiSDongleCatalogueModel(model),
 		Software: trimHuaweiTerminalPadding(observation.Firmware),
 	})
 	if !selection.Admitted() || selection.Build() == "" {
@@ -120,6 +123,12 @@ func EvaluateHuaweiSDongleOfflineObservation(observation HuaweiSDongleOfflineObs
 		reason:    HuaweiSDongleOfflineMatched,
 		selection: selection,
 	}
+}
+
+// huaweiSDongleCatalogueModel is the spelling of a wire model in the catalogue
+// model rows, which write the family name without the hyphen after the S.
+func huaweiSDongleCatalogueModel(model string) string {
+	return strings.Replace(model, "S-Dongle", "SDongle", 1)
 }
 
 func isHuaweiSDongleModel(model string) bool {

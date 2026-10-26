@@ -1,6 +1,45 @@
 package modbusreg
 
-import "testing"
+import (
+	"reflect"
+	"strings"
+	"testing"
+)
+
+func TestEvaluateHuaweiSDongleOfflineObservationSelectsUnderTheObservedModel(t *testing.T) {
+	for _, model := range []string{"S-DongleA-05", "S-DongleB-03", "S-DongleB-06"} {
+		decision := EvaluateHuaweiSDongleOfflineObservation(HuaweiSDongleOfflineObservation{
+			UnitID: 100, Model: model, Firmware: "V200R025C00SPC121", ProtocolMajor: 5,
+			ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
+		})
+		if !decision.Matched() {
+			t.Fatalf("%s: not matched: %v", model, decision.Reason())
+		}
+		selection := decision.Selection()
+		if selection.Model() != strings.Replace(model, "S-Dongle", "SDongle", 1) {
+			t.Fatalf("%s: selection recorded model %q", model, selection.Model())
+		}
+		floor, ok := selection.Floor()
+		if !ok {
+			t.Fatalf("%s: no floor recorded", model)
+		}
+		want := DecideHuaweiGatewaySelection(HuaweiGatewaySelectionInput{
+			Family: HuaweiSDongleCanonicalClass, Scope: HuaweiGatewayScope{Endpoint: HuaweiGatewayEndpointSelf, Unit: 100},
+			Model: selection.Model(), Software: "V200R025C00SPC121",
+		})
+		wantFloor, _ := want.Floor()
+		if model == "S-DongleB-03" {
+			for _, id := range floor.EditionIDs() {
+				if id == "s-dongle-v200r022cc10-02-2023-04-20" {
+					t.Fatalf("%s: inherited the edition that excludes it: %v", model, floor.EditionIDs())
+				}
+			}
+		}
+		if !reflect.DeepEqual(floor.EditionIDs(), wantFloor.EditionIDs()) {
+			t.Fatalf("%s: editions %v, want %v", model, floor.EditionIDs(), wantFloor.EditionIDs())
+		}
+	}
+}
 
 func TestEvaluateHuaweiSDongleOfflineObservationRecognizesFloorAdmittedDefaultDeniedTuples(t *testing.T) {
 	tests := []struct {
