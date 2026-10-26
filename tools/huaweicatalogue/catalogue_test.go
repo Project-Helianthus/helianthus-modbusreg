@@ -375,3 +375,29 @@ func itoa(value int) string {
 	encoded, _ := json.Marshal(value)
 	return string(encoded)
 }
+
+func TestNoEnumerationCodeIsATruncatedSentinel(t *testing.T) {
+	c, _ := loadCommitted(t)
+	sentinels := map[string][]string{}
+	key := func(d dictionary) string { return d.Card + "/" + itoa(d.Offsets[0]) }
+	for _, d := range c.Dictionaries.Dictionaries {
+		if d.Kind == kindSentinels && len(d.Offsets) > 0 {
+			for _, v := range d.Values {
+				sentinels[key(d)] = append(sentinels[key(d)], strings.ToLower(v.Code))
+			}
+		}
+	}
+	for _, d := range c.Dictionaries.Dictionaries {
+		if d.Kind != kindValueEnum || len(d.Offsets) == 0 {
+			continue
+		}
+		for _, v := range d.Values {
+			code := strings.ToLower(v.Code)
+			for _, s := range sentinels[key(d)] {
+				if strings.HasPrefix(code, "0x") && len(code) < len(s) && strings.HasPrefix(s, code) {
+					t.Errorf("%s: code %s truncates sentinel %s", d.ID, v.Code, s)
+				}
+			}
+		}
+	}
+}

@@ -634,11 +634,29 @@ func insideDirectory(root, path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	absolute = resolveExisting(absolute)
+	root = resolveExisting(root)
 	relative, err := filepath.Rel(root, absolute)
 	if err != nil {
 		return false, nil
 	}
 	return relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))), nil
+}
+
+// resolveExisting resolves symbolic links in the longest existing prefix of
+// path and re-appends the rest, so a link into the checkout is seen as inside.
+func resolveExisting(path string) string {
+	rest := ""
+	for current := path; ; current = filepath.Dir(current) {
+		if resolved, err := filepath.EvalSymlinks(current); err == nil {
+			return filepath.Join(resolved, rest)
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return path
+		}
+		rest = filepath.Join(filepath.Base(current), rest)
+	}
 }
 
 func countLine(c counts) string {

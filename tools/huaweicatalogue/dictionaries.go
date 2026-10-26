@@ -69,6 +69,10 @@ func meaningDictionaries(row parsedRow) ([]dictionary, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", row.Row.Key, err)
 		}
+		values, err = withoutTruncatedSentinels(values, row.Meaning["sentinels"])
+		if err != nil {
+			return nil, fmt.Errorf("%s sentinels: %w", row.Row.Key, err)
+		}
 		if len(values) > 0 {
 			item := base
 			item.Kind, item.Values = kindValueEnum, values
@@ -126,6 +130,36 @@ func meaningDictionaries(row parsedRow) ([]dictionary, error) {
 		}
 	}
 	return out, nil
+}
+
+// withoutTruncatedSentinels drops enumeration codes that are a proper
+// hexadecimal prefix of a sentinel code of the same row: the extraction cut
+// the literal, so publishing it would give the full sentinel a second meaning.
+func withoutTruncatedSentinels(values []dictValue, raw json.RawMessage) ([]dictValue, error) {
+	if len(raw) == 0 {
+		return values, nil
+	}
+	var sentinels []struct {
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(raw, &sentinels); err != nil {
+		return nil, err
+	}
+	kept := values[:0:0]
+	for _, value := range values {
+		truncated := false
+		code := strings.ToLower(value.Code)
+		for _, sentinel := range sentinels {
+			full := strings.ToLower(sentinel.Value)
+			if strings.HasPrefix(code, "0x") && len(code) < len(full) && strings.HasPrefix(full, code) {
+				truncated = true
+			}
+		}
+		if !truncated {
+			kept = append(kept, value)
+		}
+	}
+	return kept, nil
 }
 
 // enumValues reads an enumeration given either as a code-to-meaning object or

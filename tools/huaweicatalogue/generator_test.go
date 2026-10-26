@@ -496,3 +496,27 @@ func TestExpectOverrideAndSidecarPlacement(t *testing.T) {
 		}
 	}
 }
+
+func TestInsideDirectoryResolvesSymlinks(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	link := filepath.Join(outside, "link")
+	if err := os.Symlink(root, link); err != nil {
+		t.Skip("symlinks unavailable")
+	}
+	if got, err := insideDirectory(root, filepath.Join(link, "sidecar")); err != nil || !got {
+		t.Fatalf("a link into the checkout was treated as outside: %t,%v", got, err)
+	}
+}
+
+func TestTruncatedSentinelCodesAreDropped(t *testing.T) {
+	values := []dictValue{{Code: "0XF2A5", Meaning: "a"}, {Code: "0XFFFF", Meaning: "b"}, {Code: "0xffff", Meaning: "c"}, {Code: "3", Meaning: "d"}}
+	raw := json.RawMessage(`[{"value":"0xF2A52380"},{"value":"0xFFFF"}]`)
+	got, err := withoutTruncatedSentinels(values, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || got[0].Code != "0XFFFF" || got[1].Code != "0xffff" || got[2].Code != "3" {
+		t.Fatalf("unexpected codes %v", got)
+	}
+}
