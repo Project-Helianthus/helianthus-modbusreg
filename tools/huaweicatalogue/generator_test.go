@@ -454,6 +454,23 @@ func TestCanonicalEncodingIsStableAndStrict(t *testing.T) {
 	}
 }
 
+func TestSidecarRefusedInsideRepositoryWithExternalOut(t *testing.T) {
+	repository := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repository, "go.mod"), []byte("module example\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	if err := checkSidecar(out, filepath.Join(repository, "private-sidecar")); err == nil {
+		t.Fatal("a sidecar inside a repository was accepted with an external -out")
+	}
+	if err := checkSidecar(out, filepath.Join(out, "sidecar")); err == nil {
+		t.Fatal("a sidecar inside -out was accepted")
+	}
+	if err := checkSidecar(out, filepath.Join(t.TempDir(), "sidecar")); err != nil {
+		t.Fatalf("an outside sidecar was refused: %v", err)
+	}
+}
+
 func TestExpectOverrideAndSidecarPlacement(t *testing.T) {
 	if got, err := parseExpect(""); err != nil || got != defaultExpect {
 		t.Fatalf("default expect %v %v", got, err)

@@ -27,6 +27,32 @@ func writeLine(w io.Writer, text string) {
 	_, _ = fmt.Fprintln(w, text)
 }
 
+// checkSidecar refuses a sidecar directory inside the catalogue directory or
+// inside any module checkout: the module root above the catalogue directory,
+// above the working directory and above the sidecar itself.
+func checkSidecar(out, sidecar string) error {
+	guarded := []string{out}
+	for _, start := range []string{out, ".", sidecar} {
+		if root, err := moduleRoot(start); err == nil {
+			guarded = append(guarded, root)
+		}
+	}
+	for _, root := range guarded {
+		absolute, err := filepath.Abs(root)
+		if err != nil {
+			return err
+		}
+		inside, err := insideDirectory(absolute, sidecar)
+		if err != nil {
+			return err
+		}
+		if inside {
+			return fmt.Errorf("the sidecar directory must lie outside the repository and the catalogue directory")
+		}
+	}
+	return nil
+}
+
 func run(arguments []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet("huaweicatalogue", flag.ContinueOnError)
 	reference := flags.String("reference", "", "root of the consulted inverter reference (required)")
@@ -75,22 +101,8 @@ func run(arguments []string, stdout io.Writer) error {
 		return nil
 	}
 	if *sidecar != "" {
-		guarded := []string{*out}
-		if root, err := moduleRoot(*out); err == nil {
-			guarded = append(guarded, root)
-		}
-		for _, root := range guarded {
-			absolute, err := filepath.Abs(root)
-			if err != nil {
-				return err
-			}
-			inside, err := insideDirectory(absolute, *sidecar)
-			if err != nil {
-				return err
-			}
-			if inside {
-				return fmt.Errorf("the sidecar directory must lie outside the repository and the catalogue directory")
-			}
+		if err := checkSidecar(*out, *sidecar); err != nil {
+			return err
 		}
 	}
 	if err := os.MkdirAll(*out, 0o755); err != nil {
