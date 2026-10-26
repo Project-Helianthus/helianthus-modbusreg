@@ -466,3 +466,22 @@ func TestCommittedDictionariesCarryRulesStatedInFullReviewConditions(t *testing.
 		}
 	}
 }
+
+func TestReadExtentSafeQuantitiesEndOnFieldBoundaries(t *testing.T) {
+	c, _ := loadCommitted(t)
+	doc := c.Registers[registersFileName("LB-C00")]
+	if err := checkReadExtents(doc.ReadExtents, doc.Rows); err != nil {
+		t.Fatalf("committed extents: %v", err)
+	}
+	extents := append([]readExtent(nil), doc.ReadExtents...)
+	for index, extent := range extents {
+		if extent.Start != 32064 {
+			continue
+		}
+		extent.SafeQuantities = append([]int{1}, extent.SafeQuantities...)
+		extents[index] = extent
+	}
+	if err := checkReadExtents(extents, doc.Rows); err == nil || !strings.Contains(err.Error(), "inside a field") {
+		t.Fatalf("a safe quantity splitting a two-word value must be refused, got %v", err)
+	}
+}

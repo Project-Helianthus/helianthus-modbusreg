@@ -259,9 +259,11 @@ func checkRowSet(rows []registerRow, control bool, doc *registersDoc) error {
 
 func checkReadExtents(extents []readExtent, rows []registerRow) error {
 	offsets := map[int]bool{}
+	ends := map[int]bool{}
 	for _, row := range rows {
 		if row.Offset != nil && row.Endpoint == endpointInverter {
 			offsets[*row.Offset] = true
+			ends[*row.Offset+row.Quantity-1] = true
 		}
 	}
 	previous := -1
@@ -284,6 +286,9 @@ func checkReadExtents(extents []readExtent, rows []registerRow) error {
 		for index, quantity := range extent.SafeQuantities {
 			if quantity < 1 || quantity > extent.Quantity || (index > 0 && quantity <= extent.SafeQuantities[index-1]) {
 				return fmt.Errorf("read extent at %d has an invalid safe quantity %d", extent.Start, quantity)
+			}
+			if !ends[extent.Start+quantity-1] {
+				return fmt.Errorf("read extent at %d has safe quantity %d, which ends inside a field", extent.Start, quantity)
 			}
 		}
 		previous = extent.Start
