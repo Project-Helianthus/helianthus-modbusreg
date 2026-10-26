@@ -113,6 +113,9 @@ func loadCatalogue(directory string) (*catalogue, map[string][]byte, error) {
 	c := &catalogue{Registers: map[string]*registersDoc{}}
 	for _, entry := range entries {
 		name := entry.Name()
+		if entry.IsDir() && name == gatewayDirectory {
+			continue
+		}
 		if entry.IsDir() {
 			return nil, nil, fmt.Errorf("unexpected directory %s", name)
 		}
@@ -169,6 +172,13 @@ func hasFlag(flags []string, id string) bool {
 // literal cells and no decode fields. Control rows are readable configuration
 // or no-send, always with literal cells only.
 func checkRegisterRow(row registerRow, control bool) error {
+	return checkRegisterRowIn(row, control, validEndpoints)
+}
+
+// checkRegisterRowIn is checkRegisterRow against a given endpoint set: the
+// inverter endpoints for the inverter catalogue, the gateway endpoints for the
+// gateway catalogue.
+func checkRegisterRowIn(row registerRow, control bool, endpoints map[string]bool) error {
 	switch {
 	case !control && !readOnlyClasses[row.Class], control && !controlClasses[row.Class]:
 		return fmt.Errorf("class %q is not allowed here", row.Class)
@@ -180,7 +190,7 @@ func checkRegisterRow(row registerRow, control bool) error {
 		return fmt.Errorf("decode fields are incomplete")
 	case row.Literal != nil && (row.Literal.Gain == "" || row.Literal.Unit == ""):
 		return fmt.Errorf("literal cells are incomplete")
-	case !validEndpoints[row.Endpoint]:
+	case !endpoints[row.Endpoint]:
 		return fmt.Errorf("unknown endpoint %q", row.Endpoint)
 	case row.Key == "" || row.Type == "":
 		return fmt.Errorf("key or type is empty")
@@ -217,6 +227,10 @@ func rowIdentity(row registerRow) string {
 }
 
 func checkRowSet(rows []registerRow, control bool, doc *registersDoc) error {
+	return checkRowSetIn(rows, control, doc, validEndpoints)
+}
+
+func checkRowSetIn(rows []registerRow, control bool, doc *registersDoc, endpoints map[string]bool) error {
 	gates := map[string]bool{}
 	for _, item := range doc.Gates {
 		gates[item.ID] = true
@@ -227,7 +241,7 @@ func checkRowSet(rows []registerRow, control bool, doc *registersDoc) error {
 	}
 	occurrences := map[string][]int{}
 	for index, row := range rows {
-		if err := checkRegisterRow(row, control); err != nil {
+		if err := checkRegisterRowIn(row, control, endpoints); err != nil {
 			return fmt.Errorf("row %d (%s): %w", index, rowIdentity(row), err)
 		}
 		for _, name := range row.Gates {
@@ -348,6 +362,10 @@ func validateCatalogue(c *catalogue) error {
 		if record.Title == "" || record.Issue == "" || record.Date == "" || !validSourceClass[record.SourceClass] || record.ModelRows < 0 {
 			return fmt.Errorf("edition %s is incomplete", record.ID)
 		}
+		if len(record.Models) > 0 || record.ModelListExhaustive != nil || len(record.Floors) > 0 || len(record.FloorPages) > 0 ||
+			record.SelfUnit != nil || len(record.Namespaces) > 0 || record.RegisterRows != 0 {
+			return fmt.Errorf("edition %s carries gateway fields", record.ID)
+		}
 		editions[record.ID] = record
 		if record.Card != "" {
 			if _, exists := cardEdition[record.Card]; exists {
@@ -378,8 +396,8 @@ func validateCatalogue(c *catalogue) error {
 		}
 		gateIDs := map[string]bool{}
 		for _, item := range doc.Gates {
-			if gateIDs[item.ID] {
-				return fmt.Errorf("%s: gate %s repeated", name, item.ID)
+			if gateIDs[item.ID] || item.Kind != "" || item.Operator != "" || item.Value != "" {
+				return fmt.Errorf("%s: gate %s repeated or carrying gateway fields", name, item.ID)
 			}
 			gateIDs[item.ID] = true
 		}
@@ -484,8 +502,14 @@ func validateCatalogue(c *catalogue) error {
 			}
 			codes[value.Code] = true
 		}
+		if len(item.Narratives) > 0 {
+			return fmt.Errorf("dictionary %s carries gateway narratives", item.ID)
+		}
 		bits := map[string]bool{}
 		for _, bit := range item.Bits {
+			if bit.Cause != nil || bit.Condition != "" || len(bit.Quarantine) > 0 {
+				return fmt.Errorf("dictionary %s carries gateway alarm fields", item.ID)
+			}
 			key := bit.Word + "/" + strconv.Itoa(bit.Bit)
 			if bit.Offset != nil {
 				key = strconv.Itoa(*bit.Offset) + "/" + strconv.Itoa(bit.Bit)

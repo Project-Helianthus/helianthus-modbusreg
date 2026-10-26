@@ -196,6 +196,7 @@ func namesLocation(text string) bool {
 var proseFields = map[string]bool{
 	"attribution": true, "selection_note": true, "meaning": true, "rule": true, "condition": true,
 	"subject": true, "evidence": true, "mode_predicate": true, "unlisted": true,
+	"boundary": true, "differences": true, "description": true, "impact": true,
 }
 
 // publicationProblem reports why a committed string may not be published.
@@ -207,6 +208,8 @@ func publicationProblem(text string, isProse bool) string {
 		return "carries a digest-like hexadecimal run"
 	case namesLocation(text):
 		return "names a location, a file or a forbidden word"
+	case len(wordSpans(strings.ToLower(text), bannedTerms, true)) > 0:
+		return "carries a term the repository terminology gate refuses"
 	case isProse && dropSentencePattern.MatchString(text):
 		return "carries operational-review or authorization wording"
 	case ageNearRelease(text):

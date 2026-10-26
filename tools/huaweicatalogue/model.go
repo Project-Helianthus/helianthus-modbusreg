@@ -66,6 +66,14 @@ type edition struct {
 	Alias       string `json:"alias,omitempty"`
 	Card        string `json:"card,omitempty"`
 	ModelRows   int    `json:"model_rows"`
+	// The fields below are written for the gateway editions only.
+	Models              []string        `json:"models,omitempty"`
+	ModelListExhaustive *bool           `json:"model_list_exhaustive,omitempty"`
+	Floors              []softwareFloor `json:"floors,omitempty"`
+	FloorPages          []int           `json:"floor_pages,omitempty"`
+	SelfUnit            *int            `json:"self_unit,omitempty"`
+	Namespaces          []namespaceRef  `json:"namespaces,omitempty"`
+	RegisterRows        int             `json:"register_rows,omitempty"`
 }
 
 type modelsDoc struct {
@@ -148,9 +156,12 @@ type additiveRow struct {
 }
 
 type gate struct {
-	ID      string `json:"id"`
-	Meaning string `json:"meaning"`
-	Pages   []int  `json:"pages,omitempty"`
+	ID       string `json:"id"`
+	Meaning  string `json:"meaning"`
+	Pages    []int  `json:"pages,omitempty"`
+	Kind     string `json:"kind,omitempty"`
+	Operator string `json:"operator,omitempty"`
+	Value    string `json:"value,omitempty"`
 }
 
 type functionalClass struct {
@@ -206,6 +217,7 @@ type dictionary struct {
 	Values        []dictValue `json:"values,omitempty"`
 	Modules       []dictValue `json:"modules,omitempty"`
 	Bits          []alarmBit  `json:"bits,omitempty"`
+	Narratives    []alarmNote `json:"narratives,omitempty"`
 	Unlisted      string      `json:"unlisted"`
 }
 
@@ -219,10 +231,14 @@ type alarmBit struct {
 	Word     string `json:"word,omitempty"`
 	Bit      int    `json:"bit"`
 	AlarmID  int    `json:"alarm_id"`
+	Cause    *int   `json:"cause_id,omitempty"`
 	Label    string `json:"label"`
 	Severity string `json:"severity"`
 	Module   string `json:"module"`
 	Page     int    `json:"page"`
+	// Condition and Quarantine are written for the gateway alarm tuples only.
+	Condition  string   `json:"condition,omitempty"`
+	Quarantine []string `json:"quarantine,omitempty"`
 }
 
 type quarantinesDoc struct {
