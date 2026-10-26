@@ -10,9 +10,12 @@ import (
 )
 
 var (
-	valueEnumPattern  = regexp.MustCompile(`^((?:\d+=[^;=.]+;\s*)+\d+=[^;=.]+)\.`)
-	selectorPattern   = regexp.MustCompile(`selector\s*((?:\d+=[^,=.]+,\s*)+\d+=[^,=.]+)\.`)
-	modeStatusPattern = regexp.MustCompile(`\[M10\]\(appendices/sources\.md#m10\) pp\. (\d+)–(\d+) spans one status enumeration across three physical pages\. For example, (0x[0-9A-F]{4}) denotes an operating state whose interpretation depends on (off-grid context); (0x[0-9A-F]{4}) and (0x[0-9A-F]{4}) likewise carry mode-dependent limitations\.`)
+	valueEnumPattern    = regexp.MustCompile(`^((?:\d+=[^;=.]+;\s*)+\d+=[^;=.]+)\.`)
+	selectorPattern     = regexp.MustCompile(`selector\s*((?:\d+=[^,=.]+,\s*)+\d+=[^,=.]+)\.`)
+	signRulePattern     = regexp.MustCompile(`(?i)^positive (?:is|means) ([^;.]+?); negative (?:is|means) ([^;.]+?)(?: (?:in|for) this exact [a-z ]+)?\.`)
+	sentinelRulePattern = regexp.MustCompile(`(?:^|[\s,])((?:0x[0-9A-Fa-f]+|0)(?:\s*or\s*(?:0x[0-9A-Fa-f]+|0))*)\s+(?:marks|means|is)\s+([^;.]+)`)
+	sentinelCodePattern = regexp.MustCompile(`0x[0-9A-Fa-f]+|\b0\b`)
+	modeStatusPattern   = regexp.MustCompile(`\[M10\]\(appendices/sources\.md#m10\) pp\. (\d+)–(\d+) spans one status enumeration across three physical pages\. For example, (0x[0-9A-F]{4}) denotes an operating state whose interpretation depends on (off-grid context); (0x[0-9A-F]{4}) and (0x[0-9A-F]{4}) likewise carry mode-dependent limitations\.`)
 )
 
 const (
@@ -130,6 +133,49 @@ func meaningDictionaries(row parsedRow) ([]dictionary, error) {
 		}
 	}
 	return out, nil
+}
+
+// ruleDictionaries derives the sign convention and the sentinel values that a
+// full-review row states only in its condition text: such rows carry no
+// structured meaning, so their rules would otherwise be lost. Raw-only and
+// conflict rows never decode and get no dictionary.
+func ruleDictionaries(row parsedRow) []dictionary {
+	if row.Row.Offset == nil || len(row.Meaning) > 0 || row.Row.Condition == "" || row.Row.Class == classRawOnly || row.Row.Class == classConflict {
+		return nil
+	}
+	text := cleanText(row.Row.Condition)
+	base := dictionary{Endpoint: row.Row.Endpoint, Offsets: []int{*row.Row.Offset}, Pages: []int{row.Row.Page}, ModePredicate: modeNoneStated, Unlisted: unlistedRaw}
+	var out []dictionary
+	if match := signRulePattern.FindStringSubmatch(text); match != nil {
+		item := base
+		item.Kind = kindSign
+		item.Values = []dictValue{{Code: "positive", Meaning: match[1]}, {Code: "negative", Meaning: match[2]}}
+		out = append(out, item)
+	}
+	var values []dictValue
+	seen := map[string]bool{}
+	for _, clause := range strings.Split(text, ";") {
+		match := sentinelRulePattern.FindStringSubmatchIndex(clause)
+		if match == nil {
+			continue
+		}
+		meaning := strings.TrimSpace(clause[match[4]:match[5]])
+		if qualifier := strings.Trim(strings.TrimSpace(clause[:match[2]]), ", "); qualifier != "" {
+			meaning = qualifier + ": " + meaning
+		}
+		for _, code := range sentinelCodePattern.FindAllString(clause[match[2]:match[3]], -1) {
+			if !seen[code] {
+				seen[code] = true
+				values = append(values, dictValue{Code: code, Meaning: meaning})
+			}
+		}
+	}
+	if len(values) > 0 {
+		item := base
+		item.Kind, item.Values = kindSentinels, values
+		out = append(out, item)
+	}
+	return out
 }
 
 // withoutTruncatedSentinels drops enumeration codes that are a proper
@@ -251,6 +297,7 @@ func cardDictionaries(card *cardInfo, editionID string, rows *cardRows) ([]dicti
 			return nil, err
 		}
 		out = append(out, items...)
+		out = append(out, ruleDictionaries(row)...)
 		if item := conditionDictionary(row); item != nil {
 			out = append(out, *item)
 		}

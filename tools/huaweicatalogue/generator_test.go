@@ -520,3 +520,26 @@ func TestTruncatedSentinelCodesAreDropped(t *testing.T) {
 		t.Fatalf("unexpected codes %v", got)
 	}
 }
+
+func TestRuleDictionariesReadConditionTextOfFullReviewRowsOnly(t *testing.T) {
+	offset := 35139
+	row := parsedRow{Row: registerRow{Endpoint: endpointInverter, Offset: &offset, Page: 64, Class: classConditional,
+		Condition: "0xF2A52380 is the source permanent-license marker;0 or0xFFFFFFFF means no license. Do not convert these markers."}}
+	items := ruleDictionaries(row)
+	if len(items) != 1 || items[0].Kind != kindSentinels || len(items[0].Values) != 3 || items[0].Values[2].Code != "0xFFFFFFFF" || items[0].Values[1].Meaning != "no license" {
+		t.Fatalf("sentinels %+v", items)
+	}
+	row.Row.Condition = "Positive is grid export; negative is grid import for this exact meter row."
+	if items := ruleDictionaries(row); len(items) != 1 || items[0].Kind != kindSign || items[0].Values[1].Meaning != "grid import" {
+		t.Fatalf("sign %+v", items)
+	}
+	row.Row.Class = classRawOnly
+	if items := ruleDictionaries(row); len(items) != 0 {
+		t.Fatalf("a raw-only row got %+v", items)
+	}
+	row.Row.Class = classConditional
+	row.Meaning = map[string]json.RawMessage{"sign": json.RawMessage(`{}`)}
+	if items := ruleDictionaries(row); len(items) != 0 {
+		t.Fatalf("a row with structured meaning got %+v", items)
+	}
+}

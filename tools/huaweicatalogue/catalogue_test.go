@@ -401,3 +401,68 @@ func TestNoEnumerationCodeIsATruncatedSentinel(t *testing.T) {
 		}
 	}
 }
+
+// A full-review row states its sign convention and sentinel values only in its
+// condition text; the dictionaries must carry them.
+func TestCommittedDictionariesCarryRulesStatedInFullReviewConditions(t *testing.T) {
+	c, _ := loadCommitted(t)
+	type key struct {
+		card, kind string
+		offset     int
+	}
+	committed := map[key]dictionary{}
+	for _, item := range c.Dictionaries.Dictionaries {
+		if len(item.Offsets) == 1 {
+			committed[key{item.Card, item.Kind, item.Offsets[0]}] = item
+		}
+	}
+	want := []struct {
+		card, kind string
+		offset     int
+		values     map[string]bool
+	}{
+		{"MC", kindSign, 37113, nil},
+		{"MC", kindSign, 37132, nil},
+		{"MC", kindSign, 37134, nil},
+		{"MC", kindSign, 37136, nil},
+		{"MA-V200", kindSign, 37001, nil},
+		{"MA-V200", kindSign, 37743, nil},
+		{"MC", kindSentinels, 35102, map[string]bool{"0xFFFFFFFF": true}},
+		{"MC", kindSentinels, 35139, map[string]bool{"0xF2A52380": true, "0": true, "0xFFFFFFFF": true}},
+		{"MC", kindSentinels, 35143, map[string]bool{"0xFFFFFFFF": true}},
+		{"MC", kindSentinels, 35222, map[string]bool{"0xF2A52380": true, "0": true, "0xFFFFFFFF": true}},
+		{"MC", kindSentinels, 37209, map[string]bool{"0xFFFF": true}},
+	}
+	for _, w := range want {
+		item, ok := committed[key{w.card, w.kind, w.offset}]
+		if !ok {
+			t.Errorf("%s has no %s dictionary at %d", w.card, w.kind, w.offset)
+			continue
+		}
+		got := map[string]bool{}
+		for _, value := range item.Values {
+			got[value.Code] = true
+		}
+		if w.kind == kindSign {
+			w.values = map[string]bool{"positive": true, "negative": true}
+		}
+		if !reflect.DeepEqual(got, w.values) {
+			t.Errorf("%s %s %d codes %v, want %v", w.card, w.kind, w.offset, got, w.values)
+		}
+	}
+	// Every committed condition of a card without structured meanings that the
+	// rule readers understand must have its dictionary.
+	for _, doc := range c.Registers {
+		if doc.Card != "MC" && doc.Card != "MA-V200" {
+			continue
+		}
+		for _, row := range doc.Rows {
+			parsed := parsedRow{Row: row}
+			for _, item := range ruleDictionaries(parsed) {
+				if _, ok := committed[key{doc.Card, item.Kind, item.Offsets[0]}]; !ok {
+					t.Errorf("%s %s: %s rule has no dictionary", doc.Card, row.Key, item.Kind)
+				}
+			}
+		}
+	}
+}
