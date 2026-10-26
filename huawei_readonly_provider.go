@@ -15,9 +15,11 @@ import (
 // provider exists per gateway path whose disposition admits one: the observed
 // SmartLogger path and the observed S-Dongle path. A provider drives a supplied
 // read-only session through the gateway identity card, child routing, the
-// SUN2000 capability selection and the monitoring cycle of the docs-modbus
-// read pacing and acquisition contract. It opens nothing: the caller supplies
-// the session, the clock and the wait, and owns the cadence.
+// child's admission (its identity words read at the routed unit and the SUN2000
+// capability selection over the catalogue decision) and the monitoring cycle
+// of the docs-modbus read pacing and acquisition contract. It opens nothing:
+// the caller supplies the session, the clock and the wait, and owns the
+// cadence.
 
 // HuaweiProviderPath names a Huawei gateway path.
 type HuaweiProviderPath string
@@ -329,6 +331,14 @@ const (
 	HuaweiProviderReasonChildException     HuaweiProviderReason = "child_exception"
 	HuaweiProviderReasonChildBackoff       HuaweiProviderReason = "child_backoff"
 	HuaweiProviderReasonListingUnconfirmed HuaweiProviderReason = "listing_unconfirmed"
+
+	// HuaweiProviderReasonCatalogueNotSelected: the catalogue decision over
+	// the child's identity words selected no row; the observation carries the
+	// decision and its closed reason.
+	HuaweiProviderReasonCatalogueNotSelected HuaweiProviderReason = "catalogue_not_selected"
+	// HuaweiProviderReasonCatalogueAmbiguous: the catalogue decision could not
+	// tell two or more rows apart; the observation names every candidate.
+	HuaweiProviderReasonCatalogueAmbiguous HuaweiProviderReason = "catalogue_ambiguous"
 )
 
 // HuaweiProviderEvidenceState is the evidence state of a child in one cycle.
@@ -419,6 +429,11 @@ type HuaweiProviderChildObservation struct {
 	Evidence             HuaweiProviderEvidenceState
 	Reason               HuaweiProviderReason
 	IdentifiedGeneration uint64
+	// Catalogue is the catalogue decision of the child's last completed
+	// admission: the selected row with its card, edition, page, floor and
+	// grade for an admitted child, and the closed reason or every candidate
+	// for a child it withholds. It is nil when no admission completed.
+	Catalogue *HuaweiSUN2000CatalogueDecision
 	// Reading is the typed monitoring state. It is empty for a withheld child.
 	Reading HuaweiSUN2000MonitoringReading
 	Groups  []HuaweiProviderGroupEvidence
@@ -428,7 +443,18 @@ type HuaweiProviderChildObservation struct {
 func (c HuaweiProviderChildObservation) clone() HuaweiProviderChildObservation {
 	c.Groups = append([]HuaweiProviderGroupEvidence(nil), c.Groups...)
 	c.Fenced = c.Fenced.clone()
+	c.Catalogue = huaweiCloneCatalogueDecision(c.Catalogue)
 	return c
+}
+
+// huaweiCloneCatalogueDecision copies a decision. A decision is never changed
+// after it is taken and its accessors return copies, so the copy is shallow.
+func huaweiCloneCatalogueDecision(decision *HuaweiSUN2000CatalogueDecision) *HuaweiSUN2000CatalogueDecision {
+	if decision == nil {
+		return nil
+	}
+	copied := *decision
+	return &copied
 }
 
 // HuaweiProviderExchangeOutcome is the outcome of one wire attempt.
@@ -601,6 +627,9 @@ type huaweiChildState struct {
 	failures   int
 	skipUntil  uint64
 	fenced     *HuaweiProviderFencedReading
+	// catalogue is the decision of the last completed admission. It describes
+	// identity while one is bound, and otherwise the definitive withhold.
+	catalogue *HuaweiSUN2000CatalogueDecision
 }
 
 func (c *huaweiChildState) clone() *huaweiChildState {
@@ -609,6 +638,7 @@ func (c *huaweiChildState) clone() *huaweiChildState {
 		identity := *c.identity
 		copied.identity = &identity
 	}
+	copied.catalogue = huaweiCloneCatalogueDecision(c.catalogue)
 	copied.groups = make(map[uint16]huaweiGroupMeta, len(c.groups))
 	for key, value := range c.groups {
 		copied.groups[key] = value
@@ -636,6 +666,26 @@ func (c *huaweiChildState) fence() {
 	c.reading = HuaweiSUN2000MonitoringReading{}
 	c.groups = map[uint16]huaweiGroupMeta{}
 	c.failures, c.skipUntil = 0, 0
+}
+
+// withhold withholds the child until the next identification event: the
+// reading moves to history, no identity is bound, and the decision that
+// withheld it, if one was taken, is kept to name why.
+func (c *huaweiChildState) withhold(reason HuaweiProviderReason, decision *HuaweiSUN2000CatalogueDecision) {
+	c.definitive = reason
+	c.fence()
+	c.identity, c.catalogue = nil, decision
+}
+
+// identificationEvent makes the child's admission run again at its routed
+// unit before the child counts as identified: a definitive withhold is lifted
+// and a child back-off ends. A bound identity and its decision stay until the
+// admission decides again.
+func (c *huaweiChildState) identificationEvent() {
+	c.definitive, c.identifiedGeneration, c.skipUntil = "", 0, 0
+	if c.identity == nil {
+		c.catalogue = nil
+	}
 }
 
 // groupEvidence describes every planned group of the child's reading. current
@@ -1249,6 +1299,103 @@ func huaweiWordsToBytes(words []uint16) []byte {
 	return out
 }
 
+// ---- child admission -----------------------------------------------------------
+
+// The identity words that a child's admission reads at its routed unit besides
+// the model text: the model identifier (30070, defined with the catalogue
+// decision), the software text and the firmware text. An admission runs on each
+// identification event, and on a later cycle only for a child that a failed
+// read left unadmitted; the identity words of an admitted child are never read
+// in a cycle with the guard held.
+const (
+	huaweiSUN2000SoftwareOffset = 30050
+	huaweiSUN2000FirmwareOffset = 30035
+	huaweiSUN2000TextQuantity   = 15
+)
+
+// childAdmissionRead handles one admission read of a child and reports
+// whether it answered. A read that failed leaves the child unadmitted: a
+// reading of an earlier identity stays as stale history, nothing is guessed,
+// and the admission runs again on a later cycle after the child back-off. An
+// exception withholds the child until the next identification event. A stop
+// adds nothing; the caller checks it.
+func (r *huaweiCycleRun) childAdmissionRead(child *huaweiChildState, result huaweiReadResult) bool {
+	switch result.status {
+	case huaweiReadAnswered:
+		return true
+	case huaweiReadFailed:
+		child.failures++
+		child.skipUntil = huaweiChildSkipUntil(r.cycle, child.failures)
+		reason := HuaweiProviderReasonChildReadFailed
+		if result.last == HuaweiProviderExchangeTimeout {
+			reason = HuaweiProviderReasonChildTimeout
+		}
+		r.out.Children = append(r.out.Children, r.childObservation(child, huaweiStaleOrWithheld(child), reason, nil))
+	case huaweiReadException:
+		child.withhold(HuaweiProviderReasonIdentityInsuff, nil)
+		r.out.Children = append(r.out.Children, r.childObservation(child, HuaweiProviderEvidenceWithheld, child.definitive, nil))
+	}
+	return false
+}
+
+// readChildIdentityWords reads the model identifier, the software text and the
+// firmware text at the child's routed unit, one request at a time under the
+// path's pacing. It reports false when a read did not answer; the child's
+// observation is then already added, or the cycle was stopped.
+func (r *huaweiCycleRun) readChildIdentityWords(child *huaweiChildState) (HuaweiSUN2000RoutedIdentity, bool) {
+	identifier, result := r.readHolding(child.unit, huaweiSUN2000IdentifierOffset, 1)
+	if !r.childAdmissionRead(child, result) {
+		return HuaweiSUN2000RoutedIdentity{}, false
+	}
+	software, result := r.readHolding(child.unit, huaweiSUN2000SoftwareOffset, huaweiSUN2000TextQuantity)
+	if !r.childAdmissionRead(child, result) {
+		return HuaweiSUN2000RoutedIdentity{}, false
+	}
+	firmware, result := r.readHolding(child.unit, huaweiSUN2000FirmwareOffset, huaweiSUN2000TextQuantity)
+	if !r.childAdmissionRead(child, result) {
+		return HuaweiSUN2000RoutedIdentity{}, false
+	}
+	return HuaweiSUN2000RoutedIdentity{
+		IdentifierWords: identifier, SoftwareBlock: huaweiWordsToBytes(software), FirmwareBlock: huaweiWordsToBytes(firmware),
+	}, true
+}
+
+// bindChildSelection admits the child on the profile of a selected catalogue
+// row, recording the decision. A changed identity fences the earlier reading.
+// Anything else withholds the child until the next identification event: a
+// decision that selected no row with its closed reason, an ambiguous decision
+// with every candidate, a selected row whose family has no profile on this
+// path, a model that disagrees with the listing, or insufficient evidence.
+func (r *huaweiCycleRun) bindChildSelection(child *huaweiChildState, selection HuaweiSUN2000CapabilitySelection) bool {
+	var decision *HuaweiSUN2000CatalogueDecision
+	if taken, ok := selection.Catalogue(); ok {
+		decision = &taken
+	}
+	profile, ok := selection.Profile()
+	if selection.Outcome() == HuaweiSUN2000ProfileSelected && ok && decision != nil && decision.Outcome() == HuaweiSUN2000CatalogueSelected {
+		identity := &huaweiChildIdentity{profile: profile, model: profile.Model()}
+		if child.identity != nil && child.identity.key() != identity.key() {
+			child.fence()
+		}
+		child.identity, child.identifiedGeneration, child.definitive, child.catalogue = identity, r.generation, "", decision
+		return true
+	}
+	reason := HuaweiProviderReasonIdentityInsuff
+	switch {
+	case selection.Reason() == HuaweiSUN2000ReasonCatalogueAmbiguous:
+		reason = HuaweiProviderReasonCatalogueAmbiguous
+	case selection.Reason() == HuaweiSUN2000ReasonCatalogueNotSelected:
+		reason = HuaweiProviderReasonCatalogueNotSelected
+	case selection.Outcome() == HuaweiSUN2000NoAdmissibleProfile:
+		reason = HuaweiProviderReasonNoProfile
+	case selection.Reason() == HuaweiSUN2000ReasonListingModelConflict:
+		reason = HuaweiProviderReasonIdentityMismatch
+	}
+	child.withhold(reason, decision)
+	r.out.Children = append(r.out.Children, r.childObservation(child, HuaweiProviderEvidenceWithheld, reason, nil))
+	return false
+}
+
 // huaweiChildBackoffCycles is the registry's back-off of one child after
 // consecutive failures: none after the first, then doubling up to ten cycles.
 // huaweiChildSkipUntil returns the first cycle at which a failed child is read
@@ -1355,6 +1502,7 @@ func (r *huaweiCycleRun) monitorChild(child *huaweiChildState) (HuaweiProviderEv
 func (r *huaweiCycleRun) childObservation(child *huaweiChildState, state HuaweiProviderEvidenceState, reason HuaweiProviderReason, current map[uint16]HuaweiSUN2000GroupReading) HuaweiProviderChildObservation {
 	out := HuaweiProviderChildObservation{
 		UnitID: child.unit, ListedClass: child.listedClass, Evidence: state, Reason: reason, Fenced: child.fenced.clone(),
+		Catalogue: huaweiCloneCatalogueDecision(child.catalogue),
 	}
 	if child.identity != nil {
 		out.Family, out.ProfileID, out.Model = child.identity.profile.Family(), child.identity.profile.ID(), child.identity.model
@@ -1380,7 +1528,7 @@ func (r *huaweiCycleRun) childObservation(child *huaweiChildState, state HuaweiP
 
 func (r *huaweiCycleRun) recordChildLoss(out HuaweiProviderChildObservation, state HuaweiProviderEvidenceState, reason HuaweiProviderReason) HuaweiProviderChildObservation {
 	if state == HuaweiProviderEvidenceWithheld {
-		r.out.Loss = append(r.out.Loss, HuaweiProviderLoss{Kind: HuaweiProviderLossWithheldChild, HasUnit: true, UnitID: out.UnitID, Detail: string(reason)})
+		r.out.Loss = append(r.out.Loss, HuaweiProviderLoss{Kind: HuaweiProviderLossWithheldChild, HasUnit: true, UnitID: out.UnitID, Detail: huaweiWithheldDetail(reason, out.Catalogue)})
 	}
 	for _, group := range out.Groups {
 		if group.Refused {
@@ -1389,6 +1537,28 @@ func (r *huaweiCycleRun) recordChildLoss(out HuaweiProviderChildObservation, sta
 		}
 	}
 	return out
+}
+
+// huaweiWithheldDetail names why a child is withheld. A catalogue withhold
+// adds the closed reason, and an ambiguous one names every candidate row.
+func huaweiWithheldDetail(reason HuaweiProviderReason, decision *HuaweiSUN2000CatalogueDecision) string {
+	detail := string(reason)
+	if decision == nil {
+		return detail
+	}
+	switch reason {
+	case HuaweiProviderReasonCatalogueNotSelected:
+		detail += ": " + string(decision.Reason())
+	case HuaweiProviderReasonCatalogueAmbiguous:
+		detail += ":"
+		for index, row := range decision.Candidates() {
+			if index > 0 {
+				detail += ","
+			}
+			detail += " " + row.Card + " " + strconv.Itoa(row.Identifier)
+		}
+	}
+	return detail
 }
 
 // staleChildren renders every identified child as stale for a cycle whose

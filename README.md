@@ -95,8 +95,11 @@ pacing and acquisition contract: one for the observed SmartLogger path and one
 for the observed S-Dongle path, each admitted by an enablement gate that reads
 the recorded dispositions and fails closed. Each cycle runs the observed
 gateway card, routes children only to listed and allowed units with a class
-contract, reads the admitted SUN2000 groups with the contract's gap, deadline
-and attempt bounds, and keeps stale, retained and fenced readings explicit. The
+contract, admits a child only when the catalogue decision over the identity
+words read at its admission (the model text, the model identifier, the software
+text and the firmware text) selects its family's row, reads the admitted SUN2000
+groups with the contract's gap, deadline and attempt bounds, and keeps stale,
+retained and fenced readings explicit. The
 EMMA path gets no provider while its inverter family has no consulted edition.
 The providers open no socket and start no goroutine, and they send only FC03
 and FC2B / MEI 0x0e reads. See

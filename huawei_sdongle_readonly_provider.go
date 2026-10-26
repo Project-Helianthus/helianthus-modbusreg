@@ -19,8 +19,10 @@ const (
 // gateway unit, which is also the first request of each connection
 // generation. On a new generation, after a guard change and after a failed
 // guard the observed card's whole tuple is read again on that generation,
-// including the refusal of basic identification at the gateway unit, before
-// the M1 series groups are read at the one child unit. Only the gateway unit
+// including the refusal of basic identification at the gateway unit, and the
+// child's admission reads the model identifier, the software text and the
+// firmware text at the child unit, before the M1 series groups are read there
+// once its catalogue decision selects the M1 series row. Only the gateway unit
 // and the observed child unit are addressed; no meter is read. Do not copy it.
 type HuaweiSDongleReadOnlyProvider struct {
 	core *huaweiProviderCore
@@ -259,11 +261,12 @@ func (r *huaweiCycleRun) identifySDongle(before []uint16) {
 	}
 	child := s.child(childUnit)
 	child.listedClass = card.ChildFamily()
-	child.definitive, child.skipUntil = "", 0
-	selection := SelectHuaweiSUN2000MonitoringProfile(HuaweiSUN2000CapabilityInput{SDongle: s.sdongle, UnitID: childUnit})
+	child.identificationEvent()
 	r.out.Reason = HuaweiProviderReasonIdentified
-	if !r.bindChildSelection(child, selection) {
-		r.out.Outcome = HuaweiProviderCycleComplete
+	if !r.admitSDongleChild(child) {
+		if !r.stopped() {
+			r.out.Outcome = HuaweiProviderCycleComplete
+		}
 		return
 	}
 	state, reason, current := r.monitorChild(child)
@@ -272,6 +275,21 @@ func (r *huaweiCycleRun) identifySDongle(before []uint16) {
 	}
 	r.out.Children = append(r.out.Children, r.childObservation(child, state, reason, current))
 	r.out.Outcome = HuaweiProviderCycleComplete
+}
+
+// admitSDongleChild runs the child's admission after the observed card has
+// matched on this connection generation: the model identifier, the software
+// text and the firmware text at the child unit, and the SUN2000 capability
+// selection over them with the child model that the card binds. It reports
+// whether the child is identified; otherwise it has already added the child's
+// observation, or the cycle was stopped.
+func (r *huaweiCycleRun) admitSDongleChild(child *huaweiChildState) bool {
+	identity, ok := r.readChildIdentityWords(child)
+	if !ok {
+		return false
+	}
+	selection := SelectHuaweiSUN2000MonitoringProfile(HuaweiSUN2000CapabilityInput{SDongle: r.state.sdongle, UnitID: child.unit, Identity: identity})
+	return r.bindChildSelection(child, selection)
 }
 
 func (r *huaweiCycleRun) sdongleIdentityFailed(failed bool) {
@@ -289,30 +307,28 @@ func (r *huaweiCycleRun) sdongleIdentityFailed(failed bool) {
 	r.staleChildren(HuaweiProviderReasonGatewayReadFail, false)
 }
 
-// readSDongleChild reads the identified child's groups after a held guard.
+// readSDongleChild reads the identified child's groups after a held guard. A
+// child withheld by its admission stays withheld until the next
+// identification event; an admission that a failed read left incomplete runs
+// again, after the child back-off.
 func (r *huaweiCycleRun) readSDongleChild() {
 	card := NewHuaweiSDongleObservedQualificationCard()
 	child := r.state.child(card.ChildUnit())
 	switch {
-	case child.identity == nil || child.identifiedGeneration != r.generation:
-		r.out.Children = append(r.out.Children, r.childObservation(child, HuaweiProviderEvidenceWithheld, huaweiFirstReason(child.definitive, HuaweiProviderReasonIdentityInsuff), nil))
+	case child.definitive != "":
+		r.out.Children = append(r.out.Children, r.childObservation(child, HuaweiProviderEvidenceWithheld, child.definitive, nil))
 		return
 	case child.skipUntil > r.cycle:
 		r.out.Children = append(r.out.Children, r.childObservation(child, huaweiStaleOrWithheld(child), HuaweiProviderReasonChildBackoff, nil))
 		return
+	case child.identity == nil || child.identifiedGeneration != r.generation:
+		if !r.admitSDongleChild(child) {
+			return
+		}
 	}
 	state, reason, current := r.monitorChild(child)
 	if r.stopped() || state == "" {
 		return
 	}
 	r.out.Children = append(r.out.Children, r.childObservation(child, state, reason, current))
-}
-
-func huaweiFirstReason(values ...HuaweiProviderReason) HuaweiProviderReason {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }

@@ -55,10 +55,9 @@ provider follows when a monitoring profile admits the family.
 **What the providers build on.** Gateway identity is the observed qualification
 card of the path, evaluated over the replies the provider read, with the card's
 own inventory parser. Child identity is
-`SelectHuaweiSUN2000MonitoringProfile`. The providers read the model text
-only, so a child is admitted on its observed path while its identifier is not
-read, and the selection records the catalogue decision; reading the identity
-words is a change of the provider contract. The read plan, the decoder and the one
+`SelectHuaweiSUN2000MonitoringProfile` over the identity words that the child's
+admission reads at its routed unit, so the catalogue decision decides the live
+path (see [Child admission](#child-admission)). The read plan, the decoder and the one
 last-known-good store are the SUN2000 profile's `Plan`, `Decode` and
 `RetainHuaweiSUN2000Monitoring`. The documentary SmartLogger commit owner, the
 documentary offline cycles and the supplied-evidence ports validate the
@@ -92,8 +91,8 @@ cycle and a cycle stopped by a pacing violation commit no reading either.
 
 | Path | First cycle of a generation, and after a guard change or failure | Cycle with the guard held |
 | --- | --- | --- |
-| SmartLogger | the counter, the extended inventory from object 0x87 page by page, the counter again and the optional basic identification, all at unit 0; then, in ascending unit order, the routed model read and the M3 series groups at each listed and allowed unit labelled SUN2000 | the counter at unit 0, then the M3 series groups of each identified child in ascending unit order |
-| S-Dongle | the search-sequence read at unit 100, basic identification at unit 100, which must be refused with exception 1, the search status, protocol and capacity reads, the child's model, basic and extended identification at unit 1 and the search-sequence read again; then the M1 series groups at unit 1, including 32064/32 | the search-sequence read at unit 100, then the M1 series groups at unit 1 when the state word is 0 and the change sequence word equals the bound value |
+| SmartLogger | the counter, the extended inventory from object 0x87 page by page, the counter again and the optional basic identification, all at unit 0; then, in ascending unit order, the admission of each listed and allowed unit labelled SUN2000 (the routed model read, the model identifier, the software text and the firmware text) and the M3 series groups of each child it admits | the counter at unit 0, then the M3 series groups of each identified child in ascending unit order; a child that a failed read left unadmitted runs its admission again first |
+| S-Dongle | the search-sequence read at unit 100, basic identification at unit 100, which must be refused with exception 1, the search status, protocol and capacity reads, the child's model, basic and extended identification at unit 1 and the search-sequence read again; then the child's admission at unit 1 (the model identifier, the software text and the firmware text) and, once it admits the child, the M1 series groups at unit 1, including 32064/32 | the search-sequence read at unit 100, then the M1 series groups at unit 1 when the state word is 0 and the change sequence word equals the bound value; a child that a failed read left unadmitted runs its admission again first |
 
 A changed or failed guard sends no child read in that cycle and identifies
 again in the next. On the SmartLogger path a bracket whose counters differ, a
@@ -102,6 +101,38 @@ malformed listing, or an enumeration longer than the card's deadline is
 cycles. A gateway tuple outside the observed card withholds the whole instance:
 no child is read and no child emits a fact. A gateway that stops answering backs
 off for one cycle, doubling up to ten.
+
+## Child admission
+
+A child is admitted at its routed unit by the identity words that the
+[catalogue decision](huawei-sun2000-monitoring-profiles.md#capability-detection)
+needs: the model text (FC03 30000/15), the model identifier (30070/1), the
+software text (30050/15) and the firmware text (30035/15), which is recorded
+with the decision and compared with the floor only when no software text is
+read. On the SmartLogger path the provider reads all four; on the S-Dongle path
+the model text is the child model that the card tuple binds, read before the
+bracket closes, and the admission reads the other three. Each read is one
+request under the path's gap, deadline and attempt bounds, with one request in
+flight. An admission runs on each identification event (the first cycle of a
+connection generation and the cycle after a guard change or failure), and on a
+later cycle only for a child that a failed read left unadmitted. A cycle with
+the guard held reads no identity word of an admitted child, so the admission
+adds three reads per child, besides the model read, at admission only.
+
+| Admission | Child | Recorded |
+| --- | --- | --- |
+| the decision selects the row of the path's family | admitted: its groups are read | `Catalogue` names the row with its card, edition, page, token, identifier, floor, floor basis and floor relation, the grade (Hypothesis), the identifier, the software text it compared and the firmware text |
+| the decision selects a row of a family without a profile on the path | withheld until the next identification, `no_admissible_profile` | the selected row |
+| the decision selects no row | withheld until the next identification, `catalogue_not_selected` | the closed reason (for example `identifier_mismatch` or `below_floor`) and the rows it considered; the withheld-child loss names the reason |
+| the decision cannot tell rows apart | withheld until the next identification, `catalogue_ambiguous` | every candidate row; the withheld-child loss names them |
+| a model that disagrees with the listing, a word that does not have the shape of its read, or an exception at any admission read | withheld until the next identification, `identity_mismatch` or `identity_insufficient` | no decision |
+| an admission read that times out or fails | unadmitted: a reading of an earlier identity stays stale, otherwise withheld, `child_timeout` or `child_read_failed`; the admission runs again after the child back-off and no identity is guessed | no decision |
+
+The floors of the two owned rows, the MC row of the M3 series and the MA-C00 row
+of the M1 series, name a branch without a build number, so no build of their
+branch is below them; a build below a floor is exercised with a catalogue row
+that states a build floor. The EMMA path has no provider, so nothing is admitted
+there.
 
 ## Pacing
 
@@ -135,8 +166,10 @@ read.
 | listed but not allowed | withheld, no read | `not_allowlisted` |
 | listed and allowed, label without a class contract (PLC, meter, any label other than SUN2000) | withheld, no read | `no_class_contract` |
 | routed model disagrees with the listing | withheld until the next identification | `identity_mismatch` |
-| routed read refused, or the read is not a model block | withheld until the next identification | `identity_insufficient` |
-| model of a family without an admitted pair | withheld until the next identification | `no_admissible_profile` |
+| an admission read refused, or a word that does not have the shape of its read | withheld until the next identification | `identity_insufficient` |
+| the catalogue decision selects no row, or cannot tell rows apart | withheld until the next identification | `catalogue_not_selected`, `catalogue_ambiguous` |
+| the catalogue selects a row of a family without a profile on the path | withheld until the next identification | `no_admissible_profile` |
+| an admission read timed out or failed | unadmitted; admission runs again after the child back-off | `child_timeout`, `child_read_failed` |
 | every group sent this cycle answered | current | `read` |
 | a group timed out or failed | stale; the remaining groups of the child are not read | `child_timeout`, `child_read_failed` |
 | a group answered an exception | stale; exception 3 marks the group refused and it is never sent again | `child_exception` |
@@ -165,8 +198,9 @@ the start and completion times, the outcome (`COMPLETE`, `INCOMPLETE` or
 `INSUFFICIENT_EVIDENCE`) and its reason, the native gateway identity (card,
 class, unit, model, firmware or bound child model, state, generation and time
 of identification), the children with their routed unit, listed class, family,
-profile identifier and version, typed reading and group provenance, every wire
-attempt, and the named loss. Its authority methods all return false.
+profile identifier and version, the catalogue decision of their last completed
+admission, typed reading and group provenance, every wire attempt, and the named
+loss. Its authority methods all return false.
 
 The loss names what is never published: the planned gateway groups, the groups
 refused by the family, the status group and the other unconsumed words, every
@@ -176,8 +210,9 @@ false.
 
 ## Read allowlist
 
-The providers send FC03 reads of the listed identity extents and of the profile
-read plans, and FC2B / MEI 0x0e reads with read code 1 from object 0 or read code
+The providers send FC03 reads of the listed identity extents, including the
+model identifier, the software text and the firmware text at an admitted
+child's routed unit, and of the profile read plans, and FC2B / MEI 0x0e reads with read code 1 from object 0 or read code
 3 from object 0x87 and its continuations. They never send a write, FC0x41 or
 FC0x17. The SmartLogger provider never reads the power group or the
 inverter-exposed meter group of the M3 series, a battery offset, or a PLC or
@@ -185,15 +220,22 @@ meter unit. The S-Dongle provider addresses units 100 and 1 only.
 
 ## Fixtures and tests
 
-`testdata/huawei/provider` holds one scripted session per path. Each step is one
-request in the order the provider must send it; its reply is taken from the
-sanitized identity and monitoring fixtures, or is a timeout, an exception or a
+`testdata/huawei/provider` holds one scripted session per path and one
+admission session per path. Each step is one request in the order the provider
+must send it; its reply is taken from the sanitized identity and monitoring
+fixtures or from a case of the catalogue decision table (its vendor-published
+identifiers and synthetic software texts), or is a timeout, an exception or a
 placeholder marked synthetic, so the fixtures inherit their sources'
-sanitization and are covered by the committed shape scan. The `TestH06` tests
-replay them and cover acquisition order, pacing against the clock, the read
-allowlist, refusal handling, identity-gate failures, stop, reconnect and close,
-the retained readings and the enablement gate, whose mutation test varies every
-field of the recorded disposition.
+sanitization and are covered by the committed shape scan. Each child's expected
+catalogue decision is part of every cycle. The `TestH06` tests replay them and
+cover acquisition order, pacing against the clock, the read allowlist, refusal
+handling, identity-gate failures, stop, reconnect and close, the retained
+readings and the enablement gate, whose mutation test varies every field of the
+recorded disposition. The `TestM89` tests cover the admission: the owned
+families selected with their row facts, the identity reads at admission only,
+an identity read that times out and is retried, a build of an unrelated branch
+admitted as Hypothesis, an identifier of another row, an ambiguous identifier, a
+build below the floor, and each identity word varied one at a time.
 
 ## Authority
 
@@ -206,5 +248,6 @@ action time that the S-Dongle record requires belongs to that caller.
 
 Removing the three provider files, their tests, `testdata/huawei/provider`,
 this page, the two `production_provider` rows and the provider lines of
-`evidence.json` and the README restores the previous state. No other product
-code changes.
+`evidence.json` and the README restores the state before the providers. The
+child admission alone is reverted by reverting its change, which restores the
+model-text-only admission of the selection.

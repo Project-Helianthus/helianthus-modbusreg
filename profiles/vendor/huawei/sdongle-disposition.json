@@ -580,6 +580,35 @@
       "meter_groups",
       "battery_offsets"
     ],
+    "child_admission": {
+      "issue": 365,
+      "model_text": "CARD_TUPLE_CHILD_MODEL_30000",
+      "identity_reads": [
+        {
+          "offset": 30070,
+          "quantity": 1,
+          "word": "model_identifier"
+        },
+        {
+          "offset": 30050,
+          "quantity": 15,
+          "word": "software_text"
+        },
+        {
+          "offset": 30035,
+          "quantity": 15,
+          "word": "firmware_text"
+        }
+      ],
+      "read_on": "EACH_IDENTIFICATION_EVENT",
+      "decision": "catalogue_selection",
+      "admits_on": "SELECTED",
+      "withholds_on": [
+        "NOT_SELECTED",
+        "AMBIGUOUS"
+      ],
+      "failed_read": "UNADMITTED_RETRIED_AFTER_CHILD_BACKOFF"
+    },
     "pacing": {
       "gap_ms": 5000,
       "cycle_ms": 60000,

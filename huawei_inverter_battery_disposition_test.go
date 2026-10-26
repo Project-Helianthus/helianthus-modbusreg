@@ -45,8 +45,8 @@ func huaweiInverterBatteryCases() []huaweiInverterBatteryCase {
 				"multiple_positive_candidates",
 				"catalogue_m3_row_behind_smartlogger",
 				"catalogue_m1_row_behind_sdongle",
-				"observed_m3_path_identifier_not_read",
-				"observed_m1_path_identifier_not_read",
+				"token_without_identifier_in_several_rows",
+				"token_without_identifier_in_one_row",
 			},
 		},
 		{
