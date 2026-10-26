@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -9,21 +10,17 @@ import (
 )
 
 var (
-	valueEnumPattern     = regexp.MustCompile(`^((?:\d+=[^;=.]+;\s*)+\d+=[^;=.]+)\.`)
-	selectorPattern      = regexp.MustCompile(`selector\s*((?:\d+=[^,=.]+,\s*)+\d+=[^,=.]+)\.`)
-	modulesPattern       = regexp.MustCompile(`Module (?:footnotes|conditions):\s*((?:\d=[^;.]+;\s*)*\d=[^;.]+)\.`)
-	alarmRowPattern      = regexp.MustCompile(`^\| (3201[0-9]|3200[0-9]) \| (\d+) \| (\d+) \| ([a-z_]+) \| ([A-Za-z]+) \| ([^|]+?) \| (\d+) \|\s*$`)
-	meterStatusPattern   = regexp.MustCompile(`\[M10\]\(appendices/sources\.md#m10\) p\. (\d+) defines meter status (\d) as ([a-z]+) and (\d) as ([a-z]+)\.`)
-	meterTypePattern     = regexp.MustCompile(`P(\d+) distinguishes (single-phase) type (\d) from (three-phase) type (\d)\.`)
-	storageStatusPattern = regexp.MustCompile(`For this profile, 37000 values ([0-9/]+) correspond to ([a-z/]+) states\.`)
-	storageRowPattern    = regexp.MustCompile(`^\| attached_storage\[1\]\.status \| 37000 \| 1 \| \S+ \| \S+ \| \S+ \| (\d+) \|\s*$`)
-	modeStatusPattern    = regexp.MustCompile(`\[M10\]\(appendices/sources\.md#m10\) pp\. (\d+)–(\d+) spans one status enumeration across three physical pages\. For example, (0x[0-9A-F]{4}) denotes an operating state whose interpretation depends on (off-grid context); (0x[0-9A-F]{4}) and (0x[0-9A-F]{4}) likewise carry mode-dependent limitations\.`)
-	modeStatusRowPattern = regexp.MustCompile(`^\| status\.operating_code \| 32089 \|`)
+	valueEnumPattern  = regexp.MustCompile(`^((?:\d+=[^;=.]+;\s*)+\d+=[^;=.]+)\.`)
+	selectorPattern   = regexp.MustCompile(`selector\s*((?:\d+=[^,=.]+,\s*)+\d+=[^,=.]+)\.`)
+	modeStatusPattern = regexp.MustCompile(`\[M10\]\(appendices/sources\.md#m10\) pp\. (\d+)–(\d+) spans one status enumeration across three physical pages\. For example, (0x[0-9A-F]{4}) denotes an operating state whose interpretation depends on (off-grid context); (0x[0-9A-F]{4}) and (0x[0-9A-F]{4}) likewise carry mode-dependent limitations\.`)
 )
 
 const (
 	kindStatusEnum = "status_enum"
 	kindValueEnum  = "value_enum"
+	kindBitmap     = "bitmap"
+	kindSign       = "sign"
+	kindSentinels  = "sentinels"
 	kindSelector   = "selector"
 	kindAlarmBits  = "alarm_bits"
 
@@ -31,6 +28,7 @@ const (
 	modeAlarmModule = "module condition of each bit"
 	unlistedRaw     = "raw"
 	unlistedUnknown = "unknown"
+	selectorOffset  = 47000
 )
 
 func splitPairs(text, separator string) []dictValue {
@@ -43,14 +41,6 @@ func splitPairs(text, separator string) []dictValue {
 		values = append(values, dictValue{Code: strings.TrimSpace(code), Meaning: strings.TrimSpace(meaning)})
 	}
 	return values
-}
-
-func modulesFrom(text string) ([]dictValue, error) {
-	match := modulesPattern.FindStringSubmatch(text)
-	if match == nil {
-		return nil, fmt.Errorf("no module condition list")
-	}
-	return splitPairs(match[1], ";"), nil
 }
 
 func distinctSorted(values []int) []int {
@@ -66,192 +56,211 @@ func distinctSorted(values []int) []int {
 	return out
 }
 
-// reviewDictionaries derives the dictionaries of a machine-readable review:
-// the operating-status enumeration, the primary alarm bits, and every row
-// condition that is an explicit value list.
-func reviewDictionaries(card *cardInfo, editionID string, review *fullReview, markdown string, rows []parsedRow) ([]dictionary, error) {
-	slug := card.Slug
-	var dictionaries []dictionary
-	if enum := review.OperatingStatusEnum; enum != nil {
-		values := make([]dictValue, 0, len(enum.Values))
-		for code, meaning := range enum.Values {
-			values = append(values, dictValue{Code: code, Meaning: meaning})
-		}
-		sort.Slice(values, func(i, j int) bool { return hexValue(values[i].Code) < hexValue(values[j].Code) })
-		dictionaries = append(dictionaries, dictionary{
-			ID: slug + ".status." + strconv.Itoa(enum.Address), Kind: kindStatusEnum, Card: card.ID, Edition: editionID,
-			Endpoint: endpointInverter, Offsets: []int{enum.Address}, Pages: distinctSorted(enum.SourcePages),
-			ModePredicate: modeNoneStated, Values: values, Unlisted: cleanText(enum.Unlisted),
-		})
+// meaningDictionaries derives the dictionaries a base twin attaches to one
+// row: value enumerations, bitmaps, sign conventions and sentinels.
+func meaningDictionaries(row parsedRow) ([]dictionary, error) {
+	var out []dictionary
+	if row.Row.Offset == nil {
+		return nil, nil
 	}
-	if len(review.AlarmBits) > 0 {
-		modules, err := modulesFrom(markdown)
+	base := dictionary{Endpoint: row.Row.Endpoint, Offsets: []int{*row.Row.Offset}, Pages: []int{row.Row.Page}, ModePredicate: modeNoneStated, Unlisted: unlistedRaw}
+	if raw, ok := row.Meaning["enum"]; ok {
+		values, err := enumValues(raw)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", card.ID, err)
+			return nil, fmt.Errorf("%s: %w", row.Row.Key, err)
 		}
-		var bits []alarmBit
-		var offsets, pages []int
-		for _, bit := range review.AlarmBits {
-			module := modeNoneStated
-			if bit.FootnoteID != nil {
-				module = *bit.FootnoteID
+		if len(values) > 0 {
+			item := base
+			item.Kind, item.Values = kindValueEnum, values
+			out = append(out, item)
+		}
+	}
+	if raw, ok := row.Meaning["bits"]; ok {
+		var bits []struct {
+			Bit     int    `json:"bit"`
+			Meaning string `json:"meaning_key"`
+		}
+		if err := json.Unmarshal(raw, &bits); err != nil {
+			return nil, fmt.Errorf("%s bits: %w", row.Row.Key, err)
+		}
+		if len(bits) > 0 {
+			item := base
+			item.Kind = kindBitmap
+			for _, bit := range bits {
+				item.Values = append(item.Values, dictValue{Code: strconv.Itoa(bit.Bit), Meaning: bit.Meaning})
 			}
-			bits = append(bits, alarmBit{
-				Offset: bit.RegisterAddress, Bit: bit.Bit, AlarmID: bit.AlarmID, Label: bit.FunctionalLabel,
-				Severity: bit.Severity, Module: module, Page: bit.PhysicalPage,
-			})
-			offsets = append(offsets, bit.RegisterAddress)
-			pages = append(pages, bit.PhysicalPage)
+			item.Unlisted = unlistedUnknown
+			out = append(out, item)
 		}
-		dictionaries = append(dictionaries, dictionary{
-			ID: slug + ".alarm-bits", Kind: kindAlarmBits, Card: card.ID, Edition: editionID, Endpoint: endpointInverter,
-			Offsets: distinctSorted(offsets), Pages: distinctSorted(pages), ModePredicate: modeAlarmModule,
-			Modules: modules, Bits: bits, Unlisted: unlistedUnknown,
+	}
+	if raw, ok := row.Meaning["sign"]; ok {
+		var sign struct {
+			Positive string `json:"positive"`
+			Negative string `json:"negative"`
+		}
+		if err := json.Unmarshal(raw, &sign); err != nil {
+			return nil, fmt.Errorf("%s sign: %w", row.Row.Key, err)
+		}
+		if sign.Positive != "" && sign.Negative != "" {
+			item := base
+			item.Kind = kindSign
+			item.Values = []dictValue{{Code: "positive", Meaning: sign.Positive}, {Code: "negative", Meaning: sign.Negative}}
+			out = append(out, item)
+		}
+	}
+	if raw, ok := row.Meaning["sentinels"]; ok {
+		var sentinels []struct {
+			Value   string `json:"value"`
+			Meaning string `json:"meaning"`
+		}
+		if err := json.Unmarshal(raw, &sentinels); err != nil {
+			return nil, fmt.Errorf("%s sentinels: %w", row.Row.Key, err)
+		}
+		if len(sentinels) > 0 {
+			item := base
+			item.Kind = kindSentinels
+			for _, sentinel := range sentinels {
+				item.Values = append(item.Values, dictValue{Code: sentinel.Value, Meaning: sentinel.Meaning})
+			}
+			out = append(out, item)
+		}
+	}
+	return out, nil
+}
+
+// enumValues reads an enumeration given either as a code-to-meaning object or
+// as a list of value and meaning entries.
+func enumValues(raw json.RawMessage) ([]dictValue, error) {
+	var list []struct {
+		Value   string `json:"value_literal"`
+		Meaning string `json:"meaning_key"`
+	}
+	if err := json.Unmarshal(raw, &list); err == nil {
+		var values []dictValue
+		for _, item := range list {
+			values = append(values, dictValue{Code: item.Value, Meaning: item.Meaning})
+		}
+		return values, nil
+	}
+	var object map[string]string
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return nil, fmt.Errorf("enumeration is neither a list nor an object")
+	}
+	values := make([]dictValue, 0, len(object))
+	for code, meaning := range object {
+		values = append(values, dictValue{Code: code, Meaning: meaning})
+	}
+	sortCodes(values)
+	return values, nil
+}
+
+// conditionDictionary derives a value list from a row condition that is an
+// explicit list of codes.
+func conditionDictionary(row parsedRow) *dictionary {
+	match := valueEnumPattern.FindStringSubmatch(cleanText(row.Condition))
+	if match == nil || row.Row.Offset == nil {
+		return nil
+	}
+	return &dictionary{
+		Kind: kindValueEnum, Endpoint: row.Row.Endpoint, Offsets: []int{*row.Row.Offset}, Pages: []int{row.Row.Page},
+		ModePredicate: modeNoneStated, Values: splitPairs(match[1], ";"), Unlisted: unlistedRaw,
+	}
+}
+
+// selectorDictionary derives the storage product selector from a control row:
+// the explicit members of a base twin or the value list of a scope review.
+func selectorDictionary(row parsedRow) *dictionary {
+	if row.Row.Offset == nil || *row.Row.Offset != selectorOffset {
+		return nil
+	}
+	values := row.Enum
+	if len(values) == 0 {
+		if match := selectorPattern.FindStringSubmatch(cleanText(row.Condition)); match != nil {
+			values = splitPairs(match[1], ",")
+		}
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	return &dictionary{
+		Kind: kindSelector, Endpoint: row.Row.Endpoint, Offsets: []int{selectorOffset}, Pages: []int{row.Row.Page},
+		ModePredicate: modeNoneStated, Values: values, Unlisted: unlistedRaw,
+	}
+}
+
+// cardDictionaries collects every dictionary of one card and binds it to the
+// card edition, with identifiers made unique in row order.
+func cardDictionaries(card *cardInfo, editionID string, rows *cardRows) ([]dictionary, error) {
+	var out []dictionary
+	if enum := rows.StatusEnum; enum != nil {
+		out = append(out, dictionary{
+			Kind: kindStatusEnum, Endpoint: endpointInverter, Offsets: []int{enum.Offset}, Pages: enum.Pages,
+			ModePredicate: modeNoneStated, Values: enum.Values, Unlisted: enum.Unlisted,
 		})
 	}
-	for _, row := range rows {
-		condition := cleanText(row.Private["condition_literal"])
-		match := valueEnumPattern.FindStringSubmatch(condition)
-		if match == nil {
-			continue
+	if len(rows.AlarmBits) > 0 {
+		var offsets, pages []int
+		for _, bit := range rows.AlarmBits {
+			if bit.Offset != nil {
+				offsets = append(offsets, *bit.Offset)
+			}
+			pages = append(pages, bit.Page)
 		}
-		offset := *row.Row.Offset
-		dictionaries = append(dictionaries, dictionary{
-			ID: slug + ".value." + strconv.Itoa(offset), Kind: kindValueEnum, Card: card.ID, Edition: editionID,
-			Endpoint: row.Row.Endpoint, Offsets: []int{offset}, Pages: []int{row.Row.Page},
-			ModePredicate: modeNoneStated, Values: splitPairs(match[1], ";"), Unlisted: unlistedRaw,
+		out = append(out, dictionary{
+			Kind: kindAlarmBits, Endpoint: endpointInverter, Offsets: distinctSorted(offsets), Pages: distinctSorted(pages),
+			ModePredicate: modeAlarmModule, Modules: rows.Modules, Bits: rows.AlarmBits, Unlisted: unlistedUnknown,
 		})
 	}
-	return dictionaries, nil
-}
-
-// selectorDictionaries derives the product-selector dictionary of a readable
-// configuration row whose source condition lists explicit values.
-func selectorDictionaries(card *cardInfo, editionID string, rows []parsedRow) []dictionary {
-	var dictionaries []dictionary
-	for _, row := range rows {
-		match := selectorPattern.FindStringSubmatch(cleanText(row.Private["condition_literal"]))
-		if match == nil {
-			continue
+	for _, row := range rows.Rows {
+		items, err := meaningDictionaries(row)
+		if err != nil {
+			return nil, err
 		}
-		offset := *row.Row.Offset
-		dictionaries = append(dictionaries, dictionary{
-			ID: card.Slug + ".selector." + strconv.Itoa(offset), Kind: kindSelector, Card: card.ID, Edition: editionID,
-			Endpoint: row.Row.Endpoint, Offsets: []int{offset}, Pages: []int{row.Row.Page},
-			ModePredicate: modeNoneStated, Values: splitPairs(match[1], ","), Unlisted: unlistedRaw,
-		})
-	}
-	return dictionaries
-}
-
-// mb02AlarmDictionary reads the 41 alarm bits of the MB02 supplement.
-func mb02AlarmDictionary(card *cardInfo, editionID, text string) (dictionary, error) {
-	modules, err := modulesFrom(text)
-	if err != nil {
-		return dictionary{}, fmt.Errorf("%s: %w", card.ID, err)
-	}
-	var bits []alarmBit
-	var offsets, pages []int
-	for _, line := range strings.Split(text, "\n") {
-		match := alarmRowPattern.FindStringSubmatch(line)
-		if match == nil {
-			continue
-		}
-		offset, _ := strconv.Atoi(match[1])
-		bit, _ := strconv.Atoi(match[2])
-		alarm, _ := strconv.Atoi(match[3])
-		page, _ := strconv.Atoi(match[7])
-		bits = append(bits, alarmBit{Offset: offset, Bit: bit, AlarmID: alarm, Label: match[4], Severity: match[5], Module: strings.TrimSpace(match[6]), Page: page})
-		offsets = append(offsets, offset)
-		pages = append(pages, page)
-	}
-	if len(bits) == 0 {
-		return dictionary{}, fmt.Errorf("%s: no alarm bits", card.ID)
-	}
-	return dictionary{
-		ID: card.Slug + ".alarm-bits", Kind: kindAlarmBits, Card: card.ID, Edition: editionID, Endpoint: endpointInverter,
-		Offsets: distinctSorted(offsets), Pages: distinctSorted(pages), ModePredicate: modeAlarmModule,
-		Modules: modules, Bits: bits, Unlisted: unlistedUnknown,
-	}, nil
-}
-
-// chapterDictionaries derives the dictionaries that the reference states only
-// in its chapters for the M10 edition (the MA-C00 card): meter status, meter
-// phase type, attached storage status, and the mode dependency of the
-// operating status. Each statement is matched verbatim; a missing statement
-// stops the generator.
-func chapterDictionaries(card *cardInfo, editionID, attached, status string) ([]dictionary, error) {
-	var dictionaries []dictionary
-	meter := meterStatusPattern.FindStringSubmatch(attached)
-	if meter == nil {
-		return nil, fmt.Errorf("chapter 8 meter status statement not found")
-	}
-	meterPage, _ := strconv.Atoi(meter[1])
-	dictionaries = append(dictionaries, dictionary{
-		ID: card.Slug + ".value.37100", Kind: kindValueEnum, Card: card.ID, Edition: editionID, Endpoint: endpointInverter,
-		Offsets: []int{37100}, Pages: []int{meterPage}, ModePredicate: modeNoneStated,
-		Values: []dictValue{{Code: meter[2], Meaning: meter[3]}, {Code: meter[4], Meaning: meter[5]}}, Unlisted: unlistedRaw,
-	})
-	phase := meterTypePattern.FindStringSubmatch(attached)
-	if phase == nil {
-		return nil, fmt.Errorf("chapter 8 meter type statement not found")
-	}
-	phasePage, _ := strconv.Atoi(phase[1])
-	dictionaries = append(dictionaries, dictionary{
-		ID: card.Slug + ".value.37125", Kind: kindValueEnum, Card: card.ID, Edition: editionID, Endpoint: endpointInverter,
-		Offsets: []int{37125}, Pages: []int{phasePage}, ModePredicate: modeNoneStated,
-		Values: []dictValue{{Code: phase[3], Meaning: phase[2]}, {Code: phase[5], Meaning: phase[4]}}, Unlisted: unlistedRaw,
-	})
-	storage := storageStatusPattern.FindStringSubmatch(attached)
-	if storage == nil {
-		return nil, fmt.Errorf("chapter 8 storage status statement not found")
-	}
-	storagePage := 0
-	for _, line := range strings.Split(attached, "\n") {
-		if match := storageRowPattern.FindStringSubmatch(line); match != nil {
-			storagePage, _ = strconv.Atoi(match[1])
+		out = append(out, items...)
+		if item := conditionDictionary(row); item != nil {
+			out = append(out, *item)
 		}
 	}
-	codes, meanings := strings.Split(storage[1], "/"), strings.Split(storage[2], "/")
-	if len(codes) != len(meanings) || storagePage == 0 {
-		return nil, fmt.Errorf("chapter 8 storage status statement is not a value list")
-	}
-	var values []dictValue
-	for index := range codes {
-		values = append(values, dictValue{Code: codes[index], Meaning: meanings[index]})
-	}
-	dictionaries = append(dictionaries, dictionary{
-		ID: card.Slug + ".value.37000", Kind: kindValueEnum, Card: card.ID, Edition: editionID, Endpoint: endpointInverter,
-		Offsets: []int{37000}, Pages: []int{storagePage}, ModePredicate: modeNoneStated, Values: values, Unlisted: unlistedRaw,
-	})
-	mode := modeStatusPattern.FindStringSubmatch(status)
-	if mode == nil || !modeStatusRowPattern.MatchString(findLine(status, "| status.operating_code |")) {
-		return nil, fmt.Errorf("chapter 7 operating status statement not found")
-	}
-	first, _ := strconv.Atoi(mode[1])
-	last, _ := strconv.Atoi(mode[2])
-	dictionaries = append(dictionaries, dictionary{
-		ID: card.Slug + ".status.32089", Kind: kindStatusEnum, Card: card.ID, Edition: editionID, Endpoint: endpointInverter,
-		Offsets: []int{32089}, Pages: pageRange(strconv.Itoa(first), strconv.Itoa(last)),
-		ModePredicate: mode[4] + "; " + mode[3] + ", " + mode[5] + " and " + mode[6] + " carry mode-dependent meanings",
-		Unlisted:      unlistedRaw,
-	})
-	return dictionaries, nil
-}
-
-func findLine(text, prefix string) string {
-	for _, line := range strings.Split(text, "\n") {
-		if strings.HasPrefix(line, prefix) {
-			return line
+	for _, row := range rows.Controls {
+		if item := selectorDictionary(row); item != nil {
+			out = append(out, *item)
 		}
 	}
-	return ""
+	seen := map[string]int{}
+	for index := range out {
+		out[index].Card = card.ID
+		out[index].Edition = editionID
+		id := card.Slug + ".alarm-bits"
+		if out[index].Kind != kindAlarmBits {
+			id = card.Slug + "." + strings.ReplaceAll(out[index].Kind, "_", "-") + "." + strconv.Itoa(out[index].Offsets[0])
+		}
+		seen[id]++
+		if seen[id] > 1 {
+			id += "-" + strconv.Itoa(seen[id])
+		}
+		out[index].ID = id
+	}
+	return out, nil
 }
 
-func hexValue(code string) int64 {
-	value, err := strconv.ParseInt(strings.TrimPrefix(strings.ToLower(code), "0x"), 16, 64)
-	if err != nil {
-		return -1
+// applyModePredicate binds the off-grid mode dependency that the reference
+// states for the M10 operating status to that edition's status dictionary.
+func applyModePredicate(dictionaries []dictionary, card *cardInfo, chapter string) error {
+	match := modeStatusPattern.FindStringSubmatch(chapter)
+	if match == nil {
+		return fmt.Errorf("chapter 7 operating status statement not found")
 	}
-	return value
+	predicate := match[4] + "; " + match[3] + ", " + match[5] + " and " + match[6] + " carry mode-dependent meanings"
+	applied := 0
+	for index := range dictionaries {
+		item := &dictionaries[index]
+		if item.Card == card.ID && len(item.Offsets) == 1 && item.Offsets[0] == 32089 && (item.Kind == kindValueEnum || item.Kind == kindStatusEnum) {
+			item.ModePredicate = predicate
+			applied++
+		}
+	}
+	if applied != 1 {
+		return fmt.Errorf("%s: %d operating status dictionaries for the mode predicate", card.ID, applied)
+	}
+	return nil
 }

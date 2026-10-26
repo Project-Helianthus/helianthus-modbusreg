@@ -9,34 +9,61 @@ import (
 	"strings"
 )
 
-// locatorRow is one entry of the model-row locator file.
-type locatorRow struct {
-	PDFSHA256      string `json:"pdf_sha256"`
-	PhysicalPage   int    `json:"physical_page"`
-	NativeModelRow string `json:"native_model_row"`
-	Confidence     string `json:"confidence"`
-	Classification string `json:"classification"`
+// twinModel is one row of a reference model table, as it appears in the card
+// twins and in the per-edition model tables.
+type twinModel struct {
+	Token         string  `json:"source_model_token"`
+	ModelID       *int    `json:"model_id"`
+	Minimum       *string `json:"documented_minimum"`
+	MinimumStatus string  `json:"minimum_status"`
+	ModelIDStatus string  `json:"model_id_status"`
+	SourceID      string  `json:"source_id"`
+	Page          int     `json:"physical_page"`
+	Table         int     `json:"table_index"`
+	Row           int     `json:"row_index"`
+	WireAliases   []struct {
+		Token         string `json:"token"`
+		Evidence      string `json:"evidence"`
+		Qualification string `json:"qualification"`
+	} `json:"wire_aliases"`
+	Sequence       string   `json:"source_sequence_number"`
+	Unknowns       []string `json:"unknowns"`
+	RequirementIDs []string `json:"document_requirement_ids"`
+}
+
+type twinRequirement struct {
+	ID            string `json:"id"`
+	PredicateKind string `json:"predicate_kind"`
+	SourceID      string `json:"source_id"`
+	Page          int    `json:"physical_page"`
+	Section       string `json:"section"`
+	Minimum       string `json:"minimum_version"`
+	Inclusive     bool   `json:"inclusive"`
+	Scope         struct {
+		Component   string   `json:"component"`
+		ModelTokens []string `json:"applicable_model_tokens"`
+	} `json:"scope"`
+}
+
+type modelTable struct {
+	Schema               string            `json:"schema"`
+	SourceID             string            `json:"source_id"`
+	Rows                 []twinModel       `json:"rows"`
+	EmptyReason          *string           `json:"empty_reason"`
+	DocumentRequirements []twinRequirement `json:"document_requirements"`
 }
 
 // parsedModel is a model row with the locator fields that stay private.
 type parsedModel struct {
-	Row     modelRow
-	SHA256  string
-	Private map[string]string
-	Order   int
+	Row      modelRow
+	SourceID string
+	Private  map[string]string
+	Order    int
 }
 
 var (
-	floorGrammar         = regexp.MustCompile(`^(?:SUN\d+[A-Z]* )?V\d{3}R\d{3}(?:C\d{2}(?:SPC\d{3})?)?$`)
-	modelThreeCellLine   = regexp.MustCompile(`^(\S+)\s{2,}(\d{1,4})\s{2,}(\S+(?: \S+)?)$`)
-	modelRatingLine      = regexp.MustCompile(`^(\S+)\s{2,}(\d{1,4})\s{2,}(SUN\d+[A-Z]*)\s{2,}[0-9.]+(?:\s+[0-9.]+)+$`)
-	modelIDFirstRating   = regexp.MustCompile(`^(\d{1,4})\s{2,}(SUN\S+)\s{2,}[0-9.]+(?:\s+[0-9.]+)+$`)
-	modelIDFirstLine     = regexp.MustCompile(`^(\d{1,4})\s{2,}(SUN\S+)$`)
-	modelTokenOnlyLine   = regexp.MustCompile(`^(SUN\S+)$`)
-	revisionHistoryLine  = regexp.MustCompile(`^\d{2}\s{2,}\d{4}-\d{2}-\d{2}\s{2,}`)
-	mapZeroTokenPattern  = regexp.MustCompile(`^SUN\d+_[0-9A-Z.]+_MAP0(?:_[0-9A-Z]+)?$`)
-	mb02ModelRowPattern  = regexp.MustCompile(`^\| (SUN\S+) \| (\d+) \| (\S+) \| (\d+) \|\s*$`)
-	wrappedTokenSuffixes = []string{"-", "_"}
+	floorGrammar = regexp.MustCompile(`^(?:SUN\d+[A-Z]* )?V\d{3}R\d{3}(?:C\d{2}(?:SPC\d{3})?)?$`)
+	sectionSlug  = regexp.MustCompile(`[^a-z0-9]+`)
 )
 
 // unnormalizedFloorSuffix is the literal floor suffix that the reference keeps
@@ -45,198 +72,118 @@ const unnormalizedFloorSuffix = "PSC110"
 
 // Generator quarantines on model rows.
 const (
-	quarantineWrappedToken = "M01"
-	quarantineFloorCell    = "M02"
-	quarantineHistoryLine  = "M03"
-	quarantineNoIdentifier = "M04"
-	quarantineTemplateRow  = "X01"
+	quarantineSequenceOrdinal = "M01"
+	quarantineFloorCell       = "M02"
 )
 
-// parseLocatorRows classifies every locator line. A line on a page that holds
-// a revision-history entry is a history line; every other line must match one
-// of the supported-model forms or the generator stops.
-func parseLocatorRows(data []byte) ([]parsedModel, error) {
-	var locators []locatorRow
-	if err := json.Unmarshal(data, &locators); err != nil {
-		return nil, err
-	}
-	historyPages := map[string]bool{}
-	for _, locator := range locators {
-		if revisionHistoryLine.MatchString(strings.TrimSpace(locator.NativeModelRow)) {
-			historyPages[locator.PDFSHA256+":"+strconv.Itoa(locator.PhysicalPage)] = true
+func requirementID(editionID, section string) string {
+	slug := strings.Trim(sectionSlug.ReplaceAllString(strings.ToLower(section), "-"), "-")
+	return editionID + "/" + slug
+}
+
+// convertModelTable turns one per-edition model table into model rows and
+// document-wide requirements. The floor is the row minimum or, when the row
+// states none, the linked document-wide requirement.
+func convertModelTable(table modelTable, editionID string) ([]parsedModel, []documentRequirement, error) {
+	requirements := map[string]documentRequirement{}
+	var ordered []documentRequirement
+	for _, requirement := range table.DocumentRequirements {
+		if requirement.SourceID != table.SourceID || !requirement.Inclusive || !floorGrammar.MatchString(requirement.Minimum) {
+			return nil, nil, fmt.Errorf("%s: requirement %s is not an inclusive floor of this edition", table.SourceID, requirement.ID)
 		}
+		converted := documentRequirement{
+			ID: requirementID(editionID, requirement.Section), Edition: editionID, Page: requirement.Page,
+			Section: cleanText(requirement.Section), Minimum: requirement.Minimum, Inclusive: true,
+			Component: cleanText(requirement.Scope.Component), ModelTokens: append([]string{}, requirement.Scope.ModelTokens...),
+		}
+		requirements[requirement.ID] = converted
+		ordered = append(ordered, converted)
 	}
 	var models []parsedModel
-	var unplaced []string
-	for index, locator := range locators {
-		text := strings.TrimSpace(locator.NativeModelRow)
-		row := modelRow{
-			Page:            locator.PhysicalPage,
-			Form:            formSupportedModel,
-			MinimumSoftware: floorNotStated,
-			FloorBasis:      floorNotStated,
-			SourceSet:       sourceSetLocator,
+	for index, source := range table.Rows {
+		if source.SourceID != table.SourceID || source.Token == "" || source.Page < 1 {
+			return nil, nil, fmt.Errorf("%s row %d is incomplete", table.SourceID, index)
 		}
-		switch match := matchModelLine(text); {
-		case historyPages[locator.PDFSHA256+":"+strconv.Itoa(locator.PhysicalPage)]:
-			row.Form = formRevisionHistory
-			row.Quarantine = []string{quarantineHistoryLine}
-		case match != nil:
-			row.Token = match.token
-			row.Identifier = match.identifier
-			if match.floor != "" {
-				row.MinimumSoftware = match.floor
-				row.FloorBasis = floorBasisRow
+		row := modelRow{Edition: editionID, Page: source.Page, Token: source.Token, RowMinimum: floorNotStated}
+		switch source.ModelIDStatus {
+		case "stated_as_model_id":
+			if source.ModelID == nil || source.Sequence != "" {
+				return nil, nil, fmt.Errorf("%s %s: model identifier stated but absent", table.SourceID, source.Token)
 			}
+			row.Identifier = intPointer(*source.ModelID)
+		case "not_stated_as_model_id":
+			if source.ModelID != nil || source.Sequence == "" {
+				return nil, nil, fmt.Errorf("%s %s: a row without a model identifier must carry its sequence number", table.SourceID, source.Token)
+			}
+			row.SequenceNumber = source.Sequence
+			row.Quarantine = append(row.Quarantine, quarantineSequenceOrdinal)
 		default:
-			unplaced = append(unplaced, fmt.Sprintf("page %d: %q", locator.PhysicalPage, text))
-			continue
+			return nil, nil, fmt.Errorf("%s %s: unknown identifier status %q", table.SourceID, source.Token, source.ModelIDStatus)
+		}
+		switch source.MinimumStatus {
+		case "stated_in_source":
+			if source.Minimum == nil || *source.Minimum == "" {
+				return nil, nil, fmt.Errorf("%s %s: minimum stated but absent", table.SourceID, source.Token)
+			}
+			row.RowMinimum = *source.Minimum
+			row.MinimumSoftware = *source.Minimum
+			row.FloorBasis = floorBasisRow
+			if !floorGrammar.MatchString(row.RowMinimum) && !strings.Contains(row.RowMinimum, unnormalizedFloorSuffix) {
+				row.Quarantine = append(row.Quarantine, quarantineFloorCell)
+			}
+		case "not_stated_in_model_row":
+			if source.Minimum != nil || len(source.RequirementIDs) != 1 {
+				return nil, nil, fmt.Errorf("%s %s: a row without a minimum must link exactly one document requirement", table.SourceID, source.Token)
+			}
+			requirement, ok := requirements[source.RequirementIDs[0]]
+			if !ok {
+				return nil, nil, fmt.Errorf("%s %s: unknown document requirement", table.SourceID, source.Token)
+			}
+			row.DocumentRequirement = requirement.ID
+			row.MinimumSoftware = requirement.Minimum
+			row.FloorBasis = floorBasisDocument
+		default:
+			return nil, nil, fmt.Errorf("%s %s: unknown minimum status %q", table.SourceID, source.Token, source.MinimumStatus)
+		}
+		for _, alias := range source.WireAliases {
+			row.WireAliases = append(row.WireAliases, wireAlias{Token: alias.Token, Evidence: cleanText(alias.Evidence), Scope: prose(alias.Qualification)})
 		}
 		models = append(models, parsedModel{
-			Row:    row,
-			SHA256: locator.PDFSHA256,
+			Row: row, SourceID: table.SourceID, Order: index,
 			Private: map[string]string{
-				"native_model_row": locator.NativeModelRow, "confidence": locator.Confidence,
-				"classification": locator.Classification,
+				"table": strconv.Itoa(source.Table), "row": strconv.Itoa(source.Row), "unknowns": strings.Join(source.Unknowns, " | "),
 			},
-			Order: index,
 		})
 	}
-	if len(unplaced) > 0 {
-		return nil, fmt.Errorf("%d model locator lines match no form: %s", len(unplaced), strings.Join(unplaced, "; "))
-	}
-	return models, nil
+	return models, ordered, nil
 }
 
-type modelLineMatch struct {
-	token      string
-	identifier *int
-	floor      string
-}
-
-func matchModelLine(text string) *modelLineMatch {
-	if match := modelThreeCellLine.FindStringSubmatch(text); match != nil {
-		identifier, _ := strconv.Atoi(match[2])
-		return &modelLineMatch{token: match[1], identifier: intPointer(identifier), floor: match[3]}
+// sameModelTable checks that the model table of a card twin equals the
+// per-edition table of its source.
+func sameModelTable(twin []twinModel, table modelTable) error {
+	if len(twin) != len(table.Rows) {
+		return fmt.Errorf("%d twin model rows, %d edition rows", len(twin), len(table.Rows))
 	}
-	if match := modelRatingLine.FindStringSubmatch(text); match != nil {
-		identifier, _ := strconv.Atoi(match[2])
-		return &modelLineMatch{token: match[1], identifier: intPointer(identifier), floor: match[3]}
-	}
-	if match := modelIDFirstRating.FindStringSubmatch(text); match != nil {
-		identifier, _ := strconv.Atoi(match[1])
-		return &modelLineMatch{token: match[2], identifier: intPointer(identifier)}
-	}
-	if match := modelIDFirstLine.FindStringSubmatch(text); match != nil {
-		identifier, _ := strconv.Atoi(match[1])
-		return &modelLineMatch{token: match[2], identifier: intPointer(identifier)}
-	}
-	if match := modelTokenOnlyLine.FindStringSubmatch(text); match != nil {
-		return &modelLineMatch{token: match[1]}
+	for index := range twin {
+		a, b := twin[index], table.Rows[index]
+		left, _ := json.Marshal(a)
+		right, _ := json.Marshal(b)
+		if string(left) != string(right) {
+			return fmt.Errorf("model row %d differs between the twin and the edition table", index)
+		}
 	}
 	return nil
 }
 
-// parseMB02Models reads the exact model rows of the MB02 supplement card,
-// which are outside the base locator set.
-func parseMB02Models(text string) []parsedModel {
-	var models []parsedModel
-	inTable := false
-	for _, line := range strings.Split(text, "\n") {
-		if strings.HasPrefix(line, "## ") {
-			inTable = strings.TrimSpace(line) == "## Exact model rows"
-			continue
+func sortModels(models []parsedModel) {
+	sort.SliceStable(models, func(i, j int) bool {
+		a, b := models[i], models[j]
+		if a.Row.Edition != b.Row.Edition {
+			return a.Row.Edition < b.Row.Edition
 		}
-		if !inTable {
-			continue
+		if a.Row.Page != b.Row.Page {
+			return a.Row.Page < b.Row.Page
 		}
-		match := mb02ModelRowPattern.FindStringSubmatch(line)
-		if match == nil {
-			continue
-		}
-		identifier, _ := strconv.Atoi(match[2])
-		page, _ := strconv.Atoi(match[4])
-		models = append(models, parsedModel{
-			Row: modelRow{
-				Page: page, Form: formSupportedModel, Token: match[1], Identifier: intPointer(identifier),
-				MinimumSoftware: match[3], FloorBasis: floorBasisRow, SourceSet: sourceSetCard,
-			},
-			Private: map[string]string{"card_row": line},
-			Order:   len(models),
-		})
-	}
-	return models
-}
-
-// completeFloors cross-checks the exact model statements of the cards and of
-// the model coverage appendix against the rows of their edition. A statement
-// completes a row whose floor cell is cut at the end of its locator line; a
-// statement that contradicts a complete floor cell stops the generator.
-func completeFloors(models []parsedModel, statements map[string][]cardTuple) ([]string, error) {
-	var notes []string
-	shas := make([]string, 0, len(statements))
-	for sha := range statements {
-		shas = append(shas, sha)
-	}
-	sort.Strings(shas)
-	for _, sha := range shas {
-		for _, tuple := range statements[sha] {
-			if tuple.Floor == "" {
-				continue
-			}
-			matched := 0
-			for index := range models {
-				model := &models[index]
-				if model.SHA256 != sha || model.Row.Token != tuple.Token || model.Row.Identifier == nil || *model.Row.Identifier != tuple.Identifier {
-					continue
-				}
-				if tuple.Page != 0 && model.Row.Page != tuple.Page {
-					continue
-				}
-				matched++
-				switch {
-				case model.Row.MinimumSoftware == tuple.Floor:
-				case !floorGrammar.MatchString(model.Row.MinimumSoftware) && strings.HasPrefix(tuple.Floor, model.Row.MinimumSoftware):
-					model.Private["floor_cell"] = model.Row.MinimumSoftware
-					model.Row.MinimumSoftware = tuple.Floor
-					model.Row.FloorBasis = floorBasisReviewed
-				default:
-					return nil, fmt.Errorf("model %s/%d: floor cell %q contradicts the reviewed statement %q", tuple.Token, tuple.Identifier, model.Row.MinimumSoftware, tuple.Floor)
-				}
-			}
-			if matched == 0 {
-				notes = append(notes, fmt.Sprintf("reviewed statement %s/%d has no locator row in its edition", tuple.Token, tuple.Identifier))
-			}
-		}
-	}
-	return notes, nil
-}
-
-// flagModels assigns the generator quarantines and the wire tokens of the
-// model rows.
-func flagModels(models []parsedModel) {
-	for index := range models {
-		row := &models[index].Row
-		if row.Form != formSupportedModel {
-			continue
-		}
-		var flags []string
-		for _, suffix := range wrappedTokenSuffixes {
-			if strings.HasSuffix(row.Token, suffix) {
-				flags = append(flags, quarantineWrappedToken)
-				break
-			}
-		}
-		if row.MinimumSoftware != floorNotStated && !floorGrammar.MatchString(row.MinimumSoftware) && !strings.Contains(row.MinimumSoftware, unnormalizedFloorSuffix) {
-			flags = append(flags, quarantineFloorCell)
-		}
-		if row.Identifier == nil {
-			flags = append(flags, quarantineNoIdentifier)
-		}
-		row.Quarantine = append(row.Quarantine, flags...)
-		if mapZeroTokenPattern.MatchString(row.Token) {
-			row.WireToken = strings.ReplaceAll(row.Token, "_", "-")
-			row.WireTokenGrade = gradeHypothesis
-		}
-	}
+		return a.Order < b.Order
+	})
 }

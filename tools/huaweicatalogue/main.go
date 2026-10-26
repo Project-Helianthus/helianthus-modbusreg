@@ -1,9 +1,9 @@
 // Command huaweicatalogue generates the Huawei SUN2000 inverter catalogue
-// under profiles/vendor/huawei/catalogue from the consulted CC0 inverter
-// reference. It is deterministic, refuses counts that differ from the
-// reference accounting unless -expect states the reviewed numbers, and writes
-// locators beyond title, issue, date and page only to a sidecar directory
-// outside the repository.
+// under profiles/vendor/huawei/catalogue from the JSON twins and model tables
+// of the consulted CC0 inverter reference baseline. It is deterministic,
+// refuses counts that differ from the baseline accounting unless -expect
+// states the reviewed numbers, and writes locators beyond title, issue, date
+// and page only to a sidecar directory outside the repository.
 package main
 
 import (
@@ -30,10 +30,9 @@ func writeLine(w io.Writer, text string) {
 func run(arguments []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet("huaweicatalogue", flag.ContinueOnError)
 	reference := flags.String("reference", "", "root of the consulted inverter reference (required)")
-	modelRows := flags.String("model-rows", "", "model-row locator file (default: <reference>/../audit/all-model-row-locators.json)")
 	out := flags.String("out", "profiles/vendor/huawei/catalogue", "catalogue directory")
 	sidecar := flags.String("sidecar", "", "private sidecar directory outside the repository (optional)")
-	expect := flags.String("expect", "", "reviewed counts that replace the reference accounting, as ro=N,core=N,models=N,cards=N")
+	expect := flags.String("expect", "", "reviewed counts that replace the baseline accounting, as ro=N,core=N,controls=N,models=N,cards=N")
 	check := flags.Bool("check", false, "compare the generated files with the catalogue directory and write nothing")
 	if err := flags.Parse(arguments); err != nil {
 		return err
@@ -45,11 +44,7 @@ func run(arguments []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	locatorFile := *modelRows
-	if locatorFile == "" {
-		locatorFile = filepath.Join(*reference, "..", "audit", "all-model-row-locators.json")
-	}
-	generated, err := generate(options{Reference: *reference, ModelRows: locatorFile, Expect: expected})
+	generated, err := generate(options{Reference: *reference, Expect: expected})
 	if err != nil {
 		return err
 	}

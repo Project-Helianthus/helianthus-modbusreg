@@ -12,6 +12,7 @@ import (
 // digest and the locator lines stay in the private sidecar.
 type censusEntry struct {
 	Section  string
+	SourceID string
 	SHA256   string
 	Title    string
 	Issue    string
@@ -29,6 +30,7 @@ var (
 	aliasRowPattern       = regexp.MustCompile(`^\| <a id="([^"]+)"></a>([A-Z0-9]+) \|.*\]\(#(s-[0-9a-f]{12})\) \|\s*$`)
 	shaPattern            = regexp.MustCompile("PDF SHA-256: `([0-9a-f]{64})`")
 	aliasLinePattern      = regexp.MustCompile(`^- Alias: ([A-Z0-9]+)\.`)
+	sourceIDPattern       = regexp.MustCompile(`^Source ID: \*\*(PV\d{3})\*\*`)
 	coverPattern          = regexp.MustCompile(`^- Cover issue/date: (\S+) / (\S+); physical pages: (\d+)\.`)
 	coverInlinePattern    = regexp.MustCompile(`cover issue (\d+), date (\d{4}-\d{2}-\d{2}); (\d+) physical pages`)
 	digestFilePattern     = regexp.MustCompile(`^[0-9a-f]{64}\.pdf$`)
@@ -82,6 +84,9 @@ func parseSources(text string) (map[string]*censusEntry, []*censusEntry, error) 
 		if match := aliasLinePattern.FindStringSubmatch(line); match != nil {
 			current.Alias = match[1]
 		}
+		if match := sourceIDPattern.FindStringSubmatch(line); match != nil {
+			current.SourceID = match[1]
+		}
 		if strings.HasPrefix(line, "- Acquisition:") && strings.Contains(strings.ToLower(line), "mirror") {
 			current.Mirrored = true
 		}
@@ -102,7 +107,7 @@ func parseSources(text string) (map[string]*censusEntry, []*censusEntry, error) 
 		}
 	}
 	for _, entry := range entries {
-		if entry.SHA256 == "" || entry.Title == "" || entry.Pages == 0 {
+		if entry.SHA256 == "" || entry.Title == "" || entry.Pages == 0 || entry.SourceID == "" {
 			return nil, nil, fmt.Errorf("%s: incomplete census entry", entry.Section)
 		}
 		if !strings.HasPrefix(entry.SHA256, strings.TrimPrefix(strings.ToLower(entry.Section), "s-")) {
@@ -135,6 +140,9 @@ func parseSources(text string) (map[string]*censusEntry, []*censusEntry, error) 
 }
 
 func publicationTitle(text string) (string, error) {
+	if cover := strings.Index(text, " (cover title"); cover > 0 {
+		return strings.TrimSpace(text[:cover]), nil
+	}
 	for _, candidate := range strings.Split(text, "; ") {
 		candidate = strings.TrimSpace(candidate)
 		candidate = strings.TrimSuffix(candidate, ".")
@@ -185,7 +193,7 @@ func buildEditions(entries []*censusEntry, cards map[string]string) (map[string]
 		groups[key] = append(groups[key], entry)
 	}
 	bySHA := map[string]*edition{}
-	ids := map[string]string{}
+	byID := map[string][]*censusEntry{}
 	for _, group := range groups {
 		sort.Slice(group, func(i, j int) bool { return group[i].SHA256 < group[j].SHA256 })
 		for index, entry := range group {
@@ -211,12 +219,27 @@ func buildEditions(entries []*censusEntry, cards map[string]string) (map[string]
 				record.Copy = index + 1
 				record.ID += "-copy-" + strconv.Itoa(index+1)
 			}
-			if other, exists := ids[record.ID]; exists {
-				return nil, fmt.Errorf("edition id %s is shared by %s and %s", record.ID, other, entry.Section)
-			}
-			ids[record.ID] = entry.Section
 			bySHA[entry.SHA256] = record
+			byID[record.ID] = append(byID[record.ID], entry)
 		}
+	}
+	// Distinct titles whose identifier words coincide (titles that differ only
+	// in non-Latin text or spacing) are numbered in digest order.
+	for _, clash := range byID {
+		if len(clash) < 2 {
+			continue
+		}
+		sort.Slice(clash, func(i, j int) bool { return clash[i].SHA256 < clash[j].SHA256 })
+		for index, entry := range clash {
+			bySHA[entry.SHA256].ID += "-alt-" + strconv.Itoa(index+1)
+		}
+	}
+	seen := map[string]string{}
+	for _, record := range bySHA {
+		if other, exists := seen[record.ID]; exists {
+			return nil, fmt.Errorf("edition id %s is shared by %s and another edition", record.ID, other)
+		}
+		seen[record.ID] = record.Title
 	}
 	return bySHA, nil
 }

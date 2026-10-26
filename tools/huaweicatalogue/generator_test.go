@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,12 +19,11 @@ func TestRegenerationFromTheReferenceIsByteIdenticalAndDeterministic(t *testing.
 	if root == "" {
 		t.Skip(referenceEnvironment + " is not set; the consulted reference is not public")
 	}
-	locator := filepath.Join(root, "..", "audit", "all-model-row-locators.json")
-	first, err := generate(options{Reference: root, ModelRows: locator, Expect: defaultExpect})
+	first, err := generate(options{Reference: root, Expect: defaultExpect})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := generate(options{Reference: root, ModelRows: locator, Expect: defaultExpect})
+	second, err := generate(options{Reference: root, Expect: defaultExpect})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,8 +39,10 @@ func TestRegenerationFromTheReferenceIsByteIdenticalAndDeterministic(t *testing.
 			t.Fatalf("%s differs from the committed file", name)
 		}
 	}
-	if _, err := generate(options{Reference: root, ModelRows: locator, Expect: counts{RO: 3114, Core: 429, Models: 2113, Cards: 16}}); err == nil {
-		t.Fatal("a changed read-only count was accepted without -expect")
+	changed := defaultExpect
+	changed.Controls--
+	if _, err := generate(options{Reference: root, Expect: changed}); err == nil {
+		t.Fatal("a changed control count was accepted without -expect")
 	}
 }
 
@@ -51,8 +53,10 @@ func TestProseDropsReviewAndAuthorizationWordingOnly(t *testing.T) {
 		{"HA Issue 08 p. 11 gives a formula. P. 13 starts PV25.", "HA Issue 08 p. 11 gives a formula. P. 13 starts PV25."},
 		{"See [M10](sources.md#m10) p. 79.", "See M10 p. 79."},
 		{"HA Issue 08 (SHA `" + strings.Repeat("ab", 10) + "`) p. 11.", "HA Issue 08 p. 11."},
+		{"HA Issue 08 (source ID `PV034`) p. 11.", "HA Issue 08 p. 11."},
 		{"No write contract approved.", ""},
 		{"A shared address does not grant read permission or retry safety.", "A shared address does not grant read permission or retry safety."},
+		{"FC03 only; " + "l" + "ater partial silence is not retraction; " + "s" + "oftware confidence is separate.", "FC03 only; " + "s" + "oftware confidence is separate."},
 	} {
 		if got := prose(tc.in); got != tc.want {
 			t.Fatalf("prose(%q)=%q want %q", tc.in, got, tc.want)
@@ -85,100 +89,143 @@ func TestPublicationGuardRefusesDigestsLocationsAndReviewWording(t *testing.T) {
 	}
 }
 
-var syntheticClassTables = "Exact [X Issue 01](../appendices/sources.md#s-" + strings.Repeat("a", 12) + ").\n\n" +
-	"## Conditions\n\n" +
-	"- `GATE_A`: Use exact rows.\n" +
-	"- `GATE_B`: Read whole fields; no control write is authorized.\n\n" +
-	"## pv.channel\n\n" +
-	"| Functional key | Endpoint | Address / words | Literal type; gain; unit | Status / conditions | Source page / table / row |\n" +
-	"|---|---|---|---|---|---|\n" +
-	"| pv.channel.one | inverter | 32016 / 1 | I16; 10; V | DOCUMENT_REVIEWED; GATE_A | p. 9 / t0 / r1 |\n" +
-	"| pv.channel.pvn | inverter | ... / 1 | I16; 100; A | RAW_ONLY_UNDEFINED; GATE_A, GATE_B | p. 9 / t0 / r2 |\n" +
-	"| emma.alarm.count | EMMA | 30906 / 1 | U16; ; N/A | CONFLICT; GATE_B | p. 65 / t1 / r7 |\n"
+const syntheticBaseReview = `{
+  "schema": "huawei-pv-base-profile-semantic-review-v1",
+  "conditions": {"GATE_A": "Use exact rows.", "GATE_B": "Read whole fields; no control write is authorized."},
+  "alarm_bits": [{"register_or_word_literal": "Alarm9", "register_address": null, "bit": 3, "alarm_id": 2001, "meaning_key": "alarm.example", "severity_key": "major", "conditional_source_markers": ["1"], "source": {"physical_page": 40}}],
+  "entries": [
+    {"capability_class": "pv.channel", "functional_key": "pv.channel.one", "endpoint": "inverter", "status": "DOCUMENT_REVIEWED", "condition_ids": ["GATE_A"], "meaning": {"enum": {"1": "on", "0": "off"}}, "unresolved": [],
+     "source_tuple_literal": {"access": "RO", "type": "I16", "unit": "V", "gain": "10", "address": "32016", "words": "1"}, "evidence_id": "PVX:p9:t0:r1", "function_code": 3, "source_id": "PVX", "physical_page": 9},
+    {"capability_class": "pv.channel", "functional_key": "pv.channel.pvn", "endpoint": "inverter", "status": "RAW_ONLY_UNDEFINED", "condition_ids": ["GATE_A", "GATE_B"], "meaning": {}, "unresolved": ["Formula address."],
+     "source_tuple_literal": {"access": "RO", "type": "I16", "unit": "A", "gain": "100", "address": "...", "words": "1"}, "address_contract": {"value": null, "status": "unspecified_in_source"}, "evidence_id": "PVX:p9:t0:r2", "function_code": 3, "source_id": "PVX", "physical_page": 9},
+    {"capability_class": "emma.alarm", "functional_key": "emma.alarm.count", "endpoint": "EMMA", "status": "CONFLICT", "condition_ids": ["GATE_B"], "meaning": {"sign": {"positive": "export_to_grid", "negative": "import_from_grid"}}, "unresolved": [],
+     "source_tuple_literal": {"access": "RO", "type": "U16", "unit": "N/A", "gain": "", "address": "30906", "words": "1"}, "evidence_id": "PVX:p65:t1:r7", "function_code": 3, "source_id": "PVX", "physical_page": 65}
+  ],
+  "coverage": {"detected_RO_rows": 3, "status_counts": {"DOCUMENT_REVIEWED": 1, "RAW_ONLY_UNDEFINED": 1, "CONFLICT": 1}}
+}`
 
-func TestClassTableParserPlacesEveryRowWithItsClassAndGates(t *testing.T) {
-	rows, gates, anchor, err := parseClassTables(syntheticClassTables, "sha")
-	if err != nil {
+func TestBaseTwinParserKeepsClassesGatesAndUnspecifiedAddresses(t *testing.T) {
+	var out cardRows
+	if err := parseReadOnly(json.RawMessage(syntheticBaseReview), "PVX", &out); err != nil {
 		t.Fatal(err)
 	}
-	if anchor != "s-"+strings.Repeat("a", 12) || len(gates) != 2 || gates[1].Meaning != "Read whole fields." || len(rows) != 3 {
-		t.Fatalf("anchor=%q gates=%+v rows=%d", anchor, gates, len(rows))
+	if len(out.Gates) != 2 || out.Gates[1].Meaning != "Read whole fields." || len(out.Rows) != 3 || len(out.AlarmBits) != 1 {
+		t.Fatalf("gates=%+v rows=%d bits=%d", out.Gates, len(out.Rows), len(out.AlarmBits))
 	}
-	reviewed, template, emma := rows[0].Row, rows[1].Row, rows[2].Row
-	if reviewed.Class != classReviewed || reviewed.Decode == nil || reviewed.Decode.Gain != "10" || reviewed.Literal != nil || *reviewed.Offset != 32016 || rows[0].Evidence != "sha:p9:t0:r1" {
+	reviewed, unspecified, emma := out.Rows[0].Row, out.Rows[1].Row, out.Rows[2].Row
+	if reviewed.Class != classReviewed || reviewed.Decode == nil || reviewed.Decode.Gain != "10" || reviewed.Literal != nil || *reviewed.Offset != 32016 {
 		t.Fatalf("reviewed row %+v", reviewed)
 	}
-	if template.Offset != nil || template.Class != classRawOnly || template.Decode != nil || template.Literal.Unit != "A" || len(template.Gates) != 2 {
-		t.Fatalf("template row %+v", template)
+	if unspecified.Offset != nil || unspecified.AddressStatus != addressUnspecified || unspecified.Class != classRawOnly || unspecified.Decode != nil || unspecified.Condition != "Formula address." {
+		t.Fatalf("unspecified row %+v", unspecified)
 	}
-	if emma.Endpoint != endpointEMMA || emma.Class != classConflict || emma.Literal.Gain != floorNotStated || emma.FunctionalClass != "pv.channel" {
+	if emma.Endpoint != endpointEMMA || emma.Class != classConflict || emma.Literal.Gain != floorNotStated {
 		t.Fatalf("EMMA row %+v", emma)
 	}
-	if _, _, _, err := parseClassTables(strings.Replace(syntheticClassTables, "DOCUMENT_REVIEWED;", "SOMETHING_ELSE;", 1), "sha"); err == nil {
-		t.Fatal("an unknown status was accepted")
+	if bit := out.AlarmBits[0]; bit.Offset != nil || bit.Word != "Alarm9" || bit.Module != "1" {
+		t.Fatalf("alarm bit %+v", bit)
 	}
-	if _, _, _, err := parseClassTables(strings.Replace(syntheticClassTables, "| inverter | 32016", "| gateway | 32016", 1), "sha"); err == nil {
-		t.Fatal("an unknown endpoint was accepted")
+	dictionaries, err := meaningDictionaries(out.Rows[0])
+	if err != nil || len(dictionaries) != 1 || dictionaries[0].Values[0].Code != "0" {
+		t.Fatalf("dictionaries %+v %v", dictionaries, err)
+	}
+	for _, mutation := range []struct{ from, to string }{
+		{`"status": "DOCUMENT_REVIEWED"`, `"status": "SOMETHING_ELSE"`},
+		{`"endpoint": "inverter", "status": "DOCUMENT_REVIEWED"`, `"endpoint": "gateway", "status": "DOCUMENT_REVIEWED"`},
+		{`"detected_RO_rows": 3`, `"detected_RO_rows": 4`},
+		{`"source_id": "PVX", "physical_page": 9},`, `"source_id": "PVY", "physical_page": 9},`},
+		{`"unspecified_in_source"`, `"guessed"`},
+	} {
+		var refused cardRows
+		if parseReadOnly(json.RawMessage(strings.Replace(syntheticBaseReview, mutation.from, mutation.to, 1)), "PVX", &refused) == nil {
+			t.Fatalf("mutation %q was accepted", mutation.to)
+		}
 	}
 }
 
-func TestModelLocatorFormsAreClassifiedOrRefused(t *testing.T) {
-	data := []byte(`[
-		{"pdf_sha256":"a","physical_page":5,"native_model_row":"SUN2000-50KTL-M3        471        SUN2000MC V200R023C00"},
-		{"pdf_sha256":"a","physical_page":6,"native_model_row":"SUN2000-8KTL       5      SUN2000       8.8     5.28"},
-		{"pdf_sha256":"a","physical_page":7,"native_model_row":"33        SUN2000-60KTL-HV-D1        66      39.6      60"},
-		{"pdf_sha256":"a","physical_page":7,"native_model_row":"338         SUN2000-2KTL-L0"},
-		{"pdf_sha256":"a","physical_page":7,"native_model_row":"SUN2000-55KTL-HV-D1"},
-		{"pdf_sha256":"a","physical_page":3,"native_model_row":"05        2022-06-16        Add new model: X,"},
-		{"pdf_sha256":"a","physical_page":3,"native_model_row":"SUN2000-125KTL-JPH1"}
-	]`)
-	models, err := parseLocatorRows(data)
+const syntheticControls = `{
+  "schema": "huawei-pv-base-control-review-v1",
+  "entries": [
+    {"entry_id": "PVX:p28:t0:r2", "namespace": "inverter_and_associated_channels", "class_id": "time", "metadata_status": "DOCUMENTED_CONTROL_METADATA",
+     "tuple": {"address": 40000, "register_length": 2, "source_type": "EPOCHTIME", "access": "RW", "gain": 1, "unit": "s"}, "provenance": {"source_id": "PVX", "physical_page": 28}, "read_function_association": {"function_code": 3}},
+    {"entry_id": "PVX:p28:t0:r3", "namespace": "inverter_and_associated_channels", "class_id": "lifecycle", "metadata_status": "DOCUMENTED_CONTROL_METADATA",
+     "tuple": {"address": 40200, "register_length": 1, "source_type": "U16", "access": "WO", "gain": null, "unit": null}, "provenance": {"source_id": "PVX", "physical_page": 28}, "read_function_association": {"function_code": null}},
+    {"entry_id": "PVX:p29:t0:r1", "namespace": "emma_unit0", "class_id": "storage", "metadata_status": "QUARANTINED_SPECIFIC_CONFLICT",
+     "tuple": {"address": 47000, "register_length": 1, "source_type": "U16", "access": "RW", "gain": 1, "unit": "N/A"}, "provenance": {"source_id": "PVX", "physical_page": 29}, "read_function_association": {"function_code": 3},
+     "value_facts": {"enum_members": [{"code_literal": "0", "source_label_compacted": "None"}, {"code_literal": "2", "source_label_compacted": "LUNA2000"}]}}
+  ],
+  "coverage": {"recognized_control_occurrences": 3, "status_counts": {"DOCUMENTED_CONTROL_METADATA": 2, "QUARANTINED_SPECIFIC_CONFLICT": 1}}
+}`
+
+func TestControlParserKeepsControlsReadableOrNoSendAndNeverDecoded(t *testing.T) {
+	var out cardRows
+	if err := parseControls(json.RawMessage(syntheticControls), "x", "PVX", &out); err != nil {
+		t.Fatal(err)
+	}
+	want := []struct{ key, class, endpoint string }{
+		{"x.control.time.40000", classReadableConfiguration, endpointInverter},
+		{"x.control.lifecycle.40200", classNoSend, endpointInverter},
+		{"x.control.storage.47000", classNoSend, endpointEMMA},
+	}
+	for index, row := range out.Controls {
+		if row.Row.Key != want[index].key || row.Row.Class != want[index].class || row.Row.Endpoint != want[index].endpoint || row.Row.Decode != nil || row.Row.Literal == nil {
+			t.Fatalf("control %d: %+v", index, row.Row)
+		}
+		if err := checkRegisterRow(row.Row, true); err != nil {
+			t.Fatalf("control %d: %v", index, err)
+		}
+	}
+	if item := selectorDictionary(out.Controls[2]); item == nil || len(item.Values) != 2 || item.Values[1].Meaning != "LUNA2000" {
+		t.Fatalf("selector %+v", item)
+	}
+	var refused cardRows
+	if parseControls(json.RawMessage(strings.Replace(syntheticControls, `"QUARANTINED_SPECIFIC_CONFLICT",`, `"INVENTED_STATUS",`, 1)), "x", "PVX", &refused) == nil {
+		t.Fatal("an unknown control status was accepted")
+	}
+}
+
+func TestModelTableConversionKeepsRowAndDocumentFloorsApart(t *testing.T) {
+	table := modelTable{
+		Schema: "huawei-pv-model-table-v1", SourceID: "PVX",
+		DocumentRequirements: []twinRequirement{{ID: "PVX:section1.2", SourceID: "PVX", Page: 7, Section: "1.2 System Requirements", Minimum: "V100R001C00", Inclusive: true}},
+	}
+	five, seven := 5, 7
+	stated, merged, psc := "SUN2000MC V200R023C00", "SUN2000MA V100R001C10SUN2000MA", "V200R023C10PSC110"
+	table.DocumentRequirements[0].Scope.ModelTokens = []string{"SUN2000-A", "SUN2000-B"}
+	table.Rows = []twinModel{
+		{Token: "SUN2000-50KTL-M3", ModelID: &five, Minimum: &stated, MinimumStatus: "stated_in_source", ModelIDStatus: "stated_as_model_id", SourceID: "PVX", Page: 5},
+		{Token: "SUN2000-A", MinimumStatus: "not_stated_in_model_row", ModelIDStatus: "not_stated_as_model_id", Sequence: "33", SourceID: "PVX", Page: 7, RequirementIDs: []string{"PVX:section1.2"}},
+		{Token: "SUN2000-20KTL-M0", ModelID: &seven, Minimum: &merged, MinimumStatus: "stated_in_source", ModelIDStatus: "stated_as_model_id", SourceID: "PVX", Page: 8},
+		{Token: "SUN2000-12K-MB0", ModelID: &seven, Minimum: &psc, MinimumStatus: "stated_in_source", ModelIDStatus: "stated_as_model_id", SourceID: "PVX", Page: 6},
+	}
+	models, requirements, err := convertModelTable(table, "e")
 	if err != nil {
 		t.Fatal(err)
 	}
-	flagModels(models)
-	want := []struct {
-		token, floor string
-		identifier   int
-		flags        string
-	}{
-		{"SUN2000-50KTL-M3", "SUN2000MC V200R023C00", 471, ""},
-		{"SUN2000-8KTL", "SUN2000", 5, "M02"},
-		{"SUN2000-60KTL-HV-D1", floorNotStated, 33, ""},
-		{"SUN2000-2KTL-L0", floorNotStated, 338, ""},
-		{"SUN2000-55KTL-HV-D1", floorNotStated, -1, "M04"},
-		{"", floorNotStated, -1, "M03"},
-		{"", floorNotStated, -1, "M03"},
+	if len(requirements) != 1 || requirements[0].ID != "e/1-2-system-requirements" {
+		t.Fatalf("requirements %+v", requirements)
 	}
-	for index, row := range models {
-		identifier := -1
-		if row.Row.Identifier != nil {
-			identifier = *row.Row.Identifier
-		}
-		if row.Row.Token != want[index].token || row.Row.MinimumSoftware != want[index].floor || identifier != want[index].identifier || strings.Join(row.Row.Quarantine, ",") != want[index].flags {
-			t.Fatalf("row %d: %+v", index, row.Row)
-		}
+	row, document, irregular, mirrored := models[0].Row, models[1].Row, models[2].Row, models[3].Row
+	if row.FloorBasis != floorBasisRow || row.MinimumSoftware != stated || row.RowMinimum != stated || row.Identifier == nil || len(row.Quarantine) != 0 {
+		t.Fatalf("row floor %+v", row)
 	}
-	if _, err := parseLocatorRows([]byte(`[{"pdf_sha256":"a","physical_page":9,"native_model_row":"something else entirely"}]`)); err == nil {
-		t.Fatal("an unplaced locator line was accepted")
+	if document.FloorBasis != floorBasisDocument || document.RowMinimum != floorNotStated || document.MinimumSoftware != "V100R001C00" ||
+		document.Identifier != nil || document.SequenceNumber != "33" || strings.Join(document.Quarantine, ",") != quarantineSequenceOrdinal {
+		t.Fatalf("document floor %+v", document)
 	}
-}
-
-func TestReviewedStatementsCompleteWrappedFloorsAndRefuseContradictions(t *testing.T) {
-	identifier := 380
-	models := []parsedModel{{
-		Row:    modelRow{Token: "SUN2000-4.95K-LB0-NH", Identifier: &identifier, Page: 7, MinimumSoftware: "V300R024C10SPC1", FloorBasis: floorBasisRow},
-		SHA256: "lb", Private: map[string]string{},
-	}}
-	if _, err := completeFloors(models, map[string][]cardTuple{"lb": {{Token: "SUN2000-4.95K-LB0-NH", Identifier: 380, Floor: "V300R024C10SPC100"}}}); err != nil {
-		t.Fatal(err)
+	if strings.Join(irregular.Quarantine, ",") != quarantineFloorCell || len(mirrored.Quarantine) != 0 {
+		t.Fatalf("irregular %+v mirrored %+v", irregular, mirrored)
 	}
-	if models[0].Row.MinimumSoftware != "V300R024C10SPC100" || models[0].Row.FloorBasis != floorBasisReviewed {
-		t.Fatalf("floor not completed: %+v", models[0].Row)
+	broken := table
+	broken.Rows = append([]twinModel(nil), table.Rows...)
+	broken.Rows[1].RequirementIDs = nil
+	if _, _, err := convertModelTable(broken, "e"); err == nil {
+		t.Fatal("a row without a minimum and without a document requirement was accepted")
 	}
-	models[0].Row.MinimumSoftware, models[0].Row.FloorBasis = "V300R024C00", floorBasisRow
-	if _, err := completeFloors(models, map[string][]cardTuple{"lb": {{Token: "SUN2000-4.95K-LB0-NH", Identifier: 380, Floor: "V300R024C10SPC100"}}}); err == nil {
-		t.Fatal("a contradicting complete floor was accepted")
+	broken.Rows = append([]twinModel(nil), table.Rows...)
+	broken.Rows[1].Sequence = ""
+	if _, _, err := convertModelTable(broken, "e"); err == nil {
+		t.Fatal("a row without a model identifier and without a sequence number was accepted")
 	}
 }
 
@@ -199,6 +246,7 @@ func TestClassInvariantRefusesDecodingBeyondTheClass(t *testing.T) {
 		{classRawOnly, true, false, false},
 		{classConflict, true, true, false},
 		{classConflict, false, false, false},
+		{classNoSend, false, true, false},
 		{"unknown", true, false, false},
 	} {
 		row := base
@@ -209,38 +257,58 @@ func TestClassInvariantRefusesDecodingBeyondTheClass(t *testing.T) {
 		if tc.literal {
 			row.Literal = &scale{Gain: "10", Unit: "V"}
 		}
-		if err := checkRegisterRow(row, "RO"); (err == nil) != tc.accept {
+		if err := checkRegisterRow(row, false); (err == nil) != tc.accept {
 			t.Fatalf("%+v: err=%v accept=%t", tc, err, tc.accept)
 		}
 	}
-	template := base
-	template.Class, template.Literal, template.Offset = classRawOnly, &scale{Gain: "1", Unit: "A"}, nil
-	if checkRegisterRow(template, "RO") == nil {
-		t.Fatal("a row without an offset and without X01 was accepted")
+	control := base
+	control.Access, control.Class, control.Literal = "RW", classReadableConfiguration, &scale{Gain: "1", Unit: "s"}
+	if err := checkRegisterRow(control, true); err != nil {
+		t.Fatal(err)
 	}
-	template.Quarantine = []string{quarantineTemplateRow}
-	if err := checkRegisterRow(template, "RO"); err != nil {
+	for name, mutate := range map[string]func(*registerRow){
+		"decoding control":   func(r *registerRow) { r.Decode = &scale{Gain: "1", Unit: "s"} },
+		"readable WO":        func(r *registerRow) { r.Access = "WO" },
+		"read-only class":    func(r *registerRow) { r.Class = classReviewed },
+		"control without at": func(r *registerRow) { r.Offset = nil; r.AddressStatus = addressUnspecified },
+	} {
+		row := control
+		mutate(&row)
+		if checkRegisterRow(row, true) == nil {
+			t.Fatalf("%s was accepted", name)
+		}
+	}
+	unspecified := base
+	unspecified.Class, unspecified.Literal, unspecified.Offset = classRawOnly, &scale{Gain: "1", Unit: "A"}, nil
+	if checkRegisterRow(unspecified, false) == nil {
+		t.Fatal("a row without an offset and without the unspecified address status was accepted")
+	}
+	unspecified.AddressStatus = addressUnspecified
+	if err := checkRegisterRow(unspecified, false); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestFloorFormRefusesUnflaggedCellsRangesAndHistoryTokens(t *testing.T) {
+func TestFloorFormRefusesMissingFloorsRangesAndPromotedOrdinals(t *testing.T) {
 	identifier := 471
-	base := modelRow{Edition: "e", Page: 5, Form: formSupportedModel, Token: "SUN2000-50KTL-M3", Identifier: &identifier,
-		MinimumSoftware: "SUN2000MC V200R023C00", FloorBasis: floorBasisRow, SourceSet: sourceSetLocator}
+	base := modelRow{Edition: "e", Page: 5, Token: "SUN2000-50KTL-M3", Identifier: &identifier,
+		RowMinimum: "SUN2000MC V200R023C00", MinimumSoftware: "SUN2000MC V200R023C00", FloorBasis: floorBasisRow}
 	if err := checkModelRow(base); err != nil {
 		t.Fatal(err)
 	}
 	mutations := map[string]func(*modelRow){
-		"empty floor":             func(r *modelRow) { r.MinimumSoftware = "" },
-		"truncated floor":         func(r *modelRow) { r.MinimumSoftware = "V300R024C10SPC1" },
-		"range floor":             func(r *modelRow) { r.MinimumSoftware = "V200R023C00 to V200R024C00" },
-		"bounded floor":           func(r *modelRow) { r.MinimumSoftware = "<V200R024C00" },
-		"basis without floor":     func(r *modelRow) { r.MinimumSoftware = floorNotStated },
-		"history with token":      func(r *modelRow) { r.Form = formRevisionHistory; r.Quarantine = []string{quarantineHistoryLine} },
-		"missing identifier flag": func(r *modelRow) { r.Identifier = nil },
-		"invented wire token":     func(r *modelRow) { r.WireToken = "SUN2000-50KTL-M3"; r.WireTokenGrade = gradeHypothesis },
-		"unknown form":            func(r *modelRow) { r.Form = "maximum" },
+		"no floor":               func(r *modelRow) { r.MinimumSoftware = "" },
+		"floor not stated":       func(r *modelRow) { r.MinimumSoftware = floorNotStated },
+		"floor differs from row": func(r *modelRow) { r.MinimumSoftware = "SUN2000MC V200R024C00" },
+		"truncated floor":        func(r *modelRow) { r.RowMinimum, r.MinimumSoftware = "V300R024C10SPC1", "V300R024C10SPC1" },
+		"range floor": func(r *modelRow) {
+			r.RowMinimum, r.MinimumSoftware = "V200R023C00 to V200R024C00", "V200R023C00 to V200R024C00"
+		},
+		"document without link": func(r *modelRow) { r.FloorBasis, r.RowMinimum = floorBasisDocument, floorNotStated },
+		"ordinal as identifier": func(r *modelRow) { r.SequenceNumber = "33" },
+		"identifier missing":    func(r *modelRow) { r.Identifier = nil },
+		"unknown basis":         func(r *modelRow) { r.FloorBasis = "maximum" },
+		"invented wire alias":   func(r *modelRow) { r.WireAliases = []wireAlias{{Token: "SUN3000-50KTL-M3", Evidence: "e", Scope: "s"}} },
 	}
 	for name, mutate := range mutations {
 		row := base
@@ -249,29 +317,25 @@ func TestFloorFormRefusesUnflaggedCellsRangesAndHistoryTokens(t *testing.T) {
 			t.Fatalf("%s was accepted", name)
 		}
 	}
-	flagged := base
-	flagged.MinimumSoftware, flagged.Quarantine = "V300R024C10SPC1", []string{quarantineFloorCell}
-	if err := checkModelRow(flagged); err != nil {
+	document := base
+	document.Identifier, document.SequenceNumber, document.Quarantine = nil, "33", []string{quarantineSequenceOrdinal}
+	document.FloorBasis, document.RowMinimum, document.MinimumSoftware, document.DocumentRequirement = floorBasisDocument, floorNotStated, "V100R001C00", "e/1-2"
+	if err := checkModelRow(document); err != nil {
 		t.Fatal(err)
 	}
-	mapZero := base
-	mapZero.Token, mapZero.WireToken, mapZero.WireTokenGrade = "SUN2000_8K_MAP0_ZH", "SUN2000-8K-MAP0-ZH", gradeHypothesis
-	if err := checkModelRow(mapZero); err != nil {
+	alias := base
+	alias.Token, alias.WireAliases = "SUN2000_12K_MAP0", []wireAlias{{Token: "SUN2000-12K-MAP0", Evidence: "reported", Scope: "exact identifier scope"}}
+	if err := checkModelRow(alias); err != nil {
 		t.Fatal(err)
-	}
-	mapZero.WireToken = ""
-	mapZero.WireTokenGrade = ""
-	if checkModelRow(mapZero) == nil {
-		t.Fatal("a MAP0 underscore token without its wire form was accepted")
 	}
 }
 
 // TestModelUniquenessCoversEveryIdentityField duplicates one committed model
 // row and then varies each identity field: the edition (a mutation that drops
-// the edition from the key would accept the duplicate after the edition
-// change), the token (dropping the token would refuse the token variant as an
-// identifier clash) and the identifier (dropping the identifier would refuse
-// the identifier variant).
+// the edition from the key would refuse the edition variant), the token
+// (dropping the token would accept the duplicate token change as a new pair
+// and miss the identifier clash) and the identifier (dropping the identifier
+// would refuse the identifier variant).
 func TestModelUniquenessCoversEveryIdentityField(t *testing.T) {
 	c, raw := loadCommitted(t)
 	if err := validateCatalogue(c); err != nil {
@@ -280,7 +344,7 @@ func TestModelUniquenessCoversEveryIdentityField(t *testing.T) {
 	var source modelRow
 	found := false
 	for _, row := range c.Models.Rows {
-		if row.Form == formSupportedModel && row.Identifier != nil && len(row.Quarantine) == 0 && row.WireToken == "" {
+		if row.Identifier != nil && len(row.Quarantine) == 0 && len(row.WireAliases) == 0 && row.FloorBasis == floorBasisRow {
 			source, found = row, true
 			break
 		}
@@ -321,11 +385,20 @@ func TestModelUniquenessCoversEveryIdentityField(t *testing.T) {
 		if err := decodeStrict(raw[modelsFile], &copyOf.Models); err != nil {
 			t.Fatal(err)
 		}
+		if err := decodeStrict(raw[editionsFile], &copyOf.Editions); err != nil {
+			t.Fatal(err)
+		}
 		row := source
 		identifier := *source.Identifier
 		row.Identifier = &identifier
 		variant.mutate(&row)
 		copyOf.Models.Rows = append(copyOf.Models.Rows, row)
+		target := row.Edition
+		for index := range copyOf.Editions.Editions {
+			if copyOf.Editions.Editions[index].ID == target {
+				copyOf.Editions.Editions[index].ModelRows++
+			}
+		}
 		if err := validateCatalogue(&copyOf); (err == nil) != variant.accept {
 			t.Fatalf("%s: err=%v accept=%t", variant.name, err, variant.accept)
 		}
@@ -385,7 +458,7 @@ func TestExpectOverrideAndSidecarPlacement(t *testing.T) {
 	if got, err := parseExpect(""); err != nil || got != defaultExpect {
 		t.Fatalf("default expect %v %v", got, err)
 	}
-	if got, err := parseExpect("ro=3120,models=2200"); err != nil || got.RO != 3120 || got.Models != 2200 || got.Core != 429 || got.Cards != 16 {
+	if got, err := parseExpect("ro=3120,controls=2200"); err != nil || got.RO != 3120 || got.Controls != 2200 || got.Core != 429 || got.Models != 2401 || got.Cards != 16 {
 		t.Fatalf("override %v %v", got, err)
 	}
 	for _, bad := range []string{"ro=-1", "rows=1", "ro"} {

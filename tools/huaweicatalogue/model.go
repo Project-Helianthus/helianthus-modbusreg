@@ -18,19 +18,21 @@ const (
 	classConflict    = "conflict"
 )
 
-// Model row forms and floor bases.
+// Control row classes. A readable-configuration row may be read with FC03 as
+// raw evidence; a no-send row is never requested. Control rows never decode.
 const (
-	formSupportedModel  = "supported_model_row"
-	formRevisionHistory = "revision_history_line"
+	classReadableConfiguration = "readable-configuration"
+	classNoSend                = "no-send"
+)
 
+// Model floor bases and literals.
+const (
 	floorBasisRow       = "row"
-	floorBasisReviewed  = "reviewed"
+	floorBasisDocument  = "document"
 	floorNotStated      = "not stated"
-	sourceSetLocator    = "model_row_locator"
-	sourceSetCard       = "card"
 	sourceClassVendor   = "vendor_edition"
 	sourceClassMirrored = "mirrored_edition"
-	gradeHypothesis     = "HYPOTHESIS"
+	addressUnspecified  = "unspecified_in_source"
 )
 
 // Endpoints of a register row. EMMA rows never enter an inverter read map.
@@ -46,9 +48,10 @@ const attributionNote = "Register, model and dictionary facts are taken from an 
 	"table, link, locator or digest, and it names each consulted edition by title, issue and date only."
 
 type editionsDoc struct {
-	Schema      string    `json:"schema"`
-	Attribution string    `json:"attribution"`
-	Editions    []edition `json:"editions"`
+	Schema            string    `json:"schema"`
+	ReferenceBaseline string    `json:"reference_baseline"`
+	Attribution       string    `json:"attribution"`
+	Editions          []edition `json:"editions"`
 }
 
 type edition struct {
@@ -62,37 +65,86 @@ type edition struct {
 	SourceClass string `json:"source_class"`
 	Alias       string `json:"alias,omitempty"`
 	Card        string `json:"card,omitempty"`
+	ModelRows   int    `json:"model_rows"`
 }
 
 type modelsDoc struct {
-	Schema string     `json:"schema"`
-	Rows   []modelRow `json:"rows"`
+	Schema               string                `json:"schema"`
+	DocumentRequirements []documentRequirement `json:"document_requirements"`
+	Rows                 []modelRow            `json:"rows"`
+}
+
+type documentRequirement struct {
+	ID          string   `json:"id"`
+	Edition     string   `json:"edition"`
+	Page        int      `json:"page"`
+	Section     string   `json:"section"`
+	Minimum     string   `json:"minimum"`
+	Inclusive   bool     `json:"inclusive"`
+	Component   string   `json:"component"`
+	ModelTokens []string `json:"model_tokens"`
 }
 
 type modelRow struct {
-	Edition         string   `json:"edition"`
-	Page            int      `json:"page"`
-	Form            string   `json:"form"`
-	Token           string   `json:"token,omitempty"`
-	Identifier      *int     `json:"identifier,omitempty"`
-	MinimumSoftware string   `json:"minimum_software"`
-	FloorBasis      string   `json:"floor_basis"`
-	WireToken       string   `json:"wire_token,omitempty"`
-	WireTokenGrade  string   `json:"wire_token_grade,omitempty"`
-	SourceSet       string   `json:"source_set"`
-	Quarantine      []string `json:"quarantine,omitempty"`
+	Edition             string      `json:"edition"`
+	Page                int         `json:"page"`
+	Token               string      `json:"token"`
+	Identifier          *int        `json:"identifier,omitempty"`
+	SequenceNumber      string      `json:"sequence_number,omitempty"`
+	RowMinimum          string      `json:"row_minimum"`
+	DocumentRequirement string      `json:"document_requirement,omitempty"`
+	MinimumSoftware     string      `json:"minimum_software"`
+	FloorBasis          string      `json:"floor_basis"`
+	WireAliases         []wireAlias `json:"wire_aliases,omitempty"`
+	Quarantine          []string    `json:"quarantine,omitempty"`
+}
+
+type wireAlias struct {
+	Token    string `json:"token"`
+	Evidence string `json:"evidence"`
+	Scope    string `json:"scope"`
 }
 
 type registersDoc struct {
-	Schema                string            `json:"schema"`
-	Card                  string            `json:"card"`
-	Edition               string            `json:"edition"`
-	ModelPages            []int             `json:"model_pages"`
-	SelectionNote         string            `json:"selection_note,omitempty"`
-	Gates                 []gate            `json:"gates,omitempty"`
-	FunctionalClasses     []functionalClass `json:"functional_classes,omitempty"`
-	Rows                  []registerRow     `json:"rows"`
-	ReadableConfiguration []registerRow     `json:"readable_configuration,omitempty"`
+	Schema            string            `json:"schema"`
+	Card              string            `json:"card"`
+	Edition           string            `json:"edition"`
+	ModelPages        []int             `json:"model_pages"`
+	SelectionNote     string            `json:"selection_note,omitempty"`
+	Gates             []gate            `json:"gates,omitempty"`
+	FunctionalClasses []functionalClass `json:"functional_classes,omitempty"`
+	ReadExtents       []readExtent      `json:"read_extents"`
+	AdditiveSupport   *additiveSupport  `json:"additive_support,omitempty"`
+	Rows              []registerRow     `json:"rows"`
+	Controls          []registerRow     `json:"controls"`
+}
+
+type readExtent struct {
+	Start          int    `json:"start"`
+	End            int    `json:"end"`
+	Quantity       int    `json:"quantity"`
+	SafeQuantities []int  `json:"safe_quantities"`
+	Offsets        []int  `json:"offsets"`
+	FollowingHole  []int  `json:"following_hole,omitempty"`
+	Hole           string `json:"hole,omitempty"`
+}
+
+type additiveSupport struct {
+	Edition string        `json:"edition"`
+	Token   string        `json:"token"`
+	Model   int           `json:"identifier"`
+	Minimum string        `json:"minimum_software"`
+	Page    int           `json:"page"`
+	Rows    []additiveRow `json:"rows"`
+	Note    string        `json:"condition,omitempty"`
+}
+
+type additiveRow struct {
+	Offset   int    `json:"offset"`
+	Quantity int    `json:"quantity"`
+	Type     string `json:"type"`
+	Meaning  string `json:"meaning"`
+	Page     int    `json:"page"`
 }
 
 type gate struct {
@@ -111,6 +163,7 @@ type registerRow struct {
 	Key             string   `json:"key"`
 	Endpoint        string   `json:"endpoint"`
 	Offset          *int     `json:"offset,omitempty"`
+	AddressStatus   string   `json:"address_status,omitempty"`
 	Quantity        int      `json:"quantity"`
 	Type            string   `json:"type"`
 	Access          string   `json:"access"`
@@ -162,7 +215,8 @@ type dictValue struct {
 }
 
 type alarmBit struct {
-	Offset   int    `json:"offset"`
+	Offset   *int   `json:"offset,omitempty"`
+	Word     string `json:"word,omitempty"`
 	Bit      int    `json:"bit"`
 	AlarmID  int    `json:"alarm_id"`
 	Label    string `json:"label"`

@@ -3,61 +3,115 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 )
 
-// parsedRow is a register row with the locator fields that stay private.
+// parsedRow is a register or control row with the locator fields that stay
+// private and the twin data that dictionaries are derived from.
 type parsedRow struct {
-	Row      registerRow
-	Evidence string
-	Private  map[string]string
-	Order    int
+	Row       registerRow
+	Evidence  string
+	TwinIDs   []string
+	Meaning   map[string]json.RawMessage
+	Condition string
+	Enum      []dictValue
+	Private   map[string]string
+	Order     int
 }
 
-var (
-	conditionBulletPattern = regexp.MustCompile("^- `([A-Z0-9_]+)`: (.+)$")
-	classHeadingPattern    = regexp.MustCompile(`^## ([a-z0-9_]+(?:\.[a-z0-9_]+)+)\s*$`)
-	addressWordsPattern    = regexp.MustCompile(`^(\d+|\.\.\.) / (\d+)$`)
-	pageTableRowPattern    = regexp.MustCompile(`^p\. (\d+) / (t\d+) / (r\d+)$`)
-	pageSourceRowPattern   = regexp.MustCompile(`^(\d+) / (\d+)$`)
-	mb02ConditionPattern   = regexp.MustCompile(`^\| (G-[A-Z0-9-]+) \| (.+?) \| ([0-9, ]+) \|\s*$`)
-	twoColumnPattern       = regexp.MustCompile(`^\| ([a-z0-9_]+) \| (.+?) \|\s*$`)
-)
+// twinDoc is the deterministic JSON twin of one profile card.
+type twinDoc struct {
+	Schema               string            `json:"schema"`
+	Profile              string            `json:"profile"`
+	Baseline             string            `json:"baseline"`
+	SourceID             string            `json:"source_id"`
+	Models               []twinModel       `json:"models"`
+	ReadOnly             json.RawMessage   `json:"read_only"`
+	Controls             json.RawMessage   `json:"controls"`
+	Extents              []twinExtent      `json:"documented_read_extents"`
+	Quarantines          []twinQuarantine  `json:"quarantines"`
+	DocumentRequirements []twinRequirement `json:"document_requirements"`
+	Additive             *twinAdditive     `json:"additive_documentary_support"`
+}
+
+type twinExtent struct {
+	Start  int `json:"start"`
+	End    int `json:"end_inclusive"`
+	Fields []struct {
+		Address int `json:"address"`
+		Words   int `json:"words"`
+		End     int `json:"end_inclusive"`
+	} `json:"fields"`
+	Quantity       int    `json:"quantity_words"`
+	Safe           []int  `json:"safe_quantities_from_start"`
+	Maximum        int    `json:"maximum_value_aligned_quantity_from_start"`
+	FollowingHole  []int  `json:"following_source_hole"`
+	Classification string `json:"following_gap_classification"`
+}
+
+type twinQuarantine struct {
+	Section string `json:"section"`
+	EntryID string `json:"entry_id"`
+	Status  string `json:"status"`
+}
+
+type twinAdditive struct {
+	SourceID string `json:"source_id"`
+	Model    struct {
+		Token   string `json:"source_model_token"`
+		ModelID int    `json:"model_id"`
+		Minimum string `json:"documented_minimum"`
+		Page    int    `json:"physical_page"`
+	} `json:"model"`
+	Rows []struct {
+		Address int    `json:"address"`
+		Words   int    `json:"words"`
+		Type    string `json:"type"`
+		Meaning string `json:"meaning"`
+		Page    int    `json:"physical_page"`
+	} `json:"rows"`
+	Conditions string `json:"conditions"`
+}
 
 var statusClasses = map[string]string{
 	"DOCUMENT_REVIEWED":             classReviewed,
 	"DOCUMENT_REVIEWED_CONDITIONAL": classConditional,
 	"RAW_ONLY_UNDEFINED":            classRawOnly,
+	"RAW_ONLY_MEANING_UNRESOLVED":   classRawOnly,
 	"CONFLICT":                      classConflict,
-}
-
-var levelClasses = map[string]string{
-	"Reviewed":    classReviewed,
-	"Conditional": classConditional,
-	"Raw only":    classRawOnly,
-	"Conflict":    classConflict,
+	"QUARANTINED_SEMANTIC_CONFLICT": classConflict,
+	"Reviewed":                      classReviewed,
+	"Conditional":                   classConditional,
+	"Raw only":                      classRawOnly,
+	"Conflict":                      classConflict,
 }
 
 var endpointNames = map[string]string{
-	"inverter":    endpointInverter,
-	"pv_inverter": endpointInverter,
-	"EMMA":        endpointEMMA,
+	"inverter":                         endpointInverter,
+	"pv_inverter":                      endpointInverter,
+	"sun2000mb_inverter":               endpointInverter,
+	"inverter_and_associated_channels": endpointInverter,
+	"":                                 endpointInverter,
+	"EMMA":                             endpointEMMA,
+	"emma_unit0":                       endpointEMMA,
 	"EMMA-associated-device-public-interface": endpointEMMAAssociate,
+	"emma_associated_device":                  endpointEMMAAssociate,
 }
 
-func tableCells(line string) []string {
-	trimmed := strings.TrimSpace(line)
-	if !strings.HasPrefix(trimmed, "|") || !strings.HasSuffix(trimmed, "|") {
-		return nil
-	}
-	parts := strings.Split(strings.TrimSuffix(strings.TrimPrefix(trimmed, "|"), "|"), "|")
-	for index := range parts {
-		parts[index] = strings.TrimSpace(parts[index])
-	}
-	return parts
+// Control metadata statuses. Only the documented statuses of an RW row with a
+// documented FC03 association make a readable-configuration row; every other
+// control row is no-send.
+var controlStatuses = map[string]bool{
+	"DOCUMENTED_METADATA":                           true,
+	"DOCUMENTED_CONTROL_METADATA":                   true,
+	"DOCUMENTED_METADATA_WITH_EXPLICIT_VALUE_FACTS": true,
+	"DOCUMENTED_METADATA_VALUE_CONTRACT_UNKNOWN":    true,
+	"CONFLICT":                        false,
+	"QUARANTINED_SPECIFIC_CONFLICT":   false,
+	"RESTRICTED_INTERFACE":            false,
+	"DOCUMENTED_RESTRICTED_INTERFACE": false,
 }
 
 func literalCell(text string) string {
@@ -68,8 +122,26 @@ func literalCell(text string) string {
 	return text
 }
 
+// literalOf renders one literal cell of a twin: null and blank read "not
+// stated", numbers keep their JSON text, strings stay as printed.
+func literalOf(raw json.RawMessage) (string, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return floorNotStated, nil
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return literalCell(text), nil
+	}
+	var number json.Number
+	if err := json.Unmarshal(raw, &number); err == nil {
+		return number.String(), nil
+	}
+	return "", fmt.Errorf("literal cell %s is neither text nor number", trimmed)
+}
+
 func applyScale(row *registerRow, gain, unit string) {
-	cells := &scale{Gain: literalCell(gain), Unit: literalCell(unit)}
+	cells := &scale{Gain: gain, Unit: unit}
 	if row.Class == classReviewed || row.Class == classConditional {
 		row.Decode = cells
 		return
@@ -79,83 +151,63 @@ func applyScale(row *registerRow, gain, unit string) {
 
 func intPointer(value int) *int { return &value }
 
-// parseClassTables reads one of the thirteen derived class-table catalogues.
-func parseClassTables(text string, sourceSHA string) ([]parsedRow, []gate, string, error) {
-	var rows []parsedRow
-	var gates []gate
-	sourceAnchor := ""
-	functionalClass := ""
-	inConditions := false
-	for number, line := range strings.Split(text, "\n") {
-		if match := catalogueRefPattern.FindStringSubmatch(line); match != nil && sourceAnchor == "" {
-			sourceAnchor = match[1]
-		}
-		if strings.HasPrefix(line, "## ") {
-			inConditions = strings.TrimSpace(line) == "## Conditions"
-			functionalClass = ""
-			if match := classHeadingPattern.FindStringSubmatch(line); match != nil {
-				functionalClass = match[1]
-			}
-			continue
-		}
-		if inConditions {
-			if match := conditionBulletPattern.FindStringSubmatch(line); match != nil {
-				gates = append(gates, gate{ID: match[1], Meaning: prose(match[2])})
-			}
-			continue
-		}
-		cells := tableCells(line)
-		if functionalClass == "" || len(cells) != 6 || cells[0] == "Functional key" || strings.HasPrefix(cells[0], "---") {
-			continue
-		}
-		address := addressWordsPattern.FindStringSubmatch(cells[2])
-		literals := strings.Split(cells[3], ";")
-		status := strings.SplitN(cells[4], ";", 2)
-		locator := pageTableRowPattern.FindStringSubmatch(cells[5])
-		if address == nil || len(literals) != 3 || len(status) != 2 || locator == nil {
-			return nil, nil, "", fmt.Errorf("line %d: unrecognized class-table row %q", number+1, line)
-		}
-		class, ok := statusClasses[strings.TrimSpace(status[0])]
-		if !ok {
-			return nil, nil, "", fmt.Errorf("line %d: unknown status %q", number+1, status[0])
-		}
-		endpoint, ok := endpointNames[cells[1]]
-		if !ok {
-			return nil, nil, "", fmt.Errorf("line %d: unknown endpoint %q", number+1, cells[1])
-		}
-		quantity, _ := strconv.Atoi(address[2])
-		page, _ := strconv.Atoi(locator[1])
-		row := registerRow{
-			Key:             cells[0],
-			Endpoint:        endpoint,
-			Quantity:        quantity,
-			Type:            strings.TrimSpace(literals[0]),
-			Access:          "RO",
-			Class:           class,
-			FunctionalClass: functionalClass,
-			Page:            page,
-		}
-		if address[1] != "..." {
-			offset, _ := strconv.Atoi(address[1])
-			row.Offset = intPointer(offset)
-		}
-		for _, name := range strings.Split(status[1], ",") {
-			if name = strings.TrimSpace(name); name != "" {
-				row.Gates = append(row.Gates, name)
-			}
-		}
-		applyScale(&row, literals[1], literals[2])
-		rows = append(rows, parsedRow{
-			Row:      row,
-			Evidence: sourceSHA + ":p" + locator[1] + ":" + locator[2] + ":" + locator[3],
-			Private:  map[string]string{"table": locator[2], "row": locator[3]},
-			Order:    len(rows),
-		})
+func endpointOf(name string) (string, error) {
+	endpoint, ok := endpointNames[name]
+	if !ok {
+		return "", fmt.Errorf("unknown endpoint %q", name)
 	}
-	return rows, gates, sourceAnchor, nil
+	return endpoint, nil
 }
 
-// fullReview is the machine-readable review of the MC and MA-V200 cards.
+func schemaOf(raw json.RawMessage) (string, error) {
+	var head struct {
+		Schema string `json:"schema"`
+	}
+	if err := json.Unmarshal(raw, &head); err != nil {
+		return "", err
+	}
+	return head.Schema, nil
+}
+
+// cardRows is everything one twin contributes to its register file.
+type cardRows struct {
+	Rows       []parsedRow
+	Controls   []parsedRow
+	Gates      []gate
+	Classes    []functionalClass
+	AlarmBits  []alarmBit
+	Modules    []dictValue
+	StatusEnum *statusEnum
+	Parser     string
+}
+
+type statusEnum struct {
+	Offset   int
+	Pages    []int
+	Values   []dictValue
+	Unlisted string
+}
+
+// parseReadOnly dispatches on the schema of the read-only section.
+func parseReadOnly(raw json.RawMessage, sourceID string, out *cardRows) error {
+	schema, err := schemaOf(raw)
+	if err != nil {
+		return err
+	}
+	switch schema {
+	case "huawei-pv-canonical-full-ro-review-v1":
+		out.Parser = "canonical review twin"
+		return parseFullReview(raw, sourceID, out)
+	case "huawei-pv-base-profile-semantic-review-v1":
+		out.Parser = "base review twin"
+		return parseBaseReview(raw, sourceID, out)
+	case "huawei-pv-mb02-semantic-review-v1":
+		out.Parser = "supplement review twin"
+		return parseMB02Review(raw, sourceID, out)
+	}
+	return fmt.Errorf("unknown read-only schema %q", schema)
+}
+
 type fullReview struct {
 	Profile string `json:"profile"`
 	Classes []struct {
@@ -168,28 +220,23 @@ type fullReview struct {
 		ClassID       string `json:"class_id"`
 		DocumentUse   string `json:"document_use"`
 		Tuple         struct {
-			ReadFC     int     `json:"read_fc"`
-			Address    int     `json:"address"`
-			Words      int     `json:"words"`
-			SourceType string  `json:"source_type"`
-			Gain       *string `json:"gain_literal"`
-			Unit       *string `json:"unit_literal"`
-			Access     string  `json:"access"`
+			ReadFC     int             `json:"read_fc"`
+			Address    int             `json:"address"`
+			Words      int             `json:"words"`
+			SourceType string          `json:"source_type"`
+			Gain       json.RawMessage `json:"gain_literal"`
+			Unit       json.RawMessage `json:"unit_literal"`
+			Access     string          `json:"access"`
 		} `json:"tuple"`
 		Source struct {
-			PDFSHA256    string `json:"pdf_sha256"`
+			SourceID     string `json:"source_id"`
 			PhysicalPage int    `json:"physical_page"`
 			EvidenceID   string `json:"evidence_id"`
 			SourceRow    string `json:"source_row"`
 			Section      string `json:"section"`
 		} `json:"source"`
-		ReadGate       string  `json:"read_gate"`
-		UseGate        string  `json:"use_gate"`
-		RowCondition   *string `json:"row_condition"`
-		SentinelPolicy string  `json:"sentinel_policy"`
-		Coherence      string  `json:"coherence"`
-		Endpoint       string  `json:"endpoint_namespace"`
-		RouteGate      string  `json:"route_gate"`
+		RowCondition *string `json:"row_condition"`
+		Endpoint     string  `json:"endpoint_namespace"`
 	} `json:"entries"`
 	AlarmBits []struct {
 		RegisterAddress int     `json:"register_address"`
@@ -212,221 +259,539 @@ type fullReview struct {
 	} `json:"operating_status_enum"`
 }
 
-func stringOrNotStated(value *string) string {
-	if value == nil {
-		return floorNotStated
-	}
-	return literalCell(*value)
-}
-
-// parseFullReview reads a machine-readable review and checks it against the
-// Markdown tuple table of the same card, cell by cell.
-func parseFullReview(data []byte, markdown string, sourceSHA string) ([]parsedRow, []functionalClass, *fullReview, error) {
+func parseFullReview(raw json.RawMessage, sourceID string, out *cardRows) error {
 	var review fullReview
-	if err := json.Unmarshal(data, &review); err != nil {
-		return nil, nil, nil, err
+	if err := json.Unmarshal(raw, &review); err != nil {
+		return err
 	}
-	var classes []functionalClass
-	classLevel := map[string]string{}
 	for _, class := range review.Classes {
-		mapped, ok := levelClasses[class.Level]
+		mapped, ok := statusClasses[class.Level]
 		if !ok {
-			return nil, nil, nil, fmt.Errorf("%s class %s has unknown level %q", review.Profile, class.ID, class.Level)
+			return fmt.Errorf("class %s has unknown level %q", class.ID, class.Level)
 		}
-		classLevel[class.ID] = mapped
-		classes = append(classes, functionalClass{ID: class.ID, Class: mapped, Rule: prose(class.Rule)})
+		out.Classes = append(out.Classes, functionalClass{ID: class.ID, Class: mapped, Rule: prose(class.Rule)})
 	}
-	table := map[string][]string{}
-	for _, line := range strings.Split(markdown, "\n") {
-		cells := tableCells(line)
-		if len(cells) == 9 && strings.Contains(cells[0], ".") && cells[0] != "Functional key" {
-			table[cells[1]] = cells
-		}
-	}
-	if len(table) != len(review.Entries) {
-		return nil, nil, nil, fmt.Errorf("%s: %d Markdown rows for %d machine rows", review.Profile, len(table), len(review.Entries))
-	}
-	var rows []parsedRow
+	statuses := map[string]int{}
 	for index, entry := range review.Entries {
-		class, ok := levelClasses[entry.DocumentUse]
+		class, ok := statusClasses[entry.DocumentUse]
 		if !ok {
-			return nil, nil, nil, fmt.Errorf("%s %s: unknown level %q", review.Profile, entry.FunctionalKey, entry.DocumentUse)
+			return fmt.Errorf("%s: unknown level %q", entry.FunctionalKey, entry.DocumentUse)
 		}
-		endpoint, ok := endpointNames[entry.Endpoint]
-		if !ok {
-			return nil, nil, nil, fmt.Errorf("%s %s: unknown endpoint %q", review.Profile, entry.FunctionalKey, entry.Endpoint)
+		statuses[entry.DocumentUse]++
+		endpoint, err := endpointOf(entry.Endpoint)
+		if err != nil {
+			return fmt.Errorf("%s: %w", entry.FunctionalKey, err)
 		}
-		if entry.Tuple.ReadFC != 3 || entry.Tuple.Access != "RO" || entry.Source.PDFSHA256 != sourceSHA {
-			return nil, nil, nil, fmt.Errorf("%s %s: not an FC03 read-only row of the card source", review.Profile, entry.FunctionalKey)
+		if entry.Tuple.ReadFC != 3 || entry.Tuple.Access != "RO" || entry.Source.SourceID != sourceID {
+			return fmt.Errorf("%s: not an FC03 read-only row of the card source", entry.FunctionalKey)
 		}
-		cells, ok := table[strconv.Itoa(entry.Tuple.Address)]
-		gain, unit := stringOrNotStated(entry.Tuple.Gain), stringOrNotStated(entry.Tuple.Unit)
-		wantCells := []string{
-			entry.FunctionalKey, strconv.Itoa(entry.Tuple.Address), strconv.Itoa(entry.Tuple.Words), entry.Tuple.SourceType,
-			gain, unit, strconv.Itoa(entry.Source.PhysicalPage) + " / " + entry.Source.SourceRow, entry.ClassID, entry.DocumentUse,
+		gain, err := literalOf(entry.Tuple.Gain)
+		if err != nil {
+			return err
 		}
-		if !ok || withoutSpaces(strings.Join(cells, "|")) != withoutSpaces(strings.Join(wantCells, "|")) {
-			return nil, nil, nil, fmt.Errorf("%s %s: Markdown row %q disagrees with the machine row %q", review.Profile, entry.FunctionalKey, cells, wantCells)
+		unit, err := literalOf(entry.Tuple.Unit)
+		if err != nil {
+			return err
 		}
 		row := registerRow{
-			Key:             entry.FunctionalKey,
-			Endpoint:        endpoint,
-			Offset:          intPointer(entry.Tuple.Address),
-			Quantity:        entry.Tuple.Words,
-			Type:            entry.Tuple.SourceType,
-			Access:          entry.Tuple.Access,
-			Class:           class,
-			FunctionalClass: entry.ClassID,
-			Page:            entry.Source.PhysicalPage,
+			Key: entry.FunctionalKey, Endpoint: endpoint, Offset: intPointer(entry.Tuple.Address), Quantity: entry.Tuple.Words,
+			Type: entry.Tuple.SourceType, Access: entry.Tuple.Access, Class: class, FunctionalClass: entry.ClassID,
+			Page: entry.Source.PhysicalPage,
 		}
-		private := map[string]string{
-			"source_row": entry.Source.SourceRow, "section": entry.Source.Section, "read_gate": entry.ReadGate,
-			"use_gate": entry.UseGate, "sentinel_policy": entry.SentinelPolicy, "coherence": entry.Coherence,
-			"route_gate": entry.RouteGate,
+		parsed := parsedRow{
+			Evidence: entry.Source.EvidenceID, TwinIDs: []string{entry.FunctionalKey, entry.Source.EvidenceID},
+			Private: map[string]string{"evidence": entry.Source.EvidenceID, "source_row": entry.Source.SourceRow, "section": entry.Source.Section},
+			Order:   index,
 		}
 		if entry.RowCondition != nil {
 			row.Condition = prose(*entry.RowCondition)
-			private["condition_literal"] = *entry.RowCondition
+			parsed.Condition = *entry.RowCondition
 		}
 		applyScale(&row, gain, unit)
-		rows = append(rows, parsedRow{Row: row, Evidence: entry.Source.EvidenceID, Private: private, Order: index})
+		parsed.Row = row
+		out.Rows = append(out.Rows, parsed)
 	}
-	counts := map[string]int{}
-	for _, row := range rows {
-		counts[row.Row.Class]++
+	if review.Coverage.DetectedRORows != len(out.Rows) {
+		return fmt.Errorf("%d rows, the twin states %d", len(out.Rows), review.Coverage.DetectedRORows)
 	}
-	for level, want := range review.Coverage.StatusCounts {
-		if counts[levelClasses[level]] != want {
-			return nil, nil, nil, fmt.Errorf("%s: %d %s rows, the review states %d", review.Profile, counts[levelClasses[level]], level, want)
+	if err := sameCounts(statuses, review.Coverage.StatusCounts); err != nil {
+		return err
+	}
+	for _, bit := range review.AlarmBits {
+		module := modeNoneStated
+		if bit.FootnoteID != nil {
+			module = *bit.FootnoteID
 		}
+		out.AlarmBits = append(out.AlarmBits, alarmBit{
+			Offset: intPointer(bit.RegisterAddress), Bit: bit.Bit, AlarmID: bit.AlarmID, Label: bit.FunctionalLabel,
+			Severity: bit.Severity, Module: module, Page: bit.PhysicalPage,
+		})
 	}
-	if review.Coverage.DetectedRORows != len(rows) {
-		return nil, nil, nil, fmt.Errorf("%s: %d rows, the review states %d", review.Profile, len(rows), review.Coverage.DetectedRORows)
+	if enum := review.OperatingStatusEnum; enum != nil {
+		values := make([]dictValue, 0, len(enum.Values))
+		for code, meaning := range enum.Values {
+			values = append(values, dictValue{Code: code, Meaning: meaning})
+		}
+		sortCodes(values)
+		out.StatusEnum = &statusEnum{Offset: enum.Address, Pages: distinctSorted(enum.SourcePages), Values: values, Unlisted: cleanText(enum.Unlisted)}
 	}
-	return rows, classes, &review, nil
+	return nil
 }
 
-// parseMB02 reads the read-only tuple set, the conditions and the functional
-// classes of the MB02 supplement card.
-func parseMB02(text string) ([]parsedRow, []gate, []functionalClass, error) {
-	var rows []parsedRow
-	var gates []gate
-	var classes []functionalClass
-	section := ""
-	for number, line := range strings.Split(text, "\n") {
-		if strings.HasPrefix(line, "## ") {
-			section = strings.TrimSpace(strings.TrimPrefix(line, "## "))
-			continue
-		}
-		switch section {
-		case "Conditions":
-			if match := mb02ConditionPattern.FindStringSubmatch(line); match != nil {
-				gates = append(gates, gate{ID: match[1], Meaning: prose(match[2]), Pages: pageList(match[3])})
-			}
-		case "Functional classes":
-			if match := twoColumnPattern.FindStringSubmatch(line); match != nil && match[1] != "class" {
-				classes = append(classes, functionalClass{ID: match[1], Rule: prose(match[2])})
-			}
-		case "Complete detected RO tuple set":
-			cells := tableCells(line)
-			if len(cells) != 9 || !strings.HasPrefix(cells[0], "mb02.") {
-				continue
-			}
-			offset, errOffset := strconv.Atoi(cells[1])
-			quantity, errQuantity := strconv.Atoi(cells[2])
-			locator := pageSourceRowPattern.FindStringSubmatch(cells[6])
-			class, ok := levelClasses[cells[7]]
-			if errOffset != nil || errQuantity != nil || locator == nil || !ok {
-				return nil, nil, nil, fmt.Errorf("line %d: unrecognized MB02 row %q", number+1, line)
-			}
-			page, _ := strconv.Atoi(locator[1])
-			row := registerRow{
-				Key: cells[0], Endpoint: endpointInverter, Offset: intPointer(offset), Quantity: quantity,
-				Type: cells[3], Access: "RO", Class: class, Page: page,
-			}
-			for _, name := range strings.Split(cells[8], ",") {
-				if name = strings.TrimSpace(name); name != "" {
-					row.Gates = append(row.Gates, name)
-				}
-			}
-			applyScale(&row, cells[4], cells[5])
-			rows = append(rows, parsedRow{Row: row, Private: map[string]string{"source_row": locator[2]}, Order: len(rows)})
-		}
-	}
-	return rows, gates, classes, nil
+type baseReview struct {
+	Conditions map[string]string `json:"conditions"`
+	AlarmBits  []struct {
+		Word    string   `json:"register_or_word_literal"`
+		Address *int     `json:"register_address"`
+		Bit     int      `json:"bit"`
+		AlarmID *int     `json:"alarm_id"`
+		Meaning string   `json:"meaning_key"`
+		Sever   string   `json:"severity_key"`
+		Markers []string `json:"conditional_source_markers"`
+		Source  struct {
+			Page int `json:"physical_page"`
+		} `json:"source"`
+	} `json:"alarm_bits"`
+	Entries []struct {
+		CapabilityClass string                     `json:"capability_class"`
+		FunctionalKey   string                     `json:"functional_key"`
+		Endpoint        string                     `json:"endpoint"`
+		Status          string                     `json:"status"`
+		ConditionIDs    []string                   `json:"condition_ids"`
+		Meaning         map[string]json.RawMessage `json:"meaning"`
+		Unresolved      []string                   `json:"unresolved"`
+		Tuple           struct {
+			Access  json.RawMessage `json:"access"`
+			Type    json.RawMessage `json:"type"`
+			Unit    json.RawMessage `json:"unit"`
+			Gain    json.RawMessage `json:"gain"`
+			Address json.RawMessage `json:"address"`
+			Words   json.RawMessage `json:"words"`
+		} `json:"source_tuple_literal"`
+		AddressContract *struct {
+			Status string `json:"status"`
+		} `json:"address_contract"`
+		EvidenceID   string `json:"evidence_id"`
+		FunctionCode int    `json:"function_code"`
+		SourceID     string `json:"source_id"`
+		Page         int    `json:"physical_page"`
+	} `json:"entries"`
+	Coverage struct {
+		DetectedRORows int            `json:"detected_RO_rows"`
+		StatusCounts   map[string]int `json:"status_counts"`
+	} `json:"coverage"`
 }
 
-// withoutSpaces drops the layout spaces that the editorial revision of the
-// Markdown tables inserted into keys and cells.
-func withoutSpaces(text string) string { return strings.ReplaceAll(text, " ", "") }
-
-func pageList(text string) []int {
-	var pages []int
-	for _, part := range strings.Split(text, ",") {
-		if page, err := strconv.Atoi(strings.TrimSpace(part)); err == nil {
-			pages = append(pages, page)
-		}
+func parseBaseReview(raw json.RawMessage, sourceID string, out *cardRows) error {
+	var review baseReview
+	if err := json.Unmarshal(raw, &review); err != nil {
+		return err
 	}
-	return pages
-}
-
-// Readable configuration fields taken from the control catalogues: the local
-// epoch, the output mode, the time-zone offset and the storage product
-// selector. Their access stays the literal source access.
-var readableConfigurationOffsets = map[int]bool{40000: true, 42001: true, 43006: true, 47000: true}
-
-var controlStatusClasses = map[string]string{
-	"DOCUMENTED_METADATA":                           classConditional,
-	"DOCUMENTED_METADATA_WITH_EXPLICIT_VALUE_FACTS": classConditional,
-	"DOCUMENTED_METADATA_VALUE_CONTRACT_UNKNOWN":    classRawOnly,
-	"CONFLICT":                      classConflict,
-	"QUARANTINED_SPECIFIC_CONFLICT": classConflict,
-}
-
-// parseReadableConfiguration reads the readable configuration fields of one
-// control catalogue together with their source conditions.
-func parseReadableConfiguration(text string) ([]parsedRow, error) {
-	conditions := map[int]string{}
-	var rows []parsedRow
-	for number, line := range strings.Split(text, "\n") {
-		cells := tableCells(line)
-		if len(cells) >= 3 && len(cells) <= 4 {
-			if offset, err := strconv.Atoi(cells[0]); err == nil && readableConfigurationOffsets[offset] {
-				conditions[offset] = cells[2]
-			}
-			continue
-		}
-		if len(cells) < 10 || !strings.Contains(cells[0], ".control.") {
-			continue
-		}
-		offset, err := strconv.Atoi(cells[1])
-		if err != nil || !readableConfigurationOffsets[offset] {
-			continue
-		}
-		quantity, errQuantity := strconv.Atoi(cells[2])
-		locator := pageSourceRowPattern.FindStringSubmatch(cells[7])
-		class, ok := controlStatusClasses[cells[9]]
-		if errQuantity != nil || locator == nil || !ok || cells[6] != "RW" {
-			return nil, fmt.Errorf("line %d: unrecognized readable configuration row %q", number+1, line)
-		}
-		page, _ := strconv.Atoi(locator[1])
-		row := registerRow{
-			Key: cells[0], Endpoint: endpointInverter, Offset: intPointer(offset), Quantity: quantity,
-			Type: cells[3], Access: cells[6], Class: class, FunctionalClass: cells[8], Page: page,
-		}
-		applyScale(&row, cells[4], cells[5])
-		rows = append(rows, parsedRow{Row: row, Private: map[string]string{"source_row": locator[2], "status": cells[9]}, Order: len(rows)})
+	ids := make([]string, 0, len(review.Conditions))
+	for id := range review.Conditions {
+		ids = append(ids, id)
 	}
-	for index := range rows {
-		offset := *rows[index].Row.Offset
-		condition, ok := conditions[offset]
+	sort.Strings(ids)
+	for _, id := range ids {
+		out.Gates = append(out.Gates, gate{ID: id, Meaning: prose(review.Conditions[id])})
+	}
+	statuses := map[string]int{}
+	for index, entry := range review.Entries {
+		class, ok := statusClasses[entry.Status]
 		if !ok {
-			continue
+			return fmt.Errorf("%s: unknown status %q", entry.EvidenceID, entry.Status)
 		}
-		rows[index].Row.Condition = prose(condition)
-		rows[index].Private["condition_literal"] = condition
+		statuses[entry.Status]++
+		endpoint, err := endpointOf(entry.Endpoint)
+		if err != nil {
+			return fmt.Errorf("%s: %w", entry.EvidenceID, err)
+		}
+		cells := map[string]string{}
+		for name, value := range map[string]json.RawMessage{"access": entry.Tuple.Access, "type": entry.Tuple.Type, "unit": entry.Tuple.Unit, "gain": entry.Tuple.Gain, "address": entry.Tuple.Address, "words": entry.Tuple.Words} {
+			cell, err := literalOf(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", entry.EvidenceID, err)
+			}
+			cells[name] = cell
+		}
+		quantity, err := strconv.Atoi(cells["words"])
+		if err != nil || entry.FunctionCode != 3 || cells["access"] != "RO" || entry.SourceID != sourceID {
+			return fmt.Errorf("%s: not an FC03 read-only row of the card source", entry.EvidenceID)
+		}
+		row := registerRow{
+			Key: entry.FunctionalKey, Endpoint: endpoint, Quantity: quantity, Type: cells["type"], Access: "RO",
+			Class: class, FunctionalClass: entry.CapabilityClass, Page: entry.Page,
+		}
+		switch {
+		case entry.AddressContract != nil:
+			if entry.AddressContract.Status != addressUnspecified {
+				return fmt.Errorf("%s: unknown address contract %q", entry.EvidenceID, entry.AddressContract.Status)
+			}
+			row.AddressStatus = addressUnspecified
+		default:
+			offset, err := strconv.Atoi(cells["address"])
+			if err != nil {
+				return fmt.Errorf("%s: address %q is not a number and carries no address contract", entry.EvidenceID, cells["address"])
+			}
+			row.Offset = intPointer(offset)
+		}
+		row.Gates = append(row.Gates, entry.ConditionIDs...)
+		if len(entry.Unresolved) > 0 {
+			row.Condition = prose(strings.Join(entry.Unresolved, " "))
+		}
+		applyScale(&row, cells["gain"], cells["unit"])
+		out.Rows = append(out.Rows, parsedRow{
+			Row: row, Evidence: entry.EvidenceID, TwinIDs: []string{entry.EvidenceID}, Meaning: entry.Meaning,
+			Private: map[string]string{"evidence": entry.EvidenceID}, Order: index,
+		})
 	}
-	return rows, nil
+	if review.Coverage.DetectedRORows != len(out.Rows) {
+		return fmt.Errorf("%d rows, the twin states %d", len(out.Rows), review.Coverage.DetectedRORows)
+	}
+	if err := sameCounts(statuses, review.Coverage.StatusCounts); err != nil {
+		return err
+	}
+	for _, bit := range review.AlarmBits {
+		if bit.AlarmID == nil || (bit.Address == nil && strings.TrimSpace(bit.Word) == "") {
+			return fmt.Errorf("alarm bit %s/%d has no alarm identifier or word", bit.Word, bit.Bit)
+		}
+		module := modeNoneStated
+		if len(bit.Markers) > 0 {
+			module = strings.Join(bit.Markers, ",")
+		}
+		item := alarmBit{Offset: bit.Address, Bit: bit.Bit, AlarmID: *bit.AlarmID, Label: bit.Meaning, Severity: bit.Sever, Module: module, Page: bit.Source.Page}
+		if bit.Address == nil {
+			item.Word = cleanText(bit.Word)
+		}
+		out.AlarmBits = append(out.AlarmBits, item)
+	}
+	return nil
+}
+
+type mb02Review struct {
+	Conditions []struct {
+		ID                 string            `json:"id"`
+		Rule               string            `json:"rule"`
+		EvidencePages      []int             `json:"evidence_pages"`
+		FootnoteConditions map[string]string `json:"footnote_conditions"`
+	} `json:"conditions"`
+	Classes []struct {
+		ClassID         string `json:"class_id"`
+		DocumentUse     string `json:"document_use"`
+		ReviewedMeaning string `json:"reviewed_meaning"`
+	} `json:"classes"`
+	Entries []struct {
+		EntryID     string `json:"entry_id"`
+		ClassID     string `json:"class_id"`
+		Label       string `json:"functional_label"`
+		DocumentUse string `json:"document_use"`
+		Tuple       struct {
+			ReadFC  int             `json:"read_function_code"`
+			Address int             `json:"address"`
+			Length  int             `json:"register_length"`
+			Type    string          `json:"source_type"`
+			Access  string          `json:"access"`
+			Gain    json.RawMessage `json:"gain"`
+			Unit    json.RawMessage `json:"unit"`
+		} `json:"tuple"`
+		Provenance struct {
+			SourceID string `json:"source_id"`
+			Page     int    `json:"physical_page"`
+			Evidence string `json:"geometry_evidence_id"`
+		} `json:"provenance"`
+		ConditionIDs []string `json:"condition_ids"`
+		Endpoint     string   `json:"endpoint_namespace"`
+	} `json:"entries"`
+	AlarmBits []struct {
+		RegisterAddress int     `json:"register_address"`
+		Bit             int     `json:"bit"`
+		AlarmID         int     `json:"alarm_id"`
+		FunctionalLabel string  `json:"functional_label"`
+		Severity        string  `json:"severity"`
+		FootnoteID      *string `json:"footnote_id"`
+		PhysicalPage    int     `json:"physical_page"`
+	} `json:"alarm_bits"`
+	Coverage struct {
+		RORows       int            `json:"ro_rows"`
+		StatusCounts map[string]int `json:"status_counts"`
+	} `json:"coverage"`
+}
+
+func parseMB02Review(raw json.RawMessage, sourceID string, out *cardRows) error {
+	var review mb02Review
+	if err := json.Unmarshal(raw, &review); err != nil {
+		return err
+	}
+	for _, condition := range review.Conditions {
+		out.Gates = append(out.Gates, gate{ID: condition.ID, Meaning: prose(condition.Rule), Pages: condition.EvidencePages})
+		codes := make([]string, 0, len(condition.FootnoteConditions))
+		for code := range condition.FootnoteConditions {
+			codes = append(codes, code)
+		}
+		sort.Strings(codes)
+		for _, code := range codes {
+			out.Modules = append(out.Modules, dictValue{Code: code, Meaning: cleanText(condition.FootnoteConditions[code])})
+		}
+	}
+	for _, class := range review.Classes {
+		mapped, ok := statusClasses[class.DocumentUse]
+		if !ok {
+			return fmt.Errorf("class %s has unknown level %q", class.ClassID, class.DocumentUse)
+		}
+		out.Classes = append(out.Classes, functionalClass{ID: class.ClassID, Class: mapped, Rule: prose(class.ReviewedMeaning)})
+	}
+	statuses := map[string]int{}
+	for index, entry := range review.Entries {
+		class, ok := statusClasses[entry.DocumentUse]
+		if !ok {
+			return fmt.Errorf("%s: unknown level %q", entry.EntryID, entry.DocumentUse)
+		}
+		statuses[entry.DocumentUse]++
+		endpoint, err := endpointOf(entry.Endpoint)
+		if err != nil {
+			return fmt.Errorf("%s: %w", entry.EntryID, err)
+		}
+		if entry.Tuple.ReadFC != 3 || entry.Tuple.Access != "RO" || entry.Provenance.SourceID != sourceID {
+			return fmt.Errorf("%s: not an FC03 read-only row of the card source", entry.EntryID)
+		}
+		gain, err := literalOf(entry.Tuple.Gain)
+		if err != nil {
+			return err
+		}
+		unit, err := literalOf(entry.Tuple.Unit)
+		if err != nil {
+			return err
+		}
+		row := registerRow{
+			Key: "mb02." + entry.Label, Endpoint: endpoint, Offset: intPointer(entry.Tuple.Address), Quantity: entry.Tuple.Length,
+			Type: entry.Tuple.Type, Access: "RO", Class: class, FunctionalClass: entry.ClassID, Page: entry.Provenance.Page,
+		}
+		row.Gates = append(row.Gates, entry.ConditionIDs...)
+		applyScale(&row, gain, unit)
+		out.Rows = append(out.Rows, parsedRow{
+			Row: row, Evidence: entry.Provenance.Evidence, TwinIDs: []string{entry.EntryID, entry.Provenance.Evidence},
+			Private: map[string]string{"evidence": entry.Provenance.Evidence, "entry": entry.EntryID}, Order: index,
+		})
+	}
+	if review.Coverage.RORows != len(out.Rows) {
+		return fmt.Errorf("%d rows, the twin states %d", len(out.Rows), review.Coverage.RORows)
+	}
+	if err := sameCounts(statuses, review.Coverage.StatusCounts); err != nil {
+		return err
+	}
+	for _, bit := range review.AlarmBits {
+		module := modeNoneStated
+		if bit.FootnoteID != nil {
+			module = *bit.FootnoteID
+		}
+		out.AlarmBits = append(out.AlarmBits, alarmBit{
+			Offset: intPointer(bit.RegisterAddress), Bit: bit.Bit, AlarmID: bit.AlarmID, Label: bit.FunctionalLabel,
+			Severity: bit.Severity, Module: module, Page: bit.PhysicalPage,
+		})
+	}
+	return nil
+}
+
+// controlEntry is the common reading of the three control schemas.
+type controlEntry struct {
+	FunctionalKey string `json:"functional_key"`
+	EntryID       string `json:"entry_id"`
+	ClassID       string `json:"class_id"`
+	Label         string `json:"functional_label"`
+	Status        string `json:"metadata_status"`
+	Namespace     string `json:"namespace"`
+	Endpoint      string `json:"endpoint_namespace"`
+	ScopeReview   string `json:"scope_review"`
+	ReadFC        *int   `json:"read_fc"`
+	ReadAssoc     *struct {
+		FunctionCode *int `json:"function_code"`
+	} `json:"read_function_association"`
+	Tuple struct {
+		Address int             `json:"address"`
+		Words   int             `json:"words"`
+		Length  int             `json:"register_length"`
+		Type    string          `json:"source_type"`
+		Access  string          `json:"access"`
+		Gain    json.RawMessage `json:"gain"`
+		Unit    json.RawMessage `json:"unit"`
+		GainLit json.RawMessage `json:"gain_literal"`
+		UnitLit json.RawMessage `json:"unit_literal"`
+	} `json:"tuple"`
+	Source struct {
+		SourceID string `json:"source_id"`
+		Page     int    `json:"physical_page"`
+		Evidence string `json:"evidence_id"`
+	} `json:"source"`
+	Provenance struct {
+		SourceID string `json:"source_id"`
+		Page     int    `json:"physical_page"`
+		Evidence string `json:"geometry_evidence_id"`
+	} `json:"provenance"`
+	ValueFacts *struct {
+		EnumMembers []struct {
+			Code  string `json:"code_literal"`
+			Label string `json:"source_label_compacted"`
+		} `json:"enum_members"`
+	} `json:"value_facts"`
+}
+
+type controlsSection struct {
+	Schema   string         `json:"schema"`
+	Entries  []controlEntry `json:"entries"`
+	Coverage struct {
+		Rows                 int            `json:"rows"`
+		Recognized           int            `json:"recognized_control_occurrences"`
+		ControlRows          int            `json:"control_rows"`
+		StatusCounts         map[string]int `json:"status_counts"`
+		MetadataStatusCounts map[string]int `json:"metadata_status_counts"`
+	} `json:"coverage"`
+}
+
+// parseControls reads the control section of a twin. Every control row keeps
+// its literal cells and is either readable configuration or no-send.
+func parseControls(raw json.RawMessage, slug, sourceID string, out *cardRows) error {
+	var section controlsSection
+	if err := json.Unmarshal(raw, &section); err != nil {
+		return err
+	}
+	statuses := map[string]int{}
+	for index, entry := range section.Entries {
+		readable, known := controlStatuses[entry.Status]
+		if !known {
+			return fmt.Errorf("control %s %s: unknown status %q", entry.FunctionalKey, entry.EntryID, entry.Status)
+		}
+		statuses[entry.Status]++
+		page, source, evidence := entry.Source.Page, entry.Source.SourceID, entry.Source.Evidence
+		if source == "" {
+			page, source, evidence = entry.Provenance.Page, entry.Provenance.SourceID, entry.Provenance.Evidence
+		}
+		if source != sourceID {
+			return fmt.Errorf("control %s %s: not a row of the card source", entry.FunctionalKey, entry.EntryID)
+		}
+		readFC := entry.ReadFC
+		if entry.ReadAssoc != nil && entry.ReadAssoc.FunctionCode != nil {
+			readFC = entry.ReadAssoc.FunctionCode
+		}
+		quantity := entry.Tuple.Words
+		if quantity == 0 {
+			quantity = entry.Tuple.Length
+		}
+		gainRaw, unitRaw := entry.Tuple.GainLit, entry.Tuple.UnitLit
+		if len(gainRaw) == 0 && len(unitRaw) == 0 {
+			gainRaw, unitRaw = entry.Tuple.Gain, entry.Tuple.Unit
+		}
+		gain, err := literalOf(gainRaw)
+		if err != nil {
+			return err
+		}
+		unit, err := literalOf(unitRaw)
+		if err != nil {
+			return err
+		}
+		namespace := entry.Namespace
+		if namespace == "" {
+			namespace = entry.Endpoint
+		}
+		endpoint, err := endpointOf(namespace)
+		if err != nil {
+			return fmt.Errorf("control %s %s: %w", entry.FunctionalKey, entry.EntryID, err)
+		}
+		key := entry.FunctionalKey
+		switch {
+		case key != "":
+		case strings.HasPrefix(entry.EntryID, "MB02-"):
+			key = "mb02.control." + entry.Label
+		default:
+			key = slug + ".control." + entry.ClassID + "." + strconv.Itoa(entry.Tuple.Address)
+		}
+		class := classNoSend
+		if readable && entry.Tuple.Access == "RW" && readFC != nil && *readFC == 3 {
+			class = classReadableConfiguration
+		}
+		row := registerRow{
+			Key: key, Endpoint: endpoint, Offset: intPointer(entry.Tuple.Address), Quantity: quantity, Type: entry.Tuple.Type,
+			Access: entry.Tuple.Access, Class: class, FunctionalClass: entry.ClassID, Literal: &scale{Gain: gain, Unit: unit}, Page: page,
+		}
+		parsed := parsedRow{
+			Row: row, Evidence: evidence, TwinIDs: nonEmpty(entry.FunctionalKey, entry.EntryID, evidence),
+			Private: map[string]string{"evidence": evidence, "status": entry.Status}, Order: index,
+		}
+		if entry.ScopeReview != "" {
+			parsed.Row.Condition = prose(entry.ScopeReview)
+			parsed.Condition = entry.ScopeReview
+		}
+		if entry.ValueFacts != nil {
+			for _, member := range entry.ValueFacts.EnumMembers {
+				parsed.Enum = append(parsed.Enum, dictValue{Code: member.Code, Meaning: member.Label})
+			}
+		}
+		out.Controls = append(out.Controls, parsed)
+	}
+	stated := section.Coverage.Rows
+	if stated == 0 {
+		stated = section.Coverage.Recognized
+	}
+	if stated == 0 {
+		stated = section.Coverage.ControlRows
+	}
+	if stated != len(out.Controls) {
+		return fmt.Errorf("%d control rows, the twin states %d", len(out.Controls), stated)
+	}
+	counts := section.Coverage.StatusCounts
+	if counts == nil {
+		counts = section.Coverage.MetadataStatusCounts
+	}
+	return sameCounts(statuses, counts)
+}
+
+func nonEmpty(values ...string) []string {
+	var out []string
+	for _, value := range values {
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func sameCounts(got, stated map[string]int) error {
+	if len(stated) == 0 {
+		return fmt.Errorf("the twin states no status counts")
+	}
+	for status, want := range stated {
+		if got[status] != want {
+			return fmt.Errorf("%d rows with status %s, the twin states %d", got[status], status, want)
+		}
+	}
+	for status, count := range got {
+		if stated[status] != count {
+			return fmt.Errorf("%d rows with status %s, which the twin does not state", count, status)
+		}
+	}
+	return nil
+}
+
+// readExtents converts the documented value-aligned read extents.
+func readExtents(extents []twinExtent) ([]readExtent, error) {
+	out := make([]readExtent, 0, len(extents))
+	for _, extent := range extents {
+		if extent.Quantity != extent.End-extent.Start+1 || extent.Maximum != extent.Quantity || len(extent.Fields) == 0 {
+			return nil, fmt.Errorf("read extent at %d is inconsistent", extent.Start)
+		}
+		item := readExtent{Start: extent.Start, End: extent.End, Quantity: extent.Quantity, SafeQuantities: extent.Safe,
+			FollowingHole: extent.FollowingHole, Hole: cleanText(extent.Classification)}
+		for _, field := range extent.Fields {
+			item.Offsets = append(item.Offsets, field.Address)
+		}
+		out = append(out, item)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Start != out[j].Start {
+			return out[i].Start < out[j].Start
+		}
+		return out[i].End < out[j].End
+	})
+	return out, nil
 }
 
 var endpointRank = map[string]int{endpointInverter: 0, endpointEMMA: 1, endpointEMMAAssociate: 2}
@@ -454,7 +819,7 @@ func sortRows(rows []parsedRow) {
 	seen := map[string]int{}
 	for index := range rows {
 		row := &rows[index].Row
-		identity := row.Endpoint + "\x00" + strconv.Itoa(offsetKey(row.Offset)) + "\x00" + row.Key
+		identity := rowIdentity(*row)
 		seen[identity]++
 		row.Occurrence = 0
 		if seen[identity] > 1 {
@@ -463,8 +828,7 @@ func sortRows(rows []parsedRow) {
 	}
 	for index := range rows {
 		row := &rows[index].Row
-		identity := row.Endpoint + "\x00" + strconv.Itoa(offsetKey(row.Offset)) + "\x00" + row.Key
-		if seen[identity] > 1 && row.Occurrence == 0 {
+		if seen[rowIdentity(*row)] > 1 && row.Occurrence == 0 {
 			row.Occurrence = 1
 		}
 	}
@@ -475,4 +839,27 @@ func offsetKey(offset *int) int {
 		return 1 << 30
 	}
 	return *offset
+}
+
+func sortCodes(values []dictValue) {
+	sort.SliceStable(values, func(i, j int) bool {
+		a, b := codeValue(values[i].Code), codeValue(values[j].Code)
+		if a != b {
+			return a < b
+		}
+		return values[i].Code < values[j].Code
+	})
+}
+
+func codeValue(code string) int64 {
+	lower := strings.ToLower(strings.TrimSpace(code))
+	base := 10
+	if strings.HasPrefix(lower, "0x") {
+		lower, base = strings.TrimPrefix(lower, "0x"), 16
+	}
+	value, err := strconv.ParseInt(lower, base, 64)
+	if err != nil {
+		return 1 << 62
+	}
+	return value
 }

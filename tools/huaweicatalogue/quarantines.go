@@ -18,9 +18,14 @@ const (
 
 var (
 	contradictionRowPattern = regexp.MustCompile(`^\| (Q\d{2}) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|\s*$`)
-	aliasLinkPattern        = regexp.MustCompile(`\[[A-Z0-9]+\]\(sources\.md#([a-z0-9-]+)\)`)
-	fiveDigitPattern        = regexp.MustCompile(`\b\d{5}\b`)
+	aliasLinkPattern        = regexp.MustCompile(`\[[A-Z0-9-]+\]\(sources\.md#([a-z0-9-]+)\)`)
+	fiveDigitPattern        = regexp.MustCompile(`(?:^|\D)(\d{5})(?:\D|$)`)
 )
+
+// quarantineRowScope narrows the rows a contradiction flags to the editions
+// whose rows the reference itself names as inconsistent: Q07 quarantines the
+// M10 row and preserves the MA-V200 tuple in its own scope.
+var quarantineRowScope = map[string][]string{"Q07": {"M10"}}
 
 // anomalySpec binds one source-specific anomaly of the reference to the rows
 // it affects. The meaning is the reference text from Start through End, taken
@@ -55,16 +60,10 @@ var anomalySpecs = []anomalySpec{
 }
 
 var generatorQuarantines = []quarantine{
-	{ID: quarantineWrappedToken, Origin: originGenerator, Subject: "Model token cell cut at the end of its locator line",
-		Meaning: "The token ends in a separator because its cell continues on a following line that the model-row locator does not carry. The literal is kept; it matches no wire token until the full cell is recovered from the edition."},
-	{ID: quarantineFloorCell, Origin: originGenerator, Subject: "Minimum-software cell incomplete or outside the branch form",
-		Meaning: "The cell is the first line of a wrapped cell, a merged cell or a literal outside the V-R-C-SPC form. The literal is kept as printed and serves as no floor until the full cell is recovered from the edition."},
-	{ID: quarantineHistoryLine, Origin: originGenerator, Subject: "Change-history line among the model-row candidates",
-		Meaning: "The line belongs to the change history of the edition, not to its supported-model table. It carries no token, identifier or floor and is kept for the accounting only."},
-	{ID: quarantineNoIdentifier, Origin: originGenerator, Subject: "Model token without an identifier on its locator line",
-		Meaning: "The edition lists the token without a model identifier on this line. A token alone identifies no model, because tokens repeat with different identifiers."},
-	{ID: quarantineTemplateRow, Origin: originGenerator, Subject: "Register template row without an address",
-		Meaning: "The row names a channel pattern whose address follows from a formula outside the row. It is kept for the accounting, has no offset and is never read."},
+	{ID: quarantineSequenceOrdinal, Origin: originGenerator, Subject: "Model row numbered by a sequence ordinal, not a model identifier",
+		Meaning: "The edition numbers this row with a sequence ordinal that it does not label as a model identifier. The ordinal is kept as the sequence number and is never used as a model identifier."},
+	{ID: quarantineFloorCell, Origin: originGenerator, Subject: "Minimum-software cell outside the branch form",
+		Meaning: "The row minimum is a merged cell or a literal outside the V-R-C-SPC form. The literal is kept as printed and serves as no floor until the cell is clarified from the edition."},
 }
 
 // referenceQuarantines parses the quarantined contradictions Q01 to Q07.
@@ -85,8 +84,8 @@ func referenceQuarantines(text string, anchors map[string]*censusEntry) ([]quara
 			}
 			editions[id] = append(editions[id], entry)
 		}
-		for _, number := range fiveDigitPattern.FindAllString(match[2], -1) {
-			value, _ := strconv.Atoi(number)
+		for _, number := range fiveDigitPattern.FindAllStringSubmatch(match[2], -1) {
+			value, _ := strconv.Atoi(number[1])
 			offsets[id] = append(offsets[id], value)
 		}
 		out = append(out, quarantine{

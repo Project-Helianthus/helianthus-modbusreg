@@ -38,15 +38,23 @@ func TestCommittedCatalogueRoundTripsByteForByte(t *testing.T) {
 	}
 }
 
-func TestCommittedCatalogueMatchesTheReferenceAccounting(t *testing.T) {
+func TestCommittedCatalogueMatchesTheBaselineAccounting(t *testing.T) {
 	c, _ := loadCommitted(t)
 	if got := countCatalogue(c); got != defaultExpect {
 		t.Fatalf("counts %s, want %s", got, defaultExpect)
+	}
+	if c.Editions.ReferenceBaseline != "2026-10-26.1" || len(c.Editions.Editions) != 49 {
+		t.Fatalf("baseline %q with %d editions", c.Editions.ReferenceBaseline, len(c.Editions.Editions))
 	}
 	wantRows := map[string]int{
 		"SUN-C81": 87, "SUN-V300": 71, "COMMERCIAL": 50, "HA": 122, "HB": 54, "HD": 142, "L-LEGACY": 51,
 		"L-V200": 224, "LB-C00": 232, "LB-C10": 315, "LC": 232, "MA-C00": 224, "MA-C20": 364,
 		"MA-V200": 410, "MC": 364, "MB02": 173,
+	}
+	wantControls := map[string]int{
+		"SUN-C81": 90, "SUN-V300": 32, "COMMERCIAL": 7, "HA": 25, "HB": 21, "HD": 29, "L-LEGACY": 22,
+		"L-V200": 75, "LB-C00": 78, "LB-C10": 112, "LC": 79, "MA-C00": 78, "MA-C20": 482,
+		"MA-V200": 282, "MC": 482, "MB02": 241,
 	}
 	wantCore := map[string]int{
 		"SUN-C81": 47, "SUN-V300": 28, "COMMERCIAL": 27, "HA": 28, "HB": 22, "HD": 28, "L-LEGACY": 25,
@@ -62,21 +70,23 @@ func TestCommittedCatalogueMatchesTheReferenceAccounting(t *testing.T) {
 				core++
 			}
 		}
-		if len(doc.Rows) != wantRows[doc.Card] || core != wantCore[doc.Card] {
-			t.Fatalf("%s: %d rows and %d core rows, want %d and %d", doc.Card, len(doc.Rows), core, wantRows[doc.Card], wantCore[doc.Card])
+		for _, row := range doc.Controls {
+			classes[row.Class]++
+		}
+		if len(doc.Rows) != wantRows[doc.Card] || len(doc.Controls) != wantControls[doc.Card] || core != wantCore[doc.Card] {
+			t.Fatalf("%s: %d rows, %d controls, %d core rows", doc.Card, len(doc.Rows), len(doc.Controls), core)
 		}
 	}
-	if !reflect.DeepEqual(classes, map[string]int{classReviewed: 372, classConditional: 2127, classRawOnly: 596, classConflict: 20}) {
+	want := map[string]int{classReviewed: 372, classConditional: 2127, classRawOnly: 596, classConflict: 20, classReadableConfiguration: 1910, classNoSend: 225}
+	if !reflect.DeepEqual(classes, want) {
 		t.Fatalf("class totals %v", classes)
 	}
-	supplement := 0
-	for _, row := range c.Models.Rows {
-		if row.SourceSet == sourceSetCard {
-			supplement++
-		}
+	stated := 0
+	for _, record := range c.Editions.Editions {
+		stated += record.ModelRows
 	}
-	if supplement != 23 {
-		t.Fatalf("%d supplement model rows, want the 23 rows of the MB02 card", supplement)
+	if stated != len(c.Models.Rows) {
+		t.Fatalf("editions state %d model rows, %d present", stated, len(c.Models.Rows))
 	}
 }
 
@@ -90,11 +100,10 @@ func TestCommittedCatalogueSatisfiesEveryInvariant(t *testing.T) {
 	}
 }
 
-func TestRawOnlyAndConflictRowsCarryNoDecodeFields(t *testing.T) {
+func TestNoRowDecodesBeyondItsClass(t *testing.T) {
 	c, raw := loadCommitted(t)
-	checked := 0
 	for _, doc := range c.Registers {
-		for _, row := range append(append([]registerRow(nil), doc.Rows...), doc.ReadableConfiguration...) {
+		for _, row := range doc.Rows {
 			switch row.Class {
 			case classRawOnly, classConflict:
 				if row.Decode != nil || row.Literal == nil {
@@ -105,20 +114,25 @@ func TestRawOnlyAndConflictRowsCarryNoDecodeFields(t *testing.T) {
 					t.Fatalf("%s %s: %s row lacks its decode fields", doc.Card, rowIdentity(row), row.Class)
 				}
 			default:
-				t.Fatalf("%s %s: unknown class %q", doc.Card, rowIdentity(row), row.Class)
+				t.Fatalf("%s %s: class %q on a read-only row", doc.Card, rowIdentity(row), row.Class)
 			}
-			checked++
 		}
-	}
-	if checked < defaultExpect.RO {
-		t.Fatalf("checked %d rows", checked)
+		for _, row := range doc.Controls {
+			if row.Decode != nil || row.Literal == nil || (row.Class != classReadableConfiguration && row.Class != classNoSend) {
+				t.Fatalf("%s %s: control row %q decodes or has a read-only class", doc.Card, rowIdentity(row), row.Class)
+			}
+			if row.Class == classReadableConfiguration && row.Access != "RW" {
+				t.Fatalf("%s %s: readable configuration with access %s", doc.Card, rowIdentity(row), row.Access)
+			}
+		}
 	}
 	for name, data := range raw {
 		if !strings.HasPrefix(name, "registers-") {
 			continue
 		}
 		for _, line := range strings.Split(string(data), "\n") {
-			nonDecoding := strings.Contains(line, `"class":"raw-only"`) || strings.Contains(line, `"class":"conflict"`)
+			nonDecoding := strings.Contains(line, `"class":"raw-only"`) || strings.Contains(line, `"class":"conflict"`) ||
+				strings.Contains(line, `"class":"readable-configuration"`) || strings.Contains(line, `"class":"no-send"`)
 			if nonDecoding && strings.Contains(line, `"decode":`) {
 				t.Fatalf("%s: a non-decoding row carries decode fields: %s", name, line)
 			}
@@ -127,44 +141,69 @@ func TestRawOnlyAndConflictRowsCarryNoDecodeFields(t *testing.T) {
 }
 
 var modelRowKeys = map[string]bool{
-	"edition": true, "page": true, "form": true, "token": true, "identifier": true, "minimum_software": true,
-	"floor_basis": true, "wire_token": true, "wire_token_grade": true, "source_set": true, "quarantine": true,
+	"edition": true, "page": true, "token": true, "identifier": true, "sequence_number": true, "row_minimum": true,
+	"document_requirement": true, "minimum_software": true, "floor_basis": true, "wire_aliases": true, "quarantine": true,
 }
 
 func TestEveryModelRowStatesAFloorAndNoModelRowStatesAMaximum(t *testing.T) {
-	_, raw := loadCommitted(t)
+	c, raw := loadCommitted(t)
 	var document struct {
 		Rows []map[string]json.RawMessage `json:"rows"`
 	}
 	if err := json.Unmarshal(raw[modelsFile], &document); err != nil {
 		t.Fatal(err)
 	}
-	if len(document.Rows) == 0 {
-		t.Fatal("no model rows")
+	if len(document.Rows) != defaultExpect.Models {
+		t.Fatalf("%d model rows", len(document.Rows))
 	}
-	floors := 0
 	for index, row := range document.Rows {
 		for key := range row {
 			if !modelRowKeys[key] {
 				t.Fatalf("model row %d carries %q; a row states a floor and nothing above it", index, key)
 			}
 		}
-		var floor string
-		if err := json.Unmarshal(row["minimum_software"], &floor); err != nil || floor == "" {
-			t.Fatalf("model row %d has no minimum software", index)
-		}
-		if floor != floorNotStated {
-			floors++
-		}
 	}
-	c, _ := loadCommitted(t)
+	requirements := map[string]documentRequirement{}
+	for _, requirement := range c.Models.DocumentRequirements {
+		requirements[requirement.ID] = requirement
+	}
+	bases := map[string]int{}
 	for index, row := range c.Models.Rows {
 		if err := checkModelRow(row); err != nil {
 			t.Fatalf("model row %d: %v", index, err)
 		}
+		bases[row.FloorBasis]++
+		switch row.FloorBasis {
+		case floorBasisRow:
+			if row.MinimumSoftware != row.RowMinimum || row.DocumentRequirement != "" {
+				t.Fatalf("model row %d: a row floor is its own minimum", index)
+			}
+		case floorBasisDocument:
+			requirement, ok := requirements[row.DocumentRequirement]
+			if !ok || row.RowMinimum != floorNotStated || row.MinimumSoftware != requirement.Minimum || !requirement.Inclusive {
+				t.Fatalf("model row %d: a document floor is the linked inclusive requirement", index)
+			}
+		}
 	}
-	if floors < 2000 {
-		t.Fatalf("only %d rows state a floor", floors)
+	if !reflect.DeepEqual(bases, map[string]int{floorBasisRow: 2282, floorBasisDocument: 119}) {
+		t.Fatalf("floor bases %v", bases)
+	}
+}
+
+func TestSequenceOrdinalsAreNeverModelIdentifiers(t *testing.T) {
+	c, _ := loadCommitted(t)
+	ordinals := 0
+	for _, row := range c.Models.Rows {
+		if row.SequenceNumber == "" {
+			continue
+		}
+		ordinals++
+		if row.Identifier != nil || !hasFlag(row.Quarantine, quarantineSequenceOrdinal) {
+			t.Fatalf("%s %s: a sequence ordinal is treated as a model identifier", row.Edition, row.Token)
+		}
+	}
+	if ordinals != 12 {
+		t.Fatalf("%d sequence-ordinal rows, want 12", ordinals)
 	}
 }
 
@@ -173,10 +212,7 @@ func TestModelTokenAndIdentifierAreUniquePerEdition(t *testing.T) {
 	pairs := map[string]bool{}
 	identifiers := map[string]string{}
 	for _, row := range c.Models.Rows {
-		if row.Form != formSupportedModel {
-			continue
-		}
-		identifier := "none"
+		identifier := "sequence " + row.SequenceNumber
 		if row.Identifier != nil {
 			identifier = itoa(*row.Identifier)
 			key := row.Edition + "/" + identifier
@@ -231,18 +267,65 @@ func TestQualificationIdentifiersResolveToOneCardEach(t *testing.T) {
 		{428, "MA-C00", "SUN2000-8KTL-M1", "SUN2000MA V100R001C00"},
 	} {
 		cards, rows := cardsOfIdentifier(c, tc.identifier)
-		if !reflect.DeepEqual(cards, []string{tc.card}) || len(rows) != 1 || rows[0].Token != tc.token || rows[0].MinimumSoftware != tc.floor || len(rows[0].Quarantine) != 0 {
+		if !reflect.DeepEqual(cards, []string{tc.card}) || len(rows) != 1 || rows[0].Token != tc.token || rows[0].MinimumSoftware != tc.floor ||
+			rows[0].FloorBasis != floorBasisRow || len(rows[0].Quarantine) != 0 {
 			t.Fatalf("identifier %d resolves to %v with rows %+v", tc.identifier, cards, rows)
 		}
 	}
+	aliases := 0
 	for identifier := 1001; identifier <= 1013; identifier++ {
 		cards, rows := cardsOfIdentifier(c, identifier)
-		if !reflect.DeepEqual(cards, []string{"MA-V200"}) || len(rows) != 1 {
-			t.Fatalf("MAP0 identifier %d resolves to %v", identifier, cards)
+		if !reflect.DeepEqual(cards, []string{"MA-V200"}) || len(rows) != 1 || rows[0].MinimumSoftware != "V200R024C00" {
+			t.Fatalf("MAP0 identifier %d resolves to %v with rows %+v", identifier, cards, rows)
 		}
-		row := rows[0]
-		if row.MinimumSoftware != "V200R024C00" || row.WireToken != strings.ReplaceAll(row.Token, "_", "-") || row.WireTokenGrade != gradeHypothesis {
-			t.Fatalf("MAP0 identifier %d row %+v", identifier, row)
+		for _, alias := range rows[0].WireAliases {
+			if alias.Token != strings.ReplaceAll(rows[0].Token, "_", "-") {
+				t.Fatalf("MAP0 identifier %d: wire alias %q is not the hyphenated token", identifier, alias.Token)
+			}
+			aliases++
+		}
+	}
+	if aliases == 0 {
+		t.Fatal("no MAP0 row of the MA-V200 edition carries its hyphenated wire alias")
+	}
+}
+
+func TestUnspecifiedAddressesStayUnrequested(t *testing.T) {
+	c, _ := loadCommitted(t)
+	var unspecified []string
+	for _, doc := range c.Registers {
+		for _, row := range doc.Rows {
+			if row.AddressStatus == "" {
+				continue
+			}
+			if row.Offset != nil || row.Class != classRawOnly {
+				t.Fatalf("%s %s: an unspecified address carries an offset or decodes", doc.Card, row.Key)
+			}
+			unspecified = append(unspecified, doc.Card+" "+row.Key)
+		}
+	}
+	sort.Strings(unspecified)
+	if !reflect.DeepEqual(unspecified, []string{"COMMERCIAL pv.channel.pvnamps", "COMMERCIAL pv.channel.pvnvolts"}) {
+		t.Fatalf("unspecified addresses %v", unspecified)
+	}
+}
+
+func TestReadExtentsKeepValuesWhole(t *testing.T) {
+	c, _ := loadCommitted(t)
+	for _, card := range []string{"MC", "MA-C00", "MA-V200"} {
+		doc := c.Registers[registersFileName(card)]
+		found := false
+		for _, extent := range doc.ReadExtents {
+			if extent.Start != 32064 {
+				continue
+			}
+			found = true
+			if !containsInt(extent.SafeQuantities, 31) || containsInt(extent.SafeQuantities, 32) {
+				t.Fatalf("%s: the extent from 32064 must allow 31 words and refuse 32: %v", card, extent.SafeQuantities)
+			}
+		}
+		if !found {
+			t.Fatalf("%s: no read extent starts at 32064", card)
 		}
 	}
 }

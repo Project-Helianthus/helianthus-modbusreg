@@ -15,7 +15,6 @@ import (
 
 type options struct {
 	Reference string
-	ModelRows string
 	Expect    counts
 }
 
@@ -25,11 +24,13 @@ type cardCoverage struct {
 	Parser         string         `json:"parser"`
 	Rows           int            `json:"rows"`
 	StatedRows     int            `json:"stated_rows"`
+	Controls       int            `json:"controls"`
 	Classes        map[string]int `json:"classes"`
+	ControlClasses map[string]int `json:"control_classes"`
 	Endpoints      map[string]int `json:"endpoints"`
 	Core           int            `json:"core"`
-	TemplateRows   []string       `json:"template_rows"`
-	Readable       int            `json:"readable_configuration"`
+	Unspecified    []string       `json:"address_unspecified"`
+	ReadExtents    int            `json:"read_extents"`
 	ModelRows      int            `json:"model_rows_in_card_edition"`
 	QuarantineRows map[string]int `json:"quarantined_rows"`
 }
@@ -40,39 +41,41 @@ type result struct {
 	Sidecar   map[string][]byte
 	Counts    counts
 	Coverage  []cardCoverage
-	Notes     []string
 }
 
 type reader struct{ root string }
 
-func (r reader) text(relative string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(r.root, filepath.FromSlash(relative)))
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
+func (r reader) bytes(relative string) ([]byte, error) {
+	return os.ReadFile(filepath.Join(r.root, filepath.FromSlash(relative)))
 }
 
-func (r reader) exists(relative string) bool {
-	_, err := os.Stat(filepath.Join(r.root, filepath.FromSlash(relative)))
-	return err == nil
+func (r reader) text(relative string) (string, error) {
+	data, err := r.bytes(relative)
+	return string(data), err
 }
+
+var baselinePattern = regexp.MustCompile(`Baseline \*\*(\d{4}-\d{2}-\d{2}\.\d+)\*\*`)
 
 type cardBuild struct {
-	info     *cardInfo
-	parser   string
-	rows     []parsedRow
-	readable []parsedRow
-	gates    []gate
-	classes  []functionalClass
-	review   *fullReview
-	markdown string
+	info    *cardInfo
+	twin    twinDoc
+	rows    cardRows
+	extents []readExtent
 }
 
-// generate builds the whole catalogue from the reference and verifies it
-// against the reference's own accounting and the expected counts.
+// generate builds the whole catalogue from the reference baseline and
+// verifies it against the baseline's own accounting and the expected counts.
 func generate(opts options) (*result, error) {
 	in := reader{root: opts.Reference}
+	readme, err := in.text("README.md")
+	if err != nil {
+		return nil, err
+	}
+	baselineMatch := baselinePattern.FindStringSubmatch(readme)
+	if baselineMatch == nil {
+		return nil, fmt.Errorf("the reference states no baseline")
+	}
+	baseline := baselineMatch[1]
 	sources, err := in.text("appendices/sources.md")
 	if err != nil {
 		return nil, err
@@ -89,139 +92,128 @@ func generate(opts options) (*result, error) {
 	if err != nil {
 		return nil, err
 	}
-	cards, err := parseCards(directory, navigation, func(slug string) (string, error) { return in.text("profiles/" + slug + ".md") }, anchors)
+	cards, err := parseCards(directory, navigation)
 	if err != nil {
 		return nil, err
 	}
 	var validation struct {
 		CanonicalTotals struct {
-			Profiles      int `json:"profiles"`
-			ROOccurrences int `json:"RO_occurrences"`
+			Profiles           int `json:"profiles"`
+			ROOccurrences      int `json:"RO_occurrences"`
+			ControlOccurrences int `json:"control_occurrences"`
 		} `json:"canonical_totals"`
 	}
-	validationText, err := in.text("semantic-review/VALIDATION.json")
+	validationData, err := in.bytes("semantic-review/VALIDATION.json")
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal([]byte(validationText), &validation); err != nil {
+	if err := json.Unmarshal(validationData, &validation); err != nil {
 		return nil, err
-	}
-	statedRO := 0
-	for _, card := range cards {
-		statedRO += card.ROCount
-	}
-	if validation.CanonicalTotals.Profiles != len(cards) || validation.CanonicalTotals.ROOccurrences != statedRO {
-		return nil, fmt.Errorf("the reference accounting disagrees with itself: %d cards and %d rows listed, %d and %d totalled",
-			len(cards), statedRO, validation.CanonicalTotals.Profiles, validation.CanonicalTotals.ROOccurrences)
 	}
 
 	builds := map[string]*cardBuild{}
+	statedRO, roTotal, controlTotal := 0, 0, 0
 	for _, card := range cards {
-		build := &cardBuild{info: card}
-		builds[card.ID] = build
-		cardText, err := in.text("profiles/" + card.Slug + ".md")
+		statedRO += card.ROCount
+		data, err := in.bytes("profiles/" + card.Slug + ".json")
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("card %s has no JSON twin: %w", card.ID, err)
 		}
-		switch {
-		case in.exists("semantic-review/" + card.Slug + "-full-ro.json"):
-			build.parser = "machine-readable review cross-checked against its Markdown table"
-			data, err := os.ReadFile(filepath.Join(opts.Reference, "semantic-review", card.Slug+"-full-ro.json"))
-			if err != nil {
-				return nil, err
-			}
-			build.markdown, err = in.text("semantic-review/" + card.Slug + "-full-ro.md")
-			if err != nil {
-				return nil, err
-			}
-			build.rows, build.classes, build.review, err = parseFullReview(data, build.markdown, card.Source.SHA256)
-			if err != nil {
-				return nil, err
-			}
-		case strings.Contains(cardText, "## Complete detected RO tuple set"):
-			build.parser = "supplement card tuple table"
-			build.markdown = cardText
-			build.rows, build.gates, build.classes, err = parseMB02(cardText)
-			if err != nil {
-				return nil, err
-			}
-		default:
-			build.parser = "derived class-table catalogue"
-			text, err := in.text("semantic-review/" + card.Slug + "-full-ro.md")
-			if err != nil {
-				return nil, err
-			}
-			var anchor string
-			build.rows, build.gates, anchor, err = parseClassTables(text, card.Source.SHA256)
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", card.ID, err)
-			}
-			if anchors[anchor] != card.Source {
-				return nil, fmt.Errorf("%s: catalogue source %q is not the card source", card.ID, anchor)
-			}
+		build := &cardBuild{info: card}
+		if err := json.Unmarshal(data, &build.twin); err != nil {
+			return nil, fmt.Errorf("%s twin: %w", card.ID, err)
 		}
-		if card.Source.Mirrored {
-			if err := checkSupplementClasses(directory, build.rows); err != nil {
-				return nil, err
-			}
+		if build.twin.Schema != "huawei-pv-profile-portable-v1" || build.twin.Profile != card.Slug || build.twin.Baseline != baseline {
+			return nil, fmt.Errorf("%s twin: schema, profile or baseline mismatch", card.ID)
 		}
-		if len(build.rows) != card.ROCount {
-			return nil, fmt.Errorf("%s: parsed %d read-only rows, the reference lists %d", card.ID, len(build.rows), card.ROCount)
+		entry, ok := anchors[strings.ToLower(build.twin.SourceID)]
+		if !ok || entry.SourceID != build.twin.SourceID {
+			return nil, fmt.Errorf("%s twin names unknown source %s", card.ID, build.twin.SourceID)
 		}
-		if in.exists("semantic-review/" + card.Slug + "-controls.md") {
-			controls, err := in.text("semantic-review/" + card.Slug + "-controls.md")
-			if err != nil {
-				return nil, err
-			}
-			build.readable, err = parseReadableConfiguration(controls)
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", card.ID, err)
-			}
+		card.Source = entry
+		if err := parseReadOnly(build.twin.ReadOnly, build.twin.SourceID, &build.rows); err != nil {
+			return nil, fmt.Errorf("%s read-only: %w", card.ID, err)
 		}
+		if err := parseControls(build.twin.Controls, card.Slug, build.twin.SourceID, &build.rows); err != nil {
+			return nil, fmt.Errorf("%s controls: %w", card.ID, err)
+		}
+		if len(build.rows.Rows) != card.ROCount {
+			return nil, fmt.Errorf("%s: %d read-only rows, the navigation lists %d", card.ID, len(build.rows.Rows), card.ROCount)
+		}
+		build.extents, err = readExtents(build.twin.Extents)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", card.ID, err)
+		}
+		if err := checkTwinQuarantines(build); err != nil {
+			return nil, fmt.Errorf("%s: %w", card.ID, err)
+		}
+		roTotal += len(build.rows.Rows)
+		controlTotal += len(build.rows.Controls)
+		builds[card.ID] = build
 	}
-
+	if validation.CanonicalTotals.Profiles != len(cards) || validation.CanonicalTotals.ROOccurrences != statedRO ||
+		validation.CanonicalTotals.ROOccurrences != roTotal || validation.CanonicalTotals.ControlOccurrences != controlTotal {
+		return nil, fmt.Errorf("baseline accounting disagrees: %d cards, %d read-only and %d control rows parsed; %d, %d and %d stated",
+			len(cards), roTotal, controlTotal, validation.CanonicalTotals.Profiles, validation.CanonicalTotals.ROOccurrences, validation.CanonicalTotals.ControlOccurrences)
+	}
 	coreCount, err := attachCore(in, cards, builds)
 	if err != nil {
 		return nil, err
 	}
 
-	locatorData, err := os.ReadFile(opts.ModelRows)
+	editionsText, err := in.text("appendices/model-editions.md")
 	if err != nil {
 		return nil, err
 	}
-	models, err := parseLocatorRows(locatorData)
-	if err != nil {
-		return nil, err
+	statedModels := editionModelCounts(editionsText)
+	sourced := append([]*censusEntry(nil), census...)
+	sort.Slice(sourced, func(i, j int) bool { return sourced[i].SourceID < sourced[j].SourceID })
+	if len(statedModels) != len(sourced) {
+		return nil, fmt.Errorf("%d editions in the model accounting, %d in the source appendix", len(statedModels), len(sourced))
 	}
-	locatorCount := len(models)
+	cardBySHA := map[string]string{}
 	for _, card := range cards {
-		if card.Source.Mirrored {
-			for _, model := range parseMB02Models(builds[card.ID].markdown) {
-				model.SHA256 = card.Source.SHA256
-				models = append(models, model)
-			}
+		cardBySHA[card.Source.SHA256] = card.ID
+	}
+	editionBySHA, err := buildEditions(sourced, cardBySHA)
+	if err != nil {
+		return nil, err
+	}
+	var models []parsedModel
+	var requirements []documentRequirement
+	tables := map[string]modelTable{}
+	for _, entry := range sourced {
+		data, err := in.bytes("data/models/" + entry.SourceID + ".json")
+		if err != nil {
+			return nil, fmt.Errorf("edition %s has no model table: %w", entry.SourceID, err)
+		}
+		var table modelTable
+		if err := json.Unmarshal(data, &table); err != nil {
+			return nil, fmt.Errorf("%s model table: %w", entry.SourceID, err)
+		}
+		if table.Schema != "huawei-pv-model-table-v1" || table.SourceID != entry.SourceID {
+			return nil, fmt.Errorf("%s model table: schema or source mismatch", entry.SourceID)
+		}
+		if len(table.Rows) != statedModels[entry.SourceID] || (len(table.Rows) == 0) != (table.EmptyReason != nil) {
+			return nil, fmt.Errorf("%s: %d model rows, the accounting states %d", entry.SourceID, len(table.Rows), statedModels[entry.SourceID])
+		}
+		editionID := editionBySHA[entry.SHA256].ID
+		editionBySHA[entry.SHA256].ModelRows = len(table.Rows)
+		converted, reqs, err := convertModelTable(table, editionID)
+		if err != nil {
+			return nil, err
+		}
+		models = append(models, converted...)
+		requirements = append(requirements, reqs...)
+		tables[entry.SourceID] = table
+	}
+	for _, card := range cards {
+		if err := sameModelTable(builds[card.ID].twin.Models, tables[card.Source.SourceID]); err != nil {
+			return nil, fmt.Errorf("%s: %w", card.ID, err)
 		}
 	}
-	statements := map[string][]cardTuple{}
-	for _, card := range cards {
-		statements[card.Source.SHA256] = append(statements[card.Source.SHA256], cardTuples(card.EvidenceText)...)
-	}
-	coverageText, err := in.text("appendices/model-coverage.md")
-	if err != nil {
-		return nil, err
-	}
-	for anchor, tuples := range coverageTuples(coverageText) {
-		entry, ok := anchors[anchor]
-		if !ok {
-			return nil, fmt.Errorf("model coverage cites unknown source %s", anchor)
-		}
-		statements[entry.SHA256] = append(statements[entry.SHA256], tuples...)
-	}
-	notes, err := completeFloors(models, statements)
-	if err != nil {
-		return nil, err
-	}
-	flagModels(models)
+	sortModels(models)
+	sort.Slice(requirements, func(i, j int) bool { return requirements[i].ID < requirements[j].ID })
 
 	contradictions, err := in.text("appendices/contradictions.md")
 	if err != nil {
@@ -232,43 +224,8 @@ func generate(opts options) (*result, error) {
 		return nil, err
 	}
 
-	referenced := map[string]*censusEntry{}
-	bySHA := map[string]*censusEntry{}
-	for _, entry := range census {
-		bySHA[entry.SHA256] = entry
-	}
-	for _, model := range models {
-		entry, ok := bySHA[model.SHA256]
-		if !ok {
-			return nil, fmt.Errorf("model row names an edition outside the source appendix")
-		}
-		referenced[entry.SHA256] = entry
-	}
-	cardBySHA := map[string]string{}
-	for _, card := range cards {
-		referenced[card.Source.SHA256] = card.Source
-		cardBySHA[card.Source.SHA256] = card.ID
-	}
-	for _, list := range quarantineEditions {
-		for _, entry := range list {
-			referenced[entry.SHA256] = entry
-		}
-	}
-	entries := make([]*censusEntry, 0, len(referenced))
-	for _, entry := range referenced {
-		entries = append(entries, entry)
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].SHA256 < entries[j].SHA256 })
-	editionBySHA, err := buildEditions(entries, cardBySHA)
-	if err != nil {
-		return nil, err
-	}
-	for index := range models {
-		models[index].Row.Edition = editionBySHA[models[index].SHA256].ID
-	}
-
 	c := &catalogue{Registers: map[string]*registersDoc{}}
-	c.Editions = editionsDoc{Schema: editionsSchema, Attribution: attributionNote}
+	c.Editions = editionsDoc{Schema: editionsSchema, ReferenceBaseline: baseline, Attribution: attributionNote}
 	for _, record := range editionBySHA {
 		c.Editions.Editions = append(c.Editions.Editions, *record)
 	}
@@ -303,22 +260,28 @@ func generate(opts options) (*result, error) {
 		}
 	}
 
+	statusChapter, err := in.text("07-status-alarms.md")
+	if err != nil {
+		return nil, err
+	}
 	var dictionaries []dictionary
 	var coverage []cardCoverage
 	for _, card := range cards {
 		build := builds[card.ID]
 		editionID := editionBySHA[card.Source.SHA256].ID
-		sortRows(build.rows)
-		sortRows(build.readable)
-		for _, list := range [][]parsedRow{build.rows, build.readable} {
+		sortRows(build.rows.Rows)
+		sortRows(build.rows.Controls)
+		for _, list := range [][]parsedRow{build.rows.Rows, build.rows.Controls} {
 			for index := range list {
 				row := &list[index].Row
 				if row.Offset == nil {
-					builder.flagRegister(quarantineTemplateRow, card.ID, editionID, row)
 					continue
 				}
 				for _, item := range referenceItems {
 					for _, entry := range quarantineEditions[item.ID] {
+						if scope, narrowed := quarantineRowScope[item.ID]; narrowed && !containsString(scope, entry.Alias) {
+							continue
+						}
 						if entry == card.Source && containsInt(quarantineOffsets[item.ID], *row.Offset) {
 							builder.flagRegister(item.ID, card.ID, editionID, row)
 						}
@@ -333,95 +296,69 @@ func generate(opts options) (*result, error) {
 		}
 		doc := &registersDoc{
 			Schema: registersSchema, Card: card.ID, Edition: editionID, ModelPages: card.ModelPages,
-			SelectionNote: prose(card.Note), Gates: build.gates, FunctionalClasses: build.classes,
+			SelectionNote: prose(card.Note), Gates: build.rows.Gates, FunctionalClasses: build.rows.Classes,
+			ReadExtents: build.extents, Rows: []registerRow{}, Controls: []registerRow{},
 		}
-		for _, row := range build.rows {
+		for _, row := range build.rows.Rows {
 			doc.Rows = append(doc.Rows, row.Row)
 		}
-		for _, row := range build.readable {
-			doc.ReadableConfiguration = append(doc.ReadableConfiguration, row.Row)
+		for _, row := range build.rows.Controls {
+			doc.Controls = append(doc.Controls, row.Row)
+		}
+		if additive := build.twin.Additive; additive != nil {
+			support, err := convertAdditive(additive, anchors, editionBySHA)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", card.ID, err)
+			}
+			doc.AdditiveSupport = support
 		}
 		c.Registers[card.CatalogueFile] = doc
-
-		switch {
-		case build.review != nil:
-			items, err := reviewDictionaries(card, editionID, build.review, build.markdown, build.rows)
-			if err != nil {
-				return nil, err
-			}
-			dictionaries = append(dictionaries, items...)
-		case card.Source.Mirrored:
-			item, err := mb02AlarmDictionary(card, editionID, build.markdown)
-			if err != nil {
-				return nil, err
-			}
-			dictionaries = append(dictionaries, item)
+		items, err := cardDictionaries(card, editionID, &build.rows)
+		if err != nil {
+			return nil, fmt.Errorf("%s dictionaries: %w", card.ID, err)
 		}
-		dictionaries = append(dictionaries, selectorDictionaries(card, editionID, build.readable)...)
 		if card.Source.Alias == "M10" {
-			attached, err := in.text("08-attached-interfaces.md")
-			if err != nil {
+			if err := applyModePredicate(items, card, statusChapter); err != nil {
 				return nil, err
 			}
-			status, err := in.text("07-status-alarms.md")
-			if err != nil {
-				return nil, err
-			}
-			items, err := chapterDictionaries(card, editionID, attached, status)
-			if err != nil {
-				return nil, err
-			}
-			dictionaries = append(dictionaries, items...)
 		}
-		coverage = append(coverage, coverCard(card, build, doc, models))
+		dictionaries = append(dictionaries, items...)
+		coverage = append(coverage, coverCard(card, build, doc))
 	}
-	sort.Slice(dictionaries, func(i, j int) bool {
+	sort.SliceStable(dictionaries, func(i, j int) bool {
 		if dictionaries[i].Card != dictionaries[j].Card {
 			return dictionaries[i].Card < dictionaries[j].Card
 		}
-		if dictionaries[i].Offsets[0] != dictionaries[j].Offsets[0] {
-			return dictionaries[i].Offsets[0] < dictionaries[j].Offsets[0]
+		if firstOffset(dictionaries[i]) != firstOffset(dictionaries[j]) {
+			return firstOffset(dictionaries[i]) < firstOffset(dictionaries[j])
 		}
 		return dictionaries[i].ID < dictionaries[j].ID
 	})
 	c.Dictionaries = dictionariesDoc{Schema: dictionariesSchema, Dictionaries: dictionaries}
 
-	sort.SliceStable(models, func(i, j int) bool {
-		a, b := models[i], models[j]
-		if a.Row.Edition != b.Row.Edition {
-			return a.Row.Edition < b.Row.Edition
-		}
-		if a.Row.Page != b.Row.Page {
-			return a.Row.Page < b.Row.Page
-		}
-		if a.Row.SourceSet != b.Row.SourceSet {
-			return a.Row.SourceSet > b.Row.SourceSet
-		}
-		return a.Order < b.Order
-	})
 	for index := range models {
 		row := &models[index].Row
 		for _, flag := range append([]string(nil), row.Quarantine...) {
 			builder.recordModel(flag, row)
 		}
 		for _, spec := range anomalySpecs {
-			if spec.FloorSuffix != "" && strings.Contains(row.MinimumSoftware, spec.FloorSuffix) {
+			if spec.FloorSuffix != "" && strings.Contains(row.RowMinimum, spec.FloorSuffix) {
 				builder.flagModel(spec.ID, row)
 			}
 		}
 	}
-	c.Models = modelsDoc{Schema: modelsSchema}
+	c.Models = modelsDoc{Schema: modelsSchema, DocumentRequirements: requirements}
 	for _, model := range models {
 		c.Models.Rows = append(c.Models.Rows, model.Row)
 	}
 	c.Quarantines = quarantinesDoc{Schema: quarantinesSchema, Quarantines: builder.build()}
 
 	got := countCatalogue(c)
-	if got.Models != locatorCount || got.Core != coreCount || got.RO != statedRO {
+	if got.RO != roTotal || got.Controls != controlTotal || got.Core != coreCount || got.Models != sumCounts(statedModels) {
 		return nil, fmt.Errorf("internal accounting mismatch: %s", got)
 	}
 	if got != opts.Expect {
-		return nil, fmt.Errorf("counts %s differ from the expected reference accounting %s; review the reference change and rerun with -expect %s", got, opts.Expect, got)
+		return nil, fmt.Errorf("counts %s differ from the expected baseline accounting %s; review the reference change and rerun with -expect %s", got, opts.Expect, got)
 	}
 	if err := validateCatalogue(c); err != nil {
 		return nil, err
@@ -433,16 +370,78 @@ func generate(opts options) (*result, error) {
 	if err != nil {
 		return nil, err
 	}
-	sidecar, err := buildSidecar(builds, cards, models, editionBySHA, coverage, got, notes)
+	sidecar, err := buildSidecar(builds, cards, census, models, editionBySHA, coverage, got)
 	if err != nil {
 		return nil, err
 	}
-	return &result{Catalogue: c, Files: files, Sidecar: sidecar, Counts: got, Coverage: coverage, Notes: notes}, nil
+	return &result{Catalogue: c, Files: files, Sidecar: sidecar, Counts: got, Coverage: coverage}, nil
+}
+
+func firstOffset(item dictionary) int {
+	if len(item.Offsets) == 0 {
+		return -1
+	}
+	return item.Offsets[0]
+}
+
+func sumCounts(values map[string]int) int {
+	total := 0
+	for _, value := range values {
+		total += value
+	}
+	return total
+}
+
+// checkTwinQuarantines verifies that every row the twin quarantines is a
+// conflict row or a no-send control row.
+func checkTwinQuarantines(build *cardBuild) error {
+	index := func(rows []parsedRow) map[string]*registerRow {
+		out := map[string]*registerRow{}
+		for position := range rows {
+			for _, id := range rows[position].TwinIDs {
+				out[id] = &rows[position].Row
+			}
+		}
+		return out
+	}
+	readOnly, controls := index(build.rows.Rows), index(build.rows.Controls)
+	for _, item := range build.twin.Quarantines {
+		switch item.Section {
+		case "read_only":
+			row, ok := readOnly[item.EntryID]
+			if !ok || row.Class != classConflict {
+				return fmt.Errorf("twin quarantine %s is not a conflict row", item.EntryID)
+			}
+		case "controls":
+			row, ok := controls[item.EntryID]
+			if !ok || row.Class != classNoSend {
+				return fmt.Errorf("twin quarantine %s is not a no-send control row", item.EntryID)
+			}
+		default:
+			return fmt.Errorf("twin quarantine %s has unknown section %q", item.EntryID, item.Section)
+		}
+	}
+	return nil
+}
+
+func convertAdditive(additive *twinAdditive, anchors map[string]*censusEntry, editions map[string]*edition) (*additiveSupport, error) {
+	entry, ok := anchors[strings.ToLower(additive.SourceID)]
+	if !ok {
+		return nil, fmt.Errorf("additive support names unknown source %s", additive.SourceID)
+	}
+	support := &additiveSupport{
+		Edition: editions[entry.SHA256].ID, Token: additive.Model.Token, Model: additive.Model.ModelID,
+		Minimum: additive.Model.Minimum, Page: additive.Model.Page, Note: prose(additive.Conditions),
+	}
+	for _, row := range additive.Rows {
+		support.Rows = append(support.Rows, additiveRow{Offset: row.Address, Quantity: row.Words, Type: row.Type, Meaning: prose(row.Meaning), Page: row.Page})
+	}
+	return support, nil
 }
 
 // attachCore marks the register rows that the reference lists as core rows.
 func attachCore(in reader, cards []*cardInfo, builds map[string]*cardBuild) (int, error) {
-	text, err := in.text("appendices/core-semantic-review.json")
+	data, err := in.bytes("appendices/core-semantic-review.json")
 	if err != nil {
 		return 0, err
 	}
@@ -454,7 +453,7 @@ func attachCore(in reader, cards []*cardInfo, builds map[string]*cardBuild) (int
 			Gate          string `json:"gate"`
 		} `json:"rows"`
 	}
-	if err := json.Unmarshal([]byte(text), &core); err != nil {
+	if err := json.Unmarshal(data, &core); err != nil {
 		return 0, err
 	}
 	perCard := map[string]int{}
@@ -464,12 +463,12 @@ func attachCore(in reader, cards []*cardInfo, builds map[string]*cardBuild) (int
 			return 0, fmt.Errorf("core row names unknown card %s", entry.Profile)
 		}
 		matched := 0
-		for index := range build.rows {
-			if build.rows[index].Evidence == entry.EvidenceID {
-				if build.rows[index].Row.Core != nil {
+		for index := range build.rows.Rows {
+			if build.rows.Rows[index].Evidence == entry.EvidenceID {
+				if build.rows.Rows[index].Row.Core != nil {
 					return 0, fmt.Errorf("core row %s matches a row twice", entry.FunctionalKey)
 				}
-				build.rows[index].Row.Core = &coreRef{Key: entry.FunctionalKey, Gate: cleanText(entry.Gate)}
+				build.rows.Rows[index].Row.Core = &coreRef{Key: entry.FunctionalKey, Gate: cleanText(entry.Gate)}
 				matched++
 			}
 		}
@@ -489,11 +488,11 @@ func attachCore(in reader, cards []*cardInfo, builds map[string]*cardBuild) (int
 	return len(core.Rows), nil
 }
 
-func coverCard(card *cardInfo, build *cardBuild, doc *registersDoc, models []parsedModel) cardCoverage {
+func coverCard(card *cardInfo, build *cardBuild, doc *registersDoc) cardCoverage {
 	item := cardCoverage{
-		Card: card.ID, Parser: build.parser, Rows: len(doc.Rows), StatedRows: card.ROCount,
-		Classes: map[string]int{}, Endpoints: map[string]int{}, Readable: len(doc.ReadableConfiguration),
-		QuarantineRows: map[string]int{}, TemplateRows: []string{},
+		Card: card.ID, Parser: build.rows.Parser, Rows: len(doc.Rows), StatedRows: card.ROCount, Controls: len(doc.Controls),
+		Classes: map[string]int{}, ControlClasses: map[string]int{}, Endpoints: map[string]int{}, QuarantineRows: map[string]int{},
+		Unspecified: []string{}, ReadExtents: len(doc.ReadExtents), ModelRows: len(build.twin.Models),
 	}
 	for _, row := range doc.Rows {
 		item.Classes[row.Class]++
@@ -501,41 +500,20 @@ func coverCard(card *cardInfo, build *cardBuild, doc *registersDoc, models []par
 		if row.Core != nil {
 			item.Core++
 		}
-		if row.Offset == nil {
-			item.TemplateRows = append(item.TemplateRows, row.Key)
+		if row.AddressStatus != "" {
+			item.Unspecified = append(item.Unspecified, row.Key)
 		}
 		for _, flag := range row.Quarantine {
 			item.QuarantineRows[flag]++
 		}
 	}
-	for _, model := range models {
-		if model.SHA256 == card.Source.SHA256 {
-			item.ModelRows++
+	for _, row := range doc.Controls {
+		item.ControlClasses[row.Class]++
+		for _, flag := range row.Quarantine {
+			item.QuarantineRows[flag]++
 		}
 	}
 	return item
-}
-
-var supplementClassPattern = regexp.MustCompile(`(\d+) reviewed, (\d+) conditional, (\d+) raw-only and (\d+) conflict`)
-
-// checkSupplementClasses compares the class counts of the supplement card with
-// the counts the profile directory states for it.
-func checkSupplementClasses(directory string, rows []parsedRow) error {
-	match := supplementClassPattern.FindStringSubmatch(directory)
-	if match == nil {
-		return fmt.Errorf("the profile directory states no supplement class counts")
-	}
-	got := map[string]int{}
-	for _, row := range rows {
-		got[row.Row.Class]++
-	}
-	for index, class := range []string{classReviewed, classConditional, classRawOnly, classConflict} {
-		want, _ := strconv.Atoi(match[index+1])
-		if got[class] != want {
-			return fmt.Errorf("supplement card: %d %s rows, the profile directory states %d", got[class], class, want)
-		}
-	}
-	return nil
 }
 
 func containsInt(list []int, value int) bool {
@@ -556,60 +534,72 @@ func containsString(list []string, value string) bool {
 	return false
 }
 
-// buildSidecar returns the private locator files: digests, table and row
-// locators, native model lines and per-card accounting. They are never
+// buildSidecar returns the private locator files: digests, source
+// identifiers, evidence locators and per-card accounting. They are never
 // committed.
-func buildSidecar(builds map[string]*cardBuild, cards []*cardInfo, models []parsedModel, editions map[string]*edition, coverage []cardCoverage, got counts, notes []string) (map[string][]byte, error) {
+func buildSidecar(builds map[string]*cardBuild, cards []*cardInfo, entries []*censusEntry, models []parsedModel, editions map[string]*edition, coverage []cardCoverage, got counts) (map[string][]byte, error) {
 	type sidecarEdition struct {
-		ID      string   `json:"id"`
-		SHA256  string   `json:"sha256"`
-		Section []string `json:"census_lines"`
+		ID       string   `json:"id"`
+		SourceID string   `json:"source_id"`
+		SHA256   string   `json:"sha256"`
+		Lines    []string `json:"census_lines"`
 	}
 	type sidecarRow struct {
 		Card       string            `json:"card"`
+		Set        string            `json:"set"`
 		Key        string            `json:"key"`
 		Offset     *int              `json:"offset"`
 		Occurrence int               `json:"occurrence,omitempty"`
-		Evidence   string            `json:"evidence,omitempty"`
 		Private    map[string]string `json:"private"`
 	}
 	type sidecarModel struct {
 		Edition    string            `json:"edition"`
+		SourceID   string            `json:"source_id"`
 		Page       int               `json:"page"`
-		Token      string            `json:"token,omitempty"`
+		Token      string            `json:"token"`
 		Identifier *int              `json:"identifier,omitempty"`
 		Private    map[string]string `json:"private"`
 	}
-	var editionRows []sidecarEdition
 	shas := make([]string, 0, len(editions))
 	for sha := range editions {
 		shas = append(shas, sha)
 	}
 	sort.Strings(shas)
-	var censusLines = map[string][]string{}
-	for _, card := range cards {
-		censusLines[card.Source.SHA256] = card.Source.Lines
+	census := map[string]*censusEntry{}
+	for _, entry := range entries {
+		census[entry.SHA256] = entry
 	}
+	var editionRows []sidecarEdition
 	for _, sha := range shas {
-		editionRows = append(editionRows, sidecarEdition{ID: editions[sha].ID, SHA256: sha, Section: censusLines[sha]})
+		row := sidecarEdition{ID: editions[sha].ID, SHA256: sha}
+		if entry, ok := census[sha]; ok {
+			row.SourceID, row.Lines = entry.SourceID, entry.Lines
+		}
+		editionRows = append(editionRows, row)
 	}
 	var rows []sidecarRow
 	for _, card := range cards {
 		build := builds[card.ID]
-		for _, list := range [][]parsedRow{build.rows, build.readable} {
+		for set, list := range map[string][]parsedRow{"rows": build.rows.Rows, "controls": build.rows.Controls} {
 			for _, row := range list {
-				rows = append(rows, sidecarRow{Card: card.ID, Key: row.Row.Key, Offset: row.Row.Offset, Occurrence: row.Row.Occurrence, Evidence: row.Evidence, Private: row.Private})
+				rows = append(rows, sidecarRow{Card: card.ID, Set: set, Key: row.Row.Key, Offset: row.Row.Offset, Occurrence: row.Row.Occurrence, Private: row.Private})
 			}
 		}
 	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].Card != rows[j].Card {
+			return rows[i].Card < rows[j].Card
+		}
+		return rows[i].Set < rows[j].Set
+	})
 	var modelRows []sidecarModel
 	for _, model := range models {
-		modelRows = append(modelRows, sidecarModel{Edition: model.Row.Edition, Page: model.Row.Page, Token: model.Row.Token, Identifier: model.Row.Identifier, Private: model.Private})
+		modelRows = append(modelRows, sidecarModel{Edition: model.Row.Edition, SourceID: model.SourceID, Page: model.Row.Page, Token: model.Row.Token, Identifier: model.Row.Identifier, Private: model.Private})
 	}
 	out := map[string][]byte{}
 	for name, value := range map[string]any{
 		"editions.json": editionRows, "registers.json": rows, "models.json": modelRows,
-		"accounting.json": map[string]any{"counts": got, "coverage": coverage, "notes": notes},
+		"accounting.json": map[string]any{"counts": got, "coverage": coverage},
 	} {
 		data, err := json.MarshalIndent(value, "", "  ")
 		if err != nil {
@@ -652,6 +642,6 @@ func insideDirectory(root, path string) (bool, error) {
 }
 
 func countLine(c counts) string {
-	return "read-only rows " + strconv.Itoa(c.RO) + ", core rows " + strconv.Itoa(c.Core) +
+	return "read-only rows " + strconv.Itoa(c.RO) + ", core rows " + strconv.Itoa(c.Core) + ", control rows " + strconv.Itoa(c.Controls) +
 		", model rows " + strconv.Itoa(c.Models) + ", cards " + strconv.Itoa(c.Cards)
 }

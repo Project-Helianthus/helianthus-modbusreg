@@ -9,7 +9,7 @@ import (
 
 var (
 	markdownLinkPattern  = regexp.MustCompile(`\[([^\]]+)\]\([^)]*\)`)
-	digestParenPattern   = regexp.MustCompile("\\s*\\(SHA `[0-9a-fA-F]+`\\)")
+	digestParenPattern   = regexp.MustCompile("\\s*\\((?:SHA|source ID) `[0-9A-Za-z]+`\\)")
 	inlineDigestPattern  = regexp.MustCompile("SHA `[0-9a-fA-F]+`,?\\s*")
 	strongPattern        = regexp.MustCompile(`\*\*([^*]+)\*\*`)
 	whitespacePattern    = regexp.MustCompile(`\s+`)
@@ -54,11 +54,13 @@ func prose(text string) string {
 			kept = append(kept, sentence)
 			continue
 		}
+		ageIssue := ageNearRelease(sentence)
 		var clauses []string
 		for _, clause := range strings.Split(sentence, "; ") {
-			if !droppable(clause) {
-				clauses = append(clauses, strings.TrimSuffix(clause, "."))
+			if droppable(clause) || (ageIssue && len(wordSpans(strings.ToLower(clause), ageWords, true)) > 0) {
+				continue
 			}
+			clauses = append(clauses, strings.TrimSuffix(clause, "."))
 		}
 		if len(clauses) > 0 {
 			kept = append(kept, strings.Join(clauses, "; ")+".")
