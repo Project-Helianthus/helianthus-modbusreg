@@ -580,6 +580,11 @@ func convertAlarms(build *gatewayBuild) error {
 			if alarm.Address != nil || alarm.Bit != nil || len(alarm.Semantic) != 3 {
 				return fmt.Errorf("alarm %s is an unexpected narrative", alarm.RecordID)
 			}
+			for _, field := range []string{"name", "description", "impact"} {
+				if _, ok := alarm.Semantic[field]; !ok {
+					return fmt.Errorf("alarm %s narrative lacks the %s field", alarm.RecordID, field)
+				}
+			}
 		default:
 			return fmt.Errorf("alarm %s has kind %q", alarm.RecordID, alarm.Kind)
 		}

@@ -273,3 +273,24 @@ func TestGatewayCheckModeLeavesTheOtherModeDirectoryAlone(t *testing.T) {
 		t.Fatalf("expect %+v %v", expect, err)
 	}
 }
+
+func TestGatewayNarrativeAlarmRefusesRenamedSemanticKeys(t *testing.T) {
+	narrative := func(keys ...string) *gatewayBuild {
+		alarm := gatewayAlarm{Kind: alarmNarrative, SourceID: "SRCX", Namespace: "gateway_self", Label: "Fault", RecordID: "R1",
+			Semantic: map[string]gatewaySemantic{}}
+		alarm.Locator.Page = 3
+		for _, key := range keys {
+			alarm.Semantic[key] = gatewaySemantic{Summary: "Fault"}
+		}
+		return &gatewayBuild{SourceID: "SRCX", Twin: &gatewayTwin{AlarmDictionary: []gatewayAlarm{alarm}}}
+	}
+	if err := convertAlarms(narrative("name", "description", "impact")); err != nil {
+		t.Fatal(err)
+	}
+	if err := convertAlarms(narrative("name", "details", "impact")); err == nil {
+		t.Fatal("a renamed description key was accepted")
+	}
+	if err := convertAlarms(narrative("name", "description", "effect")); err == nil {
+		t.Fatal("a renamed impact key was accepted")
+	}
+}

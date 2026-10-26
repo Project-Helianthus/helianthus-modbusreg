@@ -380,7 +380,9 @@ compares both runs with the committed bytes.
 
 Removing the gateway directory, the `logger_*` files of
 `tools/huaweicatalogue`, the gateway section of this page and the gateway
-applicability line of `evidence.json` restores the inverter part alone.
+applicability line of `evidence.json`, and reverting the gateway changes to the
+shared generator files (`main.go`, `model.go`, `prose.go`, `registers.go`,
+`validate.go`), restores the inverter part alone.
 Removing the catalogue directory, `tools/huaweicatalogue`, this page, the
 README paragraph and the catalogue source and applicability line of
 `evidence.json`, and restoring the vendor directory listing in
