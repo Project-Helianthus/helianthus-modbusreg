@@ -485,3 +485,37 @@ func TestReadExtentSafeQuantitiesEndOnFieldBoundaries(t *testing.T) {
 		t.Fatalf("a safe quantity splitting a two-word value must be refused, got %v", err)
 	}
 }
+
+func TestDictionaryDefectsStayOnTheirRows(t *testing.T) {
+	c, _ := loadCommitted(t)
+	flagged := func(card string, offset int, id string) bool {
+		for _, doc := range c.Registers {
+			if doc.Card != card {
+				continue
+			}
+			for _, row := range doc.Rows {
+				if row.Offset != nil && *row.Offset == offset && hasFlag(row.Quarantine, id) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	for _, want := range []struct {
+		card   string
+		offset int
+		id     string
+	}{{"LB-C10", 30800, "D01"}, {"HA", 35122, "D01"}, {"MA-C20", 35139, "D02"}, {"MA-C20", 35102, "D02"}} {
+		if !flagged(want.card, want.offset, want.id) {
+			t.Errorf("%s %d does not carry %s", want.card, want.offset, want.id)
+		}
+	}
+	for _, d := range c.Dictionaries.Dictionaries {
+		if d.Kind != kindValueEnum {
+			continue
+		}
+		if mergedEnumeration(d.Values) {
+			t.Errorf("%s publishes merged enumeration entries", d.ID)
+		}
+	}
+}

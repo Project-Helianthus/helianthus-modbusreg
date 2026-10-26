@@ -509,15 +509,49 @@ func TestInsideDirectoryResolvesSymlinks(t *testing.T) {
 	}
 }
 
-func TestTruncatedSentinelCodesAreDropped(t *testing.T) {
-	values := []dictValue{{Code: "0XF2A5", Meaning: "a"}, {Code: "0XFFFF", Meaning: "b"}, {Code: "0xffff", Meaning: "c"}, {Code: "3", Meaning: "d"}}
-	raw := json.RawMessage(`[{"value":"0xF2A52380"},{"value":"0xFFFF"}]`)
+func TestTruncatedSentinelCodesAreDroppedOnlyWithTailEvidence(t *testing.T) {
+	values := []dictValue{
+		{Code: "0XF2A5", Meaning: "2380_2099_permanent"}, {Code: "0XFFFF", Meaning: "ffff_isreported"},
+		{Code: "0xff", Meaning: "unset_package"}, {Code: "3", Meaning: "d"},
+	}
+	raw := json.RawMessage(`[{"value":"0xF2A52380"},{"value":"0xFFFFFFFF"},{"value":"0xFFFF"}]`)
 	got, err := withoutTruncatedSentinels(values, raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 3 || got[0].Code != "0XFFFF" || got[1].Code != "0xffff" || got[2].Code != "3" {
-		t.Fatalf("unexpected codes %v", got)
+	if len(got) != 2 || got[0].Code != "0xff" || got[1].Code != "3" {
+		t.Fatalf("a distinct code was dropped or a cut code kept: %v", got)
+	}
+	truncated, suspected, err := truncatedSentinelCodes(values, raw)
+	if err != nil || len(truncated) != 2 || len(suspected) != 1 || suspected[0].Code != "0xff" {
+		t.Fatalf("truncated %v suspected %v err %v", truncated, suspected, err)
+	}
+}
+
+func TestRowDefectsQuarantineTruncatedAndMergedEnumerations(t *testing.T) {
+	offset := 30800
+	row := parsedRow{Row: registerRow{Offset: &offset}, Meaning: map[string]json.RawMessage{
+		"enum": json.RawMessage(`{"0":"thesearchiscomplete1_beingsearched2_thesearchfails"}`),
+	}}
+	defects, err := rowDefects(row)
+	if err != nil || len(defects) != 1 || defects[0] != quarantineMergedEnum {
+		t.Fatalf("merged enumeration: %v %v", defects, err)
+	}
+	items, err := meaningDictionaries(row)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("a merged enumeration was published: %+v %v", items, err)
+	}
+	row.Meaning = map[string]json.RawMessage{
+		"enum":      json.RawMessage(`{"0xff":"unset","1":"on"}`),
+		"sentinels": json.RawMessage(`[{"value":"0xFFFF","meaning":"na"}]`),
+	}
+	defects, err = rowDefects(row)
+	if err != nil || len(defects) != 1 || defects[0] != quarantineTruncatedCode {
+		t.Fatalf("suspected truncation: %v %v", defects, err)
+	}
+	items, err = meaningDictionaries(row)
+	if err != nil || len(items) != 2 || len(items[0].Values) != 2 {
+		t.Fatalf("a distinct code was deleted: %+v %v", items, err)
 	}
 }
 

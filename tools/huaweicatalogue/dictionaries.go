@@ -10,15 +10,19 @@ import (
 )
 
 var (
-	valueEnumPattern    = regexp.MustCompile(`^((?:\d+=[^;=.]+;\s*)+\d+=[^;=.]+)\.`)
-	selectorPattern     = regexp.MustCompile(`selector\s*((?:\d+=[^,=.]+,\s*)+\d+=[^,=.]+)\.`)
-	signRulePattern     = regexp.MustCompile(`(?i)^positive (?:is|means) ([^;.]+?); negative (?:is|means) ([^;.]+?)(?: (?:in|for) this exact [a-z ]+)?\.`)
-	sentinelRulePattern = regexp.MustCompile(`(?:^|[\s,])((?:0x[0-9A-Fa-f]+|0)(?:\s*or\s*(?:0x[0-9A-Fa-f]+|0))*)\s+(?:marks|means|is)\s+([^;.]+)`)
-	sentinelCodePattern = regexp.MustCompile(`0x[0-9A-Fa-f]+|\b0\b`)
-	modeStatusPattern   = regexp.MustCompile(`\[M10\]\(appendices/sources\.md#m10\) pp\. (\d+)–(\d+) spans one status enumeration across three physical pages\. For example, (0x[0-9A-F]{4}) denotes an operating state whose interpretation depends on (off-grid context); (0x[0-9A-F]{4}) and (0x[0-9A-F]{4}) likewise carry mode-dependent limitations\.`)
+	valueEnumPattern     = regexp.MustCompile(`^((?:\d+=[^;=.]+;\s*)+\d+=[^;=.]+)\.`)
+	selectorPattern      = regexp.MustCompile(`selector\s*((?:\d+=[^,=.]+,\s*)+\d+=[^,=.]+)\.`)
+	signRulePattern      = regexp.MustCompile(`(?i)^positive (?:is|means) ([^;.]+?); negative (?:is|means) ([^;.]+?)(?: (?:in|for) this exact [a-z ]+)?\.`)
+	sentinelRulePattern  = regexp.MustCompile(`(?:^|[\s,])((?:0x[0-9A-Fa-f]+|0)(?:\s*or\s*(?:0x[0-9A-Fa-f]+|0))*)\s+(?:marks|means|is)\s+([^;.]+)`)
+	sentinelCodePattern  = regexp.MustCompile(`0x[0-9A-Fa-f]+|\b0\b`)
+	mergedMeaningPattern = regexp.MustCompile(`[a-z]\d+_[a-z]`)
+	modeStatusPattern    = regexp.MustCompile(`\[M10\]\(appendices/sources\.md#m10\) pp\. (\d+)–(\d+) spans one status enumeration across three physical pages\. For example, (0x[0-9A-F]{4}) denotes an operating state whose interpretation depends on (off-grid context); (0x[0-9A-F]{4}) and (0x[0-9A-F]{4}) likewise carry mode-dependent limitations\.`)
 )
 
 const (
+	quarantineTruncatedCode = "D02"
+	quarantineMergedEnum    = "D01"
+
 	kindStatusEnum = "status_enum"
 	kindValueEnum  = "value_enum"
 	kindBitmap     = "bitmap"
@@ -76,7 +80,7 @@ func meaningDictionaries(row parsedRow) ([]dictionary, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s sentinels: %w", row.Row.Key, err)
 		}
-		if len(values) > 0 {
+		if len(values) > 0 && !mergedEnumeration(values) {
 			item := base
 			item.Kind, item.Values = kindValueEnum, values
 			out = append(out, item)
@@ -178,34 +182,97 @@ func ruleDictionaries(row parsedRow) []dictionary {
 	return out
 }
 
-// withoutTruncatedSentinels drops enumeration codes that are a proper
-// hexadecimal prefix of a sentinel code of the same row: the extraction cut
-// the literal, so publishing it would give the full sentinel a second meaning.
-func withoutTruncatedSentinels(values []dictValue, raw json.RawMessage) ([]dictValue, error) {
+// truncatedSentinelCodes splits the enumeration codes of a row that are a
+// proper hexadecimal prefix of one of its sentinels. A code whose meaning
+// begins with the missing hexadecimal tail is a literal the extraction cut
+// (truncated); a prefix without that evidence is only suspected, and the
+// caller keeps it.
+func truncatedSentinelCodes(values []dictValue, raw json.RawMessage) (truncated, suspected []dictValue, err error) {
 	if len(raw) == 0 {
-		return values, nil
+		return nil, nil, nil
 	}
 	var sentinels []struct {
 		Value string `json:"value"`
 	}
 	if err := json.Unmarshal(raw, &sentinels); err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	for _, value := range values {
+		code := strings.ToLower(value.Code)
+		meaning := strings.ToLower(value.Meaning)
+		for _, sentinel := range sentinels {
+			full := strings.ToLower(sentinel.Value)
+			if !strings.HasPrefix(code, "0x") || len(code) >= len(full) || !strings.HasPrefix(full, code) {
+				continue
+			}
+			if strings.HasPrefix(meaning, full[len(code):]) {
+				truncated = append(truncated, value)
+			} else {
+				suspected = append(suspected, value)
+			}
+			break
+		}
+	}
+	return truncated, suspected, nil
+}
+
+// withoutTruncatedSentinels drops the enumeration codes the extraction cut
+// short of a sentinel of the same row: publishing them would give the full
+// sentinel a second meaning. Codes that are only suspected stay, and the row
+// carries the truncation quarantine either way.
+func withoutTruncatedSentinels(values []dictValue, raw json.RawMessage) ([]dictValue, error) {
+	truncated, _, err := truncatedSentinelCodes(values, raw)
+	if err != nil || len(truncated) == 0 {
+		return values, err
 	}
 	kept := values[:0:0]
 	for _, value := range values {
-		truncated := false
-		code := strings.ToLower(value.Code)
-		for _, sentinel := range sentinels {
-			full := strings.ToLower(sentinel.Value)
-			if strings.HasPrefix(code, "0x") && len(code) < len(full) && strings.HasPrefix(full, code) {
-				truncated = true
-			}
+		cut := false
+		for _, item := range truncated {
+			cut = cut || item == value
 		}
-		if !truncated {
+		if !cut {
 			kept = append(kept, value)
 		}
 	}
 	return kept, nil
+}
+
+// mergedEnumeration reports an enumeration whose meaning carries the next
+// code of the same list: the extraction ran several entries together, so the
+// dictionary would publish a code with the meaning of its neighbours.
+func mergedEnumeration(values []dictValue) bool {
+	for _, value := range values {
+		if mergedMeaningPattern.MatchString(value.Meaning) {
+			return true
+		}
+	}
+	return false
+}
+
+// rowDefects names the dictionary quarantines a row triggers, so that the
+// evidence stays on the row when its dictionary is withheld or shortened.
+func rowDefects(row parsedRow) ([]string, error) {
+	raw, ok := row.Meaning["enum"]
+	if !ok || row.Row.Offset == nil {
+		return nil, nil
+	}
+	values, err := enumValues(raw)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", row.Row.Key, err)
+	}
+	var out []string
+	truncated, suspected, err := truncatedSentinelCodes(values, row.Meaning["sentinels"])
+	if err != nil {
+		return nil, fmt.Errorf("%s sentinels: %w", row.Row.Key, err)
+	}
+	if len(truncated)+len(suspected) > 0 {
+		out = append(out, quarantineTruncatedCode)
+	}
+	if mergedEnumeration(values) {
+		out = append(out, quarantineMergedEnum)
+	}
+	return out, nil
 }
 
 // enumValues reads an enumeration given either as a code-to-meaning object or

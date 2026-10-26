@@ -277,6 +277,13 @@ func generate(opts options) (*result, error) {
 				if row.Offset == nil {
 					continue
 				}
+				defects, err := rowDefects(list[index])
+				if err != nil {
+					return nil, err
+				}
+				for _, id := range defects {
+					builder.flagRegister(id, card.ID, editionID, row)
+				}
 				for _, item := range referenceItems {
 					for _, entry := range quarantineEditions[item.ID] {
 						if scope, narrowed := quarantineRowScope[item.ID]; narrowed && !containsString(scope, entry.Alias) {

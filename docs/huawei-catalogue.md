@@ -128,6 +128,8 @@ resolves a quarantine.
 | A01 to A08 | the source-specific anomalies (HA and HD string formulas, MB02 35010, PSC110 and optimizer table, MA-V200 32133 to 32137, MC and MA-V200 optimizer table), meaning verbatim |
 | M01 | model rows numbered by a sequence ordinal, not a model identifier |
 | M02 | row minimums that are merged cells or literals outside the branch form |
+| D01 | rows whose enumeration entries the extraction ran together; the row keeps no value dictionary |
+| D02 | rows with an enumeration code cut short of a sentinel; a cut code is dropped, a suspected one stays |
 
 ## Counts
 

@@ -60,6 +60,10 @@ var anomalySpecs = []anomalySpec{
 }
 
 var generatorQuarantines = []quarantine{
+	{ID: quarantineMergedEnum, Origin: originGenerator, Subject: "Enumeration entries run together by the extraction",
+		Meaning: "The extraction of this row merged several enumeration entries into the meaning of one code. The row keeps no value dictionary until the entries are separated from the edition; the code is not decoded."},
+	{ID: quarantineTruncatedCode, Origin: originGenerator, Subject: "Enumeration code cut short of a sentinel",
+		Meaning: "An enumeration code of this row is a hexadecimal prefix of one of its sentinels. A code whose meaning begins with the missing tail is dropped as a cut literal; a prefix without that evidence stays and is suspected. The sentinel keeps its own meaning."},
 	{ID: quarantineSequenceOrdinal, Origin: originGenerator, Subject: "Model row numbered by a sequence ordinal, not a model identifier",
 		Meaning: "The edition numbers this row with a sequence ordinal that it does not label as a model identifier. The ordinal is kept as the sequence number and is never used as a model identifier."},
 	{ID: quarantineFloorCell, Origin: originGenerator, Subject: "Minimum-software cell outside the branch form",
