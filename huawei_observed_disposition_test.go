@@ -197,11 +197,12 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 	observation := "protocols/huawei/smartlogger-observed-inventory-v1.md"
 	identity := "protocols/huawei/sun2000-observed-identity-v1.md"
 	tests := []expectation{
-		// The SUN2000 monitoring profiles (#348) admit two exact pairs; the
+		// The SUN2000 monitoring profiles (#348) admit two families; the
 		// pointer row itself still changes nothing, and what stays missing is
-		// the pinned edition of the MAP0 series.
+		// a monitoring profile for the MAP0 series, whose catalogue row the
+		// selection (#362) records.
 		{"sun2000-disposition.json", "OFFLINE_PROFILE_ADMITTED", "OBSERVED_IDENTITY_BEHIND_GATEWAY", []string{identity, observation}, []string{h03FixturePaths[1], h03FixturePaths[3]},
-			"missing_evidence", []string{"pinned_vendor_document_identity"}},
+			"missing_evidence", []string{"catalogue_monitoring_profile"}},
 		{"luna2000-disposition.json", "NO_ADMISSIBLE_PROFILE", "NOT_OBSERVED", []string{identity}, []string{},
 			"missing_evidence", []string{"pinned_vendor_document_identity", "companion_docs_modbus_protocol_page", "clean_room_sanitized_identity_fixture", "clean_room_sanitized_monitoring_fixture", "negative_overlap_with_smartlogger_emma_sdongle"}},
 	}
@@ -232,7 +233,7 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 
 	sun2000 := decodeHuaweiObject(t, "profiles/vendor/huawei/sun2000-disposition.json")
 	families := huaweiObject(t, sun2000["model_families"])
-	if !reflect.DeepEqual(huaweiStringSlice(t, families["covered"]), []string{"SUN2000 M3 series", "SUN2000 M1 series"}) || families["unsupported"] != "ALL_OTHER_FAMILIES" {
+	if !reflect.DeepEqual(huaweiStringSlice(t, families["covered"]), []string{"SUN2000 M3 series", "SUN2000 M1 series"}) || families["selectable"] != "CATALOGUE_MODEL_ROWS" {
 		t.Fatalf("SUN2000 coverage changed: %#v", families)
 	}
 	luna := decodeHuaweiObject(t, "profiles/vendor/huawei/luna2000-disposition.json")

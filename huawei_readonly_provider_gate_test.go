@@ -117,7 +117,7 @@ func TestH06EMMAPathHasNoProviderAndKeepsTheMAP0Reason(t *testing.T) {
 	}
 	enablement := EvaluateHuaweiProviderEnablement(recorded)
 	if enablement.Admitted || enablement.Reason != HuaweiProviderNoAdmittedChildProfile ||
-		!reflect.DeepEqual(enablement.Detail, []string{"SUN2000 MAP0 series: no_consulted_edition"}) {
+		!reflect.DeepEqual(enablement.Detail, []string{"SUN2000 MAP0 series: catalogue_card_without_monitoring_profile"}) {
 		t.Fatalf("EMMA enablement: %+v", enablement)
 	}
 	// Even an identity card of the observed SmartLogger kind would not admit

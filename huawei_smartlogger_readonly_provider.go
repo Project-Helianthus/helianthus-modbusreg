@@ -412,7 +412,7 @@ func (r *huaweiCycleRun) identifySmartLoggerChild(child *huaweiChildState) bool 
 		return false
 	}
 	selection := SelectHuaweiSUN2000MonitoringProfile(HuaweiSUN2000CapabilityInput{
-		SmartLogger: s.smartLogger, UnitID: child.unit, RoutedModelBlock: huaweiWordsToBytes(words), Document: huaweiSUN2000MCEdition,
+		SmartLogger: s.smartLogger, UnitID: child.unit, RoutedModelBlock: huaweiWordsToBytes(words),
 	})
 	return r.bindChildSelection(child, selection)
 }

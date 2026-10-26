@@ -35,7 +35,7 @@ admitted only when all of the following hold, and refused otherwise:
 | --- | --- | --- | --- | --- |
 | SmartLogger | observed card admitted | SUN2000 M3 series admitted | admitted | `HuaweiSmartLoggerReadOnlyProvider` |
 | S-Dongle | observed card admitted; recorded stop superseded for that identity | SUN2000 M1 series admitted | admitted | `HuaweiSDongleReadOnlyProvider` |
-| EMMA | observed card admitted | SUN2000 MAP0 series `NO_ADMISSIBLE_PROFILE`, reason `no_consulted_edition` | refused, `NO_ADMITTED_CHILD_PROFILE` | none |
+| EMMA | observed card admitted | SUN2000 MAP0 series `NO_ADMISSIBLE_PROFILE`, reason `catalogue_card_without_monitoring_profile` | refused, `NO_ADMITTED_CHILD_PROFILE` | none |
 
 The SmartLogger and S-Dongle profile outcomes of the gateways themselves stay
 `NO_ADMISSIBLE_PROFILE` and `PRE_LIVE_INSUFFICIENT_EVIDENCE`: they describe the
@@ -45,17 +45,20 @@ disposition.
 
 **Why the EMMA path has no provider.** Issue 201 gives no provider to a profile
 whose disposition is identity only, and the EMMA path is identity only: its
-inverters belong to the MAP0 series, which has no consulted edition, so the
-monitoring contract consumes none of their words, and the EMMA's own site
-groups are planned reads that no production cycle sends. A scaffold that only
-identified the gateway would issue live reads that yield no fact. The gate
-records the refusal with the MAP0 reason instead, and a provider follows when a
-consulted edition admits the family.
+inverters belong to the MAP0 series, which has a catalogue row and no
+monitoring profile, so the monitoring contract consumes none of their words,
+and the EMMA's own site groups are planned reads that no production cycle
+sends. A scaffold that only identified the gateway would issue live reads that
+yield no fact. The gate records the refusal with the MAP0 reason instead, and a
+provider follows when a monitoring profile admits the family.
 
 **What the providers build on.** Gateway identity is the observed qualification
 card of the path, evaluated over the replies the provider read, with the card's
 own inventory parser. Child identity is
-`SelectHuaweiSUN2000MonitoringProfile`. The read plan, the decoder and the one
+`SelectHuaweiSUN2000MonitoringProfile`. The providers read the model text
+only, so a child is admitted on its observed path while its identifier is not
+read, and the selection records the catalogue decision; reading the identity
+words is a change of the provider contract. The read plan, the decoder and the one
 last-known-good store are the SUN2000 profile's `Plan`, `Decode` and
 `RetainHuaweiSUN2000Monitoring`. The documentary SmartLogger commit owner, the
 documentary offline cycles and the supplied-evidence ports validate the

@@ -204,7 +204,7 @@ func HuaweiRecordedProviderDisposition(path HuaweiProviderPath) (HuaweiProviderD
 			Path: path, IdentityCard: HuaweiEMMAObservedQualificationCardID, IdentityStatus: huaweiIdentityAdmitted,
 			IdentityGateRegistered: true, IdentityScope: huaweiIdentityObservedOnly,
 			ChildProfiles: []HuaweiProviderChildDisposition{
-				{Family: "SUN2000 MAP0 series", Outcome: "NO_ADMISSIBLE_PROFILE", Reason: "no_consulted_edition"},
+				{Family: "SUN2000 MAP0 series", Outcome: "NO_ADMISSIBLE_PROFILE", Reason: "catalogue_card_without_monitoring_profile"},
 			},
 		}, true
 	}

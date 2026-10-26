@@ -34,13 +34,19 @@ func huaweiInverterBatteryCases() []huaweiInverterBatteryCase {
 				"serial_or_esn_only",
 				"register_readability_only",
 				"listing_model_conflict",
+				"identity_words_invalid",
 				"model_prefix_or_wildcard",
 				"model_behind_another_gateway_path",
-				"family_without_consulted_edition",
-				"document_identity_mismatch",
+				"family_without_catalogue_row",
+				"catalogue_row_without_profile_on_path",
+				"catalogue_identifier_mismatch",
+				"catalogue_software_malformed_or_absent",
+				"catalogue_rows_not_told_apart",
 				"multiple_positive_candidates",
-				"exact_m3_pair_behind_smartlogger",
-				"exact_m1_pair_behind_sdongle",
+				"catalogue_m3_row_behind_smartlogger",
+				"catalogue_m1_row_behind_sdongle",
+				"observed_m3_path_identifier_not_read",
+				"observed_m1_path_identifier_not_read",
 			},
 		},
 		{
@@ -124,7 +130,7 @@ func TestHuaweiInverterBatteryDispositionsKeepAuthorityClosed(t *testing.T) {
 				t.Fatalf("unexpected docs-modbus page state: %#v", page)
 			}
 			missing := huaweiStringSlice(t, evidence["missing_evidence"])
-			wantMissing := []string{"pinned_vendor_document_identity"}
+			wantMissing := []string{"catalogue_monitoring_profile"}
 			if tc.optional {
 				wantMissing = []string{
 					"pinned_vendor_document_identity",
@@ -139,7 +145,11 @@ func TestHuaweiInverterBatteryDispositionsKeepAuthorityClosed(t *testing.T) {
 			}
 
 			families := huaweiObject(t, record["model_families"])
-			requireHuaweiKeys(t, families, "class", "covered", "unsupported")
+			if tc.optional {
+				requireHuaweiKeys(t, families, "class", "covered", "unsupported")
+			} else {
+				requireHuaweiKeys(t, families, "class", "covered", "selectable", "without_catalogue_row")
+			}
 			ranges := huaweiObject(t, record["firmware_ranges"])
 			if families["class"] != tc.class || len(h03Array(t, ranges["covered"])) != 0 {
 				t.Fatalf("unexpected coverage: %#v %#v", families, ranges)
@@ -153,7 +163,8 @@ func TestHuaweiInverterBatteryDispositionsKeepAuthorityClosed(t *testing.T) {
 			} else {
 				requireHuaweiKeys(t, ranges, "covered", "predicate", "reason")
 				if !reflect.DeepEqual(huaweiStringSlice(t, families["covered"]), []string{huaweiSUN2000M3Family, huaweiSUN2000M1Family}) ||
-					families["unsupported"] != "ALL_OTHER_FAMILIES" || ranges["predicate"] != false {
+					families["selectable"] != "CATALOGUE_MODEL_ROWS" || families["without_catalogue_row"] != "NOT_SELECTED" ||
+					ranges["predicate"] != "SOFTWARE_FLOOR_ONLY" {
 					t.Fatalf("unexpected SUN2000 coverage: %#v %#v", families, ranges)
 				}
 			}
@@ -247,11 +258,11 @@ func TestHuaweiInverterBatteryCapabilityDetectionDecisionTable(t *testing.T) {
 					t.Fatalf("unexpected LUNA2000 detection: %#v", detection)
 				}
 			} else {
-				requireHuaweiKeys(t, detection, "positive_identity_required", "not_predicates", "forbidden_identity",
+				requireHuaweiKeys(t, detection, "positive_identity_required", "not_predicates", "catalogue_decision", "forbidden_identity",
 					"default_outcome", "multiple_positive_outcome", "first_match_priority", "executable", "rows")
 				if detection["executable"] != true || !reflect.DeepEqual(huaweiStringSlice(t, detection["positive_identity_required"]), []string{
-					"observed_gateway_identity_card", "routed_unit", "exact_routed_model_string", "pinned_document_identity",
-				}) || !reflect.DeepEqual(huaweiStringSlice(t, detection["not_predicates"]), []string{"firmware_identity"}) {
+					"observed_gateway_identity_card", "routed_unit", "catalogue_model_row",
+				}) || !reflect.DeepEqual(huaweiStringSlice(t, detection["not_predicates"]), []string{"protocol_words"}) {
 					t.Fatalf("unexpected SUN2000 detection: %#v", detection)
 				}
 			}
