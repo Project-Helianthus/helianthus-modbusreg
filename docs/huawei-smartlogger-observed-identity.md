@@ -47,8 +47,8 @@ The model and the unit are compared byte for byte and case-sensitively. The
 software text is compared with its floors: the observed build is graded Proven,
 every other admitted build Hypothesis, and a build below the observed build or
 below the catalogue floor, a text outside the version form, another family's
-self entry, a prefix or a case change produce `INSUFFICIENT_EVIDENCE`, an empty
-selection and no retained child list. The result records the gateway selection
+self entry, a prefix or a case change produce `INSUFFICIENT_EVIDENCE` and no retained child list; the result keeps
+the selection that was decided. The result records the gateway selection
 (`Selection`), the observed floor and the relation of the software text to it
 (`ObservedFloor`) and the software grade (`SoftwareGrade`). Serial numbers, ESNs, register
 readability, a child listing and the unit identifier of a basic read are never
