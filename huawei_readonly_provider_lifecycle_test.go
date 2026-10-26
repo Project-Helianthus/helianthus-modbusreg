@@ -174,7 +174,8 @@ func TestH06SmartLoggerChildIdentityChangeFencesItsReading(t *testing.T) {
 	script = append(script, h06FC03(1, 30000, 15, h06Answer{words: model}))
 	cycle := rig.refresh(t, script...)
 	child, _ := cycle.Child(1)
-	if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != HuaweiProviderReasonIdentityMismatch || len(child.Reading.Facts()) != 0 {
+	if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != HuaweiProviderReasonIdentityMismatch || len(child.Reading.Facts()) != 0 ||
+		child.Catalogue != nil {
 		t.Fatalf("mismatched child: %+v", child)
 	}
 	if child.Fenced == nil || child.Fenced.ProfileID != HuaweiSUN2000M3MonitoringProfileID {

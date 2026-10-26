@@ -152,9 +152,9 @@ func h05M1Input(t testing.TB) HuaweiSUN2000CapabilityInput {
 	return input
 }
 
-// h05ObservedM3Input is the evidence of the observed SmartLogger path, which
-// reads the model text only: the catalogue cannot select a row without the
-// identifier.
+// h05ObservedM3Input is the evidence of the observed SmartLogger path without
+// the routed identity words, the model text only: the catalogue cannot select
+// a row without the identifier.
 func h05ObservedM3Input(t testing.TB, unit uint8) HuaweiSUN2000CapabilityInput {
 	t.Helper()
 	gateway := h03ValidInput(t)
@@ -170,8 +170,8 @@ func h05ObservedM3Input(t testing.TB, unit uint8) HuaweiSUN2000CapabilityInput {
 	return HuaweiSUN2000CapabilityInput{SmartLogger: &gateway, UnitID: unit, RoutedModelBlock: h05RoutedModelBlock(model)}
 }
 
-// h05ObservedM1Input is the evidence of the observed S-Dongle path, which
-// reads the model text only.
+// h05ObservedM1Input is the evidence of the observed S-Dongle path without the
+// routed identity words.
 func h05ObservedM1Input(t testing.TB) HuaweiSUN2000CapabilityInput {
 	t.Helper()
 	gateway := h15ValidInput(t)
@@ -775,9 +775,9 @@ func h05RowInputs(t testing.TB) map[string][]HuaweiSUN2000CapabilityInput {
 			h05M3Input(t, 1), h05M3Input(t, 2), h05M3Input(t, 8),
 			m3With(1, huaweiSUN2000M3Model, func(i *HuaweiSUN2000RoutedIdentity) { i.SoftwareBlock = h05RoutedModelBlock("V200R025C00SPC100") }),
 		},
-		"catalogue_m1_row_behind_sdongle":      {h05M1Input(t)},
-		"observed_m3_path_identifier_not_read": {h05ObservedM3Input(t, 1), h05ObservedM3Input(t, 2), h05ObservedM3Input(t, 8)},
-		"observed_m1_path_identifier_not_read": {h05ObservedM1Input(t)},
+		"catalogue_m1_row_behind_sdongle":          {h05M1Input(t)},
+		"token_without_identifier_in_several_rows": {h05ObservedM3Input(t, 1), h05ObservedM3Input(t, 2), h05ObservedM3Input(t, 8)},
+		"token_without_identifier_in_one_row":      {h05ObservedM1Input(t)},
 	}
 }
 

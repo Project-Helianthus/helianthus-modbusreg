@@ -733,25 +733,31 @@ func TestM85SelectionRoutesTheMonitoringProfilesByTheSelectedRow(t *testing.T) {
 		}
 	}
 
-	// The observed paths read the model text only: the catalogue names its
-	// candidates and selects none, and the observed path keeps its profile.
+	// The model text alone selects nothing: without the identifier the M3
+	// series token matches three rows, which the decision names, and the M1
+	// series token one row, which it does not select. No profile is admitted
+	// on the model text alone (helianthus-modbusreg issue 365 removed the
+	// observed-path exception).
 	for _, tc := range []struct {
 		input      HuaweiSUN2000CapabilityInput
-		profile    string
-		outcome    HuaweiSUN2000CatalogueOutcome
-		reason     HuaweiSUN2000CatalogueReason
+		outcome    HuaweiSUN2000CapabilityOutcome
+		reason     HuaweiSUN2000CapabilityReason
+		decided    HuaweiSUN2000CatalogueOutcome
+		closed     HuaweiSUN2000CatalogueReason
 		candidates []m85Row
 	}{
-		{h05ObservedM3Input(t, 1), HuaweiSUN2000M3MonitoringProfileID, HuaweiSUN2000CatalogueAmbiguous, HuaweiSUN2000CatalogueMultipleCandidateRows,
-			[]m85Row{{"MA-C00", 449}, {"MA-C20", 449}, {"MC", 471}}},
-		{h05ObservedM1Input(t), HuaweiSUN2000M1MonitoringProfileID, HuaweiSUN2000CatalogueNotSelected, HuaweiSUN2000CatalogueIdentifierAbsent,
-			[]m85Row{{"MA-C00", 428}}},
+		{h05ObservedM3Input(t, 1), HuaweiSUN2000AmbiguousMultipleProfiles, HuaweiSUN2000ReasonCatalogueAmbiguous,
+			HuaweiSUN2000CatalogueAmbiguous, HuaweiSUN2000CatalogueMultipleCandidateRows, []m85Row{{"MA-C00", 449}, {"MA-C20", 449}, {"MC", 471}}},
+		{h05ObservedM1Input(t), HuaweiSUN2000NoAdmissibleProfile, HuaweiSUN2000ReasonCatalogueNotSelected,
+			HuaweiSUN2000CatalogueNotSelected, HuaweiSUN2000CatalogueIdentifierAbsent, []m85Row{{"MA-C00", 428}}},
 	} {
-		selection := h05Select(t, tc.input, tc.profile)
+		selection := SelectHuaweiSUN2000MonitoringProfile(tc.input)
 		decision, ok := selection.Catalogue()
-		if _, selected := decision.Row(); !ok || selected || selection.Reason() != HuaweiSUN2000ReasonObservedPathNoIdentifier ||
-			decision.Outcome() != tc.outcome || decision.Reason() != tc.reason || !reflect.DeepEqual(m85Rows(decision.Candidates()), tc.candidates) {
-			t.Fatalf("%s observed path: reason=%s decision=%s %s %v", tc.profile, selection.Reason(), decision.Outcome(), decision.Reason(), m85Rows(decision.Candidates()))
+		_, profiled := selection.Profile()
+		if _, selected := decision.Row(); !ok || selected || profiled || len(selection.Plan()) != 0 || selection.Outcome() != tc.outcome ||
+			selection.Reason() != tc.reason || decision.Outcome() != tc.decided || decision.Reason() != tc.closed ||
+			!reflect.DeepEqual(m85Rows(decision.Candidates()), tc.candidates) {
+			t.Fatalf("model text only: %s %s decision=%s %s %v", selection.Outcome(), selection.Reason(), decision.Outcome(), decision.Reason(), m85Rows(decision.Candidates()))
 		}
 	}
 
@@ -786,17 +792,17 @@ func TestM85DispositionRecordsTheCatalogueSelection(t *testing.T) {
 	detection := huaweiObject(t, record["capability_detection"])
 	catalogue := huaweiObject(t, detection["catalogue_decision"])
 	requireHuaweiKeys(t, catalogue, "inputs", "candidate_row", "scope", "floor", "outcomes", "selected_grade", "without_identifier",
-		"observed_path_without_identifier", "routing", "fixture", "docs_page")
+		"provider_admits_on", "routing", "fixture", "docs_page")
 	if catalogue["fixture"] != m85FixturePath || catalogue["docs_page"] != "protocols/huawei/sun2000-inverter-catalogue-v1.md" ||
 		catalogue["scope"] != string(HuaweiSUN2000ScopeInverterMap) || catalogue["selected_grade"] != string(HuaweiGradeHypothesis) ||
-		catalogue["observed_path_without_identifier"] != string(HuaweiSUN2000ReasonObservedPathNoIdentifier) ||
+		catalogue["provider_admits_on"] != string(HuaweiSUN2000CatalogueSelected) ||
 		!reflect.DeepEqual(huaweiStringSlice(t, catalogue["outcomes"]), []string{"SELECTED", "NOT_SELECTED", "AMBIGUOUS"}) {
 		t.Fatalf("catalogue decision policy: %#v", catalogue)
 	}
 	h03RequireFiles(t, []string{m85FixturePath})
 	rows := h03Array(t, record["monitoring_profiles"])
-	observed := map[string]HuaweiSUN2000CapabilityInput{
-		HuaweiSUN2000M3MonitoringProfileID: h05ObservedM3Input(t, 1), HuaweiSUN2000M1MonitoringProfileID: h05ObservedM1Input(t),
+	observed := map[string]string{
+		HuaweiSUN2000M3MonitoringProfileID: "smartlogger_provider_cycles.json", HuaweiSUN2000M1MonitoringProfileID: "sdongle_provider_cycles.json",
 	}
 	for _, value := range rows {
 		row := huaweiObject(t, value)
@@ -821,26 +827,42 @@ func TestM85DispositionRecordsTheCatalogueSelection(t *testing.T) {
 			}
 		}
 		id, _ := row["profile_id"].(string)
-		input, monitored := observed[id]
+		fixtureName, monitored := observed[id]
 		if !monitored {
 			if row["family"] != "SUN2000 MAP0 series" {
 				t.Fatalf("row %v has no profile", row["family"])
 			}
 			continue
 		}
+		// The observed path record is the decision the provider records when
+		// it admits the family's child in its scripted session.
 		path := huaweiObject(t, row["observed_path"])
-		requireHuaweiKeys(t, path, "identifier_read", "catalogue_outcome", "catalogue_reason", "candidates", "selection_reason")
-		selected := SelectHuaweiSUN2000MonitoringProfile(input)
-		observedDecision, _ := selected.Catalogue()
+		requireHuaweiKeys(t, path, "provider_fixture", "admission_reads", "identifier_read", "catalogue_outcome", "catalogue_reason", "grade",
+			"card", "edition", "page", "identifier", "floor", "floor_basis", "candidates")
+		provider, _ := h06Load(t, fixtureName)
+		_, cycles := h06RunFixture(t, fixtureName)
+		child, found := cycles[0].Child(1)
+		if !found || child.Catalogue == nil || child.ProfileID != id || provider.Path != row["gateway_path"] {
+			t.Fatalf("%s: the provider admitted no child of the family: %+v", id, child)
+		}
+		admitted := *child.Catalogue
+		admittedRow, rowSelected := admitted.Row()
+		identifier, read := admitted.Identifier()
+		pathEdition := huaweiObject(t, path["edition"])
 		var candidates []m85Row
 		for _, value := range h03Array(t, path["candidates"]) {
 			candidate := huaweiObject(t, value)
 			candidates = append(candidates, m85Row{Card: candidate["card"].(string), Identifier: huaweiInt(t, candidate["identifier"])})
 		}
-		if path["identifier_read"] != false || path["catalogue_outcome"] != string(observedDecision.Outcome()) ||
-			path["catalogue_reason"] != string(observedDecision.Reason()) || path["selection_reason"] != string(selected.Reason()) ||
-			!reflect.DeepEqual(candidates, m85Rows(observedDecision.Candidates())) {
-			t.Fatalf("%s observed path record %#v", id, path)
+		if path["provider_fixture"] != h06FixtureDirectory+"/"+fixtureName || path["identifier_read"] != read || !read || !rowSelected ||
+			!reflect.DeepEqual(huaweiStringSlice(t, path["admission_reads"]), []string{"model_text_30000", "model_identifier_30070", "software_text_30050", "firmware_text_30035"}) ||
+			path["catalogue_outcome"] != string(admitted.Outcome()) || path["catalogue_reason"] != string(admitted.Reason()) ||
+			path["grade"] != string(admitted.Grade()) || path["card"] != admittedRow.Card || pathEdition["title"] != admittedRow.Edition.Title ||
+			pathEdition["issue"] != admittedRow.Edition.Issue || pathEdition["date"] != admittedRow.Edition.Date || huaweiInt(t, path["page"]) != admittedRow.Page ||
+			huaweiInt(t, path["identifier"]) != int(identifier) || huaweiInt(t, path["identifier"]) != admittedRow.Identifier ||
+			path["floor"] != admittedRow.Floor || path["floor_basis"] != admittedRow.FloorBasis || !reflect.DeepEqual(candidates, m85Rows(admitted.Candidates())) ||
+			path["card"] != selection["card"] || huaweiInt(t, path["page"]) != huaweiInt(t, selection["page"]) {
+			t.Fatalf("%s observed path record %#v disagrees with the admission %+v", id, path, admittedRow)
 		}
 	}
 	families := huaweiObject(t, record["model_families"])

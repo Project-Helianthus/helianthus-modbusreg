@@ -118,24 +118,33 @@
         "floor_basis": "row"
       },
       "observed_path": {
-        "identifier_read": false,
-        "catalogue_outcome": "AMBIGUOUS",
-        "catalogue_reason": "multiple_candidate_rows",
+        "provider_fixture": "testdata/huawei/provider/smartlogger_provider_cycles.json",
+        "admission_reads": [
+          "model_text_30000",
+          "model_identifier_30070",
+          "software_text_30050",
+          "firmware_text_30035"
+        ],
+        "identifier_read": true,
+        "catalogue_outcome": "SELECTED",
+        "catalogue_reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "MC",
+        "edition": {
+          "title": "SUN2000MC V200R023C00 Modbus Interface Definitions",
+          "issue": "Issue 01",
+          "date": "2023-03-17"
+        },
+        "page": 5,
+        "identifier": 471,
+        "floor": "SUN2000MC V200R023C00",
+        "floor_basis": "row",
         "candidates": [
-          {
-            "card": "MA-C00",
-            "identifier": 449
-          },
-          {
-            "card": "MA-C20",
-            "identifier": 449
-          },
           {
             "card": "MC",
             "identifier": 471
           }
-        ],
-        "selection_reason": "OBSERVED_PATH_IDENTIFIER_NOT_READ"
+        ]
       },
       "observed_units": [
         1,
@@ -273,16 +282,33 @@
         "floor_basis": "row"
       },
       "observed_path": {
-        "identifier_read": false,
-        "catalogue_outcome": "NOT_SELECTED",
-        "catalogue_reason": "identifier_absent",
+        "provider_fixture": "testdata/huawei/provider/sdongle_provider_cycles.json",
+        "admission_reads": [
+          "model_text_30000",
+          "model_identifier_30070",
+          "software_text_30050",
+          "firmware_text_30035"
+        ],
+        "identifier_read": true,
+        "catalogue_outcome": "SELECTED",
+        "catalogue_reason": "at_or_above_floor",
+        "grade": "HYPOTHESIS",
+        "card": "MA-C00",
+        "edition": {
+          "title": "SUN2000MA V100R001C00SPC178 Modbus Interface Definitions",
+          "issue": "Issue 10",
+          "date": "2026-09-09"
+        },
+        "page": 7,
+        "identifier": 428,
+        "floor": "SUN2000MA V100R001C00",
+        "floor_basis": "row",
         "candidates": [
           {
             "card": "MA-C00",
             "identifier": 428
           }
-        ],
-        "selection_reason": "OBSERVED_PATH_IDENTIFIER_NOT_READ"
+        ]
       },
       "observed_units": [
         1
@@ -513,7 +539,7 @@
       ],
       "selected_grade": "HYPOTHESIS",
       "without_identifier": "NOT_SELECTED_OR_AMBIGUOUS",
-      "observed_path_without_identifier": "OBSERVED_PATH_IDENTIFIER_NOT_READ",
+      "provider_admits_on": "SELECTED",
       "routing": "the selected row of the profile's family on the profile's gateway path",
       "fixture": "testdata/huawei/selection/sun2000_catalogue_decisions.json",
       "docs_page": "protocols/huawei/sun2000-inverter-catalogue-v1.md"
@@ -658,18 +684,18 @@
         "reason": "the S-Dongle tuple, the observed child unit, and the catalogue row selected by the M1 series token, its identifier and a software text at or above its floor"
       },
       {
-        "id": "observed_m3_path_identifier_not_read",
-        "outcome": "PROFILE_SELECTED",
-        "selected_profile": "huawei.sun2000.m3.monitoring-readonly@1.0.0",
-        "native_fact_count": 19,
-        "reason": "the SmartLogger tuple, a listed unit and the M3 series source token, with no identifier read: the catalogue keeps the M3 row among its candidates and the observed path admits its profile"
+        "id": "token_without_identifier_in_several_rows",
+        "outcome": "AMBIGUOUS",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "without the model identifier the M3 series token matches three rows of the inverter map; every one is named and none is chosen, so nothing is admitted on the model text alone"
       },
       {
-        "id": "observed_m1_path_identifier_not_read",
-        "outcome": "PROFILE_SELECTED",
-        "selected_profile": "huawei.sun2000.m1.monitoring-readonly@1.0.0",
-        "native_fact_count": 22,
-        "reason": "the S-Dongle tuple, the observed child unit and the M1 series source token, with no identifier read: the catalogue keeps the M1 row as its only candidate and the observed path admits its profile"
+        "id": "token_without_identifier_in_one_row",
+        "outcome": "NO_ADMISSIBLE_PROFILE",
+        "selected_profile": "",
+        "native_fact_count": 0,
+        "reason": "without the model identifier no row is selected, reason identifier_absent, even for a token that one row carries: the token alone never identifies a model"
       }
     ]
   },

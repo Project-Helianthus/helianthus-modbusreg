@@ -60,9 +60,19 @@ func TestH06ProviderCycleFixturesDecodeStrictlyRoundTripAndAreSanitized(t *testi
 				}
 			}
 			// Every literal reply is marked synthetic; every other reply comes from
-			// a source fixture or is a timeout or an exception.
+			// a source fixture or is a timeout or an exception. A reply taken from
+			// a case of the catalogue decision table is a source reply of an
+			// identity read, and the table is one of the named sources.
+			decisionTable := false
+			for _, source := range fixture.Sources {
+				decisionTable = decisionTable || source == h06DecisionTableSource
+			}
 			for _, cycle := range fixture.Cycles {
 				for _, step := range cycle.Steps {
+					if step.Reply.Case != "" && (step.Reply.Kind != "source" || !decisionTable || step.Function != "FC03" ||
+						(step.Offset != huaweiSUN2000IdentifierOffset && step.Offset != huaweiSUN2000SoftwareOffset)) {
+						t.Fatalf("%s: a decision-table reply outside an identity read: %+v", cycle.Name, step)
+					}
 					switch step.Reply.Kind {
 					case "source", "timeout", "exception", "transport":
 						if len(step.Reply.Words) != 0 || step.Reply.Synthetic {
@@ -219,8 +229,11 @@ func TestH06ACounterChangeInMidCycleKeepsThePreviousCompleteSnapshot(t *testing.
 	for _, exchange := range reenumerated.Exchanges {
 		units = append(units, fmt.Sprintf("%d:%d", exchange.UnitID, exchange.Offset))
 	}
-	if !strings.Contains(strings.Join(units, " "), "1:30000 1:32000") || !strings.Contains(strings.Join(units, " "), "2:30000 2:32000") {
-		t.Fatalf("re-enumeration did not identify the children again first: %v", units)
+	for _, unit := range []string{"1", "2"} {
+		admission := strings.ReplaceAll("u:30000 u:30070 u:30050 u:30035 u:32000", "u", unit)
+		if !strings.Contains(strings.Join(units, " "), admission) {
+			t.Fatalf("re-enumeration did not identify child %s again first: %v", unit, units)
+		}
 	}
 }
 
@@ -273,6 +286,7 @@ func TestH06AnUnknownChildClassIsWithheld(t *testing.T) {
 	model := make([]uint16, 15)
 	copy(model, []uint16{0x5355, 0x4e32, 0x3030, 0x302d, 0x4f54, 0x4845, 0x522d, 0x5800})
 	script = append(script, h06FC03(4, 30000, 15, h06Answer{words: model}))
+	script = append(script, h06AdmissionWords(t, sources, "SmartLogger", 4, "m3_series_identifier_selects_the_mc_card")...)
 	cycle := rig.refresh(t, script...)
 	unknown, _ := cycle.Child(3)
 	otherFamily, _ := cycle.Child(4)
@@ -280,17 +294,20 @@ func TestH06AnUnknownChildClassIsWithheld(t *testing.T) {
 		len(unknown.Reading.Facts()) != 0 {
 		t.Fatalf("unknown class: %+v", unknown)
 	}
-	if otherFamily.Evidence != HuaweiProviderEvidenceWithheld || otherFamily.Reason != HuaweiProviderReasonNoProfile || len(otherFamily.Reading.Facts()) != 0 {
+	// A model token that no catalogue row carries is not selected, with the
+	// closed reason recorded.
+	if otherFamily.Evidence != HuaweiProviderEvidenceWithheld || otherFamily.Reason != HuaweiProviderReasonCatalogueNotSelected ||
+		h06CatalogueSummary(otherFamily.Catalogue) != "NOT_SELECTED no_catalogue_row" || len(otherFamily.Reading.Facts()) != 0 {
 		t.Fatalf("other family: %+v", otherFamily)
 	}
 	for _, exchange := range cycle.Exchanges {
-		if exchange.UnitID == 3 || (exchange.UnitID == 4 && exchange.Offset != 30000) {
+		if exchange.UnitID == 3 || (exchange.UnitID == 4 && exchange.Offset >= 32000) {
 			t.Fatalf("a withheld child was read: %+v", exchange)
 		}
 	}
 	// The withheld child is not read again in the next cycle either.
 	next := rig.refresh(t, h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{words: []uint16{sources.smartLoggerInventory.ChangeCounter.Before}}))
-	if child, _ := next.Child(4); child.Reason != HuaweiProviderReasonNoProfile {
+	if child, _ := next.Child(4); child.Reason != HuaweiProviderReasonCatalogueNotSelected || h06CatalogueSummary(child.Catalogue) != "NOT_SELECTED no_catalogue_row" {
 		t.Fatalf("next cycle: %+v", child)
 	}
 }
@@ -328,6 +345,16 @@ func TestH06ProvidersReadOnlyAllowlistedPDUs(t *testing.T) {
 	}
 	for unit := uint8(1); unit <= 8; unit++ {
 		sets["SmartLogger"][allowed{unit, 0x03, 30000, 15, 0}] = true
+	}
+	// The identity words of a child's admission (issue 365): the model
+	// identifier, the software text and the firmware text.
+	for _, read := range []allowed{{0, 0x03, 30070, 1, 0}, {0, 0x03, 30050, 15, 0}, {0, 0x03, 30035, 15, 0}} {
+		for unit := uint8(1); unit <= 8; unit++ {
+			read.unit = unit
+			sets["SmartLogger"][read] = true
+		}
+		read.unit = 1
+		sets["S-Dongle"][read] = true
 	}
 	for _, profile := range HuaweiSUN2000MonitoringProfiles() {
 		path := map[string]string{HuaweiSmartLoggerCanonicalClass: "SmartLogger", HuaweiSDongleCanonicalClass: "S-Dongle"}[profile.GatewayClass()]

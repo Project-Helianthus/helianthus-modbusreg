@@ -94,21 +94,24 @@ A selected row whose family has no profile on that path is
 `NO_ADMISSIBLE_PROFILE` with the selection recorded; a path routes and never
 decides applicability.
 
-The observed SmartLogger and S-Dongle paths read the model text only. While the
-identifier is not read the catalogue selects nothing; a profile stays admitted
-on its observed path, with the reason `OBSERVED_PATH_IDENTIFIER_NOT_READ`, when
-the model text is the source token of its family and the catalogue keeps that
-row among its candidates. Once an identifier is read, the catalogue decision
-alone routes, and a disagreeing identifier selects nothing. The disposition
-records both the catalogue selection of each family and the decision on its
-observed path.
+The catalogue decision alone routes. The read-only providers read the model
+identifier, the software text and the firmware text at the child's admission on
+the SmartLogger and S-Dongle paths (see the
+[providers page](huawei-readonly-providers.md#child-admission)), so the
+decision over the words read at the routed unit admits or withholds the child.
+Without an identifier the catalogue selects nothing and no profile is selected
+on the model text alone: the M3 series token is `AMBIGUOUS` across its three
+rows, and the M1 series token is `NOT_SELECTED` with `identifier_absent`. The
+disposition records the catalogue selection of each family and, as its observed
+path, the decision that the provider records when it admits the family's child
+in its scripted session.
 
 | Evidence | Outcome |
 | --- | --- |
 | a missing or non-matching gateway tuple, a unit outside the listing or other than the observed child, a missing or malformed model read, a listing that disagrees with the routed read, an identity word that does not have the shape of its read | `INSUFFICIENT_EVIDENCE` |
-| identity established at a routed unit, but the catalogue selects no row (no row, another identifier, a malformed or missing software text with the identifier read, a text below the floor), or selects a row of a family without a profile on that path | `NO_ADMISSIBLE_PROFILE` |
-| two catalogue rows that the decision cannot tell apart, or two profiles for one endpoint and unit | `AMBIGUOUS`, no winner |
-| exactly one profile routed by a selected row, or admitted on its observed path without an identifier | `PROFILE_SELECTED` |
+| identity established at a routed unit, but the catalogue selects no row (no row, another identifier, no identifier for a token of one row, a malformed or missing software text with the identifier read, a text below the floor), or selects a row of a family without a profile on that path | `NO_ADMISSIBLE_PROFILE` |
+| two catalogue rows that the decision cannot tell apart, including a token of several rows without its identifier, or two profiles for one endpoint and unit | `AMBIGUOUS`, no winner |
+| exactly one profile routed by a selected row | `PROFILE_SELECTED` |
 
 The decision table of `testdata/huawei/selection/sun2000_catalogue_decisions.json`
 covers the three qualification families and the floor, alias, identifier and
