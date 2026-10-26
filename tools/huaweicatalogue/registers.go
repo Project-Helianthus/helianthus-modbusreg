@@ -794,7 +794,11 @@ func readExtents(extents []twinExtent) ([]readExtent, error) {
 	return out, nil
 }
 
-var endpointRank = map[string]int{endpointInverter: 0, endpointEMMA: 1, endpointEMMAAssociate: 2}
+var endpointRank = map[string]int{
+	endpointInverter: 0, endpointEMMA: 1, endpointEMMAAssociate: 2,
+	endpointGatewaySelf: 10, endpointAttachedEnvironmental: 11, endpointAttachedMeter: 12, endpointAttachedCharger: 13,
+	endpointInventoryCounter: 14, endpointChildAlias: 15, endpointRemappedInverter: 16, endpointRemappedEnvironmental: 17,
+}
 
 // sortRows orders rows by endpoint, offset, key and page, with the private
 // source order as the last key, and numbers repeated rows.
