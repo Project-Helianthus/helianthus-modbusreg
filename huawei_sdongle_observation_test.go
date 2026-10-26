@@ -2,7 +2,7 @@ package modbusreg
 
 import "testing"
 
-func TestEvaluateHuaweiSDongleOfflineObservationRecognizesExactDefaultDeniedTuples(t *testing.T) {
+func TestEvaluateHuaweiSDongleOfflineObservationRecognizesFloorAdmittedDefaultDeniedTuples(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   HuaweiSDongleOfflineObservation
@@ -19,7 +19,7 @@ func TestEvaluateHuaweiSDongleOfflineObservationRecognizesExactDefaultDeniedTupl
 			matched: true, variant: "S-DongleA-05", reason: HuaweiSDongleOfflineMatched,
 		},
 		{
-			name: "A05 observed legacy tuple remains default denied",
+			name: "A05 V200R022C10 build falls under the one floor and remains default denied",
 			input: HuaweiSDongleOfflineObservation{
 				UnitID: 100, Model: "S-DongleA-05\x00 ", Firmware: "V200R022C10SPC312 ", ProtocolMajor: 5, ProtocolMinor: 0,
 				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
@@ -43,17 +43,41 @@ func TestEvaluateHuaweiSDongleOfflineObservationRecognizesExactDefaultDeniedTupl
 			reason: HuaweiSDongleOfflineModelMismatch,
 		},
 		{
-			name: "unsupported firmware",
+			name: "build above the floor that no edition names",
 			input: HuaweiSDongleOfflineObservation{
 				UnitID: 100, Model: "S-DongleB-03", Firmware: "V200R025C00SPC121", ProtocolMajor: 5, ProtocolMinor: 0,
+				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
+			},
+			matched: true, variant: "S-DongleB-03", reason: HuaweiSDongleOfflineMatched,
+		},
+		{
+			name: "build below the V200R022C10 floor",
+			input: HuaweiSDongleOfflineObservation{
+				UnitID: 100, Model: "S-DongleB-03", Firmware: "V200R022C00SPC900", ProtocolMajor: 5, ProtocolMinor: 0,
 				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
 			},
 			reason: HuaweiSDongleOfflineFirmwareMismatch,
 		},
 		{
-			name: "protocol baseline differs",
+			name: "malformed firmware",
+			input: HuaweiSDongleOfflineObservation{
+				UnitID: 100, Model: "S-DongleB-03", Firmware: "V200R025C00SPC12", ProtocolMajor: 5, ProtocolMinor: 0,
+				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
+			},
+			reason: HuaweiSDongleOfflineFirmwareMismatch,
+		},
+		{
+			name: "compatible release revision above the observed one",
 			input: HuaweiSDongleOfflineObservation{
 				UnitID: 100, Model: "S-DongleB-06", Firmware: "V200R025C00SPC120", ProtocolMajor: 5, ProtocolMinor: 1,
+				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
+			},
+			matched: true, variant: "S-DongleB-06", reason: HuaweiSDongleOfflineMatched,
+		},
+		{
+			name: "main revision differs",
+			input: HuaweiSDongleOfflineObservation{
+				UnitID: 100, Model: "S-DongleB-06", Firmware: "V200R025C00SPC120", ProtocolMajor: 6, ProtocolMinor: 0,
 				SearchState: 0, ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
 			},
 			reason: HuaweiSDongleOfflineProtocolMismatch,
@@ -92,6 +116,12 @@ func TestEvaluateHuaweiSDongleOfflineObservationRecognizesExactDefaultDeniedTupl
 			}
 			if test.matched && (decision.CanonicalClass() != "S-Dongle" || decision.ModelVariant() != test.variant || decision.ProfileID() != "huawei.sdongle.readonly.v1") {
 				t.Fatalf("unexpected recognized decision: %#v", decision)
+			}
+			if selection := decision.Selection(); test.matched {
+				if floor, ok := selection.Floor(); !ok || floor.Minimum != "V200R022C10" || floor.Domain != HuaweiGatewayFloorLine ||
+					selection.Reason() != HuaweiGatewayAtOrAboveFloor || selection.Grade() != HuaweiGradeHypothesis {
+					t.Fatalf("matched tuple selection %+v", selection)
+				}
 			}
 			if !test.matched && (decision.CanonicalClass() != "" || decision.ProfileID() != "") {
 				t.Fatalf("unmatched decision must not expose a profile: %#v", decision)

@@ -12,15 +12,14 @@ type HuaweiEMMAOfflineInventoryInput struct {
 // HuaweiEMMAOfflineInventory is a validated, default-denied inventory view.
 type HuaweiEMMAOfflineInventory = HuaweiGatewayInventory
 
-// ParseHuaweiEMMAOfflineInventory validates a supplied EMMA inventory. Only
-// the finite EMMA aliases can be a self entry; a canonical family label or an
-// unrecognized variant is fail-closed.
+// ParseHuaweiEMMAOfflineInventory validates a supplied EMMA inventory. A self
+// entry is a model of the EMMA family that the catalogue's model rows hold: a
+// model token of the family, not only the observed EMMA-A01 and EMMA-A02. A
+// canonical family label alone or a model of another family is fail-closed.
 func ParseHuaweiEMMAOfflineInventory(input HuaweiEMMAOfflineInventoryInput) (HuaweiEMMAOfflineInventory, error) {
 	return parseHuaweiExtendedMEIOfflineInventory(HuaweiSmartLoggerOfflineInventoryInput{
 		ChangeCounterBefore: input.InventoryGuardBefore,
 		ChangeCounterAfter:  input.InventoryGuardAfter,
 		Pages:               input.Pages,
-	}, func(model string) bool {
-		return model == "EMMA-A01" || model == "EMMA-A02"
-	})
+	}, isHuaweiEMMAFamilyModel, parseHuaweiSmartLoggerInventoryChild)
 }

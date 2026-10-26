@@ -128,7 +128,7 @@ func TestH18EMMADispositionSupersedesTheNoResponseRecordForIdentityOnly(t *testi
 
 	observed := huaweiObject(t, record["observed_identity"])
 	requireHuaweiKeys(t, observed, "status", "scope", "qualification_card", "gate_registered", "default_denied", "supersedes", "required_tuple",
-		"exact_tuple", "tolerance", "retained_not_gating", "forbidden_identity", "outside_admitted_set_outcome", "multiple_positive_outcome",
+		"software_selection", "exact_tuple", "tolerance", "retained_not_gating", "forbidden_identity", "outside_admitted_set_outcome", "multiple_positive_outcome",
 		"first_match_priority", "timing", "negative_overlap", "batteries", "fixtures", "profile_status")
 	if observed["status"] != "OFFLINE_IDENTITY_ADMITTED" || observed["scope"] != "OBSERVED_TUPLE_ONLY" || observed["qualification_card"] != card.ID() ||
 		observed["gate_registered"] != true || observed["default_denied"] != true || observed["outside_admitted_set_outcome"] != "INSUFFICIENT_EVIDENCE" ||
@@ -156,7 +156,7 @@ func TestH18EMMADispositionSupersedesTheNoResponseRecordForIdentityOnly(t *testi
 		tuple["gateway_model_variant"] != card.Model() || tuple["selected_class"] != card.CandidateClass() ||
 		tuple["gateway_software_label"] != "FAMILY_LABEL_SPACE_VERSION_TOKEN_MEETING_THE_DOCUMENTARY_FLOOR" || tuple["inverter_model"] != "SUN2000_FAMILY_EQUALS_OWN_ENTRY" ||
 		basicMEI["vendor"] != card.Vendor() || basicMEI["product"] != card.Product() || basicMEI["version"] != "EQUALS_SOFTWARE_LABEL_TOKEN" ||
-		huaweiInt(t, inventory["count_object"]) != 4 || huaweiInt(t, inventory["self_entry_unit"]) != int(card.UnitID()) || len(members) != len(huaweiEMMAObservedMembers) {
+		inventory["count_object"] != "COUNTS_SELF_AND_ENTRIES_OBSERVED_4_LOWER_BOUND" || huaweiInt(t, inventory["self_entry_unit"]) != int(card.UnitID()) || len(members) != len(huaweiEMMAObservedMembers) {
 		t.Fatalf("exact tuple: %#v", tuple)
 	}
 	for index, value := range members {
@@ -181,7 +181,7 @@ func TestH18EMMADispositionSupersedesTheNoResponseRecordForIdentityOnly(t *testi
 	if !reflect.DeepEqual(huaweiStringSlice(t, observed["required_tuple"]), []string{
 		"gateway_unit_0", "gateway_fc03_30000_q15_family_label_exact", "gateway_fc03_30222_q20_model_exact",
 		"gateway_fc03_30035_q15_family_label_space_version_token_meeting_the_documentary_floor", "gateway_basic_mei_vendor_and_product_exact_version_equals_software_token",
-		"gateway_extended_inventory_count_4_self_backup_box_unit_2_sun2000_units_3_and_4", "gateway_self_entry_model_product_type_and_version_equal_the_blocks",
+		"gateway_extended_inventory_counting_self_and_listing_backup_box_unit_2_sun2000_units_3_and_4_in_order_further_entries_retained", "gateway_self_entry_model_product_type_and_version_equal_the_blocks",
 		"inverter_units_3_and_4_fc03_30000_q15_sun2000_family_model_equals_own_entry",
 	}) || !reflect.DeepEqual(huaweiStringSlice(t, observed["retained_not_gating"]), []string{
 		"gateway_serial_bearing_block_30015", "inverter_serial_bearing_block_30015", "inverter_firmware_block_30035", "inverter_protocol_words_30068",
@@ -193,12 +193,17 @@ func TestH18EMMADispositionSupersedesTheNoResponseRecordForIdentityOnly(t *testi
 	}) {
 		t.Fatalf("observed identity lists: %#v", observed)
 	}
+	m86RequireObservedSelection(t, observed["software_selection"], card.Evaluate(h18ValidInput(t)), map[string]any{
+		"observed_build": "REGISTRY_FIXTURE", "observed_build_grade": "PROVEN", "inherited_build_grade": "HYPOTHESIS",
+	})
 	tolerance := huaweiObject(t, observed["tolerance"])
-	requireHuaweiKeys(t, tolerance, "model_block_residue", "declared_object_field", "page_layout", "entry_padding", "attribute_order", "unknown_or_repeated_keys",
-		"max_pages", "max_response_bytes")
+	requireHuaweiKeys(t, tolerance, "model_block_residue", "declared_object_field", "page_layout", "entry_padding", "attribute_order",
+		"undocumented_attribute_keys", "repeated_or_malformed_keys", "max_pages", "max_response_bytes", "inventory_members", "observed_values")
 	if huaweiInt(t, tolerance["max_response_bytes"]) != int(card.Limits().MaxResponseBytes) || huaweiInt(t, tolerance["max_pages"]) != int(card.Limits().MaxPages) ||
 		tolerance["declared_object_field"] != "RETAINED_NOT_COMPARED" || tolerance["entry_padding"] != "NOT_REQUIRED" || tolerance["attribute_order"] != "NOT_VALIDATED" ||
-		tolerance["unknown_or_repeated_keys"] != "REJECT_INVENTORY" || tolerance["page_layout"] != "NOT_COMPARED_EACH_RESPONSE_WITHIN_THE_CLASSIC_FRAME" ||
+		tolerance["undocumented_attribute_keys"] != "RETAINED_OPAQUE" || tolerance["repeated_or_malformed_keys"] != "REJECT_INVENTORY" ||
+		tolerance["page_layout"] != "NOT_COMPARED_EACH_RESPONSE_WITHIN_THE_RESOURCE_CAP" || tolerance["observed_values"] != "LOWER_BOUNDS" ||
+		tolerance["inventory_members"] != "OBSERVED_MEMBERS_IN_OBJECT_ORDER_FURTHER_ENTRIES_RETAINED" ||
 		tolerance["model_block_residue"] != "PRINTABLE_ASCII_OR_NUL_AFTER_FIRST_NUL_RETAINED_NOT_COMPARED" {
 		t.Fatalf("tolerance: %#v", tolerance)
 	}

@@ -347,13 +347,20 @@ func h18Mutations() []h18Mutation {
 		add("Gateway.Software", name, "accepting a software label that is not the family label, a space and a version-style token", invalid,
 			func(i *HuaweiEMMAObservedQualificationInput) { i.Gateway.Software = block })
 	}
-	for _, token := range []string{"V100R025C00SPC132", "V100R025C00SPC102", "V100R025C00SPC999"} {
+	// Tokens that the software floors admit, in the observed branch, in the
+	// other documented branch at or above its floor, and in a branch or line that
+	// no floor documents: alone they disagree with the basic reply.
+	for _, token := range []string{
+		"V100R025C00SPC132", "V100R025C00SPC102", "V100R025C00SPC999", "V100R024C00SPC100", "V100R024C00SPC555", "V100R026C00SPC200",
+		"V100R025C01SPC131", "V200R025C00SPC131",
+	} {
 		token := token
 		add("Gateway.Software", fmt.Sprintf("token %q alone", token), "not requiring the software label token to equal the version object of the basic reply", basic,
 			func(i *HuaweiEMMAObservedQualificationInput) { i.Gateway.Software = h18Block(h18Label+" "+token, 30) })
 	}
+	// Tokens below the floor of their own branch, or outside the version form.
 	for _, token := range []string{
-		"V100R025C00SPC101", "V100R025C00SPC000", "V100R024C00SPC100", "V100R024C00SPC555", "V100R024C00SPC099", "V100R026C00SPC200", "V100R025C01SPC131", "V200R025C00SPC131", "V100R025C00SPC13",
+		"V100R025C00SPC101", "V100R025C00SPC000", "V100R024C00SPC099", "V100R025C00SPC13", "V100R025C00",
 		"V100R025C00SPC1311", "V100R025C00SPC13A", "v100r025c00spc131", h18Fill, h18Fill[:16], "A", "V1.0", "",
 	} {
 		token := token
@@ -453,7 +460,7 @@ func h18Mutations() []h18Mutation {
 		add("Gateway.Inventory[].NextObjectID", fmt.Sprintf("next object %#x on the last page", next), "accepting a next identifier next to a last page", listing,
 			func(i *HuaweiEMMAObservedQualificationInput) { i.Gateway.Inventory[4].NextObjectID = next })
 	}
-	add("Gateway.Inventory[].ResponseBytes", "a sixth page", "applying no ceiling on the number of responses", listing,
+	add("Gateway.Inventory[].ResponseBytes", "a sixth page with an uncounted entry", "accepting an entry that the count object does not count, or an entry without a unit", listing,
 		func(i *HuaweiEMMAObservedQualificationInput) {
 			h18Reflow(1, 1, 1, 1, 1)(i)
 			last := &i.Gateway.Inventory[4]
@@ -461,8 +468,6 @@ func h18Mutations() []h18Mutation {
 			i.Gateway.Inventory = append(i.Gateway.Inventory, HuaweiEMMAObservedInventoryPage{ReadDeviceIDCode: 3, Conformity: 3, ResponseBytes: 7 + 2 + 3, DeclaredObjects: 5,
 				Objects: []HuaweiGatewayInventoryObject{{ObjectID: 0x8c, Value: []byte("1=A")}}})
 		})
-	add("Gateway.Inventory[].ResponseBytes", "all objects in one response", "applying the logger's larger frame cap instead of the classic 253-byte limit", listing,
-		func(i *HuaweiEMMAObservedQualificationInput) { h18Reflow(5)(i) })
 	add("Gateway.Inventory[].ResponseBytes", "pages in reverse order", "ordering the pages by arrival instead of by the cursor", listing,
 		func(i *HuaweiEMMAObservedQualificationInput) {
 			pages := i.Gateway.Inventory
@@ -517,10 +522,10 @@ func h18Mutations() []h18Mutation {
 			i.Gateway.Inventory = append(i.Gateway.Inventory[:2], i.Gateway.Inventory[3:]...)
 			i.Gateway.Inventory[2].NextObjectID = 0x8a
 		})
-	add("Gateway.Inventory[].Objects[].Value", "a fifth entry", "accepting more entries than the observed inventory", listing,
+	add("Gateway.Inventory[].Objects[].Value", "a fifth entry at an observed unit", "matching an observed member by its first listing and accepting a repeated unit", listing,
 		func(i *HuaweiEMMAObservedQualificationInput) {
 			h18SetCount([]byte{5})(i)
-			extra := bytes.Replace(h18Object(i, 0x8b).Value, []byte("5=4"), []byte("5=5"), 1)
+			extra := h18Object(i, 0x8b).Value
 			last := &i.Gateway.Inventory[4]
 			last.Objects = append(last.Objects, HuaweiGatewayInventoryObject{ObjectID: 0x8c, Value: extra})
 			h18FixFrames(i)
@@ -610,15 +615,15 @@ func h18Mutations() []h18Mutation {
 		}
 	}
 	for _, swap := range [][3]string{
-		{"6=0.0", "7=0", "unknown key 7"}, {"6=0.0", "11=0", "unknown key 11"}, {"9=0", "1=EMMA-A02", "repeated key 1"},
+		{"9=0", "1=EMMA-A02", "repeated key 1"}, {"9=0", "x=0", "key that is not a number"}, {"9=0", "07=0", "key with a leading zero"},
 	} {
 		swap := swap
-		add("Gateway.Inventory[].Objects[].Value", "self entry with "+swap[2], "accepting an unknown or repeated key", listing,
+		add("Gateway.Inventory[].Objects[].Value", "self entry with "+swap[2], "accepting a repeated key or a key outside the number grammar", listing,
 			h18ReplaceEntry(0x88, swap[0], swap[1]))
 	}
-	for _, extra := range []string{";7=0", ";11=0", ";6=0.0", ";1=EMMA-A02", ";x=0", ";", ";5"} {
+	for _, extra := range []string{";6=0.0", ";1=EMMA-A02", ";x=0", ";", ";5", ";256=0", ";0=0"} {
 		extra := extra
-		add("Gateway.Inventory[].Objects[].Value", fmt.Sprintf("inverter entry with %q appended", extra), "accepting unknown keys, repeated keys or empty attributes", listing,
+		add("Gateway.Inventory[].Objects[].Value", fmt.Sprintf("inverter entry with %q appended", extra), "accepting repeated keys, keys outside the number grammar or empty attributes", listing,
 			func(i *HuaweiEMMAObservedQualificationInput) {
 				h18SetEntryBytes(0x8a, append(append([]byte(nil), h18Object(i, 0x8a).Value...), extra...))(i)
 			})
@@ -720,8 +725,10 @@ func TestH18ObservedCardIdentityAndReplayProcedure(t *testing.T) {
 	if !reflect.DeepEqual(card.ChildUnits(), []uint8{3, 4}) {
 		t.Fatal("ChildUnits exposes the card's own slice")
 	}
+	// The observed five responses, five objects, three children and classic
+	// frame are lower bounds; the limits are the resource policy.
 	if limits := card.Limits(); limits != (HuaweiQualificationInventoryLimits{
-		DeadlineMilliseconds: 15000, MaxPages: 5, MaxObjects: 5, MaxBytes: 1230, MaxChildren: 3, MaxResponseBytes: 253,
+		DeadlineMilliseconds: 15000, MaxPages: 248, MaxObjects: 248, MaxBytes: 65536, MaxChildren: 247, MaxResponseBytes: 1024,
 	}) {
 		t.Fatalf("unexpected observed limits: %#v", limits)
 	}
@@ -853,6 +860,7 @@ func TestH18ObservedReplayMatchesSanitizedExpectedResult(t *testing.T) {
 		"children":                    children,
 		"page_anomalies":              map[string]any{"oversize_responses": anomalies.OversizeResponses, "declared_object_field_differs": anomalies.DeclaredObjectFieldDiffers, "next_object_without_continuation": anomalies.NextObjectWithoutContinuation},
 		"request_timing":              map[string]any{"recorded": len(f.Timing.Observations) > 0, "required": f.Timing.RequiredByCard, "retries": f.Timing.Retries},
+		"catalogue_selection":         m86ReplaySelection(result),
 		"missing_evidence":            result.MissingEvidence(),
 		"hardware_test_ready":         result.HardwareTestReady(),
 		"live_qualified":              result.LiveQualified(),
@@ -990,6 +998,26 @@ func TestH18ObservedCardAcceptsTheToleratedVariationsOfAnExactTuple(t *testing.T
 		h18SetChildBlock(4, h18ChildBlock(h18ChildModel+"  ", h18ChildResidue))(i)
 	})
 	// The two inverter reads may arrive in either order.
+	// The observed count, entries and five responses are lower bounds: a further
+	// counted entry at another unit, on a sixth response, is retained listing
+	// evidence and never read, and the observed members still match.
+	for _, unit := range []string{"5", "6", "247"} {
+		unit := unit
+		result := accept("a counted fifth entry at unit "+unit+" on a sixth response", func(i *HuaweiEMMAObservedQualificationInput) {
+			h18SetCount([]byte{5})(i)
+			extra := bytes.Replace(h18Object(i, 0x8b).Value, []byte("5=4"), []byte("5="+unit), 1)
+			last := &i.Gateway.Inventory[len(i.Gateway.Inventory)-1]
+			last.More, last.NextObjectID = true, 0x8c
+			i.Gateway.Inventory = append(i.Gateway.Inventory, HuaweiEMMAObservedInventoryPage{
+				ReadDeviceIDCode: 3, Conformity: 3, DeclaredObjects: last.DeclaredObjects,
+				Objects: []HuaweiGatewayInventoryObject{{ObjectID: 0x8c, Value: extra}},
+			})
+			h18FixFrames(i)
+		})
+		if inventory, _ := result.Inventory(); inventory.ChildCount() != 4 || inventory.DeclaredChildren() != 4 {
+			t.Fatalf("fifth entry at unit %s: retained %d children", unit, inventory.ChildCount())
+		}
+	}
 	accept("inverter reads in reverse order", func(i *HuaweiEMMAObservedQualificationInput) {
 		i.Children[0], i.Children[1] = i.Children[1], i.Children[0]
 	})
@@ -1019,19 +1047,31 @@ func TestH18ObservedCardAcceptsTheToleratedVariationsOfAnExactTuple(t *testing.T
 	}
 
 	// The page layout is not compared: the same objects in fewer responses are
-	// the same inventory, as long as no response exceeds the classic frame.
-	for _, sizes := range [][]int{{2, 1, 1, 1}, {1, 2, 1, 1}, {2, 2, 1}, {3, 2}, {2, 3}} {
+	// the same inventory. The observed responses stayed within the classic
+	// frame; that is a lower bound, and a response above it within the resource
+	// cap is admitted.
+	oversize := 0
+	for _, sizes := range [][]int{{2, 1, 1, 1}, {1, 2, 1, 1}, {2, 2, 1}, {3, 2}, {2, 3}, {5}} {
 		sizes := sizes
 		input := h18ValidInput(t)
 		h18Reflow(sizes...)(&input)
-		fits := true
+		above := 0
 		for _, page := range input.Gateway.Inventory {
-			fits = fits && page.ResponseBytes <= 253
+			if page.ResponseBytes > 253 {
+				above++
+			}
+			if page.ResponseBytes > 1024 {
+				t.Fatalf("layout %v exceeds the resource cap", sizes)
+			}
 		}
+		oversize += above
 		result := card.Evaluate(input)
-		if fits != result.IdentityMatched() {
-			t.Fatalf("layout %v: fits=%t matched=%t", sizes, fits, result.IdentityMatched())
+		if !result.IdentityMatched() || result.PageAnomalies().OversizeResponses != above {
+			t.Fatalf("layout %v: matched=%t oversize=%d want %d", sizes, result.IdentityMatched(), result.PageAnomalies().OversizeResponses, above)
 		}
+	}
+	if oversize == 0 {
+		t.Fatal("no layout exceeded the classic frame")
 	}
 	if input := h18ValidInput(t); true {
 		h18Reflow(2, 2, 1)(&input)
@@ -1141,12 +1181,30 @@ func TestH18ObservedCardOutsideAdmittedSetIsInsufficientEvidence(t *testing.T) {
 	}
 
 	// A software token that the documentary gate refuses, even when the label,
-	// the basic reply and the entry all carry it: below its floor, in an unknown
+	// the basic reply and the entry all carry it: below the floor of its own
 	// branch, a placeholder or free text.
-	for _, token := range []string{"V100R025C00SPC101", "V100R024C00SPC099", "V100R026C00SPC200", "V100R025C00SPC13", h18Fill, "A", "V100R024C00SPC100", "V100R024C00SPC555"} {
+	for _, token := range []string{"V100R025C00SPC101", "V100R024C00SPC099", "V100R025C00SPC13", h18Fill, "A"} {
 		input := h18ValidInput(t)
 		h18SetVersionEverywhere(token)(&input)
 		h18RequireRejected(t, "agreeing software token "+token, card.Evaluate(input))
+	}
+	// The floors admit the other documented branch at or above its floor and a
+	// branch that no floor documents, with grade Hypothesis; the observed build
+	// alone is Proven.
+	for token, reason := range map[string]HuaweiGatewaySelectionReason{
+		"V100R024C00SPC100": HuaweiGatewayAtOrAboveFloor, "V100R024C00SPC555": HuaweiGatewayAtOrAboveFloor,
+		"V100R025C00SPC132": HuaweiGatewayAtOrAboveFloor, "V100R026C00SPC200": HuaweiGatewayNoDocumentedRelation,
+	} {
+		input := h18ValidInput(t)
+		h18SetVersionEverywhere(token)(&input)
+		result := card.Evaluate(input)
+		selection, ok := result.Selection()
+		if !result.IdentityMatched() || !ok || selection.Reason() != reason || result.SoftwareGrade() != HuaweiGradeHypothesis {
+			t.Fatalf("agreeing software token %s: matched=%t selection=%+v grade=%s", token, result.IdentityMatched(), selection, result.SoftwareGrade())
+		}
+	}
+	if result := card.Evaluate(h18ValidInput(t)); result.SoftwareGrade() != HuaweiGradeProven {
+		t.Fatalf("observed build graded %s", result.SoftwareGrade())
 	}
 
 	// An inventory without children, in every form.

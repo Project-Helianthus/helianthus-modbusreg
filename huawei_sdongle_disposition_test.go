@@ -7,10 +7,10 @@ import (
 
 const sdongleDocsMergeSHA = "2d44c22f27c4be0e1de460f63b8330c728a5af8f"
 
-func TestHuaweiSDongleDispositionPinsExactCandidateAndNoSend(t *testing.T) {
+func TestHuaweiSDongleDispositionPinsFloorCandidateAndNoSend(t *testing.T) {
 	record := decodeHuaweiObject(t, "profiles/vendor/huawei/sdongle-disposition.json")
 	requireHuaweiKeys(t, record,
-		"schema", "profile", "profile_version", "outcome", "evidence", "admission",
+		"schema", "profile", "profile_version", "outcome", "evidence", "admission", "software_selection",
 		"protocol_version", "search_sequence", "capacity", "child_enumeration",
 		"private_functions", "decoder_keys", "catalog_registered",
 		"automatic_runtime_admission", "support_claim", "write_authority", "qualification_plan", "observed_identity", "production_provider", "reopen_requires",
@@ -85,32 +85,31 @@ func TestHuaweiSDongleDispositionPinsExactCandidateAndNoSend(t *testing.T) {
 	}
 
 	admission := huaweiObject(t, record["admission"])
-	requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "default_denied", "models", "firmware_gates", "protocol_gate", "required_tuple", "forbidden_identity", "version_comparison", "multiple_positive_outcome", "first_match_priority")
+	requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "default_denied", "models", "protocol_gate", "required_tuple", "forbidden_identity", "multiple_positive_outcome", "first_match_priority")
 	if huaweiInt(t, admission["unit_id"]) != 100 || admission["registered"] != false || admission["executable"] != false ||
 		admission["default_denied"] != true ||
 		!reflect.DeepEqual(huaweiStringSlice(t, admission["models"]), []string{"S-DongleA-05", "S-DongleB-03", "S-DongleB-06"}) ||
-		admission["protocol_gate"] != "D5.0" || admission["version_comparison"] != "EXACT_TUPLE_ONLY" ||
+		admission["protocol_gate"] != "MAIN_REVISION_5_RELEASE_REVISION_FROM_0" ||
 		admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || admission["first_match_priority"] != false ||
 		!reflect.DeepEqual(huaweiStringSlice(t, admission["required_tuple"]), []string{
 			"basic_mei_product_identity", "fc03_30068_q2_protocol_version",
 			"fc03_37410_q3_type_search_state_change_sequence",
-			"fc03_37429_q1_capacity", "exact_model_firmware_protocol_tuple",
+			"fc03_37429_q1_capacity", "admitted_model_software_floor_protocol_main_revision",
 		}) ||
 		!reflect.DeepEqual(huaweiStringSlice(t, admission["forbidden_identity"]), []string{
 			"unit_100_readability_only", "search_status_only", "serial_number", "basic_mei_only",
 		}) {
 		t.Fatalf("unexpected S-Dongle admission: %#v", admission)
 	}
-	firmwareGates := huaweiObject(t, admission["firmware_gates"])
-	requireHuaweiKeys(t, firmwareGates, "offline_candidate", "observed_default_denied")
-	if !reflect.DeepEqual(huaweiStringSlice(t, firmwareGates["offline_candidate"]), []string{"V200R025C00SPC120"}) {
-		t.Fatalf("unexpected S-Dongle offline firmware gate: %#v", firmwareGates)
-	}
-	observedTuple := huaweiObject(t, firmwareGates["observed_default_denied"])
-	requireHuaweiKeys(t, observedTuple, "model", "firmware", "minimum_gate", "admission")
-	if observedTuple["model"] != "S-DongleA-05" || observedTuple["firmware"] != "V200R022C10SPC312" ||
-		observedTuple["minimum_gate"] != "V200R022C10" || observedTuple["admission"] != "PRE_LIVE_INSUFFICIENT_EVIDENCE" {
-		t.Fatalf("unexpected S-Dongle observed firmware tuple: %#v", observedTuple)
+	// The A-05 / V200R022C10SPC312 qualification target is a build of the
+	// V200 line at or above the one floor, not a parallel tuple.
+	m86RequireSoftwareSelection(t, record, HuaweiSDongleCanonicalClass, 100)
+	target := EvaluateHuaweiSDongleOfflineObservation(HuaweiSDongleOfflineObservation{
+		UnitID: 100, Model: "S-DongleA-05", Firmware: "V200R022C10SPC312", ProtocolMajor: 5,
+		ChangeSequenceBefore: 7, ChangeSequenceAfter: 7, Capacity: 1, ChildCount: 1,
+	})
+	if floor, ok := target.Selection().Floor(); !target.Matched() || !ok || floor.Minimum != "V200R022C10" {
+		t.Fatalf("qualification target outside the one floor: %#v", target)
 	}
 
 	protocol := huaweiObject(t, record["protocol_version"])

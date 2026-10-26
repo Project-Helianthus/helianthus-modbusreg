@@ -142,10 +142,9 @@ func TestH03ObservedCardIdentityAndReplayProcedure(t *testing.T) {
 			t.Fatalf("replay step %q is not one of the two read-only operations", step.Operation())
 		}
 	}
-	// The documentary card keeps its identity, tuples and steps untouched.
+	// The documentary card keeps its identity and steps untouched.
 	documentary := NewHuaweiSmartLoggerQualificationCard()
-	if documentary.ID() != "huawei.qualification.smartlogger.readonly@1.0.0" ||
-		!reflect.DeepEqual(documentary.FirmwareTuples(), []string{"V300R024C10SPC191", "V300R024C10SPC210"}) || len(documentary.Steps()) != 3 {
+	if documentary.ID() != "huawei.qualification.smartlogger.readonly@1.0.0" || len(documentary.Steps()) != 3 {
 		t.Fatalf("documentary card changed: %#v", documentary)
 	}
 	if got := documentary.Limits(); got.MaxResponseBytes != 0 {
@@ -222,6 +221,7 @@ func TestH03ObservedReplayMatchesSanitizedExpectedResult(t *testing.T) {
 		"child_units":                 units,
 		"page_anomalies":              map[string]any{"oversize_responses": anomalies.OversizeResponses, "declared_object_field_differs": anomalies.DeclaredObjectFieldDiffers},
 		"basic_corroboration":         map[string]any{"agrees": result.BasicCorroborated(), "opaque_extra_objects": result.BasicOpaqueObjectCount()},
+		"catalogue_selection":         m86ReplaySelection(result),
 		"missing_evidence":            result.MissingEvidence(),
 		"hardware_test_ready":         result.HardwareTestReady(),
 		"live_qualified":              result.LiveQualified(),
@@ -267,7 +267,7 @@ func TestH03ObservedCardRejectsOneCharacterMutationOfEveryTupleField(t *testing.
 		{"self-entry model", h03OneCharacterMutants(h03Model), func(m string) func(*h03InventoryFixture) {
 			return h03ReplaceInSelfEntry("1="+h03Model+";", "1="+m+";")
 		}},
-		{"self-entry firmware", h03OneCharacterMutants(h03Firmware), func(m string) func(*h03InventoryFixture) {
+		{"self-entry firmware", h03FirmwareMutantsOutsideTheFloor(), func(m string) func(*h03InventoryFixture) {
 			return h03ReplaceInSelfEntry("2="+h03Firmware+";", "2="+m+";")
 		}},
 		{"self-entry unit", []string{"1", "00", "0 ", "+0", "-0", "a", "10", "247"}, func(m string) func(*h03InventoryFixture) {
@@ -304,6 +304,59 @@ func TestH03ObservedCardRejectsOneCharacterMutationOfEveryTupleField(t *testing.
 		count := count
 		input := h03MutatedInventory(t, func(f *h03InventoryFixture) { f.Pages[0].Objects[0].Count = &count })
 		h03RequireRejected(t, fmt.Sprintf("count %d", count), card.Evaluate(input))
+	}
+}
+
+// h03FirmwareAdmittedMutants are the one-character neighbours of the observed
+// build that the software floor admits: a release, branch or build number of
+// the V300 line above the observed build, or a line that no floor documents.
+// They were refused while the card compared the build exactly.
+var h03FirmwareAdmittedMutants = map[string]HuaweiGatewayFloorRelation{
+	"V300R123C10SPC620": HuaweiGatewayRelationAtOrAbove, "V300R033C10SPC620": HuaweiGatewayRelationAtOrAbove,
+	"V300R024C10SPC620": HuaweiGatewayRelationAtOrAbove, "V300R023C20SPC620": HuaweiGatewayRelationAtOrAbove,
+	"V300R023C11SPC620": HuaweiGatewayRelationAtOrAbove, "V300R023C10SPC720": HuaweiGatewayRelationAtOrAbove,
+	"V300R023C10SPC630": HuaweiGatewayRelationAtOrAbove, "V300R023C10SPC621": HuaweiGatewayRelationAtOrAbove,
+	"V400R023C10SPC620": HuaweiGatewayRelationNoDocumentedRelation, "V310R023C10SPC620": HuaweiGatewayRelationNoDocumentedRelation,
+	"V301R023C10SPC620": HuaweiGatewayRelationNoDocumentedRelation,
+}
+
+// h03FirmwareMutantsOutsideTheFloor are the one-character neighbours of the
+// observed build that are not a build at or above the floor, together with the
+// builds below the observed build and below the documented V300 minimum.
+func h03FirmwareMutantsOutsideTheFloor() []string {
+	var out []string
+	for _, mutant := range h03OneCharacterMutants(h03Firmware) {
+		if _, admitted := h03FirmwareAdmittedMutants[mutant]; !admitted {
+			out = append(out, mutant)
+		}
+	}
+	return append(out, "V300R023C10SPC619", "V300R023C10SPC000", "V300R023C09SPC999", "V300R022C10SPC620", "V300R001C00", "V300R000C10SPC620")
+}
+
+func TestM86ObservedSmartLoggerAdmitsTheBuildsAboveItsFloor(t *testing.T) {
+	h03RequireControl(t)
+	card := NewHuaweiSmartLoggerObservedQualificationCard()
+	control := card.Evaluate(h03ValidInput(t))
+	if floor, relation := control.ObservedFloor(); floor != h03Firmware || relation != HuaweiGatewayRelationAtOrAbove || control.SoftwareGrade() != HuaweiGradeProven {
+		t.Fatalf("observed build: floor %q relation %s grade %s", floor, relation, control.SoftwareGrade())
+	}
+	for _, mutant := range h03OneCharacterMutants(h03Firmware) {
+		want, admitted := h03FirmwareAdmittedMutants[mutant]
+		if !admitted {
+			continue
+		}
+		input := h03MutatedInventory(t, h03ReplaceInSelfEntry("2="+h03Firmware+";", "2="+mutant+";"))
+		input.Basic = nil
+		result := card.Evaluate(input)
+		floor, relation := result.ObservedFloor()
+		selection, ok := result.Selection()
+		if !result.IdentityMatched() || !result.QualificationTestReady() || floor != h03Firmware || relation != want ||
+			result.SoftwareGrade() != HuaweiGradeHypothesis || !ok || !selection.Admitted() || selection.Build() != mutant {
+			t.Fatalf("%q: matched=%t relation=%s grade=%s selection=%+v", mutant, result.IdentityMatched(), relation, result.SoftwareGrade(), selection)
+		}
+	}
+	if len(h03FirmwareAdmittedMutants) != 11 {
+		t.Fatalf("admitted mutant table has %d rows", len(h03FirmwareAdmittedMutants))
 	}
 }
 
@@ -381,6 +434,9 @@ func TestH03ObservedCardOutsideAdmittedSetIsInsufficientEvidence(t *testing.T) {
 	observed := NewHuaweiSmartLoggerObservedQualificationCard()
 	documentary := NewHuaweiSmartLoggerQualificationCard()
 	models := []string{"Smart Logger", "SmartLogger"}
+	// Every firmware here is a V300 build at or above both cards' floors, so the
+	// model alone separates the cards; the cover labels of the editions are not
+	// tuples of either card.
 	firmwares := []string{"V300R023C10SPC620", "V300R024C10SPC191", "V300R024C10SPC210"}
 	for _, model := range models {
 		for _, firmware := range firmwares {
@@ -388,7 +444,7 @@ func TestH03ObservedCardOutsideAdmittedSetIsInsufficientEvidence(t *testing.T) {
 				object := &f.Pages[1].Objects[0]
 				object.Entry = strings.Replace(object.Entry, "1="+h03Model+";2="+h03Firmware+";", "1="+model+";2="+firmware+";", 1)
 			})
-			wantObserved := model == h03Model && firmware == h03Firmware
+			wantObserved := model == h03Model
 			if got := observed.Evaluate(input).IdentityMatched(); got != wantObserved {
 				t.Fatalf("observed card model=%q firmware=%q matched=%t", model, firmware, got)
 			}
@@ -398,7 +454,7 @@ func TestH03ObservedCardOutsideAdmittedSetIsInsufficientEvidence(t *testing.T) {
 
 			docInput := validHuaweiSmartLoggerQualificationInput()
 			docInput.Inventory.Pages[0].Objects[1].Value = []byte(fmt.Sprintf("1=%s;2=%s;5=0", model, firmware))
-			wantDocumentary := model == "SmartLogger" && firmware != h03Firmware
+			wantDocumentary := model == "SmartLogger"
 			if got := documentary.Evaluate(docInput).IdentityMatched(); got != wantDocumentary {
 				t.Fatalf("documentary card model=%q firmware=%q matched=%t", model, firmware, got)
 			}
@@ -450,7 +506,8 @@ func TestH03DocumentaryCardStillReturnsInsufficientEvidenceForObservedTuple(t *t
 	}
 
 	// The observed values in the documentary encoding are still not the
-	// documentary tuple: the model differs by one space and the firmware is outside both.
+	// documentary entry: the model differs by one space. The firmware meets the
+	// documentary floor and is not the reason.
 	small := validHuaweiSmartLoggerQualificationInput()
 	small.Inventory.Pages[0].Objects[1].Value = []byte("1=Smart Logger;2=V300R023C10SPC620;5=0")
 	assertHuaweiQualificationFailureHasNoFallback(t, NewHuaweiSmartLoggerQualificationCard().Evaluate(small))
@@ -592,13 +649,22 @@ func TestH03SerialEsnReadabilityAndPrefixNeverSelect(t *testing.T) {
 		return input
 	}()))
 
-	// Prefix, range and ordering are not matching rules.
+	// Prefix and case are not matching rules, and a build below the floor, the
+	// base of the branch among them, is refused.
 	for _, mutant := range []string{
-		"V300R023C10SPC62", "V300R023C10SPC6200", "V300R023C10", "V300R023", "V300R023C10SPC621", "V300R023C10SPC619",
-		"V300R024C10SPC620", "V300R023C10SPC6", strings.ToLower(h03Firmware), "v300r023c10spc620",
+		"V300R023C10SPC62", "V300R023C10SPC6200", "V300R023C10", "V300R023", "V300R023C10SPC619",
+		"V300R023C10SPC6", strings.ToLower(h03Firmware), "v300r023c10spc620",
 	} {
 		input := h03MutatedInventory(t, h03ReplaceInSelfEntry("2="+h03Firmware+";", "2="+mutant+";"))
 		h03RequireRejected(t, "firmware "+mutant, card.Evaluate(input))
+	}
+	// Ordering within the V300 line is the floor rule: a build that follows the
+	// observed build is admitted with grade Hypothesis.
+	for _, mutant := range []string{"V300R023C10SPC621", "V300R024C10SPC620"} {
+		input := h03MutatedInventory(t, h03ReplaceInSelfEntry("2="+h03Firmware+";", "2="+mutant+";"))
+		if result := card.Evaluate(input); !result.IdentityMatched() || result.SoftwareGrade() != HuaweiGradeHypothesis {
+			t.Fatalf("firmware %s: %#v", mutant, result)
+		}
 	}
 	for _, mutant := range []string{"Smart", "Smart Logger 2", "Smart Logger  ", "smart logger", "SMART LOGGER", "Smart_Logger", "SmartLogger", "Smart-Logger", "Logger"} {
 		input := h03MutatedInventory(t, h03ReplaceInSelfEntry("1="+h03Model+";", "1="+mutant+";"))

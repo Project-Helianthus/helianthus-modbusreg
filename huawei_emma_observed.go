@@ -30,9 +30,11 @@ const (
 
 	huaweiEMMAObservedReadCode   = 3
 	huaweiEMMAObservedConformity = 0x03
-	huaweiEMMAObservedMaxPages   = 5
-	huaweiEMMAObservedMaxObject  = 5
-	huaweiEMMAObservedMaxBytes   = huaweiEMMAObservedMaxPages * (huaweiClassicMaxPDUBytes - huaweiMEIResponseHeaderBytes)
+
+	// huaweiEMMAObservedBuild is the software build that the observation read,
+	// carried by the registry fixture. It grades the selection Proven; it is
+	// not a floor of the card, whose software rule is the catalogue decision.
+	huaweiEMMAObservedBuild = "V100R025C00SPC131"
 )
 
 var errHuaweiEMMAObservedInventoryInvalid = errors.New("invalid observed EMMA inventory")
@@ -50,7 +52,9 @@ type huaweiEMMAObservedMember struct {
 // huaweiEMMAObservedMembers are the child entries of the observed inventory in
 // object order. Units 3 and 4 are the inverter units that the card reads. The
 // entry of unit 2 is recorded by its product type; its model is withheld and
-// the unit is never read.
+// the unit is never read. The members are a lower bound of the listing: each
+// must be listed at its unit, and a further entry is retained as listing
+// evidence and never read.
 var huaweiEMMAObservedMembers = []huaweiEMMAObservedMember{
 	{unit: "2", productType: "BackupBox"},
 	{unit: "3", productType: huaweiEMMAObservedChildFamily, modelFamily: huaweiEMMAObservedChildFamily},
@@ -113,15 +117,16 @@ type HuaweiEMMAObservedQualificationInput struct {
 //   - gateway unit 0 answers the family label SmartHEMS, the model EMMA-A02 and a
 //     software label that is that family label, a space and a version-style
 //     token, each as text followed by NUL padding only, and the three satisfy the
-//     documentary EMMA identity gate, whose branch rule and floors apply to the
-//     token;
+//     documentary EMMA identity gate, whose catalogue decision applies to the
+//     token: at or above the floor of its own branch, or of a branch that no
+//     floor documents, the observed build Proven and every other Hypothesis;
 //   - it answers basic identification with vendor Huawei, product HEMS and a
 //     version object that equals the token of the software label;
-//   - it answers extended identification with a count object of 4 and four
-//     entries: its own entry at unit 0 (the model, the product type HEMS and the
-//     version token), an entry with product type BackupBox at unit 2 whose
-//     model is recorded and never compared, and two entries of the SUN2000
-//     family at units 3 and 4;
+//   - it answers extended identification with a count object that counts its
+//     own entry and at least these entries: its own entry at unit 0 (the model,
+//     the product type HEMS and the version token), an entry with product type
+//     BackupBox at unit 2 whose model is recorded and never compared, and two
+//     entries of the SUN2000 family at units 3 and 4;
 //   - units 3 and 4 answer the model read with the model string of their own
 //     entry, a SUN2000-family string.
 //
@@ -175,17 +180,17 @@ func (HuaweiEMMAObservedQualificationCard) Steps() []HuaweiQualificationStep {
 	}
 }
 
-// Limits narrows the shared inventory ceilings to the observed inventory: at
-// most five responses of at most the classic frame size, five objects (the
-// count and four entries) and three children.
+// Limits are the resource policy of the gateway contract. The observed five
+// responses, five objects, three children and 118-byte responses are lower
+// bounds that the card accepts, never caps.
 func (HuaweiEMMAObservedQualificationCard) Limits() HuaweiQualificationInventoryLimits {
 	return HuaweiQualificationInventoryLimits{
 		DeadlineMilliseconds: 15000,
-		MaxPages:             huaweiEMMAObservedMaxPages,
-		MaxObjects:           huaweiEMMAObservedMaxObject,
-		MaxBytes:             huaweiEMMAObservedMaxBytes,
-		MaxChildren:          uint32(len(huaweiEMMAObservedMembers)),
-		MaxResponseBytes:     huaweiClassicMaxPDUBytes,
+		MaxPages:             huaweiSmartLoggerInventoryMaxPages,
+		MaxObjects:           huaweiSmartLoggerInventoryMaxObjects,
+		MaxBytes:             huaweiSmartLoggerInventoryMaxBytes,
+		MaxChildren:          huaweiSmartLoggerInventoryMaxChildren,
+		MaxResponseBytes:     huaweiSmartLoggerObservedMaxResponseBytes,
 	}
 }
 
@@ -193,16 +198,13 @@ func (card HuaweiEMMAObservedQualificationCard) EmptyResult() HuaweiQualificatio
 	return HuaweiQualificationResult{candidateClass: card.CandidateClass(), readiness: HuaweiQualificationInsufficientEvidence, reason: HuaweiQualificationIdentityInvalid}
 }
 
-// huaweiEMMAObservedBranchPrefix is the software branch of the observed tuple;
-// the floor of that branch is applied by the documentary gate.
-const huaweiEMMAObservedBranchPrefix = "V100R025C00SPC"
-
-// Evaluate returns a test-ready result only for the exact observed tuple. A
-// gateway block outside the tuple, a basic reply that disagrees with the
-// gateway, an inventory outside the observed shape and a child read that is not
-// the SUN2000-family string of its own entry each produce an empty insufficient
-// result. Register readability, a serial or ESN, the firmware blocks and the
-// protocol words are never predicates.
+// Evaluate returns a test-ready result for the observed entry. A gateway block
+// outside the entry, a software token that the catalogue decision refuses, a
+// basic reply that disagrees with the gateway, an inventory without the
+// observed members and a child read that is not the SUN2000-family string of
+// its own entry each produce an empty insufficient result. Register
+// readability, a serial or ESN, the inverter firmware blocks and the protocol
+// words are never predicates.
 func (card HuaweiEMMAObservedQualificationCard) Evaluate(input HuaweiEMMAObservedQualificationInput) HuaweiQualificationResult {
 	rejected := card.EmptyResult()
 	gateway := input.Gateway
@@ -221,18 +223,22 @@ func (card HuaweiEMMAObservedQualificationCard) Evaluate(input HuaweiEMMAObserve
 	if !ok {
 		return rejected
 	}
-	// The documentary gate reads the three blocks: it admits two model aliases
-	// and the software label of two branches above their floors, and this card
-	// pins the one alias that was observed. A software label that passes the gate
-	// starts with the family label and a space, so the token is what follows.
-	if decision := EvaluateHuaweiEMMAOfflineIdentity(label, model, software); !decision.Matched() || decision.ModelVariant() != card.Model() {
+	// The documentary gate reads the three blocks: it admits the models of the
+	// EMMA family and every software label that the catalogue decision admits,
+	// and this card pins the one model that was observed. A software label that
+	// passes the gate starts with the family label and a space, so the token is
+	// what follows.
+	decision := EvaluateHuaweiEMMAOfflineIdentity(label, model, software)
+	if !decision.Matched() || decision.ModelVariant() != card.Model() {
+		if decision.Reason() == HuaweiEMMAOfflineFirmwareMismatch {
+			selection := decision.Selection()
+			rejected.selection = &selection
+		}
 		return rejected
 	}
+	selection := decision.Selection().withObservedBuild(huaweiEMMAObservedBuild)
+	rejected.selection = &selection
 	token := strings.TrimPrefix(software, card.FamilyLabel()+" ")
-	// The gate admits two branches; only the observed one is in the tuple.
-	if !strings.HasPrefix(token, huaweiEMMAObservedBranchPrefix) {
-		return rejected
-	}
 	if gateway.Basic == nil {
 		return rejected
 	}
@@ -250,19 +256,11 @@ func (card HuaweiEMMAObservedQualificationCard) Evaluate(input HuaweiEMMAObserve
 		parsed.self.Attribute("software_version") != token {
 		return rejected
 	}
-	children := parsed.inventory.Children()
-	if len(children) != len(huaweiEMMAObservedMembers) {
+	if !huaweiEMMAObservedMembersListed(parsed.inventory.Children()) {
 		rejected.reason = HuaweiQualificationInventoryInvalid
 		return rejected
 	}
-	for index, member := range huaweiEMMAObservedMembers {
-		family, _ := huaweiEMMAObservedModelFamily(children[index].Attribute("model"))
-		if children[index].Address() != member.unit || children[index].Attribute("product_type") != member.productType ||
-			(member.modelFamily != "" && family != member.modelFamily) {
-			rejected.reason = HuaweiQualificationInventoryInvalid
-			return rejected
-		}
-	}
+	children := parsed.inventory.Children()
 	if !card.childReadsMatch(input.Children, children) {
 		return rejected
 	}
@@ -279,7 +277,35 @@ func (card HuaweiEMMAObservedQualificationCard) Evaluate(input HuaweiEMMAObserve
 		pageAnomalies:      parsed.anomalies,
 		basicCorroborated:  true,
 		basicOpaqueObjects: opaque,
+		selection:          &selection,
 	}
+}
+
+// huaweiEMMAObservedMembersListed requires every observed member in object
+// order, each at its unit with its product type and model family. A further
+// entry at another unit may stand anywhere: the observed members are a lower
+// bound of the listing, and a further entry is retained listing evidence.
+func huaweiEMMAObservedMembersListed(children []HuaweiGatewayInventoryChild) bool {
+	next := 0
+	for _, child := range children {
+		member := -1
+		for index, candidate := range huaweiEMMAObservedMembers {
+			if candidate.unit == child.Address() {
+				member = index
+			}
+		}
+		if member < 0 {
+			continue
+		}
+		expected := huaweiEMMAObservedMembers[member]
+		family, _ := huaweiEMMAObservedModelFamily(child.Attribute("model"))
+		if member != next || child.Attribute("product_type") != expected.productType ||
+			(expected.modelFamily != "" && family != expected.modelFamily) {
+			return false
+		}
+		next++
+	}
+	return next == len(huaweiEMMAObservedMembers)
 }
 
 // corroborateBasic requires vendor and product to be exactly the observed
@@ -417,18 +443,18 @@ func huaweiEMMAObservedModelFamily(model string) (string, bool) {
 	return family, true
 }
 
-// parseHuaweiEMMAObservedInventory validates the pages: read code 3, conformity
-// 0x03, at most five responses of at most the classic frame size, and then the
-// observed dialect without a change counter, because the gateway answers the
-// counter register with an exception.
+// parseHuaweiEMMAObservedInventory validates the pages: read code 3 and
+// conformity 0x03, and then the observed dialect without a change counter,
+// because the gateway answers the counter register with an exception. The page
+// count and the response size are bounded by the resource policy of the shared
+// parser, not by the five responses within the classic frame that were observed.
 func parseHuaweiEMMAObservedInventory(gatewayUnit uint8, pages []HuaweiEMMAObservedInventoryPage) (huaweiObservedInventory, error) {
-	if len(pages) == 0 || len(pages) > huaweiEMMAObservedMaxPages {
+	if len(pages) == 0 || len(pages) > huaweiSmartLoggerInventoryMaxPages {
 		return huaweiObservedInventory{}, errHuaweiEMMAObservedInventoryInvalid
 	}
 	shared := make([]HuaweiSmartLoggerObservedInventoryPage, 0, len(pages))
 	for _, page := range pages {
-		if page.ReadDeviceIDCode != huaweiEMMAObservedReadCode || page.Conformity != huaweiEMMAObservedConformity ||
-			page.ResponseBytes > huaweiClassicMaxPDUBytes {
+		if page.ReadDeviceIDCode != huaweiEMMAObservedReadCode || page.Conformity != huaweiEMMAObservedConformity {
 			return huaweiObservedInventory{}, errHuaweiEMMAObservedInventoryInvalid
 		}
 		shared = append(shared, HuaweiSmartLoggerObservedInventoryPage{

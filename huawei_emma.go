@@ -1,7 +1,6 @@
 package modbusreg
 
 import (
-	"strconv"
 	"strings"
 )
 
@@ -22,9 +21,10 @@ const (
 
 // HuaweiEMMAOfflineDecision is an immutable, default-denied identity result.
 type HuaweiEMMAOfflineDecision struct {
-	matched bool
-	model   string
-	reason  HuaweiEMMAOfflineReason
+	matched   bool
+	model     string
+	reason    HuaweiEMMAOfflineReason
+	selection HuaweiGatewaySelection
 }
 
 func (d HuaweiEMMAOfflineDecision) Matched() bool { return d.matched }
@@ -49,25 +49,61 @@ func (d HuaweiEMMAOfflineDecision) DefaultDenied() bool { return true }
 
 func (d HuaweiEMMAOfflineDecision) Reason() HuaweiEMMAOfflineReason { return d.reason }
 
+// Selection is the catalogue decision over the software text, recorded for a
+// matched tuple and for a tuple refused by its software.
+func (d HuaweiEMMAOfflineDecision) Selection() HuaweiGatewaySelection { return d.selection }
+
+// ObservedModel reports whether the model is one of the observed models that
+// the registry admitted before the family scope applied.
+func (d HuaweiEMMAOfflineDecision) ObservedModel() bool {
+	for _, model := range huaweiEMMAObservedModels {
+		if d.model == model {
+			return true
+		}
+	}
+	return false
+}
+
+// huaweiEMMAObservedModels are the model values that the EMMA candidate listed
+// before admission followed the catalogue's model rows. They are kept as the
+// observed models; the family scope admits every model token of the family.
+var huaweiEMMAObservedModels = []string{"EMMA-A01", "EMMA-A02"}
+
 // EvaluateHuaweiEMMAOfflineIdentity classifies a complete documented FC03 EMMA
-// identity tuple. It performs no transport work and never enables runtime
-// admission.
+// identity tuple. The model must be a model token of the EMMA family that the
+// catalogue's model rows hold, and the software text must be admitted by the
+// catalogue decision: at or above the floor of its own branch, or of a branch
+// that no floor documents (grade Hypothesis). It performs no transport work
+// and never enables runtime admission.
 func EvaluateHuaweiEMMAOfflineIdentity(offering, model, firmware string) HuaweiEMMAOfflineDecision {
 	if !isHuaweiEMMAOffering(offering) {
 		return HuaweiEMMAOfflineDecision{reason: HuaweiEMMAOfflineOfferingMismatch}
 	}
 	model = trimHuaweiTerminalPadding(model)
-	if model != "EMMA-A01" && model != "EMMA-A02" {
+	if !isHuaweiEMMAFamilyModel(model) {
 		return HuaweiEMMAOfflineDecision{reason: HuaweiEMMAOfflineModelMismatch}
 	}
-	if !matchesHuaweiEMMAFirmwareFloor(trimHuaweiTerminalPadding(firmware)) {
-		return HuaweiEMMAOfflineDecision{reason: HuaweiEMMAOfflineFirmwareMismatch}
+	selection := DecideHuaweiGatewaySelection(HuaweiGatewaySelectionInput{
+		Family:   HuaweiEMMACanonicalClass,
+		Scope:    HuaweiGatewayScope{Endpoint: HuaweiGatewayEndpointSelf, Unit: 0},
+		Model:    model,
+		Software: trimHuaweiTerminalPadding(firmware),
+	})
+	if !selection.Admitted() || selection.Build() == "" {
+		return HuaweiEMMAOfflineDecision{reason: HuaweiEMMAOfflineFirmwareMismatch, selection: selection}
 	}
 	return HuaweiEMMAOfflineDecision{
-		matched: true,
-		model:   model,
-		reason:  HuaweiEMMAOfflineMatched,
+		matched:   true,
+		model:     model,
+		reason:    HuaweiEMMAOfflineMatched,
+		selection: selection,
 	}
+}
+
+// isHuaweiEMMAFamilyModel reports whether a model text is a model token of the
+// EMMA family under the catalogue's model rows.
+func isHuaweiEMMAFamilyModel(model string) bool {
+	return huaweiGatewayFamilyHoldsModel(HuaweiEMMACanonicalClass, model)
 }
 
 func isHuaweiEMMAOffering(offering string) bool {
@@ -85,23 +121,4 @@ func isHuaweiEMMAOffering(offering string) bool {
 
 func trimHuaweiTerminalPadding(value string) string {
 	return strings.TrimRight(value, "\x00 ")
-}
-
-func matchesHuaweiEMMAFirmwareFloor(firmware string) bool {
-	var prefix string
-	var floor int
-	switch {
-	case strings.HasPrefix(firmware, "SmartHEMS V100R024C00SPC"):
-		prefix, floor = "SmartHEMS V100R024C00SPC", 100
-	case strings.HasPrefix(firmware, "SmartHEMS V100R025C00SPC"):
-		prefix, floor = "SmartHEMS V100R025C00SPC", 102
-	default:
-		return false
-	}
-	patch := strings.TrimPrefix(firmware, prefix)
-	if len(patch) != 3 {
-		return false
-	}
-	value, err := strconv.Atoi(patch)
-	return err == nil && value >= floor
 }

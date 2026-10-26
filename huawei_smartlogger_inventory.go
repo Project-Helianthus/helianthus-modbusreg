@@ -76,6 +76,18 @@ type HuaweiSmartLoggerInventoryChild struct {
 	address         string
 	featureVersion  string
 	productType     string
+	// opaque holds the retained opaque attributes in entry order, in the
+	// key=value;key=value form of the entry, so the child stays comparable.
+	opaque string
+}
+
+// HuaweiGatewayOpaqueAttribute is a device-list attribute that a reader
+// retains as native evidence and never decodes or compares: a key that no
+// canonical name covers, such as the parent and registration keys or a key
+// outside the observed set.
+type HuaweiGatewayOpaqueAttribute struct {
+	Key   string
+	Value string
 }
 
 // HuaweiGatewayInventoryChild is a non-sensitive shared child view.
@@ -84,6 +96,38 @@ type HuaweiGatewayInventoryChild = HuaweiSmartLoggerInventoryChild
 func (c HuaweiSmartLoggerInventoryChild) ObjectID() uint8 { return c.objectID }
 
 func (c HuaweiSmartLoggerInventoryChild) Address() string { return c.address }
+
+// OpaqueAttributes lists the retained opaque attributes in entry order.
+func (c HuaweiSmartLoggerInventoryChild) OpaqueAttributes() []HuaweiGatewayOpaqueAttribute {
+	if c.opaque == "" {
+		return nil
+	}
+	var attributes []HuaweiGatewayOpaqueAttribute
+	for _, pair := range strings.Split(c.opaque, ";") {
+		key, value, _ := strings.Cut(pair, "=")
+		attributes = append(attributes, HuaweiGatewayOpaqueAttribute{Key: key, Value: value})
+	}
+	return attributes
+}
+
+// OpaqueAttribute returns the retained value of one opaque key.
+func (c HuaweiSmartLoggerInventoryChild) OpaqueAttribute(key string) (string, bool) {
+	for _, attribute := range c.OpaqueAttributes() {
+		if attribute.Key == key {
+			return attribute.Value, true
+		}
+	}
+	return "", false
+}
+
+// retainOpaque appends one opaque attribute. The entry grammar already
+// excludes the separators from keys and values.
+func (c *HuaweiSmartLoggerInventoryChild) retainOpaque(key, value string) {
+	if c.opaque != "" {
+		c.opaque += ";"
+	}
+	c.opaque += key + "=" + value
+}
 
 func (c HuaweiSmartLoggerInventoryChild) Attribute(name string) string {
 	switch name {
@@ -108,10 +152,13 @@ func (c HuaweiSmartLoggerInventoryChild) Attribute(name string) string {
 func ParseHuaweiSmartLoggerOfflineInventory(input HuaweiSmartLoggerOfflineInventoryInput) (HuaweiSmartLoggerInventory, error) {
 	return parseHuaweiExtendedMEIOfflineInventory(input, func(model string) bool {
 		return model == "SmartLogger"
-	})
+	}, parseHuaweiSmartLoggerInventoryChild)
 }
 
-func parseHuaweiExtendedMEIOfflineInventory(input HuaweiSmartLoggerOfflineInventoryInput, isSelfEntry func(string) bool) (HuaweiSmartLoggerInventory, error) {
+// parseHuaweiExtendedMEIOfflineInventory validates the documented pagination
+// and decodes each child object with parseChild.
+func parseHuaweiExtendedMEIOfflineInventory(input HuaweiSmartLoggerOfflineInventoryInput, isSelfEntry func(string) bool,
+	parseChild func(HuaweiSmartLoggerInventoryObject) (HuaweiSmartLoggerInventoryChild, error)) (HuaweiSmartLoggerInventory, error) {
 	if input.ChangeCounterBefore != input.ChangeCounterAfter || len(input.Pages) == 0 || len(input.Pages) > huaweiSmartLoggerInventoryMaxPages {
 		return HuaweiSmartLoggerInventory{}, errHuaweiSmartLoggerInventoryInvalid
 	}
@@ -155,7 +202,7 @@ func parseHuaweiExtendedMEIOfflineInventory(input HuaweiSmartLoggerOfflineInvent
 					return HuaweiSmartLoggerInventory{}, errHuaweiSmartLoggerInventoryInvalid
 				}
 				recordCount++
-				child, err := parseHuaweiSmartLoggerInventoryChild(object)
+				child, err := parseChild(object)
 				if err != nil {
 					return HuaweiSmartLoggerInventory{}, errHuaweiSmartLoggerInventoryInvalid
 				}
@@ -234,6 +281,54 @@ func parseHuaweiSmartLoggerInventoryChild(object HuaweiSmartLoggerInventoryObjec
 			child.productType = value
 		default:
 			return HuaweiSmartLoggerInventoryChild{}, errHuaweiSmartLoggerInventoryInvalid
+		}
+	}
+	if child.model == "" {
+		return HuaweiSmartLoggerInventoryChild{}, errHuaweiSmartLoggerInventoryInvalid
+	}
+	return child, nil
+}
+
+// parseHuaweiDocumentaryInventoryChild decodes one child object under the
+// device-list dictionary of the consulted editions: keys 1, 2, 3 and 5 by their
+// canonical names, key 8 as the product type, key 4 validated and never
+// retained, and every other key, key 6 among them, retained as opaque native
+// evidence. Key 6 has a different grammar in different editions and is never
+// decoded. A key that is not a canonical attribute number, a repeated key or a
+// malformed pair rejects the object.
+func parseHuaweiDocumentaryInventoryChild(object HuaweiSmartLoggerInventoryObject) (HuaweiSmartLoggerInventoryChild, error) {
+	if len(object.Value) == 0 || !isHuaweiSmartLoggerInventoryASCII(object.Value) {
+		return HuaweiSmartLoggerInventoryChild{}, errHuaweiSmartLoggerInventoryInvalid
+	}
+	child := HuaweiSmartLoggerInventoryChild{objectID: object.ObjectID}
+	seen := make(map[string]struct{})
+	for _, attribute := range strings.Split(string(object.Value), ";") {
+		key, value, found := strings.Cut(attribute, "=")
+		if !found || key == "" || value == "" || strings.Contains(value, "=") {
+			return HuaweiSmartLoggerInventoryChild{}, errHuaweiSmartLoggerInventoryInvalid
+		}
+		if _, duplicate := seen[key]; duplicate {
+			return HuaweiSmartLoggerInventoryChild{}, errHuaweiSmartLoggerInventoryInvalid
+		}
+		seen[key] = struct{}{}
+		switch key {
+		case "1":
+			child.model = value
+		case "2":
+			child.softwareVersion = value
+		case "3":
+			child.protocolVersion = value
+		case "4":
+			// Sensitive input is intentionally validated but never retained.
+		case "5":
+			child.address = value
+		case "8":
+			child.productType = value
+		default:
+			if _, ok := huaweiDescriptorKeyNumber(key); !ok {
+				return HuaweiSmartLoggerInventoryChild{}, errHuaweiSmartLoggerInventoryInvalid
+			}
+			child.retainOpaque(key, value)
 		}
 	}
 	if child.model == "" {

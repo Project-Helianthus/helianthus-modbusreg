@@ -45,7 +45,7 @@ func h03RequireDocsContract(t *testing.T, value any, pages []string) {
 func TestH03SmartLoggerDispositionSupersedesIdentityStatusAndKeepsProfileClosed(t *testing.T) {
 	record := decodeHuaweiObject(t, "profiles/vendor/huawei/smartlogger-disposition.json")
 	requireHuaweiKeys(t, record,
-		"schema", "profile", "profile_version", "outcome", "evidence", "admission", "observed_identity",
+		"schema", "profile", "profile_version", "outcome", "evidence", "admission", "software_selection", "observed_identity",
 		"change_counter", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered",
 		"automatic_runtime_admission", "support_claim", "write_authority", "production_provider", "reopen_requires",
 	)
@@ -106,39 +106,23 @@ func TestH03SmartLoggerDispositionSupersedesIdentityStatusAndKeepsProfileClosed(
 		"protocols/huawei/qualification-readiness-v1.md",
 	})
 
-	// The three exact tuples are independent entries; the documentary firmware
-	// gates are unchanged and the observed tuple equals the card's constants.
+	// The documentary candidate and the observed entry are separate entries,
+	// each with a software floor and no exact firmware tuple: the documentary
+	// floors come from the catalogue, and the observed entry adds the observed
+	// build as its own floor.
 	admission := huaweiObject(t, record["admission"])
-	requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "required_tuple", "forbidden_identity", "firmware_gates",
-		"exact_tuples", "tuple_independence", "version_comparison", "multiple_positive_outcome", "first_match_priority")
-	if admission["registered"] != false || admission["executable"] != false || admission["version_comparison"] != "EXACT_TUPLE_ONLY" ||
-		admission["tuple_independence"] != "NO_RANGE_PREFIX_ORDER_OR_INHERITANCE" || admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" ||
-		admission["first_match_priority"] != false ||
-		!reflect.DeepEqual(huaweiStringSlice(t, admission["firmware_gates"]), []string{"V300R024C10SPC191", "V300R024C10SPC210"}) {
+	requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "required_tuple", "forbidden_identity",
+		"undocumented_attribute_keys", "count_object", "multiple_positive_outcome", "first_match_priority")
+	if admission["registered"] != false || admission["executable"] != false || admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" ||
+		admission["first_match_priority"] != false {
 		t.Fatalf("unexpected SmartLogger admission: %#v", admission)
 	}
+	m86RequireSoftwareSelection(t, record, HuaweiSmartLoggerCanonicalClass, 0)
 	card := NewHuaweiSmartLoggerObservedQualificationCard()
-	wantTuples := []map[string]any{
-		{"branch": "documentary", "self_entry_model": "SmartLogger", "firmware": "V300R024C10SPC191", "basis": "documentary_candidate", "observed": false},
-		{"branch": "documentary", "self_entry_model": "SmartLogger", "firmware": "V300R024C10SPC210", "basis": "documentary_candidate", "observed": false},
-		{"branch": "observed", "self_entry_model": card.Model(), "firmware": card.Firmware(), "self_entry_unit": card.SelfEntryUnit(),
-			"basis": "sanitized_readonly_observation", "observed": true},
-	}
-	tuples := h03Array(t, admission["exact_tuples"])
-	if len(tuples) != len(wantTuples) {
-		t.Fatalf("exact tuples: %#v", tuples)
-	}
-	for index, want := range wantTuples {
-		encoded, _ := json.Marshal(tuples[index])
-		var got map[string]any
-		if err := json.Unmarshal(encoded, &got); err != nil || !reflect.DeepEqual(got, want) {
-			t.Fatalf("exact tuple %d=%#v want=%#v", index, got, want)
-		}
-	}
 
 	observed := huaweiObject(t, record["observed_identity"])
 	requireHuaweiKeys(t, observed, "status", "scope", "qualification_card", "gate_registered", "default_denied", "required_tuple",
-		"optional_corroboration", "forbidden_identity", "outside_admitted_set_outcome", "multiple_positive_outcome", "first_match_priority",
+		"software_selection", "optional_corroboration", "forbidden_identity", "outside_admitted_set_outcome", "multiple_positive_outcome", "first_match_priority",
 		"inventory_tolerance", "fixtures", "profile_status")
 	if observed["status"] != "OFFLINE_IDENTITY_ADMITTED" || observed["scope"] != "OBSERVED_TUPLE_ONLY" || observed["qualification_card"] != card.ID() ||
 		observed["gate_registered"] != true || observed["default_denied"] != true || observed["outside_admitted_set_outcome"] != "INSUFFICIENT_EVIDENCE" ||
@@ -148,7 +132,7 @@ func TestH03SmartLoggerDispositionSupersedesIdentityStatusAndKeepsProfileClosed(
 	}
 	if !reflect.DeepEqual(huaweiStringSlice(t, observed["required_tuple"]), []string{
 		"gateway_unit_0", "fc03_65521_q1_u16_counter_equal_before_after", "complete_valid_extended_inventory",
-		"self_entry_model_exact", "self_entry_firmware_exact", "self_entry_unit_equals_gateway_unit",
+		"self_entry_model_exact", "self_entry_software_admitted_by_catalogue_floors_and_at_or_above_observed_floor", "self_entry_unit_equals_gateway_unit",
 	}) || !reflect.DeepEqual(huaweiStringSlice(t, observed["forbidden_identity"]), []string{
 		"serial_number", "esn", "writable_device_name_65524", "register_readability", "child_listing", "basic_mei_only",
 		"product_string_without_firmware", "mei_request_unit_identifier", "prefix_wildcard_case_folded_or_whitespace_normalized_match",
@@ -163,13 +147,18 @@ func TestH03SmartLoggerDispositionSupersedesIdentityStatusAndKeepsProfileClosed(
 		basic["disagreement_outcome"] != "INSUFFICIENT_EVIDENCE" || basic["absence_outcome"] != "NO_EFFECT" {
 		t.Fatalf("unexpected basic corroboration: %#v", basic)
 	}
+	m86RequireObservedSelection(t, observed["software_selection"], card.Evaluate(h03ValidInput(t)), map[string]any{
+		"observed_floor": card.Firmware(), "observed_floor_domain": "LINE", "observed_build_grade": "PROVEN",
+		"inherited_build_grade": "HYPOTHESIS", "below_observed_floor": "INSUFFICIENT_EVIDENCE",
+	})
 	tolerance := huaweiObject(t, observed["inventory_tolerance"])
 	requireHuaweiKeys(t, tolerance, "min_accepted_response_bytes", "max_response_bytes", "max_entry_bytes", "declared_object_field",
-		"count_object_includes_self_entry", "opaque_attribute_keys", "attribute_order", "unknown_or_repeated_keys")
+		"count_object_includes_self_entry", "opaque_attribute_keys", "attribute_order", "undocumented_attribute_keys", "repeated_or_malformed_keys", "observed_values")
 	if huaweiInt(t, tolerance["min_accepted_response_bytes"]) != 263 || huaweiInt(t, tolerance["max_response_bytes"]) != int(card.Limits().MaxResponseBytes) ||
 		huaweiInt(t, tolerance["max_entry_bytes"]) != 254 || tolerance["declared_object_field"] != "RETAINED_NOT_COMPARED" ||
 		tolerance["count_object_includes_self_entry"] != true || tolerance["attribute_order"] != "NOT_VALIDATED" ||
-		tolerance["unknown_or_repeated_keys"] != "REJECT_INVENTORY" || !reflect.DeepEqual(huaweiStringSlice(t, tolerance["opaque_attribute_keys"]), []string{"9", "10"}) {
+		tolerance["undocumented_attribute_keys"] != "RETAINED_OPAQUE" || tolerance["repeated_or_malformed_keys"] != "REJECT_INVENTORY" ||
+		tolerance["observed_values"] != "LOWER_BOUNDS" || !reflect.DeepEqual(huaweiStringSlice(t, tolerance["opaque_attribute_keys"]), []string{"9", "10"}) {
 		t.Fatalf("unexpected inventory tolerance: %#v", tolerance)
 	}
 	profile := huaweiObject(t, observed["profile_status"])

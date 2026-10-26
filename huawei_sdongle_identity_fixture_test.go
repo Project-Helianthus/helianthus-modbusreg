@@ -971,7 +971,6 @@ func TestH15FixtureChangesTravelThroughTheWireIntoTheCard(t *testing.T) {
 		"model block of another model": h15SetModelBlock("SUN2000-8KTL-M2", "00000000-000"),
 		"entry unit changed":           h15ReplaceInEntry(";5=1;", ";5=2;"),
 		"entry model changed":          h15ReplaceInEntry("1=SUN2000-8KTL-M1;", "1=SUN2000-8KTL-M2;"),
-		"entry with the logger's keys": h15ReplaceInEntry(";6=0.0", ";6=0.0;8=SUN2000;9=0"),
 		"entry with a missing key":     h15ReplaceInEntry(";6=0.0", ""),
 		"gateway refusal code changed": func(f *h15Fixtures) { f.GatewayBasic.Reply.ExceptionCode = 2 },
 		"gateway protocol words of the child": func(f *h15Fixtures) {
@@ -995,6 +994,9 @@ func TestH15FixtureChangesTravelThroughTheWireIntoTheCard(t *testing.T) {
 		"model block with other residue": h15SetModelBlock(h15Model, "XXXXXXXXXXXX"),
 		"entry in reverse order":         h15SetEntry("6=0.0;5=1;4=XX0000000000;3=X0.00-X0.0;2=X000X000X00XXX000;1=" + h15Model),
 		"entry with other placeholders":  h15ReplaceInEntry("4=XX0000000000", "4=XXXXXXXXXXXX"),
+		// The observed keys 1 through 6 are a lower bound: further keys are
+		// retained as opaque native evidence.
+		"entry with the logger's keys": h15ReplaceInEntry(";6=0.0", ";6=0.0;8=SUN2000;9=0"),
 	}
 	for name, mutate := range accepted {
 		f := h15LoadAll(t)

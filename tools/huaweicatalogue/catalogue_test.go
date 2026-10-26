@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -330,16 +331,45 @@ func TestReadExtentsKeepValuesWhole(t *testing.T) {
 	}
 }
 
-// TestCatalogueIsReadOnlyByTheSelection keeps the SUN2000 selection
-// (helianthus-modbusreg issue 362) the one product file that reads the
-// catalogue, and keeps it to the editions, the model rows and the register
-// files: no dictionary or quarantine reaches product code.
+// TestCatalogueIsReadOnlyByTheSelection keeps two product files the readers
+// of the catalogue: the SUN2000 selection (helianthus-modbusreg issue 362),
+// kept to the inverter editions, the model rows and the register files, and
+// the gateway selection (helianthus-modbusreg issue 366), kept to the
+// SmartLogger, S-Dongle and EMMA editions and services. No dictionary or
+// quarantine file reaches product code, and neither selection reads the other
+// part of the catalogue.
 func TestCatalogueIsReadOnlyByTheSelection(t *testing.T) {
 	files, err := filepath.Glob("../../*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	readers := 0
+	allowed := map[string]func(data []byte) error{
+		"huawei_sun2000_catalogue_selection.go": func(data []byte) error {
+			if bytes.Contains(data, []byte("smartlogger-sdongle-emma")) {
+				return fmt.Errorf("reads the gateway part")
+			}
+			return nil
+		},
+		"huawei_smartlogger_sdongle_emma_selection.go": func(data []byte) error {
+			if bytes.Contains(data, []byte("registers-")) || bytes.Contains(data, []byte("models.json")) {
+				return fmt.Errorf("reads a register or model file")
+			}
+			for _, line := range strings.Split(string(data), "\n") {
+				if strings.Contains(line, "huawei/catalogue") && !strings.Contains(line, "huawei/catalogue/smartlogger-sdongle-emma") {
+					return fmt.Errorf("reads outside the gateway part: %s", line)
+				}
+				if strings.HasPrefix(line, "//go:embed ") {
+					for _, name := range strings.Fields(strings.TrimPrefix(line, "//go:embed ")) {
+						if base := filepath.Base(name); base != "editions.json" && base != "services.json" {
+							return fmt.Errorf("embeds %s", name)
+						}
+					}
+				}
+			}
+			return nil
+		},
+	}
+	readers := map[string]bool{}
 	for _, file := range files {
 		if strings.HasSuffix(file, "_test.go") {
 			continue
@@ -351,18 +381,22 @@ func TestCatalogueIsReadOnlyByTheSelection(t *testing.T) {
 		if !bytes.Contains(data, []byte("huawei/catalogue")) && !bytes.Contains(data, []byte("registers-")) {
 			continue
 		}
-		if filepath.Base(file) != "huawei_sun2000_catalogue_selection.go" {
-			t.Fatalf("%s reads the catalogue; only the SUN2000 selection does", file)
+		check, ok := allowed[filepath.Base(file)]
+		if !ok {
+			t.Fatalf("%s reads the catalogue; only the two selections do", file)
+		}
+		if err := check(data); err != nil {
+			t.Fatalf("%s %v", file, err)
 		}
 		for _, name := range []string{"dictionaries", "quarantines"} {
 			if bytes.Contains(data, []byte(name)) {
 				t.Fatalf("%s reads the %s", file, name)
 			}
 		}
-		readers++
+		readers[filepath.Base(file)] = true
 	}
-	if readers != 1 {
-		t.Fatalf("%d product files read the catalogue", readers)
+	if len(readers) != len(allowed) {
+		t.Fatalf("%d product files read the catalogue: %v", len(readers), readers)
 	}
 }
 

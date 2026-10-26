@@ -156,16 +156,41 @@
       "gateway_unit_100",
       "gateway_basic_mei_exception_1",
       "gateway_fc03_37411_q1_search_state_0",
-      "gateway_fc03_30068_q2_protocol_words_50_0",
-      "gateway_fc03_37410_q3_type_4_state_0_sequence_equal_before_after",
+      "gateway_fc03_30068_q2_protocol_leading_word_50_second_word_at_or_above_0",
+      "gateway_fc03_37410_q3_state_0_sequence_equal_before_after_type_recorded",
       "gateway_fc03_37429_q1_capacity_covers_one_child",
+      "gateway_fc03_30050_q15_software_admitted_by_catalogue_floors_when_read",
       "child_unit_1",
       "child_fc03_30000_q15_model_exact_residue_opaque",
       "child_basic_mei_vendor_and_product_family_exact",
-      "child_extended_inventory_one_page_count_1_one_entry_keys_1_to_6",
+      "child_extended_inventory_one_page_count_equals_entries_keys_1_to_6_at_least",
       "child_entry_model_equals_routed_model",
       "child_entry_unit_equals_unit_read"
     ],
+    "software_selection": {
+      "software_read": "NO",
+      "observed_tuple_grade": "PROVEN",
+      "record": {
+        "outcome": "AMBIGUOUS",
+        "reason": "software_not_read",
+        "candidates": [
+          "V100R001C00SPC100",
+          "V200R022C10"
+        ],
+        "grade": "UNKNOWN",
+        "descriptor_keys": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "attribute_6_grammars": [
+          "parallel-network integer"
+        ]
+      }
+    },
     "exact_tuple": {
       "gateway_unit": 100,
       "gateway_basic_mei": {
@@ -176,8 +201,10 @@
         50,
         0
       ],
+      "gateway_protocol_comparison": "LEADING_WORD_EQUAL_SECOND_WORD_AT_OR_ABOVE_NEVER_DECODED",
       "gateway_search": {
-        "type": 4,
+        "type": "RECORDED_NOT_COMPARED",
+        "observed_type": 4,
         "state": 0,
         "sequence": "EQUAL_BEFORE_AFTER"
       },
@@ -197,8 +224,11 @@
       "next_object_id_without_more_follows": "RETAINED_NOT_COMPARED",
       "entry_padding": "NOT_REQUIRED",
       "attribute_order": "NOT_VALIDATED",
-      "unknown_or_repeated_keys": "REJECT_INVENTORY",
-      "max_response_bytes": 253
+      "undocumented_attribute_keys": "RETAINED_OPAQUE",
+      "repeated_or_malformed_keys": "REJECT_INVENTORY",
+      "entry_count": "FROM_THE_COUNT_OBJECT_ONE_ENTRY_OF_THE_CHILD_UNIT",
+      "max_response_bytes": 1024,
+      "observed_values": "LOWER_BOUNDS"
     },
     "retained_not_gating": [
       "child_firmware_text_30035",
@@ -207,7 +237,8 @@
       "child_basic_mei_version_object",
       "child_basic_mei_objects_beyond_the_basic_category",
       "gateway_capacity_value",
-      "model_block_residue"
+      "model_block_residue",
+      "gateway_search_type_word"
     ],
     "forbidden_identity": [
       "serial_number",
@@ -376,24 +407,13 @@
       "S-DongleB-03",
       "S-DongleB-06"
     ],
-    "firmware_gates": {
-      "offline_candidate": [
-        "V200R025C00SPC120"
-      ],
-      "observed_default_denied": {
-        "model": "S-DongleA-05",
-        "firmware": "V200R022C10SPC312",
-        "minimum_gate": "V200R022C10",
-        "admission": "PRE_LIVE_INSUFFICIENT_EVIDENCE"
-      }
-    },
-    "protocol_gate": "D5.0",
+    "protocol_gate": "MAIN_REVISION_5_RELEASE_REVISION_FROM_0",
     "required_tuple": [
       "basic_mei_product_identity",
       "fc03_30068_q2_protocol_version",
       "fc03_37410_q3_type_search_state_change_sequence",
       "fc03_37429_q1_capacity",
-      "exact_model_firmware_protocol_tuple"
+      "admitted_model_software_floor_protocol_main_revision"
     ],
     "forbidden_identity": [
       "unit_100_readability_only",
@@ -401,9 +421,45 @@
       "serial_number",
       "basic_mei_only"
     ],
-    "version_comparison": "EXACT_TUPLE_ONLY",
     "multiple_positive_outcome": "INSUFFICIENT_EVIDENCE",
     "first_match_priority": false
+  },
+  "software_selection": {
+    "issue": 366,
+    "catalogue": "profiles/vendor/huawei/catalogue/smartlogger-sdongle-emma",
+    "catalogue_files": [
+      "editions.json",
+      "services.json"
+    ],
+    "family": "S-Dongle",
+    "scope": {
+      "endpoint": "gateway-self",
+      "unit": 100
+    },
+    "floors": [
+      {
+        "minimum": "V100R001C00SPC100",
+        "domain": "BRANCH"
+      },
+      {
+        "minimum": "V200R022C10",
+        "domain": "LINE"
+      }
+    ],
+    "comparison": "WITHIN_FLOOR_DOMAIN",
+    "at_or_above_floor": "SELECTED_HYPOTHESIS",
+    "below_floor_in_domain": "NOT_SELECTED",
+    "no_documented_relation": "ADMITTED_HYPOTHESIS",
+    "several_admitting_floors": "AMBIGUOUS_NO_EDITION_BOUND",
+    "not_selected_reasons": [
+      "family_mismatch",
+      "below_floor",
+      "software_malformed",
+      "catalogue_invalid"
+    ],
+    "edition_cover_labels": "IDENTIFY_EDITIONS_NOT_FLOORS",
+    "attribute_dictionary": "SERVICES_DESCRIPTOR_ATTRIBUTES_OF_THE_ADMITTED_EDITIONS",
+    "attribute_6": "EDITION_GRAMMAR_RECORDED_NEVER_DECODED"
   },
   "protocol_version": {
     "function": "FC03",

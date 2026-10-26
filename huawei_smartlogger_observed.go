@@ -9,10 +9,10 @@ import (
 
 const (
 	// HuaweiSmartLoggerObservedQualificationCardID identifies the card for the
-	// one SmartLogger-family tuple that a read-only observation established.
-	// It is a separate card from the documentary SmartLogger card: the model
-	// string, the firmware string and the inventory dialect all differ, and no
-	// exact tuple of one card is an alias of a tuple of the other.
+	// SmartLogger-family entry that a read-only observation established. It is
+	// a separate card from the documentary SmartLogger card: the model string,
+	// the software floor and the inventory dialect all differ, and the model of
+	// one card is not an alias of the model of the other.
 	HuaweiSmartLoggerObservedQualificationCardID = "huawei.qualification.smartlogger.observed-readonly@1.0.0"
 
 	huaweiSmartLoggerObservedVendor   = "HUAWEI"
@@ -22,8 +22,9 @@ const (
 
 	// The observation fixes only the lower bound of an accepted response: a
 	// PDU of 263 bytes holding one 254-byte entry. The finite upper cap is this
-	// registry's choice. 1024 bytes holds three maximal entries and stays far
-	// below the aggregate ceiling of 65536 bytes.
+	// registry's resource policy, shared by every reader of the observed
+	// dialect. 1024 bytes holds three maximal entries and stays far below the
+	// aggregate ceiling of 65536 bytes.
 	huaweiSmartLoggerObservedMinResponseBytes = 263
 	huaweiSmartLoggerObservedMaxResponseBytes = 1024
 	huaweiSmartLoggerObservedMaxEntryBytes    = 254
@@ -90,9 +91,13 @@ type HuaweiSmartLoggerObservedQualificationInput struct {
 }
 
 // HuaweiSmartLoggerObservedQualificationCard is an inert, offline card for the
-// observed SmartLogger tuple: gateway unit 0, self-entry model "Smart Logger",
-// firmware "V300R023C10SPC620" and self-entry unit "0". Every other tuple is
-// insufficient evidence. The card sends nothing and grants no authority.
+// observed SmartLogger entry: gateway unit 0, self-entry model "Smart Logger",
+// self-entry unit "0", and a self-entry software text that the catalogue
+// decision admits and that is at or above the observed build
+// "V300R023C10SPC620", the floor of the observed facts, within the V300 line
+// or of a line that no floor documents. The observed build is graded Proven and
+// every other admitted build Hypothesis. Every other entry is insufficient
+// evidence. The card sends nothing and grants no authority.
 type HuaweiSmartLoggerObservedQualificationCard struct{}
 
 func NewHuaweiSmartLoggerObservedQualificationCard() HuaweiSmartLoggerObservedQualificationCard {
@@ -112,6 +117,8 @@ func (HuaweiSmartLoggerObservedQualificationCard) Vendor() string {
 func (HuaweiSmartLoggerObservedQualificationCard) Model() string {
 	return huaweiSmartLoggerObservedModel
 }
+
+// Firmware is the observed build, the floor of the observed facts.
 func (HuaweiSmartLoggerObservedQualificationCard) Firmware() string {
 	return huaweiSmartLoggerObservedFirmware
 }
@@ -149,10 +156,11 @@ func (card HuaweiSmartLoggerObservedQualificationCard) EmptyResult() HuaweiQuali
 	return HuaweiQualificationResult{candidateClass: card.CandidateClass(), readiness: HuaweiQualificationInsufficientEvidence, reason: HuaweiQualificationIdentityInvalid}
 }
 
-// Evaluate returns a test-ready result only for the exact observed tuple. A
-// wrong unit, an invalid or unstable inventory, a self entry outside the tuple
-// and a disagreeing basic reply each produce an empty insufficient result with
-// no retained child list.
+// Evaluate returns a test-ready result for the observed entry. A wrong unit, an
+// invalid or unstable inventory, a self entry with another model or unit, a
+// software text that the catalogue decision refuses or that is below the
+// observed build, and a disagreeing basic reply each produce an empty
+// insufficient result with no retained child list.
 func (card HuaweiSmartLoggerObservedQualificationCard) Evaluate(input HuaweiSmartLoggerObservedQualificationInput) HuaweiQualificationResult {
 	rejected := card.EmptyResult()
 	if input.UnitID != card.UnitID() {
@@ -163,14 +171,29 @@ func (card HuaweiSmartLoggerObservedQualificationCard) Evaluate(input HuaweiSmar
 		rejected.reason = HuaweiQualificationInventoryInvalid
 		return rejected
 	}
-	if parsed.self.Attribute("model") != card.Model() || parsed.self.Attribute("software_version") != card.Firmware() ||
-		parsed.self.Address() != card.SelfEntryUnit() {
+	if parsed.self.Attribute("model") != card.Model() || parsed.self.Address() != card.SelfEntryUnit() {
 		return rejected
 	}
+	software := parsed.self.Attribute("software_version")
+	selection := DecideHuaweiGatewaySelection(HuaweiGatewaySelectionInput{
+		Family:   card.CandidateClass(),
+		Scope:    HuaweiGatewayScope{Endpoint: HuaweiGatewayEndpointSelf, Unit: input.UnitID},
+		Software: software,
+	})
+	rejected.selection = &selection
+	if !selection.Admitted() || selection.Build() == "" {
+		return rejected
+	}
+	relation := huaweiGatewayRelationOfFloor(card.CandidateClass(), software, card.Firmware())
+	rejected.observedFloor, rejected.observedRelation = card.Firmware(), relation
+	if relation == HuaweiGatewayRelationBelow || relation == HuaweiGatewayRelationNotEvaluated {
+		return rejected
+	}
+	selection = selection.withObservedBuild(card.Firmware())
 	corroborated, opaque := false, 0
 	if input.Basic != nil {
 		var agrees bool
-		opaque, agrees = card.corroborate(*input.Basic)
+		opaque, agrees = card.corroborate(*input.Basic, software)
 		if !agrees {
 			rejected.reason = HuaweiQualificationBasicIdentityConflict
 			return rejected
@@ -190,13 +213,16 @@ func (card HuaweiSmartLoggerObservedQualificationCard) Evaluate(input HuaweiSmar
 		pageAnomalies:      parsed.anomalies,
 		basicCorroborated:  corroborated,
 		basicOpaqueObjects: opaque,
+		selection:          &selection,
+		observedFloor:      card.Firmware(),
+		observedRelation:   relation,
 	}
 }
 
-// corroborate compares the three basic-category objects with the exact tuple
-// and counts the objects beyond that category, which are retained as opaque
-// evidence and never interpreted.
-func (card HuaweiSmartLoggerObservedQualificationCard) corroborate(reply HuaweiSmartLoggerObservedBasicReply) (int, bool) {
+// corroborate compares the three basic-category objects with the vendor, the
+// model and the self entry's software text, and counts the objects beyond that
+// category, which are retained as opaque evidence and never interpreted.
+func (card HuaweiSmartLoggerObservedQualificationCard) corroborate(reply HuaweiSmartLoggerObservedBasicReply, software string) (int, bool) {
 	seen := make(map[uint8]struct{}, len(reply.Objects))
 	identity := make(map[uint8]string, 3)
 	opaque := 0
@@ -211,7 +237,7 @@ func (card HuaweiSmartLoggerObservedQualificationCard) corroborate(reply HuaweiS
 		}
 		opaque++
 	}
-	if identity[0x00] != card.Vendor() || identity[0x01] != card.Model() || identity[0x02] != card.Firmware() {
+	if identity[0x00] != card.Vendor() || identity[0x01] != card.Model() || identity[0x02] != software {
 		return 0, false
 	}
 	return opaque, true
@@ -235,11 +261,13 @@ func parseHuaweiSmartLoggerObservedInventory(gatewayUnit uint8, input HuaweiSmar
 // parseHuaweiObservedInventoryPages validates the observed dialect. It
 // differs from the documentary parser in the points the observation fixed: the
 // count object counts the self entry, a response may exceed the classic frame
-// limit up to a finite cap, the declared-object field is not compared, keys 9
-// and 10 are known opaque keys and key order is free. The ceilings on pages,
-// objects, children and aggregate bytes are unchanged. Any failure returns an
-// empty result: there is no partial child list. A gateway without a change
-// counter calls it directly.
+// limit up to the resource cap, the declared-object field is not compared, a
+// key outside the named ones is retained as opaque native evidence and key
+// order is free. Every observed page count, entry length, key set and response
+// size is a lower bound; the ceilings on pages, objects, children, response
+// and aggregate bytes are resource policy. Any failure returns an empty
+// result: there is no partial child list. A gateway without a change counter
+// calls it directly.
 func parseHuaweiObservedInventoryPages(gatewayUnit uint8, pages []HuaweiSmartLoggerObservedInventoryPage) (huaweiObservedInventory, error) {
 	gatewayAddress := strconv.Itoa(int(gatewayUnit))
 	invalid := func() (huaweiObservedInventory, error) {
@@ -337,7 +365,10 @@ func parseHuaweiObservedInventoryPages(gatewayUnit uint8, pages []HuaweiSmartLog
 
 // parseHuaweiObservedEntry decodes one entry object: printable ASCII
 // key=value pairs separated by semicolons, followed by terminal NUL or space
-// padding. Keys 4, 9 and 10 are validated and never retained.
+// padding. Key 4 is validated and never retained. A key outside the named ones,
+// keys 9 and 10 among them, is retained as opaque native evidence when it is a
+// canonical attribute number; any other key, a repeated key or a malformed
+// pair rejects the entry.
 func parseHuaweiObservedEntry(object HuaweiSmartLoggerInventoryObject) (HuaweiSmartLoggerInventoryChild, error) {
 	if len(object.Value) == 0 || len(object.Value) > huaweiSmartLoggerObservedMaxEntryBytes {
 		return HuaweiSmartLoggerInventoryChild{}, errHuaweiSmartLoggerObservedInventoryInvalid
@@ -370,9 +401,12 @@ func parseHuaweiObservedEntry(object HuaweiSmartLoggerInventoryObject) (HuaweiSm
 			child.featureVersion = value
 		case "8":
 			child.productType = value
-		case "4", "9", "10":
+		case "4":
 		default:
-			return HuaweiSmartLoggerInventoryChild{}, errHuaweiSmartLoggerObservedInventoryInvalid
+			if _, ok := huaweiDescriptorKeyNumber(key); !ok {
+				return HuaweiSmartLoggerInventoryChild{}, errHuaweiSmartLoggerObservedInventoryInvalid
+			}
+			child.retainOpaque(key, value)
 		}
 	}
 	if child.model == "" || !isHuaweiObservedUnit(child.address) {

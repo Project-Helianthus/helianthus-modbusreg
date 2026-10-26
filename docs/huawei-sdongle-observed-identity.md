@@ -40,29 +40,32 @@ in both runs and the retry answered.
 (`huawei.qualification.sdongle.observed-readonly@1.0.0`) is separate from the
 retained evidence-blocked S-Dongle card, which keeps its identity, its
 hard-stop result and its six missing-evidence names. The new card evaluates
-already-read evidence and returns `QUALIFICATION_TEST_READY` only for this exact
-tuple:
+already-read evidence and returns `QUALIFICATION_TEST_READY` for this tuple:
 
-| Element | Exact value |
+| Element | Value |
 | --- | --- |
 | Gateway unit the gateway reads were addressed to | `100` |
 | Basic device identification at the gateway unit | exception `1`; any reply, any other code and an absent read are outside the tuple |
 | Search status (FC03 offset 37411, quantity 1) | `0` |
-| Protocol words (FC03 offset 30068, quantity 2) | `50`, `0`, compared as words and never decoded |
-| Search sequence (FC03 offset 37410, quantity 3) | type `4`, state `0`, and the same three words before and after the child reads |
+| Protocol words (FC03 offset 30068, quantity 2) | two words, never decoded, in the floor form of the editions' compatibility note: the leading word `50`, where the main revision stands, and a second word at or above the observed `0`, where the release revision stands |
+| Search sequence (FC03 offset 37410, quantity 3) | state `0` and the same sequence word before and after the child reads; the type word, observed as `4`, is recorded (`GatewayTypeWord`) and never compared, because the editions define it as the network connection type, a configuration value |
+| Gateway software (FC03 offset 30050, quantity 15) | not read by the observation and not a step; when a caller supplies it, a text that the [gateway selection](huawei-catalogue.md#gateway-selection) admits: the V200 line from `V200R022C10`, the V100R001C00 branch from SPC100, or a line that no floor documents |
 | Capacity (FC03 offset 37429, quantity 1) | at least `1`, so that it covers the one child |
 | Child unit | `1` |
 | Child model block (FC03 offset 30000, quantity 15) | the text `SUN2000-8KTL-M1`, a NUL, optional printable residue, NUL padding, in the full 30-byte extent |
 | Child basic identification | vendor `Huawei`, product `SUN2000`, a version object that is present; each object once |
-| Child extended inventory | one page, read code 3, conformity `0x03`, no continuation, count object `1`, one entry object `0x88` |
-| Entry keys | exactly 1 through 6, in any order, each once |
+| Child extended inventory | one page, read code 3, conformity `0x03`, no continuation, a count object equal to the entries that follow in object order from `0x88`, each at a distinct unit, exactly one of them at the child unit; the observed count of `1` is a lower bound |
+| Entry keys | 1 through 6 at least, in any order, each once; a further key is retained as opaque native evidence |
 | Entry model (key 1) | equal to the model block text |
 | Entry unit (key 5) | `1`, the unit that was read |
 
 Every text is compared byte for byte and case-sensitively after only terminal
-NUL or space padding is removed. A one-character change of any element, a
-prefix, a range or a case or whitespace variant produces `INSUFFICIENT_EVIDENCE`,
-an empty selection and no retained child list. The selected class is `S-Dongle`
+NUL or space padding is removed. A one-character change of any compared
+element, a prefix or a case or whitespace variant produces
+`INSUFFICIENT_EVIDENCE`, an empty selection and no retained child list. Without
+a gateway software read the selection is `AMBIGUOUS` with the reason
+`software_not_read` and names both S-Dongle floors: the observed tuple is
+admitted by its behaviour, and no edition is bound. The selected class is `S-Dongle`
 and the model variant is empty: the gateway refuses to name its product, and the
 child's model never becomes the gateway's.
 
@@ -101,7 +104,9 @@ The card tolerates exactly these differences and compares nothing about them:
 - The declared-object field is retained and counted when it differs from the
   objects present; it is never compared.
 - The entry is not NUL padded. Padding is accepted and not required.
-- The response stays within the classic 253-byte limit; this child gave 87 bytes.
+- The response gave 87 bytes, within the classic 253-byte limit. That length is a
+  lower bound: an entry of up to 254 bytes in a response within the 1024-byte
+  resource cap is accepted and counted as oversize above the classic limit.
 
 ## Fixtures
 

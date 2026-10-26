@@ -47,32 +47,35 @@ Four runs before this observation received no Modbus response; why is unknown.
 (`huawei.qualification.emma.observed-readonly@1.0.0`) is separate from the
 documentary EMMA card, which keeps its identity, its steps and its missing
 capability evidence. The card evaluates already-read evidence and returns
-`QUALIFICATION_TEST_READY` only for this exact tuple:
+`QUALIFICATION_TEST_READY` for this tuple:
 
-| Element | Exact value |
+| Element | Value |
 | --- | --- |
 | Gateway unit the gateway reads were addressed to | `0`; an inverter unit and unit 100 are outside the tuple |
 | Family label (FC03 offset 30000, quantity 15) | the text `SmartHEMS`, then NUL padding to the 30-byte extent |
 | Model (FC03 offset 30222, quantity 20) | the observed model alias of the contract, then NUL padding to the 40-byte extent; the other documented alias is outside the tuple |
-| Software label (FC03 offset 30035, quantity 15) | the family label, one space and a version-style token, then NUL padding; the three blocks satisfy the documentary EMMA identity gate, so the token meets the branch rule and floor of that gate |
+| Software label (FC03 offset 30035, quantity 15) | the family label, one space and a version-style token, then NUL padding; the three blocks satisfy the documentary EMMA identity gate, so the [gateway selection](huawei-catalogue.md#gateway-selection) admits the token: at or above the floor of its own branch (R024C00 from SPC100, R025C00 from SPC102), or of a branch that no floor documents; the observed build is graded Proven and every other admitted build Hypothesis |
 | Basic identification | vendor `Huawei`, product `HEMS`, a version object equal to the token of the software label; each object once; objects beyond the basic category are counted as opaque |
-| Extended inventory | read code 3, conformity `0x03`, at most five responses of at most 253 bytes, count object `4`, then four entries |
+| Extended inventory | read code 3, conformity `0x03`, within the resource policy (248 responses of at most 1024 bytes, 65536 bytes in all), a count object that counts the self entry and every further entry, then the entries below in object order; a further entry at another unit is retained as listing evidence and never read |
 | Self entry (object `0x88`) | unit `0`, model equal to the model block, product type `HEMS`, version equal to the token |
 | Backup-box entry (`0x89`) | unit `2`, product type `BackupBox`; the model is recorded and never compared, and the unit is never read |
 | Inverter entries (`0x8a`, `0x8b`) | units `3` and `4`, product type `SUN2000`, a model of the `SUN2000` family |
 | Inverter reads (FC03 offset 30000, quantity 15) | one read each at units `3` and `4`: a `SUN2000`-family model string equal to the model of the entry of that unit, then NUL bytes and printable ASCII to the end of the extent |
 
-Every text is compared byte for byte and case-sensitively after only terminal
-NUL or space padding is removed. A one-character change of any element, a
-prefix, a wildcard, a range or a case or whitespace variant produces
-`INSUFFICIENT_EVIDENCE`, an empty selection and no retained child list. The
-selected class is `EMMA` and the model variant is the model alias that the
-gateway names. The inverter model is compared by its family token and by
-equality with its own entry; the rest of the string must be a plain token and
-is a placeholder in the fixtures. The card pins the alias and the software
-branch that were observed, where the contract admits two aliases and two
-branches; the other alias and the other branch are outside the tuple and stay
-Unknown.
+Every text except the software token is compared byte for byte and
+case-sensitively after only terminal NUL or space padding is removed. A
+one-character change of any such element, a prefix, a wildcard or a case or
+whitespace variant produces `INSUFFICIENT_EVIDENCE`, an empty selection and no
+retained child list. The software token is compared with the floors of the
+gateway selection; a token below the floor of its own branch or outside the
+version form is refused. The selected class is `EMMA` and the model variant is
+the model that the gateway names. The inverter model is compared by its family
+token and by equality with its own entry; the rest of the string must be a
+plain token and is a placeholder in the fixtures. The card pins the model that
+was observed. The documentary EMMA card admits every model token of the EMMA
+family that the catalogue's model rows hold (the rows name the family, not a
+model list); the two model values it listed before are kept as its observed
+models.
 
 Never predicates: serial numbers and ESN-class values (neither serial-bearing
 block is an input), register readability, the firmware blocks and protocol words
@@ -107,9 +110,11 @@ exactly these differences and compares nothing about them:
 
 - The declared-object field of every extended response is 5 although each
   response holds one object. It is retained and counted, never compared.
-- The page layout is not part of the tuple. The same objects in fewer responses
-  are the same inventory, as long as each response stays within the classic
-  253-byte frame and the inventory within five responses.
+- The page layout is not part of the tuple. The same objects in fewer or more
+  responses are the same inventory. The observed five responses within the
+  classic 253-byte frame are lower bounds: a response above the frame within the
+  1024-byte resource cap, and more responses within the 248 of the resource
+  policy, are accepted, and an oversize response is counted.
 - The count object includes the gateway's own entry.
 - The gateway has no change counter: the counter register is refused with
   exception 3, so the inventory is not bracketed by one.
@@ -120,8 +125,9 @@ exactly these differences and compares nothing about them:
   is read by the same rule, and a block with no NUL inside the extent may be
   truncated and is not matched. The gateway's own blocks allow no residue.
 - Entries are not NUL padded. Padding is accepted and not required, and the key
-  order is free. Keys 9 and 10 are known opaque keys; an unknown or repeated key
-  rejects the inventory.
+  order is free. Keys 9 and 10 are known opaque keys, and any further canonical
+  attribute number is retained as opaque native evidence; a repeated key or a
+  key outside the number grammar rejects the inventory.
 
 ## Fixtures
 
