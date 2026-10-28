@@ -340,7 +340,7 @@ func TestH06ProvidersReadOnlyAllowlistedPDUs(t *testing.T) {
 		},
 		"S-Dongle": {
 			{100, 0x03, 37410, 3, 0}: true, {100, 0x03, 37411, 1, 0}: true, {100, 0x03, 30068, 2, 0}: true, {100, 0x03, 37429, 1, 0}: true,
-			{100, 0x2b, 0, 0, 1}: true, {1, 0x03, 30000, 15, 0}: true, {1, 0x2b, 0, 0, 1}: true, {1, 0x2b, 0, 0, 3}: true,
+			{100, 0x03, 30050, 15, 0}: true, {100, 0x2b, 0, 0, 1}: true, {1, 0x03, 30000, 15, 0}: true, {1, 0x2b, 0, 0, 1}: true, {1, 0x2b, 0, 0, 3}: true,
 		},
 	}
 	for unit := uint8(1); unit <= 8; unit++ {

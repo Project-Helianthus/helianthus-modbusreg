@@ -82,6 +82,33 @@
         },
         {
           "function": "FC03",
+          "unit": 100,
+          "offset": 30050,
+          "quantity": 15,
+          "reply": {
+            "kind": "words",
+            "words": [
+              22066,
+              12336,
+              21040,
+              12850,
+              17201,
+              12371,
+              20547,
+              12336,
+              12544,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "synthetic": true
+          }
+        },
+        {
+          "function": "FC03",
           "unit": 1,
           "offset": 30000,
           "quantity": 15,
@@ -421,6 +448,33 @@
           "quantity": 1,
           "reply": {
             "kind": "source"
+          }
+        },
+        {
+          "function": "FC03",
+          "unit": 100,
+          "offset": 30050,
+          "quantity": 15,
+          "reply": {
+            "kind": "words",
+            "words": [
+              22066,
+              12336,
+              21040,
+              12850,
+              17201,
+              12371,
+              20547,
+              12336,
+              12544,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "synthetic": true
           }
         },
         {
