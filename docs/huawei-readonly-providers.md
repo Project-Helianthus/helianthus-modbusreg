@@ -92,7 +92,22 @@ cycle and a cycle stopped by a pacing violation commit no reading either.
 | Path | First cycle of a generation, and after a guard change or failure | Cycle with the guard held |
 | --- | --- | --- |
 | SmartLogger | the counter, the extended inventory from object 0x87 page by page, the counter again and the optional basic identification, all at unit 0; then, in ascending unit order, the admission of each listed and allowed unit labelled SUN2000 (the routed model read, the model identifier, the software text and the firmware text) and the M3 series groups of each child it admits | the counter at unit 0, then the M3 series groups of each identified child in ascending unit order; a child that a failed read left unadmitted runs its admission again first |
-| S-Dongle | the search-sequence read at unit 100, basic identification at unit 100, which must be refused with exception 1, the search status, protocol and capacity reads, the child's model, basic and extended identification at unit 1 and the search-sequence read again; then the child's admission at unit 1 (the model identifier, the software text and the firmware text) and, once it admits the child, the M1 series groups at unit 1, including 32064/32 | the search-sequence read at unit 100, then the M1 series groups at unit 1 when the state word is 0 and the change sequence word equals the bound value; a child that a failed read left unadmitted runs its admission again first |
+| S-Dongle | the search-sequence read at unit 100, basic identification at unit 100, which must be refused with exception 1, the search status, protocol and capacity reads, the gateway software read, the child's model, basic and extended identification at unit 1 and the search-sequence read again; then the child's admission at unit 1 (the model identifier, the software text and the firmware text) and, once it admits the child, the M1 series groups at unit 1, including 32064/32 | the search-sequence read at unit 100, then the M1 series groups at unit 1 when the state word is 0 and the change sequence word equals the bound value; a child that a failed read left unadmitted runs its admission again first |
+
+The S-Dongle provider supplies the raw bytes of one gateway software read
+(FC03 offset 30050, quantity 15, at gateway unit 100) to the existing
+[observed identity card](huawei-sdongle-observed-identity.md) and
+[gateway catalogue selection](huawei-catalogue.md#gateway-selection), inside
+the same generation and search bracket. It uses the existing pacing and bounded
+attempt policy. A failed or refused read, missing or invalid text, or a
+catalogue refusal withholds admission; child software never substitutes for
+gateway software. The read runs at identification, including reidentification
+after a guard change or failure and after reconnect, and is absent from an
+ordinary refresh with the guard held. This supplies existing native evidence;
+it establishes no firmware mapping, new profile or physical qualification.
+The catalogue's Proven/Hypothesis/Unknown grades remain separate from
+qualification and freshness; physical acceptance of this provider change is
+Unknown.
 
 A changed or failed guard sends no child read in that cycle and identifies
 again in the next. On the SmartLogger path a bracket whose counters differ, a

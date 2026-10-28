@@ -318,7 +318,7 @@ func TestH06SDongleFirstRequestTimeoutIsATimingClass(t *testing.T) {
 func TestH06SDongleGatewayIdentityGateRequiresTheBasicRefusal(t *testing.T) {
 	fixture, start := h06FixtureCycle(t, "sdongle_provider_cycles.json", "start_identification")
 	sources := h06LoadSources(t)
-	childBasic := h06Script(t, sources, fixture.Path, h06Cycle{Steps: []h06Step{start.Steps[7]}})[0].answer
+	childBasic := h06Script(t, sources, fixture.Path, h06Cycle{Steps: []h06Step{start.Steps[8]}})[0].answer
 	for name, answer := range map[string]h06Answer{
 		"basic answered":    childBasic,
 		"exception 2":       {err: h06Exception(0x2b, 2)},
@@ -336,7 +336,7 @@ func TestH06SDongleGatewayIdentityGateRequiresTheBasicRefusal(t *testing.T) {
 					script = append(script, h06FC2B(100, 1, 0, answer))
 				}
 			} else {
-				rest := h06Script(t, rig.sources, fixture.Path, start)[3:10]
+				rest := h06Script(t, rig.sources, fixture.Path, start)[3:11]
 				script = append(script, rest...)
 			}
 			cycle := rig.refresh(t, script...)

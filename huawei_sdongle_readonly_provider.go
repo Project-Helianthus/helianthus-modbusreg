@@ -168,7 +168,8 @@ func runHuaweiSDongleCycle(r *huaweiCycleRun) {
 
 // identifySDongle reads the rest of the observed card's tuple on this
 // connection generation. The guard read of the cycle is the search sequence
-// before the child reads; the same read after them closes the bracket.
+// before the gateway software and child reads; the same read after them closes
+// the bracket.
 func (r *huaweiCycleRun) identifySDongle(before []uint16) {
 	s := r.state
 	card := NewHuaweiSDongleObservedQualificationCard()
@@ -214,6 +215,12 @@ func (r *huaweiCycleRun) identifySDongle(before []uint16) {
 		r.sdongleIdentityFailed(failed)
 		return
 	}
+	o24Software, o24Result := r.readHolding(gateway, 30050, 15)
+	if stop(o24Result) || o24Result.status != huaweiReadAnswered {
+		r.sdongleIdentityFailed(failed)
+		return
+	}
+	input.Gateway.Software = huaweiWordsToBytes(o24Software)
 	model, halted := words(childUnit, huaweiSUN2000ModelOffset, huaweiSUN2000ModelQuantity)
 	if halted {
 		r.sdongleIdentityFailed(failed)
