@@ -109,6 +109,15 @@ The catalogue's Proven/Hypothesis/Unknown grades remain separate from
 qualification and freshness; physical acceptance of this provider change is
 Unknown.
 
+This acquisition and admission change requires a companion public documentation
+and evidence update in
+[helianthus-docs-modbus](https://github.com/Project-Helianthus/helianthus-docs-modbus).
+The existing gateway contract alone does not complete that gate. Registry pull
+request [#369](https://github.com/Project-Helianthus/helianthus-modbusreg/pull/369)
+remains blocked from merging until its companion PR is linked, its applicable
+checks and blocker review are clear, and it merges first or together with the
+registry change.
+
 A changed or failed guard sends no child read in that cycle and identifies
 again in the next. On the SmartLogger path a bracket whose counters differ, a
 malformed listing, or an enumeration longer than the card's deadline is
