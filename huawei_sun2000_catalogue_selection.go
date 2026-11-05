@@ -17,10 +17,10 @@ import (
 // inverter belongs to. It reads the editions, the model rows and the identity
 // rows of each card; it decodes no register and grants no authority.
 //
-//go:embed profiles/vendor/huawei/catalogue/editions.json profiles/vendor/huawei/catalogue/models.json profiles/vendor/huawei/catalogue/registers-*.json
+//go:embed profiles/vendors/huawei/catalogue/editions.json profiles/vendors/huawei/catalogue/models.json profiles/vendors/huawei/catalogue/registers-*.json
 var huaweiSUN2000CatalogueFiles embed.FS
 
-const huaweiSUN2000CatalogueDirectory = "profiles/vendor/huawei/catalogue"
+const huaweiSUN2000CatalogueDirectory = "profiles/vendors/huawei/catalogue"
 
 // HuaweiSUN2000EndpointScope is the address space in which the identity words
 // were read. A model row is a candidate only within the scope of its card's

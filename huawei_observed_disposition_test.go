@@ -43,7 +43,7 @@ func h03RequireDocsContract(t *testing.T, value any, pages []string) {
 }
 
 func TestH03SmartLoggerDispositionSupersedesIdentityStatusAndKeepsProfileClosed(t *testing.T) {
-	record := decodeHuaweiObject(t, "profiles/vendor/huawei/smartlogger-disposition.json")
+	record := decodeHuaweiObject(t, "profiles/vendors/huawei/smartlogger-disposition.json")
 	requireHuaweiKeys(t, record,
 		"schema", "profile", "profile_version", "outcome", "evidence", "admission", "software_selection", "observed_identity",
 		"change_counter", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered",
@@ -197,7 +197,7 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.file, func(t *testing.T) {
-			record := decodeHuaweiObject(t, "profiles/vendor/huawei/"+test.file)
+			record := decodeHuaweiObject(t, "profiles/vendors/huawei/"+test.file)
 			pointer := huaweiObject(t, record["observation_pointer"])
 			requireHuaweiKeys(t, pointer, "docs_contract", "observation_state", "fixtures", "changes_outcome", "changes_missing_evidence")
 			h03RequireDocsContract(t, pointer["docs_contract"], test.pages)
@@ -220,12 +220,12 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 		})
 	}
 
-	sun2000 := decodeHuaweiObject(t, "profiles/vendor/huawei/sun2000-disposition.json")
+	sun2000 := decodeHuaweiObject(t, "profiles/vendors/huawei/sun2000-disposition.json")
 	families := huaweiObject(t, sun2000["model_families"])
 	if !reflect.DeepEqual(huaweiStringSlice(t, families["covered"]), []string{"SUN2000 M3 series", "SUN2000 M1 series"}) || families["selectable"] != "CATALOGUE_MODEL_ROWS" {
 		t.Fatalf("SUN2000 coverage changed: %#v", families)
 	}
-	luna := decodeHuaweiObject(t, "profiles/vendor/huawei/luna2000-disposition.json")
+	luna := decodeHuaweiObject(t, "profiles/vendors/huawei/luna2000-disposition.json")
 	if len(h03Array(t, huaweiObject(t, luna["observation_pointer"])["fixtures"])) != 0 {
 		t.Fatal("LUNA2000 must point at no fixture: no LUNA2000 identity was observed")
 	}
@@ -233,14 +233,14 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 	// schema v3; each carries its own observed identity instead of a pointer row,
 	// and the S-Dongle and EMMA tests pin them.
 	for _, name := range []string{"sdongle-disposition.json", "emma-disposition.json"} {
-		if _, ok := decodeHuaweiObject(t, "profiles/vendor/huawei/"+name)["observation_pointer"]; ok {
+		if _, ok := decodeHuaweiObject(t, "profiles/vendors/huawei/"+name)["observation_pointer"]; ok {
 			t.Fatalf("the %s still carries a pointer row next to its observed identity", name)
 		}
 	}
 }
 
 func TestH03PublicEvidenceListsObservedContractPagesWithoutPinnedLinks(t *testing.T) {
-	evidence := decodeHuaweiObject(t, "profiles/vendor/huawei/evidence.json")
+	evidence := decodeHuaweiObject(t, "profiles/vendors/huawei/evidence.json")
 	const base = "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/"
 	want := map[string]string{
 		"huawei-smartlogger-observed-inventory-v1": base + "smartlogger-observed-inventory-v1.md",

@@ -148,7 +148,7 @@ type HuaweiProviderChildDisposition struct {
 
 // HuaweiProviderDisposition is the part of a path's recorded disposition that
 // the enablement gate reads. The recorded values mirror the disposition files
-// under profiles/vendor/huawei; a test keeps them equal.
+// under profiles/vendors/huawei; a test keeps them equal.
 type HuaweiProviderDisposition struct {
 	Path                   HuaweiProviderPath
 	IdentityCard           string

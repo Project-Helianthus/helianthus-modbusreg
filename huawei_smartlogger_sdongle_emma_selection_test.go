@@ -572,7 +572,7 @@ func TestM86NoExactSoftwareComparisonRemains(t *testing.T) {
 	files := []string{
 		"huawei_qualification_cards.go", "huawei_smartlogger_observed.go", "huawei_emma.go", "huawei_emma_observed.go",
 		"huawei_sdongle_observation.go", "huawei_sdongle_observed.go", "huawei_smartlogger_inventory.go", "huawei_emma_inventory.go",
-		"profiles/vendor/huawei/smartlogger-disposition.json", "profiles/vendor/huawei/emma-disposition.json", "profiles/vendor/huawei/sdongle-disposition.json",
+		"profiles/vendors/huawei/smartlogger-disposition.json", "profiles/vendors/huawei/emma-disposition.json", "profiles/vendors/huawei/sdongle-disposition.json",
 	}
 	for _, file := range files {
 		data, err := os.ReadFile(file)

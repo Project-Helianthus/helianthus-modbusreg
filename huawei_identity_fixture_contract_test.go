@@ -539,7 +539,7 @@ func TestH03NegativeOverlapMatrixIsExecutable(t *testing.T) {
 			}
 		}
 	}
-	record := decodeHuaweiObject(t, "profiles/vendor/huawei/smartlogger-disposition.json")
+	record := decodeHuaweiObject(t, "profiles/vendors/huawei/smartlogger-disposition.json")
 	evidence := huaweiObject(t, record["evidence"])
 	partial := h03Array(t, evidence["partially_closed_evidence"])
 	if len(partial) != 1 || huaweiObject(t, partial[0])["open"] != "smartlogger_probes_at_emma_endpoint" {

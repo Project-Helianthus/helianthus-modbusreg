@@ -21,10 +21,10 @@ import (
 // under. It decodes no register, reads no other catalogue file and grants no
 // authority.
 //
-//go:embed profiles/vendor/huawei/catalogue/smartlogger-sdongle-emma/editions.json profiles/vendor/huawei/catalogue/smartlogger-sdongle-emma/services.json
+//go:embed profiles/vendors/huawei/catalogue/smartlogger-sdongle-emma/editions.json profiles/vendors/huawei/catalogue/smartlogger-sdongle-emma/services.json
 var huaweiGatewayCatalogueFiles embed.FS
 
-const huaweiGatewayCatalogueDirectory = "profiles/vendor/huawei/catalogue/smartlogger-sdongle-emma"
+const huaweiGatewayCatalogueDirectory = "profiles/vendors/huawei/catalogue/smartlogger-sdongle-emma"
 
 // HuaweiGatewayEndpoint is the endpoint class in which the identity was read.
 // A gateway's own identity is read only in its self endpoint.

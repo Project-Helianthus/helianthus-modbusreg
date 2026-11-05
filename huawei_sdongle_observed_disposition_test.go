@@ -78,7 +78,7 @@ func h15RowOutcome(t *testing.T, row map[string]any) string {
 
 func TestH15SDongleDispositionSupersedesHardStopForIdentityOnly(t *testing.T) {
 	card := NewHuaweiSDongleObservedQualificationCard()
-	record := decodeHuaweiObject(t, "profiles/vendor/huawei/sdongle-disposition.json")
+	record := decodeHuaweiObject(t, "profiles/vendors/huawei/sdongle-disposition.json")
 	missing := card.MissingEvidence()
 
 	// The profile outcome and every authority field stay where they were.
@@ -233,7 +233,7 @@ func TestH15SDongleDispositionSupersedesHardStopForIdentityOnly(t *testing.T) {
 }
 
 func TestH15SDongleNegativeOverlapRowsMatchTheirFixtures(t *testing.T) {
-	record := decodeHuaweiObject(t, "profiles/vendor/huawei/sdongle-disposition.json")
+	record := decodeHuaweiObject(t, "profiles/vendors/huawei/sdongle-disposition.json")
 	overlap := huaweiObject(t, huaweiObject(t, record["observed_identity"])["negative_overlap"])
 	requireHuaweiKeys(t, overlap, "versus_smartlogger", "versus_emma", "versus_sunspec", "readability_alone_is_never_identity", "open_directions")
 	if overlap["readability_alone_is_never_identity"] != true ||

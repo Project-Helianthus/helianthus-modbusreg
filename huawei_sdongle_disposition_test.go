@@ -8,7 +8,7 @@ import (
 const sdongleDocsMergeSHA = "2d44c22f27c4be0e1de460f63b8330c728a5af8f"
 
 func TestHuaweiSDongleDispositionPinsFloorCandidateAndNoSend(t *testing.T) {
-	record := decodeHuaweiObject(t, "profiles/vendor/huawei/sdongle-disposition.json")
+	record := decodeHuaweiObject(t, "profiles/vendors/huawei/sdongle-disposition.json")
 	requireHuaweiKeys(t, record,
 		"schema", "profile", "profile_version", "outcome", "evidence", "admission", "software_selection",
 		"protocol_version", "search_sequence", "capacity", "child_enumeration",

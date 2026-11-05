@@ -788,7 +788,7 @@ func TestM85SelectionRoutesTheMonitoringProfilesByTheSelectedRow(t *testing.T) {
 // TestM85DispositionRecordsTheCatalogueSelection compares the selection
 // records of the SUN2000 disposition with the decisions they name.
 func TestM85DispositionRecordsTheCatalogueSelection(t *testing.T) {
-	record := decodeHuaweiObject(t, "profiles/vendor/huawei/sun2000-disposition.json")
+	record := decodeHuaweiObject(t, "profiles/vendors/huawei/sun2000-disposition.json")
 	detection := huaweiObject(t, record["capability_detection"])
 	catalogue := huaweiObject(t, detection["catalogue_decision"])
 	requireHuaweiKeys(t, catalogue, "inputs", "candidate_row", "scope", "floor", "outcomes", "selected_grade", "without_identifier",
@@ -869,7 +869,7 @@ func TestM85DispositionRecordsTheCatalogueSelection(t *testing.T) {
 	if _, refused := families["unsupported"]; refused {
 		t.Fatal("the SUN2000 disposition still refuses every other family")
 	}
-	if strings.Contains(string(mustReadHuaweiFile(t, "profiles/vendor/huawei/sun2000-disposition.json")), "no_consulted_edition") {
+	if strings.Contains(string(mustReadHuaweiFile(t, "profiles/vendors/huawei/sun2000-disposition.json")), "no_consulted_edition") {
 		t.Fatal("the MAP0 series still has no consulted edition")
 	}
 }

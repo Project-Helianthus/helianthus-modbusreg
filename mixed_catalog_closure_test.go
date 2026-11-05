@@ -110,10 +110,10 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 	}{
 		{"sunspec.direct-inverter", "PRIMARY", "CONDITIONAL_CAPABILITY", reg.SunSpecThreePhaseMonitoringCapabilityID, ""},
 		{"fronius.gen24", "POST_PRIMARY_FLAVOR", "QUALIFIED_FLAVOR_CLASSIFICATION", reg.SunSpecFroniusObservedFlavorID + "," + reg.SunSpecFroniusObservedFlavorV11ID, ""},
-		{"growatt.direct-inverter", "PRIMARY_CANDIDATE", "OFFLINE_IDENTITY_ADMITTED", "", "profiles/vendor/growatt/disposition.json"},
-		{"huawei.smartlogger", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendor/huawei/smartlogger-disposition.json"},
-		{"huawei.sdongle", "PRIMARY_CANDIDATE", "PRE_LIVE_INSUFFICIENT_EVIDENCE", "", "profiles/vendor/huawei/sdongle-disposition.json"},
-		{"huawei.emma", "PRIMARY_CANDIDATE", "OFFLINE_IDENTITY_ADMITTED", "", "profiles/vendor/huawei/emma-disposition.json"},
+		{"growatt.direct-inverter", "PRIMARY_CANDIDATE", "OFFLINE_IDENTITY_ADMITTED", "", "profiles/vendors/growatt/disposition.json"},
+		{"huawei.smartlogger", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendors/huawei/smartlogger-disposition.json"},
+		{"huawei.sdongle", "PRIMARY_CANDIDATE", "PRE_LIVE_INSUFFICIENT_EVIDENCE", "", "profiles/vendors/huawei/sdongle-disposition.json"},
+		{"huawei.emma", "PRIMARY_CANDIDATE", "OFFLINE_IDENTITY_ADMITTED", "", "profiles/vendors/huawei/emma-disposition.json"},
 	}
 	if len(closure.Participants) != len(wantParticipants) {
 		t.Fatalf("participants=%d want=%d", len(closure.Participants), len(wantParticipants))

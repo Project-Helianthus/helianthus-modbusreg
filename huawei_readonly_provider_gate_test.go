@@ -136,7 +136,7 @@ func TestH06EMMAPathHasNoProviderAndKeepsTheMAP0Reason(t *testing.T) {
 }
 
 func TestH06RecordedDispositionsAgreeWithTheDispositionFiles(t *testing.T) {
-	sun := decodeHuaweiObject(t, "profiles/vendor/huawei/sun2000-disposition.json")
+	sun := decodeHuaweiObject(t, "profiles/vendors/huawei/sun2000-disposition.json")
 	childRows := func(path string) []HuaweiProviderChildDisposition {
 		var rows []HuaweiProviderChildDisposition
 		for _, value := range h03Array(t, sun["monitoring_profiles"]) {
@@ -171,7 +171,7 @@ func TestH06RecordedDispositionsAgreeWithTheDispositionFiles(t *testing.T) {
 		{HuaweiProviderPathEMMA, "emma-disposition.json"},
 	} {
 		t.Run(string(test.path), func(t *testing.T) {
-			record := decodeHuaweiObject(t, "profiles/vendor/huawei/"+test.file)
+			record := decodeHuaweiObject(t, "profiles/vendors/huawei/"+test.file)
 			want := HuaweiProviderDisposition{
 				Path: test.path, ChildProfiles: childRows(string(test.path)),
 				CatalogRegistered: flag(record, "catalog_registered"), AutomaticRuntimeAdmission: flag(record, "automatic_runtime_admission"),
@@ -214,7 +214,7 @@ func TestH06ProductionProviderRowsMatchTheProviders(t *testing.T) {
 			map[string]int{"parent": 201}, "sdongle_provider_cycles.json", "CARD_TUPLE_CHILD_MODEL_30000"},
 	} {
 		t.Run(string(test.path), func(t *testing.T) {
-			record := decodeHuaweiObject(t, "profiles/vendor/huawei/"+test.file)
+			record := decodeHuaweiObject(t, "profiles/vendors/huawei/"+test.file)
 			row := huaweiObject(t, record["production_provider"])
 			keys := []string{"issue", "provider_id", "enablement", "scope", "requires", "identity_card", "child_profiles", "read_functions",
 				"units", "never_read", "child_admission", "pacing", "docs_contract", "issues", "support_claim", "live_qualified"}

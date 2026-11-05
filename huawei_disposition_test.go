@@ -90,7 +90,7 @@ func huaweiInt(t *testing.T, value any) int {
 }
 
 func TestHuaweiGatewayEvidenceRetainsIndependentFamilyContracts(t *testing.T) {
-	evidence := decodeHuaweiObject(t, "profiles/vendor/huawei/evidence.json")
+	evidence := decodeHuaweiObject(t, "profiles/vendors/huawei/evidence.json")
 	requireHuaweiKeys(t, evidence, "schema", "profile", "profile_version", "public_sources", "applicability", "license")
 	if evidence["schema"] != "helianthus-modbusreg-vendor-evidence/v1" ||
 		evidence["profile"] != "huawei" || evidence["profile_version"] != "1.0.0" ||
@@ -113,7 +113,7 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 	}{
 		{
 			name:         "SmartLogger",
-			path:         "profiles/vendor/huawei/smartlogger-disposition.json",
+			path:         "profiles/vendors/huawei/smartlogger-disposition.json",
 			schema:       "helianthus-modbusreg-huawei-smartlogger-disposition/v2",
 			profile:      "huawei.smartlogger",
 			outcome:      "NO_ADMISSIBLE_PROFILE",
@@ -161,7 +161,7 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 		},
 		{
 			name:         "S-Dongle",
-			path:         "profiles/vendor/huawei/sdongle-disposition.json",
+			path:         "profiles/vendors/huawei/sdongle-disposition.json",
 			schema:       "helianthus-modbusreg-huawei-sdongle-disposition/v2",
 			profile:      "huawei.sdongle",
 			outcome:      "PRE_LIVE_INSUFFICIENT_EVIDENCE",
@@ -259,7 +259,7 @@ func TestHuaweiEMMAOfflineDispositionIsDefaultDeniedAndPinnedToDocs(t *testing.T
 	}
 
 	privateEndpoint := regexp.MustCompile(`(?m)\b(?:10|127|169\.254|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.`)
-	path := "profiles/vendor/huawei/emma-disposition.json"
+	path := "profiles/vendors/huawei/emma-disposition.json"
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -302,9 +302,9 @@ func TestHuaweiFamilyDispositionsPinOwnDocumentation(t *testing.T) {
 	tests := []struct {
 		name, path, docsMergeSHA string
 	}{
-		{"SmartLogger", "profiles/vendor/huawei/smartlogger-disposition.json", smartLoggerDocsMergeSHA},
-		{"S-Dongle", "profiles/vendor/huawei/sdongle-disposition.json", sdongleDocsMergeSHA},
-		{"EMMA", "profiles/vendor/huawei/emma-disposition.json", huaweiDocsMergeSHA},
+		{"SmartLogger", "profiles/vendors/huawei/smartlogger-disposition.json", smartLoggerDocsMergeSHA},
+		{"S-Dongle", "profiles/vendors/huawei/sdongle-disposition.json", sdongleDocsMergeSHA},
+		{"EMMA", "profiles/vendors/huawei/emma-disposition.json", huaweiDocsMergeSHA},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

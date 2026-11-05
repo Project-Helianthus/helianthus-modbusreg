@@ -83,7 +83,7 @@ func TestPublicVendorEvidenceLocatorAllowsBenignPublicMetadata(t *testing.T) {
 
 func vendorEvidencePaths() ([]string, error) {
 	var paths []string
-	err := filepath.WalkDir("profiles/vendor", func(path string, entry fs.DirEntry, err error) error {
+	err := filepath.WalkDir("profiles/vendors", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

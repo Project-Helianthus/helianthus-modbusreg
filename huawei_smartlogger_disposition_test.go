@@ -8,7 +8,7 @@ import (
 const smartLoggerDocsMergeSHA = "2abcb26a06ffa71149177de2cc2817a24d82081f"
 
 func TestHuaweiSmartLoggerDispositionPinsFloorCandidateAndNoSend(t *testing.T) {
-	record := decodeHuaweiObject(t, "profiles/vendor/huawei/smartlogger-disposition.json")
+	record := decodeHuaweiObject(t, "profiles/vendors/huawei/smartlogger-disposition.json")
 	requireHuaweiKeys(t, record,
 		"schema", "profile", "profile_version", "outcome", "evidence",
 		"admission", "software_selection", "observed_identity", "change_counter", "child_enumeration", "private_functions",
@@ -84,7 +84,7 @@ func TestHuaweiSmartLoggerDispositionPinsFloorCandidateAndNoSend(t *testing.T) {
 }
 
 func TestHuaweiPublicEvidenceIncludesCurrentCandidateContract(t *testing.T) {
-	evidence := decodeHuaweiObject(t, "profiles/vendor/huawei/evidence.json")
+	evidence := decodeHuaweiObject(t, "profiles/vendors/huawei/evidence.json")
 	sources := evidence["public_sources"].([]any)
 	found := false
 	for _, value := range sources {

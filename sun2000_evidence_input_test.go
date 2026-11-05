@@ -398,7 +398,7 @@ func TestSun2000EvidenceInputNoAdmission(t *testing.T) {
 	if err != nil || len(s.Candidates()) != 1 {
 		t.Fatalf("structure-valid control: %v", err)
 	}
-	data, err := os.ReadFile("profiles/vendor/huawei/sun2000-disposition.json")
+	data, err := os.ReadFile("profiles/vendors/huawei/sun2000-disposition.json")
 	if err != nil {
 		t.Fatal(err)
 	}

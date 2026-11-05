@@ -62,7 +62,7 @@ type sunSpecFroniusPublicEvidence struct {
 
 func readSunSpecFroniusAuditDisposition(t *testing.T) sunSpecFroniusAuditDisposition {
 	t.Helper()
-	data, err := os.ReadFile("profiles/vendor/fronius/disposition.json")
+	data, err := os.ReadFile("profiles/vendors/fronius/disposition.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestSunSpecFroniusAuditClosesAgainstPinnedRegistry(t *testing.T) {
 }
 
 func TestSunSpecFroniusAuditUsesPublicProtocolEvidence(t *testing.T) {
-	data, err := os.ReadFile("profiles/vendor/fronius/evidence.json")
+	data, err := os.ReadFile("profiles/vendors/fronius/evidence.json")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -59,28 +59,28 @@
       "role": "PRIMARY_CANDIDATE",
       "disposition": "OFFLINE_IDENTITY_ADMITTED",
       "runtime_identity": "",
-      "disposition_file": "profiles/vendor/growatt/disposition.json"
+      "disposition_file": "profiles/vendors/growatt/disposition.json"
     },
     {
       "id": "huawei.smartlogger",
       "role": "PRIMARY_CANDIDATE",
       "disposition": "NO_ADMISSIBLE_PROFILE",
       "runtime_identity": "",
-      "disposition_file": "profiles/vendor/huawei/smartlogger-disposition.json"
+      "disposition_file": "profiles/vendors/huawei/smartlogger-disposition.json"
     },
     {
       "id": "huawei.sdongle",
       "role": "PRIMARY_CANDIDATE",
       "disposition": "PRE_LIVE_INSUFFICIENT_EVIDENCE",
       "runtime_identity": "",
-      "disposition_file": "profiles/vendor/huawei/sdongle-disposition.json"
+      "disposition_file": "profiles/vendors/huawei/sdongle-disposition.json"
     },
     {
       "id": "huawei.emma",
       "role": "PRIMARY_CANDIDATE",
       "disposition": "OFFLINE_IDENTITY_ADMITTED",
       "runtime_identity": "",
-      "disposition_file": "profiles/vendor/huawei/emma-disposition.json"
+      "disposition_file": "profiles/vendors/huawei/emma-disposition.json"
     }
   ]
 }
