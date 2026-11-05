@@ -12,7 +12,7 @@ import (
 // dictionaries and quarantines documents and adds one services document.
 const (
 	gatewayDirectory   = "smartlogger-sdongle-emma"
-	defaultInverterOut = "profiles/vendor/huawei/catalogue"
+	defaultInverterOut = "profiles/vendors/huawei/catalogue"
 	defaultGatewayOut  = defaultInverterOut + "/" + gatewayDirectory
 	servicesSchema     = "helianthus-modbusreg-huawei-catalogue-services/v1"
 	servicesFile       = "services.json"

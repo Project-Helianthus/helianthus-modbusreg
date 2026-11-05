@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-const catalogueDirectory = "../../profiles/vendor/huawei/catalogue"
+const catalogueDirectory = "../../profiles/vendors/huawei/catalogue"
 
 func loadCommitted(t *testing.T) (*catalogue, map[string][]byte) {
 	t.Helper()

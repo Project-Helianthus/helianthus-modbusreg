@@ -10,7 +10,7 @@ import (
 )
 
 func TestGrowattProtocolIIDispositionAdmitsOnlyOfflineIdentity(t *testing.T) {
-	data, err := os.ReadFile("profiles/vendor/growatt/disposition.json")
+	data, err := os.ReadFile("profiles/vendors/growatt/disposition.json")
 	if err != nil {
 		t.Fatal(err)
 	}

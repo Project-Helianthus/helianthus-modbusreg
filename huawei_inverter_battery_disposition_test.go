@@ -24,7 +24,7 @@ type huaweiInverterBatteryCase struct {
 func huaweiInverterBatteryCases() []huaweiInverterBatteryCase {
 	return []huaweiInverterBatteryCase{
 		{
-			name: "SUN2000", path: "profiles/vendor/huawei/sun2000-disposition.json",
+			name: "SUN2000", path: "profiles/vendors/huawei/sun2000-disposition.json",
 			profile: "huawei.sun2000", version: "2.0.0", outcome: "OFFLINE_PROFILE_ADMITTED", class: "SUN2000", optional: false,
 			rowsWanted: []string{
 				"no_identity_evidence",
@@ -50,7 +50,7 @@ func huaweiInverterBatteryCases() []huaweiInverterBatteryCase {
 			},
 		},
 		{
-			name: "LUNA2000", path: "profiles/vendor/huawei/luna2000-disposition.json",
+			name: "LUNA2000", path: "profiles/vendors/huawei/luna2000-disposition.json",
 			profile: "huawei.luna2000", version: "1.1.0", outcome: "NO_ADMISSIBLE_PROFILE", class: "LUNA2000", optional: true,
 			rowsWanted: []string{
 				"no_identity_evidence",
@@ -201,7 +201,7 @@ func TestHuaweiInverterBatteryDispositionsKeepAuthorityClosed(t *testing.T) {
 }
 
 func TestHuaweiBatteryGroupsArePresentButNotAdmitted(t *testing.T) {
-	luna := huaweiObject(t, decodeHuaweiObject(t, "profiles/vendor/huawei/luna2000-disposition.json")["battery_groups"])
+	luna := huaweiObject(t, decodeHuaweiObject(t, "profiles/vendors/huawei/luna2000-disposition.json")["battery_groups"])
 	requireHuaweiKeys(t, luna, "status", "groups", "answered_with_data_on", "presence_grade", "meanings_grade", "zero_word_rule_grade",
 		"presence_word_grade", "facts_admitted", "port_definitions")
 	var groups []string
@@ -215,7 +215,7 @@ func TestHuaweiBatteryGroupsArePresentButNotAdmitted(t *testing.T) {
 		luna["presence_word_grade"] != "UNKNOWN" || luna["facts_admitted"] != false {
 		t.Fatalf("LUNA2000 battery groups: %#v", luna)
 	}
-	sun := decodeHuaweiObject(t, "profiles/vendor/huawei/sun2000-disposition.json")
+	sun := decodeHuaweiObject(t, "profiles/vendors/huawei/sun2000-disposition.json")
 	battery := huaweiObject(t, sun["battery_groups"])
 	meters := huaweiObject(t, sun["meters"])
 	if battery["admitted"] != false || meters["admitted"] != false || meters["grade"] != "UNKNOWN" ||
@@ -289,7 +289,7 @@ func TestHuaweiInverterBatteryCapabilityDetectionDecisionTable(t *testing.T) {
 }
 
 func TestHuaweiInverterBatteryProfilesAreNotRegistered(t *testing.T) {
-	entries, err := os.ReadDir("profiles/vendor/huawei")
+	entries, err := os.ReadDir("profiles/vendors/huawei")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +307,7 @@ func TestHuaweiInverterBatteryProfilesAreNotRegistered(t *testing.T) {
 	}
 	// The generated catalogue is registry data only: it names no profile
 	// identifier, so it registers no SUN2000 or LUNA2000 profile.
-	catalogueFiles, err := filepath.Glob("profiles/vendor/huawei/catalogue/*.json")
+	catalogueFiles, err := filepath.Glob("profiles/vendors/huawei/catalogue/*.json")
 	if err != nil || len(catalogueFiles) == 0 {
 		t.Fatalf("catalogue files not found: %v", err)
 	}

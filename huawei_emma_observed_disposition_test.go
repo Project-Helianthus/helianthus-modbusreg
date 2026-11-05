@@ -51,7 +51,7 @@ func h18RowOutcome(t *testing.T, row map[string]any) string {
 
 func TestH18EMMADispositionSupersedesTheNoResponseRecordForIdentityOnly(t *testing.T) {
 	card := NewHuaweiEMMAObservedQualificationCard()
-	record := decodeHuaweiObject(t, "profiles/vendor/huawei/emma-disposition.json")
+	record := decodeHuaweiObject(t, "profiles/vendors/huawei/emma-disposition.json")
 	missing := card.MissingEvidence()
 
 	// The profile outcome and every authority field stay where they were.
@@ -219,7 +219,7 @@ func TestH18EMMADispositionSupersedesTheNoResponseRecordForIdentityOnly(t *testi
 		batteries["profile"] != "huawei.luna2000" || batteries["profile_outcome"] != "NO_ADMISSIBLE_PROFILE" {
 		t.Fatalf("batteries: %#v", batteries)
 	}
-	luna := decodeHuaweiObject(t, "profiles/vendor/huawei/luna2000-disposition.json")
+	luna := decodeHuaweiObject(t, "profiles/vendors/huawei/luna2000-disposition.json")
 	if luna["outcome"] != batteries["profile_outcome"] || luna["profile"] != batteries["profile"] {
 		t.Fatalf("the battery disposition moved: %#v", luna["outcome"])
 	}
@@ -237,7 +237,7 @@ func TestH18EMMADispositionSupersedesTheNoResponseRecordForIdentityOnly(t *testi
 }
 
 func TestH18EMMANegativeOverlapRowsMatchTheirFixtures(t *testing.T) {
-	record := decodeHuaweiObject(t, "profiles/vendor/huawei/emma-disposition.json")
+	record := decodeHuaweiObject(t, "profiles/vendors/huawei/emma-disposition.json")
 	overlap := huaweiObject(t, huaweiObject(t, record["observed_identity"])["negative_overlap"])
 	requireHuaweiKeys(t, overlap, "versus_smartlogger", "versus_sdongle", "versus_sunspec", "versus_inverter_units", "readability_alone_is_never_identity", "open_directions")
 	if overlap["readability_alone_is_never_identity"] != true ||
@@ -311,7 +311,7 @@ func TestH18OtherHuaweiDispositionsStillRecordTheEMMAOverlapAsOpen(t *testing.T)
 		"smartlogger-disposition.json": "pairwise_negative_overlap_with_emma_fixture",
 		"sdongle-disposition.json":     "pairwise_negative_overlap_with_emma_fixture",
 	} {
-		record := decodeHuaweiObject(t, "profiles/vendor/huawei/"+name)
+		record := decodeHuaweiObject(t, "profiles/vendors/huawei/"+name)
 		if !containsString(huaweiStringSlice(t, record["reopen_requires"]), want) {
 			t.Fatalf("%s no longer lists %s", name, want)
 		}

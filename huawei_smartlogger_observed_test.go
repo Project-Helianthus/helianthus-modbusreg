@@ -737,7 +737,7 @@ func TestH03SDongleHardStopIsPreservedWithoutRespondingGatewayUnitTuple(t *testi
 	if !card.HardStop() || len(card.Steps()) != 0 || card.Status() != HuaweiQualificationEvidenceBlocked || card.UnitID() != 100 {
 		t.Fatalf("S-Dongle card lost its hard stop: %#v", card)
 	}
-	disposition := decodeHuaweiObject(t, "profiles/vendor/huawei/sdongle-disposition.json")
+	disposition := decodeHuaweiObject(t, "profiles/vendors/huawei/sdongle-disposition.json")
 	plan := huaweiObject(t, disposition["qualification_plan"])
 	evidence := huaweiObject(t, disposition["evidence"])
 	live := huaweiObject(t, evidence["live_qualification"])
@@ -761,7 +761,7 @@ func TestH03ObservedCardCarriesNoAuthority(t *testing.T) {
 		}
 	}
 	for _, name := range []string{"smartlogger-disposition.json", "emma-disposition.json", "sdongle-disposition.json", "sun2000-disposition.json", "luna2000-disposition.json"} {
-		record := decodeHuaweiObject(t, "profiles/vendor/huawei/"+name)
+		record := decodeHuaweiObject(t, "profiles/vendors/huawei/"+name)
 		if record["catalog_registered"] != false || record["automatic_runtime_admission"] != false || record["support_claim"] != false {
 			t.Fatalf("%s grants authority: %#v", name, record)
 		}

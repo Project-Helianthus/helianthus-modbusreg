@@ -53,7 +53,7 @@
     "transport"
   ],
   "standard_root": "profiles/standard",
-  "vendor_root": "profiles/vendor",
+  "vendor_root": "profiles/vendors",
   "vendor_evidence_file": "evidence.json",
   "vendor_identifiers": [
     "fronius",

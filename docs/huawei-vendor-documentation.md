@@ -1,6 +1,6 @@
 # Huawei vendor documentation identity
 
-The Huawei dispositions under `profiles/vendor/huawei` may rest on official
+The Huawei dispositions under `profiles/vendors/huawei` may rest on official
 vendor documentation. The public
 [applicability and licensing policy](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/applicability-and-licensing.md)
 owns the rule. This page records how the registry keeps it. It adds no profile,

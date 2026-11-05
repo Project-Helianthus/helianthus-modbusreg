@@ -782,7 +782,7 @@ func h05RowInputs(t testing.TB) map[string][]HuaweiSUN2000CapabilityInput {
 }
 
 func TestH05CapabilityDecisionTableRowsAreExecutable(t *testing.T) {
-	record := decodeHuaweiObject(t, "profiles/vendor/huawei/sun2000-disposition.json")
+	record := decodeHuaweiObject(t, "profiles/vendors/huawei/sun2000-disposition.json")
 	detection := huaweiObject(t, record["capability_detection"])
 	if detection["executable"] != true || detection["first_match_priority"] != false {
 		t.Fatalf("detection policy: %#v", detection)
@@ -951,7 +951,7 @@ func TestH05LunaWithoutIdentifiedParentSelectsNothing(t *testing.T) {
 			t.Fatalf("%s selected a battery profile", name)
 		}
 	}
-	record := decodeHuaweiObject(t, "profiles/vendor/huawei/luna2000-disposition.json")
+	record := decodeHuaweiObject(t, "profiles/vendors/huawei/luna2000-disposition.json")
 	if record["outcome"] != "NO_ADMISSIBLE_PROFILE" || len(h03Array(t, record["decoder_keys"])) != 0 {
 		t.Fatalf("LUNA2000 disposition: %#v", record["outcome"])
 	}
@@ -1245,7 +1245,7 @@ func TestH05NegativeOverlapWithTheGatewayClasses(t *testing.T) {
 }
 
 func TestH05ProfilesAgreeWithTheDisposition(t *testing.T) {
-	record := decodeHuaweiObject(t, "profiles/vendor/huawei/sun2000-disposition.json")
+	record := decodeHuaweiObject(t, "profiles/vendors/huawei/sun2000-disposition.json")
 	rows := h03Array(t, record["monitoring_profiles"])
 	profiles := HuaweiSUN2000MonitoringProfiles()
 	if len(rows) != len(profiles)+1 {

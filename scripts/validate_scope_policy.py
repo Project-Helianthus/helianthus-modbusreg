@@ -151,7 +151,7 @@ def load_policy(root: Path) -> dict[str, object]:
     ):
         raise PolicyError("registry ownership filename boundary is incomplete")
     safe_relative_path(policy["standard_root"], "profiles/standard", "standard_root")
-    safe_relative_path(policy["vendor_root"], "profiles/vendor", "vendor_root")
+    safe_relative_path(policy["vendor_root"], "profiles/vendors", "vendor_root")
     safe_relative_path(
         policy["vendor_evidence_file"],
         "evidence.json",
@@ -340,7 +340,7 @@ def validate_standard_sources(root: Path, policy: dict[str, object]) -> None:
                 raise PolicyError(
                     f"{path.relative_to(root)} leaks vendor {vendor} into a standard family"
                 )
-        if "profiles/vendor" in source:
+        if "profiles/vendors" in source:
             raise PolicyError(
                 f"{path.relative_to(root)} depends on a vendor overlay"
             )

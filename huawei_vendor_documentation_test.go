@@ -34,11 +34,11 @@ const (
 
 var (
 	huaweiDispositionPaths = []string{
-		"profiles/vendor/huawei/smartlogger-disposition.json",
-		"profiles/vendor/huawei/sdongle-disposition.json",
-		"profiles/vendor/huawei/emma-disposition.json",
-		"profiles/vendor/huawei/sun2000-disposition.json",
-		"profiles/vendor/huawei/luna2000-disposition.json",
+		"profiles/vendors/huawei/smartlogger-disposition.json",
+		"profiles/vendors/huawei/sdongle-disposition.json",
+		"profiles/vendors/huawei/emma-disposition.json",
+		"profiles/vendors/huawei/sun2000-disposition.json",
+		"profiles/vendors/huawei/luna2000-disposition.json",
 	}
 
 	huaweiVendorDocumentationKeys = []string{"source_class", "monitoring_profile_basis", "consulted_documents", "changes_outcome"}
@@ -255,7 +255,7 @@ func TestHuaweiDispositionsCarryTheVendorDocumentationFieldSet(t *testing.T) {
 func TestHuaweiDispositionsNoLongerForbidUsingTheVendorDocument(t *testing.T) {
 	var paths []string
 	paths = append(paths, huaweiDispositionPaths...)
-	paths = append(paths, "profiles/vendor/huawei/evidence.json", "README.md")
+	paths = append(paths, "profiles/vendors/huawei/evidence.json", "README.md")
 	docs, err := filepath.Glob("docs/huawei-*.md")
 	if err != nil || len(docs) == 0 {
 		t.Fatalf("Huawei documents not found: %v", err)
@@ -563,7 +563,7 @@ func TestHuaweiVendorDocumentationIsOptionalAndOnlyIdentityReachesTheRecord(t *t
 }
 
 func TestHuaweiPublicEvidenceCitesTheVendorDocumentationPolicy(t *testing.T) {
-	evidence := decodeHuaweiObject(t, "profiles/vendor/huawei/evidence.json")
+	evidence := decodeHuaweiObject(t, "profiles/vendors/huawei/evidence.json")
 	const want = "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/applicability-and-licensing.md"
 	found := 0
 	for _, value := range h03Array(t, evidence["public_sources"]) {

@@ -42,7 +42,7 @@ class ScopePolicyTests(unittest.TestCase):
         (root / "go.mod").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     def vendor_overlay(self, root: Path) -> tuple[Path, dict[str, object]]:
-        overlay = root / "profiles" / "vendor" / "example"
+        overlay = root / "profiles" / "vendors" / "example"
         overlay.mkdir(parents=True)
         (overlay / "profile.go").write_text("package example\n", encoding="utf-8")
         evidence: dict[str, object] = {
@@ -152,7 +152,7 @@ class ScopePolicyTests(unittest.TestCase):
             "probes/example/probe.go",
             "qualification/example/record.go",
             "profiles/standard/example/profile.go",
-            "profiles/vendor/example/profile.go",
+            "profiles/vendors/example/profile.go",
         ):
             with self.subTest(relative=relative), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
