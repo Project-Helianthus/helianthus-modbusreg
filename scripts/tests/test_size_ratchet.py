@@ -92,6 +92,14 @@ class RatchetTests(unittest.TestCase):
                          [r for r in shifted if r["metric"] != "file_lines"])
         self.assertEqual(excluded, [])
 
+    def test_line_directives_do_not_change_measured_spans(self):
+        root = self.fixture()
+        source = "package sample\nfunc F() {\n//line other.go:900\n_ = 1\n//line other.go:1\n_ = 2\n}\n"
+        (root / "directive.go").write_text(source)
+        rows, _ = R.measure(root)
+        found = {R.key(r): r["value"] for r in rows}
+        self.assertEqual(found[("directive.go", "F", "function_lines")], 6)
+
     def test_parser_threshold_spans_and_counts(self):
         root = self.fixture()
         expected = {}
