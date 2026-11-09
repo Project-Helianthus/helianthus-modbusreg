@@ -3,23 +3,23 @@
   "exceptions": [
     {
       "token": "FC03",
-      "reason": "Modbus application protocol specification, Read Holding Registers function code."
+      "reason": "Hypothesis; candidate protocol vocabulary: Read Holding Registers function code. Provenance is not published."
     },
     {
       "token": "FC04",
-      "reason": "Modbus application protocol specification, Read Input Registers function code."
+      "reason": "Hypothesis; candidate protocol vocabulary: Read Input Registers function code. Provenance is not published."
     },
     {
       "token": "FC2B",
-      "reason": "Modbus application protocol specification, Encapsulated Interface Transport function code."
+      "reason": "Hypothesis; candidate protocol vocabulary: Encapsulated Interface Transport function code. Provenance is not published."
     },
     {
       "token": "MEI0E",
-      "reason": "Modbus application protocol specification, Read Device Identification MEI type."
+      "reason": "Hypothesis; candidate protocol vocabulary: Read Device Identification MEI type. Provenance is not published."
     },
     {
       "token": "CRC16",
-      "reason": "Modbus over Serial Line specification defines the CRC error check."
+      "reason": "Hypothesis; candidate protocol vocabulary: CRC error check. Provenance is not published."
     }
   ],
   "baseline": [

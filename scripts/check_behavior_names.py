@@ -5,7 +5,7 @@ The Go parser helper includes every platform/build-tagged source file. Baseline
 entries identify one path, symbol and category; moving or renaming debt therefore
 requires review. Removing debt is allowed without regenerating the baseline.
 Protocol/external exceptions are exact vocabulary tokens with a nonempty reason,
-not file patterns. The local public protocol contract is doc.go and README.md.
+not file patterns.
 """
 import argparse
 import json
@@ -87,10 +87,18 @@ def inventory(root):
 
 
 def violations(entries, vocabulary):
+    # Prefer an exact exception before an adjacent alphanumeric token, so its
+    # first letter cannot be consumed as the preceding token's hex suffix.
+    # The lookahead preserves exactness for extended numbers and hex suffixes.
+    prefixes = "|".join(re.escape(token) for token in
+                        sorted(vocabulary, key=lambda t: (-len(t), t)))
+    tokens = (re.compile(r"(?<![A-Z])(?:RTU)?(?:" + prefixes
+                         + r")(?=[A-Z]+[0-9])|" + TOKENS.pattern)
+              if prefixes else TOKENS)
     return sorted({(entry["path"], entry["symbol"], entry["category"])
                    for entry in entries
                    if any((m.group().upper().removeprefix("RTU") if m.group().upper().startswith("RTUFC") else m.group().upper()) not in vocabulary
-                          for m in TOKENS.finditer(entry["symbol"]))})
+                          for m in tokens.finditer(entry["symbol"]))})
 
 
 def check(root, policy):

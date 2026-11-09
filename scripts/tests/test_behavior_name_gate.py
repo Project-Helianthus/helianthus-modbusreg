@@ -44,6 +44,30 @@ func Read(ctx2 int) {}
 """)
         self.assertEqual(self.check(), [])
 
+    def test_adjacent_protocol_tokens(self):
+        vocabulary, _ = GATE.load_policy(self.policy)
+        for first in sorted(vocabulary):
+            for second in sorted(vocabulary):
+                name = "Test" + first + second + "Read"
+                with self.subTest(name=name):
+                    entry = {"path": "read.go", "symbol": name, "category": "test"}
+                    self.assertEqual(GATE.violations([entry], vocabulary), [])
+        self.source("""package modbus
+func TestFC03FC04Read() {}
+func TestFC03CRC16() {}
+func TestRTUFC03FC04Read() {}
+""")
+        self.assertEqual(self.check(), [])
+
+    def test_adjacent_protocol_tokens_do_not_hide_unapproved_tokens(self):
+        vocabulary, _ = GATE.load_policy(self.policy)
+        for name in ["TestFC03FC05Read", "TestFC03CRC17", "TestFC030FC04Read",
+                     "TestFC03A", "TestFC03FC04XY73Read", "TestXY73FC03Read"]:
+            with self.subTest(name=name):
+                entry = {"path": "read.go", "symbol": name, "category": "test"}
+                self.assertEqual(GATE.violations([entry], vocabulary),
+                                 [("read.go", name, "test")])
+
     def test_payloads_comments_and_uses_are_not_declarations(self):
         self.source('''package modbus
 // XY73 and Batch73 are prose.
