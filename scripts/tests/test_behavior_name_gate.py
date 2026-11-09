@@ -44,6 +44,28 @@ func Read(ctx2 int) {}
 """)
         self.assertEqual(self.check(), [])
 
+    def test_transport_prefixes_preserve_exact_protocol_exceptions(self):
+        vocabulary, _ = GATE.load_policy(self.policy)
+        for transport in ["TCP", "RTU"]:
+            for token in sorted(vocabulary):
+                for suffix in ["Read", "FC04Read"]:
+                    name = "Test" + transport + token + suffix
+                    with self.subTest(name=name):
+                        entry = {"path": "read.go", "symbol": name, "category": "test"}
+                        self.assertEqual(GATE.violations([entry], vocabulary), [])
+            for token in ["FC030", "FC03A", "CRC160", "CRC16A", "XY73",
+                          "FC03XY73", "FC03FC05"]:
+                name = "Test" + transport + token + "Read"
+                with self.subTest(name=name):
+                    entry = {"path": "read.go", "symbol": name, "category": "test"}
+                    self.assertEqual(GATE.violations([entry], vocabulary),
+                                     [("read.go", name, "test")])
+        self.source("""package modbus
+func TestTCPFC03Read() {}
+func TestRTUCRC16Read() {}
+""")
+        self.assertEqual(self.check(), [])
+
     def test_adjacent_protocol_tokens(self):
         vocabulary, _ = GATE.load_policy(self.policy)
         for first in sorted(vocabulary):

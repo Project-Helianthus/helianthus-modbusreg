@@ -92,13 +92,16 @@ def violations(entries, vocabulary):
     # The lookahead preserves exactness for extended numbers and hex suffixes.
     prefixes = "|".join(re.escape(token) for token in
                         sorted(vocabulary, key=lambda t: (-len(t), t)))
-    tokens = (re.compile(r"(?<![A-Z])(?:RTU)?(?:" + prefixes
+    tokens = (re.compile(r"(?<![A-Z])(?:" + prefixes
                          + r")(?=[A-Z]+[0-9])|" + TOKENS.pattern)
               if prefixes else TOKENS)
+    # Transport acronyms are separate from the following numeric token. Strip
+    # only at an acronym boundary, then apply the same exact exception checks.
+    transport = re.compile(r"(?<![A-Z])(?:TCP|RTU)(?=[A-Z]+[0-9])")
     return sorted({(entry["path"], entry["symbol"], entry["category"])
                    for entry in entries
-                   if any((m.group().upper().removeprefix("RTU") if m.group().upper().startswith("RTUFC") else m.group().upper()) not in vocabulary
-                          for m in tokens.finditer(entry["symbol"]))})
+                   if any(m.group().upper() not in vocabulary
+                          for m in tokens.finditer(transport.sub("", entry["symbol"])))})
 
 
 def check(root, policy):
