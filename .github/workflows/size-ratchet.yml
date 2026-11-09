@@ -1,0 +1,29 @@
+name: Size ratchet
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  size-ratchet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Prepare scratch
+        run: mkdir -p .tmp
+      - name: Test size ratchet
+        env:
+          TMPDIR: ${{ github.workspace }}/.tmp
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -m unittest discover -s scripts/tests -p test_size_ratchet.py -v
+      - name: Check size ratchet
+        run: python3 scripts/check_size_ratchet.py

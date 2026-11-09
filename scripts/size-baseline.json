@@ -1,0 +1,203 @@
+{
+  "version": 1,
+  "violations": [
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "$file",
+      "metric": "file_lines",
+      "value": 1147
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 83
+    },
+    {
+      "path": "fixture_conformance_rejection_test.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 66
+    },
+    {
+      "path": "growatt_aggregate_offline_provider_test.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 77
+    },
+    {
+      "path": "growatt_aggregate_provider_port_test.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 100
+    },
+    {
+      "path": "huawei_emma_identity_fixture_test.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 72
+    },
+    {
+      "path": "huawei_emma_observed_test.go",
+      "symbol": "$file",
+      "metric": "file_lines",
+      "value": 1605
+    },
+    {
+      "path": "huawei_emma_observed_test.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 97
+    },
+    {
+      "path": "huawei_emma_observed_test.go",
+      "symbol": "h18Mutations",
+      "metric": "function_lines",
+      "value": 465
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 68
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "$file",
+      "metric": "file_lines",
+      "value": 1619
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 62
+    },
+    {
+      "path": "huawei_sdongle_observed_test.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 89
+    },
+    {
+      "path": "huawei_sdongle_observed_test.go",
+      "symbol": "h15Mutations",
+      "metric": "function_lines",
+      "value": 314
+    },
+    {
+      "path": "huawei_sun2000_monitoring_test.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 85
+    },
+    {
+      "path": "observation.go",
+      "symbol": "$file",
+      "metric": "file_lines",
+      "value": 1012
+    },
+    {
+      "path": "observation.go",
+      "symbol": "validateObservationCoherence",
+      "metric": "function_lines",
+      "value": 200
+    },
+    {
+      "path": "profile.go",
+      "symbol": "$file",
+      "metric": "file_lines",
+      "value": 1456
+    },
+    {
+      "path": "profile.go",
+      "symbol": "validateOverlayAgainstBase",
+      "metric": "function_lines",
+      "value": 167
+    },
+    {
+      "path": "profile_codec_contract_test.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 71
+    },
+    {
+      "path": "runtime_ledger.go",
+      "symbol": "$file",
+      "metric": "file_lines",
+      "value": 2324
+    },
+    {
+      "path": "runtime_ledger.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 64
+    },
+    {
+      "path": "runtime_provenance_test.go",
+      "symbol": "$file",
+      "metric": "file_lines",
+      "value": 2481
+    },
+    {
+      "path": "runtime_provenance_test.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 88
+    },
+    {
+      "path": "sdongle_route_decision_test.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 77
+    },
+    {
+      "path": "serialization.go",
+      "symbol": "$file",
+      "metric": "file_lines",
+      "value": 1095
+    },
+    {
+      "path": "serialization.go",
+      "symbol": "profileFromDTO",
+      "metric": "function_lines",
+      "value": 157
+    },
+    {
+      "path": "tesla_gen3_read_acquisition.go",
+      "symbol": "$file",
+      "metric": "file_lines",
+      "value": 1025
+    },
+    {
+      "path": "tesla_gen3_read_acquisition_test.go",
+      "symbol": "$file",
+      "metric": "functions_per_file",
+      "value": 96
+    },
+    {
+      "path": "tools/huaweicatalogue/generate.go",
+      "symbol": "generate",
+      "metric": "function_lines",
+      "value": 318
+    },
+    {
+      "path": "tools/huaweicatalogue/logger_generate.go",
+      "symbol": "$file",
+      "metric": "file_lines",
+      "value": 1139
+    },
+    {
+      "path": "tools/huaweicatalogue/logger_generate.go",
+      "symbol": "generateGateway",
+      "metric": "function_lines",
+      "value": 165
+    },
+    {
+      "path": "tools/huaweicatalogue/validate.go",
+      "symbol": "validateCatalogue",
+      "metric": "function_lines",
+      "value": 177
+    }
+  ]
+}
