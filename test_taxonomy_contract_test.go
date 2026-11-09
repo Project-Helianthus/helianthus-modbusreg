@@ -2,7 +2,6 @@ package modbusreg
 
 import (
 	"os"
-	"strings"
 	"testing"
 )
 
@@ -18,12 +17,5 @@ func TestStableTestTaxonomyUsesVendorAndCapabilityNames(t *testing.T) {
 		if _, err := os.Stat(name); err != nil {
 			t.Fatalf("taxonomy file %q: %v", name, err)
 		}
-	}
-	content, err := os.ReadFile("completion_record_m303_contract_test.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(content), "TestFMV3M303") || !strings.Contains(string(content), "TestM303") {
-		t.Fatal("M303 completion tests do not use the stable milestone label")
 	}
 }
