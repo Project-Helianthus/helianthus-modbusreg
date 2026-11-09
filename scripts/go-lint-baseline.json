@@ -1,0 +1,4950 @@
+{
+  "version": 1,
+  "golangci_lint": "2.11.4",
+  "entries": [
+    {
+      "path": "codec.go",
+      "symbol": "ByteOrderModbus",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "codec.go",
+      "symbol": "RepresentationUnsignedInteger",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "codec.go",
+      "symbol": "ScaleNotApplicable",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "codec.go",
+      "symbol": "ScaleOrderNotApplicable",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "codec.go",
+      "symbol": "SentinelInvalid",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "codec.go",
+      "symbol": "StringFixedLength",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "codec.go",
+      "symbol": "StringHighByteFirst",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "codec.go",
+      "symbol": "StringNotApplicable",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "codec.go",
+      "symbol": "ValidityRejectSentinel",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionDispositionStandardOnly",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.Applicability",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.AutomaticProductQualification",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.Disposition",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.Evidence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.InvalidationRollback",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.Limitations",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.OverlayPresent",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.ReadOnly",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.SchemaID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.SchemaVersion",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.StandardProfileID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.StandardProfileVersion",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.TransportNeutral",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record.go",
+      "symbol": "CompletionRecord.WriteCapable",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record_serialization.go",
+      "symbol": "CompletionRecord.MarshalJSON",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "completion_record_serialization.go",
+      "symbol": "CompletionRecord.UnmarshalJSON",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaCommitContextRejected",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaCommitReason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaFC03Missing",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaFC03Status",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.AttemptContext",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.AttemptInput",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.AutomaticRuntimeAdmission",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.CatalogRegistered",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.Committed",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.DefaultDenied",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.IdentityMatch",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.InventoryAssociationInvalidated",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.InventoryComplete",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.InventoryStatus",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.LiveQualified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.MEIStatus",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.Qualification",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.RetainedIdentity",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.SupportClaim",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaIdentityResult.WriteAuthority",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaInventoryNotRequested",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaInventoryStatus",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaMEINotRequested",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaMEIStatus",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaRetainedIdentity.Context",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaRetainedIdentity.Input",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "EmmaRetainedIdentity.ObservedAt",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_identity_transaction.go",
+      "symbol": "NewEmmaIdentityAttempt",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_offline_provider.go",
+      "symbol": "NewEmmaOfflineProvider",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_provider_port.go",
+      "symbol": "I19EmmaProvider.I19Latest",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_provider_port.go",
+      "symbol": "I19EmmaProvider.I19RetainedIdentity",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_provider_port.go",
+      "symbol": "I19EmmaProvider.I19Retire",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "emma_provider_port.go",
+      "symbol": "I19NewEmmaProvider",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceCorpus",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceCorpus.MarshalBoundedReport",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceCorpus.Replay",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceCorpus.Spec",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceCorpusSpec",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.DependencyFacts",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.Detection",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.FunctionCode",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.LogicalProvenance",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.LogicalSlices",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.NormalizedAddress",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.ProfileID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.ProfileVersion",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.Qualification",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.RawWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.RecordID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.Replay",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.SampleProvenance",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.SourceTime",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.Table",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecord.WireProvenance",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceRecordSpec",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceReport",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceReport.Metadata",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceReport.RecordCount",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceReport.Records",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureConformanceReport.RejectedCount",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDependencyFact.FunctionCode",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDependencyFact.LogicalProvenance",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDependencyFact.LogicalSlice",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDependencyFact.NormalizedAddress",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDependencyFact.Ordinal",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDependencyFact.RawWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDependencyFact.SampleProvenance",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDependencyFact.SourceTime",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDependencyFact.Table",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDependencyFact.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDependencyFact.WireProvenance",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDetectionCaseSpec",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDetectionEvidenceExpectation",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDetectionExpectation",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDetectionResult",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDetectionResult.MatchesExpected",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureDetectorInput",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureLogicalProvenance",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureLogicalSlice",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureLogicalSlice.CanonicalBytes",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureMutationReasonMissing",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureProbeInput",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureQualificationDisposition",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureQualificationDispositionQualified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureQualificationExpectation",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureReplayAccepted",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureReplayActual",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureReplayActual.Outcome",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureReplayActual.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureReplayExpectation",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureReplayOutcome",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureReplayReason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureReplayReasonAccepted",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureReplayResult",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureReplayResult.Actual",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureReplayResult.Expected",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureReplayResult.MatchesExpected",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureSampleProvenance",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "FixtureWireProvenance",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "MarshalFixtureConformanceCorpusSpec",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "NewFixtureConformanceCorpusWithLimits",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fixture_conformance.go",
+      "symbol": "UnmarshalFixtureConformanceCorpus",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fronius_retained_commit.go",
+      "symbol": "FroniusRetainedCommit.View",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fronius_retained_commit.go",
+      "symbol": "FroniusRetainedOutcome",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "fronius_retained_commit.go",
+      "symbol": "FroniusRetainedPending",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_aggregate_provider_port.go",
+      "symbol": "I23GrowattAdapter.I23Advance",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_aggregate_provider_port.go",
+      "symbol": "I23GrowattAdapter.I23Refresh",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_aggregate_provider_port.go",
+      "symbol": "I23GrowattAdapter.I23Retire",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_aggregate_provider_port.go",
+      "symbol": "I23GrowattAdapter.I23Snapshot",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_aggregate_provider_port.go",
+      "symbol": "I23GrowattDiagnostic",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_aggregate_provider_port.go",
+      "symbol": "I23GrowattRequest",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_aggregate_provider_port.go",
+      "symbol": "I23GrowattResult",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_aggregate_provider_port.go",
+      "symbol": "I23NewGrowattProvider",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_aggregate_retention.go",
+      "symbol": "GrowattAggregateAttempt",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_bms_rs485.go",
+      "symbol": "GrowattBMSReadOnlyObservation.Revision",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_bms_rs485.go",
+      "symbol": "GrowattBMSReadOnlyObservation.Slices",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_bms_rs485.go",
+      "symbol": "GrowattBMSReadOnlyObservation.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_bms_rs485_multigroup.go",
+      "symbol": "GrowattBMSNativeCellStateOff",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_bms_rs485_rtu_observer.go",
+      "symbol": "ErrGrowattBMSRS485RTUObserverInvalid",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_bms_rs485_typed.go",
+      "symbol": "GrowattBMSOperatingState",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_bms_rs485_typed.go",
+      "symbol": "GrowattBMSStateSoftStarting",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_diagnostic_commit.go",
+      "symbol": "GrowattDiagnosticCommitCandidate.Context",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_diagnostic_commit.go",
+      "symbol": "GrowattDiagnosticCommitCandidate.Identity",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_diagnostic_commit.go",
+      "symbol": "GrowattDiagnosticCommitIdentity",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_diagnostic_commit.go",
+      "symbol": "GrowattDiagnosticCommitInvalidBase",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_diagnostic_commit.go",
+      "symbol": "GrowattDiagnosticCommitRejection",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_fc04_record_validation.go",
+      "symbol": "ErrGrowattFC04Missing",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_fc04.go",
+      "symbol": "GrowattProtocolIIFC04Telemetry.Identity",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_fc04.go",
+      "symbol": "GrowattProtocolIIFC04Telemetry.OutboundAllowed",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_fc04.go",
+      "symbol": "GrowattProtocolIIFC04Telemetry.RawSlice",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_fc04.go",
+      "symbol": "GrowattProtocolIIInverterState",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_fc04.go",
+      "symbol": "GrowattProtocolIIStateWaiting",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_fc04_rtu_observer.go",
+      "symbol": "ErrGrowattProtocolIIFC04RTUObserverInvalid",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_fc04_rtu_observer.go",
+      "symbol": "GrowattProtocolIIFC04RTUObserver.Observe",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_fc04_rtu_observer.go",
+      "symbol": "GrowattProtocolIIFC04RTUObserverSession",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_fc04_rtu_observer.go",
+      "symbol": "NewGrowattProtocolIIFC04RTUObserver",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_identity.go",
+      "symbol": "GrowattProtocolIIIdentityObservation.DeviceType",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_identity.go",
+      "symbol": "GrowattProtocolIIIdentityObservation.FirmwareText",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_identity.go",
+      "symbol": "GrowattProtocolIIIdentityObservation.ModelBuild",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_identity.go",
+      "symbol": "GrowattProtocolIIIdentityObservation.Profile",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_identity.go",
+      "symbol": "GrowattProtocolIIIdentityObservation.ProtocolVersion",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_identity.go",
+      "symbol": "GrowattProtocolIIIdentityObservation.SerialText",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_identity.go",
+      "symbol": "GrowattProtocolIIIdentityObservation.Slices",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_identity.go",
+      "symbol": "GrowattProtocolIIIdentityObservation.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_rtu_observer.go",
+      "symbol": "ErrGrowattProtocolIIIdentityRTUObserverInvalid",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_rtu_observer.go",
+      "symbol": "GrowattProtocolIIIdentityRTUObserver.Observe",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "growatt_protocol_ii_rtu_observer.go",
+      "symbol": "NewGrowattProtocolIIIdentityRTUObserver",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma.go",
+      "symbol": "HuaweiEMMACanonicalClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma.go",
+      "symbol": "HuaweiEMMAOfflineDecision.CanonicalClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma.go",
+      "symbol": "HuaweiEMMAOfflineDecision.DefaultDenied",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma.go",
+      "symbol": "HuaweiEMMAOfflineDecision.Matched",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma.go",
+      "symbol": "HuaweiEMMAOfflineDecision.ModelVariant",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma.go",
+      "symbol": "HuaweiEMMAOfflineDecision.ProfileID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma.go",
+      "symbol": "HuaweiEMMAOfflineDecision.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma.go",
+      "symbol": "HuaweiEMMAOfflineMatched",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma_observed.go",
+      "symbol": "HuaweiEMMAObservedQualificationCard.CandidateClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma_observed.go",
+      "symbol": "HuaweiEMMAObservedQualificationCard.ChildFamily",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma_observed.go",
+      "symbol": "HuaweiEMMAObservedQualificationCard.ChildUnits",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma_observed.go",
+      "symbol": "HuaweiEMMAObservedQualificationCard.EmptyResult",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma_observed.go",
+      "symbol": "HuaweiEMMAObservedQualificationCard.FamilyLabel",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma_observed.go",
+      "symbol": "HuaweiEMMAObservedQualificationCard.ID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma_observed.go",
+      "symbol": "HuaweiEMMAObservedQualificationCard.Model",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma_observed.go",
+      "symbol": "HuaweiEMMAObservedQualificationCard.Product",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma_observed.go",
+      "symbol": "HuaweiEMMAObservedQualificationCard.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma_observed.go",
+      "symbol": "HuaweiEMMAObservedQualificationCard.Vendor",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_emma_observed.go",
+      "symbol": "NewHuaweiEMMAObservedQualificationCard",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiEMMAQualificationCard",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiEMMAQualificationCard.CandidateClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiEMMAQualificationCard.EmptyResult",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiEMMAQualificationCard.Evaluate",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiEMMAQualificationCard.ID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiEMMAQualificationCard.MissingCapabilityEvidence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiEMMAQualificationCard.Steps",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiEMMAQualificationCard.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiEMMAQualificationInput",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationExpectedResult",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationExpectedResult.MarshalJSON",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationIdentityInvalid",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationInsufficientEvidence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationInventoryLimits",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationPackage",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationPackage.ExpectedResult",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationReadiness",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationReason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.AutomaticRequestCount",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.AutomaticRuntimeAdmission",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.BasicCorroborated",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.BasicOpaqueObjectCount",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.CandidateClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.CandidateClasses",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.CatalogRegistered",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.DefaultDenied",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.FallbackAttempted",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.HardwareTestReady",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.IdentityMatched",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.Inventory",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.LiveQualified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.MissingEvidence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.ModelVariant",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.NativeFactCount",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.PageAnomalies",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.QualificationTestReady",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.Readiness",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.SelectedClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.SupportClaim",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationResult.WriteAuthority",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationStep.ObjectID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationStep.Offset",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationStep.Operation",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationStep.Quantity",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiQualificationStep.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSDongleQualificationCard.CandidateClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSDongleQualificationCard.HardStop",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSDongleQualificationCard.ID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSDongleQualificationCard.RequiredConnectionContext",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSDongleQualificationCard.Result",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSDongleQualificationCard.Status",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSDongleQualificationCard.Steps",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSDongleQualificationCard.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSmartLoggerCanonicalClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSmartLoggerQualificationCard",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSmartLoggerQualificationCard.CandidateClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSmartLoggerQualificationCard.EmptyResult",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSmartLoggerQualificationCard.ID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSmartLoggerQualificationCard.Limits",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSmartLoggerQualificationCard.Steps",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSmartLoggerQualificationCard.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "HuaweiSmartLoggerQualificationInput",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "NewHuaweiEMMAQualificationCard",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "NewHuaweiQualificationPackage",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "NewHuaweiSDongleQualificationCard",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "NewHuaweiSmartLoggerQualificationCard",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_qualification_cards.go",
+      "symbol": "ResolveHuaweiQualification",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "ErrHuaweiProviderConfig",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderCycle.AutomaticRuntimeAdmission",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderCycle.CatalogRegistered",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderCycle.LiveQualified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderCycle.SupportClaim",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderCycle.WriteAuthority",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderCycleComplete",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderCycleIncomplete",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderCycleInsufficient",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderEnabled",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderEvidenceCurrent",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderEvidenceStale",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderEvidenceWithheld",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderExchangeAnswered",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderGatewayNotIdentified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderLossPlannedGroup",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderPathSmartLogger",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderReasonCatalogueAmbiguous",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderReasonCatalogueNotSelected",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderReasonIdentified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_readonly_provider.go",
+      "symbol": "HuaweiProviderWithinPromptBound",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observation.go",
+      "symbol": "HuaweiSDongleCanonicalClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observation.go",
+      "symbol": "HuaweiSDongleOfflineDecision.CanonicalClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observation.go",
+      "symbol": "HuaweiSDongleOfflineDecision.DefaultDenied",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observation.go",
+      "symbol": "HuaweiSDongleOfflineDecision.Matched",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observation.go",
+      "symbol": "HuaweiSDongleOfflineDecision.ModelVariant",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observation.go",
+      "symbol": "HuaweiSDongleOfflineDecision.ProfileID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observation.go",
+      "symbol": "HuaweiSDongleOfflineDecision.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observation.go",
+      "symbol": "HuaweiSDongleOfflineMatched",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observed.go",
+      "symbol": "HuaweiSDongleObservedQualificationCard.CandidateClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observed.go",
+      "symbol": "HuaweiSDongleObservedQualificationCard.ChildFamily",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observed.go",
+      "symbol": "HuaweiSDongleObservedQualificationCard.ChildModel",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observed.go",
+      "symbol": "HuaweiSDongleObservedQualificationCard.ChildUnit",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observed.go",
+      "symbol": "HuaweiSDongleObservedQualificationCard.ChildVendor",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observed.go",
+      "symbol": "HuaweiSDongleObservedQualificationCard.EmptyResult",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observed.go",
+      "symbol": "HuaweiSDongleObservedQualificationCard.GatewayBasicException",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observed.go",
+      "symbol": "HuaweiSDongleObservedQualificationCard.GatewayProtocolWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observed.go",
+      "symbol": "HuaweiSDongleObservedQualificationCard.ID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observed.go",
+      "symbol": "HuaweiSDongleObservedQualificationCard.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sdongle_observed.go",
+      "symbol": "NewHuaweiSDongleObservedQualificationCard",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_inventory.go",
+      "symbol": "HuaweiSmartLoggerInventory.ChildCount",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_inventory.go",
+      "symbol": "HuaweiSmartLoggerInventory.Children",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_inventory.go",
+      "symbol": "HuaweiSmartLoggerInventory.DeclaredChildren",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_inventory.go",
+      "symbol": "HuaweiSmartLoggerInventory.DefaultDenied",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_inventory.go",
+      "symbol": "HuaweiSmartLoggerInventoryChild.Address",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_inventory.go",
+      "symbol": "HuaweiSmartLoggerInventoryChild.Attribute",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_inventory.go",
+      "symbol": "HuaweiSmartLoggerInventoryChild.ObjectID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_observed.go",
+      "symbol": "HuaweiSmartLoggerObservedQualificationCard.CandidateClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_observed.go",
+      "symbol": "HuaweiSmartLoggerObservedQualificationCard.EmptyResult",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_observed.go",
+      "symbol": "HuaweiSmartLoggerObservedQualificationCard.ID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_observed.go",
+      "symbol": "HuaweiSmartLoggerObservedQualificationCard.Limits",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_observed.go",
+      "symbol": "HuaweiSmartLoggerObservedQualificationCard.Model",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_observed.go",
+      "symbol": "HuaweiSmartLoggerObservedQualificationCard.SelfEntryUnit",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_observed.go",
+      "symbol": "HuaweiSmartLoggerObservedQualificationCard.Steps",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_observed.go",
+      "symbol": "HuaweiSmartLoggerObservedQualificationCard.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_observed.go",
+      "symbol": "HuaweiSmartLoggerObservedQualificationCard.Vendor",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_observed.go",
+      "symbol": "NewHuaweiSmartLoggerObservedQualificationCard",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewayAtOrAboveFloor",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewayEndpointSelf",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewayFamilyMismatch",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewayFloorBranch",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewayFloorLine",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewayNoDocumentedRelation",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewayRelationAtOrAbove",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewaySelected",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewaySelection.Family",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewaySelection.LiveQualified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewaySelection.Model",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewaySelection.Outcome",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewaySelection.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewaySelection.Scope",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewaySelection.Software",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewaySelection.SupportClaim",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_smartlogger_sdongle_emma_selection.go",
+      "symbol": "HuaweiGatewaySelection.WriteAuthority",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000CapabilitySelection.AutomaticRequestCount",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000CapabilitySelection.AutomaticRuntimeAdmission",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000CapabilitySelection.CatalogRegistered",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000CapabilitySelection.Evaluations",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000CapabilitySelection.LiveQualified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000CapabilitySelection.Outcome",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000CapabilitySelection.Profile",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000CapabilitySelection.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000CapabilitySelection.SupportClaim",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000CapabilitySelection.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000CapabilitySelection.WriteAuthority",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000ProfileEvaluation.Outcome",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000ProfileEvaluation.ProfileID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000ProfileEvaluation.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000ProfileSelected",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_capability.go",
+      "symbol": "HuaweiSUN2000ReasonNoGatewayIdentity",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000BuildNone",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueAtOrAboveFloor",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueDecision.FirmwareText",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueDecision.LiveQualified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueDecision.ModelText",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueDecision.Outcome",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueDecision.ProtocolWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueDecision.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueDecision.Scope",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueDecision.SupportClaim",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueDecision.WriteAuthority",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueEqualOnCarriedParts",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueMatchToken",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueMatchWireAlias",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000CatalogueSelected",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_catalogue_selection.go",
+      "symbol": "HuaweiSUN2000FloorAtOrAbove",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiEditionBindingLiveCheckedLayout",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiEditionBindingSupportedModelTable",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiFactValue",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiGradeProven",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000GroupAnswered",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.AutomaticRuntimeAdmission",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.CatalogRegistered",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.Document",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.EditionBinding",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.Family",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.GatewayClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.ID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.LiveQualified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.Model",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.ObservedUnits",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.RefusedGroups",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.SupportClaim",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringProfile.WriteAuthority",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringReading.BatteryFactsAdmitted",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringReading.Facts",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringReading.Groups",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringReading.MeterFactsAdmitted",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringReading.ProfileID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringReading.SupportClaim",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringReading.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "huawei_sun2000_monitoring.go",
+      "symbol": "HuaweiSUN2000MonitoringReading.WriteAuthority",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "limits.go",
+      "symbol": "MaxProfileDependencies",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaNoObservation",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalBinding",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalEvent",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalEvidence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalHistory",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalIdentity",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalInput",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalPolicy",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalState.AutomaticRuntimeAdmission",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalState.CatalogRegistered",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalState.History",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalState.Outcome",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalState.ParentIdentified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalState.Qualified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalState.State",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalState.SupportClaim",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalState.WriteAuthority",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaOptionalStatus",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_optional_state.go",
+      "symbol": "LunaUnknown",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_provider_port.go",
+      "symbol": "I15LunaProvider",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_provider_port.go",
+      "symbol": "I15LunaProvider.I15Cycle",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_provider_port.go",
+      "symbol": "I15LunaProvider.I15Latest",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_provider_port.go",
+      "symbol": "I15LunaProvider.I15Retire",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_provider_port.go",
+      "symbol": "I15LunaProviderPort",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_provider_port.go",
+      "symbol": "I15LunaSupplier",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_provider_port.go",
+      "symbol": "I15LunaView",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "luna_provider_port.go",
+      "symbol": "I15NewLunaProvider",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "observation.go",
+      "symbol": "DependencyReadSuccessful",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "observation.go",
+      "symbol": "FunctionReadHoldingRegisters",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "observation.go",
+      "symbol": "SourceTimeObservedState",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "observation.go",
+      "symbol": "SourceValid",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "observation.go",
+      "symbol": "TransportTCP",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_axs_sunspec.go",
+      "symbol": "OutBackAXSModelInterface",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_detached_record.go",
+      "symbol": "ErrOutBackDetachedRecordBound",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_detached_record.go",
+      "symbol": "OutBackAssociationCurrent",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_detached_record.go",
+      "symbol": "OutBackAssociationDisposition",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_detached_record.go",
+      "symbol": "OutBackDetachedRecord.AccountedBytes",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_detached_record.go",
+      "symbol": "OutBackDetachedRecord.DeclaredWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_detached_record.go",
+      "symbol": "OutBackDetachedRecord.MissingSpans",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_detached_record.go",
+      "symbol": "OutBackDetachedRecord.Occurrences",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_detached_record.go",
+      "symbol": "OutBackDetachedRecord.PresentSpans",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_detached_record.go",
+      "symbol": "OutBackDetachedRecord.RawWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_detached_record.go",
+      "symbol": "OutBackDetachedRecord.Requests",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_detached_record.go",
+      "symbol": "OutBackDetachedRecord.SourceAssociation",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_detached_record.go",
+      "symbol": "OutBackDetachedRecord.TypedFacts",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_offline_provider.go",
+      "symbol": "ErrOutBackOfflineInput",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_offline_provider.go",
+      "symbol": "OutBackOfflineIdle",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_offline_provider.go",
+      "symbol": "OutBackOfflineStatus",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "outback_provider_port.go",
+      "symbol": "ErrI27OutBackBusy",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile.go",
+      "symbol": "AcquisitionOrderNotApplicable",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile.go",
+      "symbol": "AddressBaseZeroBased",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile.go",
+      "symbol": "CoherenceSingleWireResponse",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile.go",
+      "symbol": "HoldingRegisters",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile.go",
+      "symbol": "MaturityExperimental",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile.go",
+      "symbol": "OverlayDeltaAdd",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile.go",
+      "symbol": "OverlayDeltaModelApplicability",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile.go",
+      "symbol": "ProfileActive",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile.go",
+      "symbol": "ProfileStandardFamily",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile.go",
+      "symbol": "PublicationPublished",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile.go",
+      "symbol": "RetrySetNotApplicable",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile.go",
+      "symbol": "TransformIdentity",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile_detection.go",
+      "symbol": "DetectionMatched",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "profile_detection.go",
+      "symbol": "DetectionReasonSelected",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "read_plan.go",
+      "symbol": "ProbeIdentityManufacturer",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "read_plan.go",
+      "symbol": "ProbeReadHoldingRegisters",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "read_plan.go",
+      "symbol": "ProbeReadSucceeded",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "runtime_ledger.go",
+      "symbol": "AttemptOpen",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "runtime_ledger.go",
+      "symbol": "CancellationCompleted",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "runtime_ledger.go",
+      "symbol": "ClaimSucceeded",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "runtime_ledger.go",
+      "symbol": "LedgerAuditAttempt",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "runtime_ledger.go",
+      "symbol": "LedgerAuditTombstone.MarshalJSON",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "runtime_ledger.go",
+      "symbol": "PublicationCommitCommitted",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_offline_provider.go",
+      "symbol": "ErrSDongleOfflineInput",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_offline_provider.go",
+      "symbol": "SDongleOfflineReady",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_offline_provider.go",
+      "symbol": "SDongleOfflineRequest",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_offline_provider.go",
+      "symbol": "SDongleOfflineResult.DefaultDenied",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_offline_provider.go",
+      "symbol": "SDongleOfflineState",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_provider_port.go",
+      "symbol": "ErrI21Association",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_route_decision.go",
+      "symbol": "SDongleGateway",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_route_decision.go",
+      "symbol": "SDonglePlanned",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_route_decision.go",
+      "symbol": "SDongleRequestClass",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_route_decision.go",
+      "symbol": "SDongleRouteDecision.DefaultDenied",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_route_decision.go",
+      "symbol": "SDongleRouteKey",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_route_decision.go",
+      "symbol": "SDongleRoutePlan",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sdongle_route_decision.go",
+      "symbol": "SDongleRouteRole",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_inventory_commit.go",
+      "symbol": "ErrSmartloggerInventoryBusy",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_inventory_commit.go",
+      "symbol": "SmartloggerInventoryAttempt.Cancel",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_inventory_commit.go",
+      "symbol": "SmartloggerInventoryAttempt.Plan",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_inventory_commit.go",
+      "symbol": "SmartloggerInventoryCommitOwner.Begin",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_inventory_commit.go",
+      "symbol": "SmartloggerInventoryCommitOwner.Close",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_inventory_commit.go",
+      "symbol": "SmartloggerInventoryCommitOwner.LastComplete",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_inventory_commit.go",
+      "symbol": "SmartloggerInventoryComplete",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_inventory_commit.go",
+      "symbol": "SmartloggerInventoryContext",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_inventory_commit.go",
+      "symbol": "SmartloggerInventoryOutcome",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_inventory_commit.go",
+      "symbol": "SmartloggerInventoryPlan",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_inventory_commit.go",
+      "symbol": "SmartloggerInventoryResult.DefaultDenied",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_offline_provider.go",
+      "symbol": "ErrSmartloggerOfflineProviderInput",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_offline_provider.go",
+      "symbol": "NewSmartloggerOfflineProvider",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_offline_provider.go",
+      "symbol": "SmartloggerOfflineProvider.Close",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_offline_provider.go",
+      "symbol": "SmartloggerOfflineProvider.LastComplete",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "smartlogger_offline_provider.go",
+      "symbol": "SmartloggerOfflineProvider.Retire",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceAlternative",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceAlternative.Refs",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceAlternative.Value",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceCandidate",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceCandidate.Family",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceCandidate.Firmware",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceCandidate.ID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceCandidate.Map",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceCandidate.Model",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceCandidate.Unit",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceInput.Candidates",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceInput.Evidence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceInput.Subject",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceInputContract",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidencePresence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidencePresence.Alternatives",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidencePresence.Detail",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidencePresence.Refs",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidencePresence.State",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidencePresence.Value",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceReference",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceReference.ClaimLevel",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceReference.Context",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceReference.ID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceReference.Locator",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000EvidenceReference.Source",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000MapEvidence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000MapEvidence.Applicability",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000MapEvidence.Document",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000MapEvidence.Revision",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000UnitEvidence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000UnitEvidence.Binding",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_evidence_input.go",
+      "symbol": "Sun2000UnitEvidence.Context",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_provider_port.go",
+      "symbol": "I13Evidence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_provider_port.go",
+      "symbol": "I13NewProvider",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_provider_port.go",
+      "symbol": "I13Provider.I13Cycle",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_provider_port.go",
+      "symbol": "I13Provider.I13Retire",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_provider_port.go",
+      "symbol": "I13Record",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sun2000_provider_port.go",
+      "symbol": "I13Request",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCanonicalNumber",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCanonicalValue",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCanonicalValue.Bitfield",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCanonicalValue.Enum",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCanonicalValue.Kind",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCanonicalValue.Number",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCanonicalValueKind",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityDecision",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityDecision.Admitted",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityDecision.Facts",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityDecision.ProfileID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityDecision.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityDecision.SourceOccurrence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityDecision.SourceViews",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityFact",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityFact.FieldID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityFact.SourceValue",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityFact.Unit",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityFact.Value",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityReason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecCapabilityReasonAdmitted",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecDecoderRegistry.EvaluateThreePhaseMonitoring",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_capability.go",
+      "symbol": "SunSpecThreePhaseMonitoringCapabilityID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain.go",
+      "symbol": "NewSunSpecChain",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain.go",
+      "symbol": "SunSpecChain",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain.go",
+      "symbol": "SunSpecChain.AdmitReplay",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain.go",
+      "symbol": "SunSpecChain.NextRequests",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain_plan.go",
+      "symbol": "NewSunSpecChainPlan",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain_plan.go",
+      "symbol": "SunSpecChainLimits",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain_plan.go",
+      "symbol": "SunSpecChainPlan",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain_plan.go",
+      "symbol": "SunSpecChainPlan.Requests",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain_plan.go",
+      "symbol": "SunSpecChainPlan.SchemaRevision",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain_plan.go",
+      "symbol": "SunSpecChainPlanSpec",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain_plan.go",
+      "symbol": "SunSpecReadRequest",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain_plan.go",
+      "symbol": "SunSpecReadRequest.Address",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain_plan.go",
+      "symbol": "SunSpecReadRequest.Function",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain_plan.go",
+      "symbol": "SunSpecReadRequest.Purpose",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_chain_plan.go",
+      "symbol": "SunSpecReadRequest.WordCount",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecChainDisposition",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecChainDispositionAdmitted",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecChainSnapshot",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecChainSnapshot.ByModelID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecChainSnapshot.Occurrences",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecChainSnapshot.RawWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecChainSnapshot.SourceViews",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecDecoderKey",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecModelOccurrence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecOccurrence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecOccurrence.DecoderKey",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecOccurrence.ModelID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecOccurrence.ModelLength",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecOccurrence.SourceSpans",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecOccurrence.Words",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecReadPurpose",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecReadSignature",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecSchemaRevision",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecSourceSpan",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_core_types.go",
+      "symbol": "SunSpecWireKey",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "NewStandardSunSpecDecoderRegistry",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecodedChain",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecodedChain.Models",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecodedModel",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecodedModel.Fact",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecodedModel.Facts",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecodedModel.GeometryValid",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecodedModel.Key",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecodedModel.Ordinal",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecodedModel.Qualifies",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecodedModel.RawWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecodedModel.SourceSpans",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecodedModel.Topology",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecoderRegistry",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecoderRegistry.DecodeChain",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecoderRegistry.DecodeOccurrence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecDecoderRegistry.DecoderKeys",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecFact",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecFact.NestedPath",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_decoder.go",
+      "symbol": "SunSpecFact.OccurrenceSourceRange",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecDecoderRegistry.EvaluateFroniusObservedFlavor",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecDecoderRegistry.EvaluateFroniusObservedFlavorV11",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecDecoderRegistry.EvaluateFroniusObservedFlavorV12",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecDecoderRegistry.SelectFroniusObservedFlavor",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorDecision",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorDecision.Capability",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorDecision.Chain",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorDecision.FlavorID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorDecision.Matched",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorDecision.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorDecision.SourceViews",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorReason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorReasonCapabilityNotAdmitted",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorSelection",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorSelection.Decision",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorSelection.Evaluations",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorSelection.Matched",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorSelection.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorSelectionReason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusFlavorSelectionReasonNoMatch",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius.go",
+      "symbol": "SunSpecFroniusObservedFlavorID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "NewSunSpecFroniusQualificationCard",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.AutomaticRuntimeAdmission",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.BaseCandidates",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.ExpectedChain",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.ExpectedResult",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.Firmware",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.FlavorID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.Function",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.ID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.Limits",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.LiveQualified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.Manufacturer",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.Model",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.ReadOnly",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.SchemaRevision",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.UnitID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCard.WriteAuthority",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationCardID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_fronius_qualification_card.go",
+      "symbol": "SunSpecFroniusQualificationExpectedResult.MarshalJSON",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_model_catalog.go",
+      "symbol": "SunSpecModelsRevisionV1",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_model_catalog.go",
+      "symbol": "SunSpecTopology",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_model_catalog.go",
+      "symbol": "SunSpecTopologyNone",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_nested_layout.go",
+      "symbol": "NewSunSpecFactPath",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_nested_layout.go",
+      "symbol": "NewSunSpecOccurrenceSourceRange",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_nested_layout.go",
+      "symbol": "SunSpecFactPath.Segments",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_nested_layout.go",
+      "symbol": "SunSpecOccurrenceSourceRange.OccurrenceOffset",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_nested_layout.go",
+      "symbol": "SunSpecOccurrenceSourceRange.SourceSpans",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_nested_layout.go",
+      "symbol": "SunSpecOccurrenceSourceRange.WordCount",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_outback_axs_flavor.go",
+      "symbol": "OutBackAXSReadOnlyFlavorDecision.Chain",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_outback_axs_flavor.go",
+      "symbol": "OutBackAXSReadOnlyFlavorDecision.FlavorID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_outback_axs_flavor.go",
+      "symbol": "OutBackAXSReadOnlyFlavorDecision.InterfaceModel",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_outback_axs_flavor.go",
+      "symbol": "OutBackAXSReadOnlyFlavorDecision.InterfaceOccurrence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_outback_axs_flavor.go",
+      "symbol": "OutBackAXSReadOnlyFlavorDecision.Matched",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_outback_axs_flavor.go",
+      "symbol": "OutBackAXSReadOnlyFlavorDecision.Reason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_outback_axs_flavor.go",
+      "symbol": "OutBackAXSReadOnlyFlavorID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_outback_axs_flavor.go",
+      "symbol": "OutBackAXSReadOnlyFlavorReason",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_outback_axs_flavor.go",
+      "symbol": "OutBackAXSReadOnlyFlavorReasonSourceNotQualified",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "MaxSunSpecPhaseOneChainWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "NewSunSpecPhaseOneDecoder",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecCommonModel.DeviceAddress",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecCommonModel.Manufacturer",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecCommonModel.Model",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecCommonModel.Options",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecCommonModel.SerialNumber",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecCommonModel.Version",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecDiscoveryRequest.Function",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecDiscoveryRequest.Offset",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecDiscoveryRequest.ReadOnly",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecDiscoveryRequest.Table",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecInverterModel.Energy",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecInverterModel.Power",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneChain.Common",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneChain.Inverter",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneChain.Models",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneChain.SkippedModels",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneDecoder.Acc32",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneDecoder.Activate",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneDecoder.DiscoveryRequest",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneDecoder.Int16",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneDecoder.ScaleFactor",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneModel.ID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneModel.Length",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneModel.Offset",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneObservation.RawWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneObservation.SourceViews",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecPhaseOneObservation.Spec",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecScaledValue.Raw",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecScaledValue.ScaleFactor",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_phase1.go",
+      "symbol": "SunSpecScaledValue.Value",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationObservation.Capability",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationObservation.Chain",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationObservation.Flavor",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationObservation.MarshalJSON",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationObservation.Occurrences",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationObservation.RawWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationObservation.Replay",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationObservation.SampleID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationObservation.SampleIdentity",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationObservation.SourceViews",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationReplay.Occurrences",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationReplay.RawWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationReplay.SourceViews",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationSampleIdentity.DeadlineIdentity",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_qualification_observation.go",
+      "symbol": "SunSpecQualificationSampleIdentity.PollGeneration",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_structural_projection.go",
+      "symbol": "SunSpecStructuralProjection.Facts",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_structural_projection.go",
+      "symbol": "SunSpecStructuralProjection.Ordinal",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_structural_projection.go",
+      "symbol": "SunSpecStructuralProjection.RawWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_structural_projection.go",
+      "symbol": "SunSpecStructuralProjection.SchemaRevision",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_structural_projection.go",
+      "symbol": "SunSpecStructuralProjection.SourceSpans",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_structural_projection.go",
+      "symbol": "SunSpecStructuralProjection.WireKey",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecDecimal",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecPointType",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecTypeInt16",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue.Bitfield",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue.BitfieldSymbols",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue.Decimal",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue.Enum",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue.Float32",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue.PointType",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue.RawWords",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue.Signed",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue.State",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue.Text",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue.Unsigned",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValue.UnsignedDecimal",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValueState",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_value.go",
+      "symbol": "SunSpecValueValid",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "sunspec_vendor_namespace.go",
+      "symbol": "SunSpecVendorDecoderNamespace.Decode",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_common_system_info.go",
+      "symbol": "TeslaFC100CommonSystemInfoIntermediate",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_operation.go",
+      "symbol": "TeslaFC100OperationCommonSystemInfo",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_operation.go",
+      "symbol": "TeslaFC100OperationIntermediate",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_lifetime.go",
+      "symbol": "DecodeTeslaFC100WCLifetimeReplay",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_lifetime.go",
+      "symbol": "DecodeTeslaFC100WCLifetimeReplaySequence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_lifetime.go",
+      "symbol": "TeslaFC100WCLifetimeIntermediate",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_lifetime.go",
+      "symbol": "TeslaFC100WCLifetimeReplay",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_lifetime.go",
+      "symbol": "TeslaFC100WCLifetimeReplayKind",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_lifetime.go",
+      "symbol": "TeslaTEDAPIOperationWCLifetimeV1",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_load_sharing_state.go",
+      "symbol": "TeslaFC100WCLoadSharingStateIntermediate",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_system_info.go",
+      "symbol": "DecodeTeslaFC100WCSystemInfoReplay",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_system_info.go",
+      "symbol": "DecodeTeslaFC100WCSystemInfoReplaySequence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_system_info.go",
+      "symbol": "TeslaFC100WCSystemInfoIntermediate",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_system_info.go",
+      "symbol": "TeslaFC100WCSystemInfoReplay",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_system_info.go",
+      "symbol": "TeslaFC100WCSystemInfoReplayKind",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_system_info.go",
+      "symbol": "TeslaTEDAPIOperationWCSystemInfoV1",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_fc100_wc_vitals.go",
+      "symbol": "TeslaFC100WCVitalsIntermediate",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "NewTeslaGen3InteroperableCurrentLimit",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "NewTeslaGen3PersistentCurrentLimit",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "NewTeslaGen3ProvisionalCurrentLimit",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3CurrentLimitOperationVersion24443",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3InteroperableCurrentLimit",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3InteroperableCurrentLimit.MaxAmps",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3InteroperableCurrentLimit.TimeoutSeconds",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3PersistentCurrentLimit",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3PersistentCurrentLimit.MaxOutputCurrentAmps",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3PersistentCurrentLimit.OperationVersion",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3PersistentCurrentLimit.RequestPayload",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3PersistentCurrentLimit.TerminalPayload",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3PersistentCurrentLimitSpec",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3ProvisionalCurrentLimit",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3ProvisionalCurrentLimit.AckPayload",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3ProvisionalCurrentLimit.ConfiguredCurrentAmps",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3ProvisionalCurrentLimit.InhibitCharging",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3ProvisionalCurrentLimit.LimitCurrentMaxAmps",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3ProvisionalCurrentLimit.LimitTimeoutSeconds",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3ProvisionalCurrentLimit.OperationVersion",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3ProvisionalCurrentLimit.ReadbackRequestPayload",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3ProvisionalCurrentLimit.ReadbackTerminalPayload",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3ProvisionalCurrentLimit.SetRequestPayload",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_evse_current_limit.go",
+      "symbol": "TeslaGen3ProvisionalCurrentLimitSpec",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "TeslaGen3HSCNativeOperationRecord.Direction",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "TeslaGen3HSCNativeOperationRecord.Function",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "TeslaGen3HSCNativeOperationRecord.Operation",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "TeslaGen3HSCNativeOperationRecord.OperationVersion",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "TeslaGen3HSCNativeOperationRecord.Outcome",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "TeslaGen3HSCNativeOperationRecord.Profile",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "TeslaGen3HSCNativeOperationRecord.ProfileVersion",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "TeslaGen3HSCNormalOutcome",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "TeslaGen3HSCRequestDirection",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_hsc_profile.go",
+      "symbol": "TeslaGen3HSCVersionKnownObservation",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_gen3_read_acquisition.go",
+      "symbol": "TeslaGen3ReadLifecycleStopped",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_hsc.go",
+      "symbol": "TeslaHSCDisabled",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_hsc.go",
+      "symbol": "TeslaHSCExceptionUnknown",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_hsc.go",
+      "symbol": "TeslaHSCProfile.DecodeQualifiedFunctionSequence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_hsc.go",
+      "symbol": "TeslaHSCProfile.HandlesQualifiedFunctionSequence",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_hsc.go",
+      "symbol": "TeslaHSCWCSystemInfoCompatibilityV1",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_hsc.go",
+      "symbol": "TeslaTEDAPIAdmissionAllowedWCLifetime",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_hsc_native.go",
+      "symbol": "TeslaHSCNativeRecord.Function",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_hsc_native.go",
+      "symbol": "TeslaHSCNativeRecord.Payload",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFBE0Observation.AllocatedMaxCA",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFBE0Observation.DestinationID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFBE0Observation.Qualification",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFBE0Observation.SourceID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFBE0Observation.State",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFDE0Observation.ActualCurrentCA",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFDE0Observation.AllocatedMaxCA",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFDE0Observation.DestinationID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFDE0Observation.Qualification",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFDE0Observation.SourceID",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFDE0Observation.State",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFDE0StatePreCharge",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_fbe0_fde0.go",
+      "symbol": "TeslaLegacyFamilyCompatible",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_wall_connector.go",
+      "symbol": "TeslaLegacyOperationUnknown",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_wall_connector.go",
+      "symbol": "TeslaLegacyWallConnectorBuildConfirmed",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_wall_connector.go",
+      "symbol": "TeslaLegacyWallConnectorGenerationCandidate",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_legacy_wall_connector.go",
+      "symbol": "TeslaLegacyWallConnectorRequest",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_tedapi_registry.go",
+      "symbol": "TeslaTEDAPIFramingOnly",
+      "rule": "revive/exported",
+      "count": 1
+    },
+    {
+      "path": "tesla_tedapi_registry.go",
+      "symbol": "TeslaTEDAPIRequest",
+      "rule": "revive/exported",
+      "count": 1
+    }
+  ]
+}
