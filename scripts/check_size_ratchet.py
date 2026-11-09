@@ -6,6 +6,7 @@ run from func through the final token, inclusive, including nested literals.
 Counts include declarations, methods and literals. Literal identities use their
 enclosing symbol and lexical ordinal, independent of source line numbers.
 The baseline records debt; it does not clear the release debt requirement.
+Reduced or removed debt requires tightening or removing its baseline allowance.
 """
 import json
 import os
@@ -21,9 +22,13 @@ BUDGETS = {
 EXCLUDED = {".git", ".tmp", "vendor", "node_modules", "references"}
 
 
+def raise_scan_error(error):
+    raise error
+
+
 def sources(root):
     paths, exclusions = [], []
-    for directory, dirs, files in os.walk(root, followlinks=False):
+    for directory, dirs, files in os.walk(root, followlinks=False, onerror=raise_scan_error):
         relative = Path(directory).relative_to(root)
         for name in sorted(dirs[:]):
             path = relative / name
@@ -93,6 +98,13 @@ def evaluate(rows, baseline):
             soft.append(row)
         if row["value"] > high and row["value"] > baseline.get(key(row), high):
             failures.append(row)
+    measured = {key(row): row["value"] for row in rows}
+    for (path, symbol, metric), allowance in baseline.items():
+        value = measured.get((path, symbol, metric))
+        if value is None or value < allowance:
+            failures.append(dict(path=path, symbol=symbol, metric=metric,
+                                 value=allowance, measured_value=value,
+                                 reason="baseline allowance must be tightened or removed"))
     return soft, failures
 
 
@@ -108,7 +120,7 @@ def main():
             print("SOFT", json.dumps(row, sort_keys=True))
         for row in failures:
             print("FAIL", json.dumps(row, sort_keys=True))
-        print(f"Measured {len({r['path'] for r in rows})} files; {len(soft)} soft violations; {len(failures)} new or growing hard violations")
+        print(f"Measured {len({r['path'] for r in rows})} files; {len(soft)} soft violations; {len(failures)} hard-debt or stale-baseline failures")
         return bool(failures)
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         print(f"size ratchet error: {exc}", file=sys.stderr)

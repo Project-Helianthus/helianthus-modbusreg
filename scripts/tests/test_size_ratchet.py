@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("ratchet", ROOT / "scripts/check_size_ratchet.py")
@@ -42,14 +43,39 @@ class RatchetTests(unittest.TestCase):
                 self.assertTrue(R.evaluate([changed], saved)[1])
         self.assertFalse(R.evaluate([original], saved)[1])
 
-    def test_reduced_removed_and_renamed_debt(self):
-        original = row()
+    def test_reduction_requires_tightening_and_blocks_regrowth(self):
+        original = row(value=1200)
         saved = baseline(original)
-        for value in (1001, 1000, 999):
-            self.assertFalse(R.evaluate([dict(original, value=value)], saved)[1])
-        self.assertFalse(R.evaluate([], saved)[1])
+        self.assertFalse(R.evaluate([original], saved)[1])
         self.assertTrue(R.evaluate([dict(original, path="renamed.go")], saved)[1])
+        for value in (1100, 1000, 999, None):
+            with self.subTest(value=value):
+                reduced = [] if value is None else [dict(original, value=value)]
+                self.assertTrue(R.evaluate(reduced, saved)[1])
+                tightened = baseline(*[r for r in reduced if r["value"] > 1000])
+                self.assertFalse(R.evaluate(reduced, tightened)[1])
+                self.assertTrue(R.evaluate([original], tightened)[1])
+                if value is not None:
+                    regrown = dict(original, value=max(1001, value + 1))
+                    self.assertTrue(R.evaluate([regrown], tightened)[1])
         self.assertEqual(saved, baseline(original))
+
+    def test_source_directory_scan_errors_are_fatal(self):
+        root = self.fixture()
+        (root / "unit.go").write_text("package sample\n")
+        blocked = root / "blocked"
+        blocked.mkdir()
+        (blocked / "hidden.go").write_text("package sample\n")
+        scandir = R.os.scandir
+
+        def scan(path):
+            if Path(path) == blocked:
+                raise PermissionError("source directory denied")
+            return scandir(path)
+
+        with mock.patch.object(R.os, "scandir", side_effect=scan):
+            with self.assertRaisesRegex(PermissionError, "source directory denied"):
+                R.sources(root)
 
     def test_malformed_baselines(self):
         good = dict(version=1, violations=[row()])
