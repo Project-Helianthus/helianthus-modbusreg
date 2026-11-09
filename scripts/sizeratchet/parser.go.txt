@@ -1,0 +1,68 @@
+package main
+
+import (
+ "bytes"
+ "encoding/json"
+ "fmt"
+ "go/ast"
+ "go/format"
+ "go/parser"
+ "go/token"
+ "os"
+ "strings"
+)
+
+type Row struct {
+ Path string `json:"path"`
+ Symbol string `json:"symbol"`
+ Metric string `json:"metric"`
+ Value int `json:"value"`
+}
+
+type visitor struct {
+ path, parent string
+ fs *token.FileSet
+ rows *[]Row
+ counts map[string]int
+ total *int
+}
+func (v visitor) Visit(n ast.Node) ast.Visitor {
+ if n == nil { return nil }
+ symbol := ""
+ switch f := n.(type) {
+ case *ast.FuncDecl:
+  symbol = f.Name.Name
+  if f.Recv != nil {
+   var b bytes.Buffer
+   if err := format.Node(&b, v.fs, f.Recv.List[0].Type); err != nil { panic(err) }
+   symbol = "(" + b.String() + ")." + symbol
+  }
+ case *ast.FuncLit:
+  v.counts[v.parent]++
+  symbol = fmt.Sprintf("%s/$literal[%d]", v.parent, v.counts[v.parent])
+ default:
+  return v
+ }
+ *v.total++
+ *v.rows = append(*v.rows, Row{v.path, symbol, "function_lines", v.fs.Position(n.End()).Line-v.fs.Position(n.Pos()).Line+1})
+ v.parent = symbol
+ return v
+}
+func main() {
+ var paths []string
+ if err := json.NewDecoder(os.Stdin).Decode(&paths); err != nil { fmt.Fprintln(os.Stderr, err); os.Exit(1) }
+ rows := []Row{}
+ for _, path := range paths {
+  data, err := os.ReadFile(path)
+  if err != nil { fmt.Fprintln(os.Stderr, err); os.Exit(1) }
+  fs := token.NewFileSet()
+  f, err := parser.ParseFile(fs, path, data, parser.AllErrors)
+  if err != nil { fmt.Fprintln(os.Stderr, err); os.Exit(1) }
+  lines := bytes.Count(data, []byte("\n"))
+  if len(data)>0 && !strings.HasSuffix(string(data), "\n") { lines++ }
+  total := 0
+  ast.Walk(visitor{path, "$package", fs, &rows, map[string]int{}, &total}, f)
+  rows = append(rows, Row{path, "$file", "file_lines", lines}, Row{path, "$file", "functions_per_file", total})
+ }
+ if err := json.NewEncoder(os.Stdout).Encode(rows); err != nil { fmt.Fprintln(os.Stderr, err); os.Exit(1) }
+}
