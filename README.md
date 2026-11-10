@@ -169,6 +169,23 @@ in [`docs/fmv3-m3-03-completion.md`](docs/fmv3-m3-03-completion.md). The
 cross-repository architecture remains documented in the public Helianthus
 protocol documentation repository.
 
+## Provider-port documentation
+
+The public provider-port documentation is owned by
+`helianthus-docs-modbus`:
+
+- [EMMA](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/emma-provider-port.md)
+- [Fronius](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/fronius-provider-port.md)
+- [Growatt aggregate](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/growatt-aggregate-provider-port.md)
+- [LUNA](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/luna-provider-port.md)
+- [OutBack](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/outback-provider-port.md)
+- [S-Dongle](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/sdongle-provider-port.md)
+- [SmartLogger](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/smartlogger-provider-port.md)
+- [SUN2000](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/sun2000-provider-port.md)
+
+This registry owns the implementation. The linked pages describe each
+family-local provider port and its native evidence and admission boundaries.
+
 ## Development
 
 Prerequisites:
