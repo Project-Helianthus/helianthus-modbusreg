@@ -258,6 +258,9 @@
       "cmd/gateway/matter_binding_feed_v1_test.go",
       "cmd/gateway/matter_library_composition.go",
       "cmd/gateway/matter_library_composition_test.go",
+      "cmd/gateway/matter_profile_disabled.go",
+      "cmd/gateway/matter_profile_enabled.go",
+      "cmd/gateway/matter_profile_test.go",
       "cmd/gateway/mcp_bus_observability_integration_test.go",
       "cmd/gateway/mcp_tool_inventory_test.go",
       "cmd/gateway/mcp_watch_summary_integration_test.go",
@@ -470,6 +473,7 @@
       "docs/architecture/matter-binding-feed-v1.md",
       "docs/architecture/matter-output-binding-v1.md",
       "docs/architecture/mux-raw-symbol-continuity.md",
+      "docs/architecture/no-matter-build.md",
       "docs/architecture/portal-catalog-admission-transport-v1.md",
       "docs/architecture/portal-config-diagnostic-projection.md",
       "docs/architecture/portal-config-sharing.md",
@@ -1429,6 +1433,7 @@
       "scripts/build_portal_assets.sh",
       "scripts/capture_m8_source_window.sh",
       "scripts/capture_m8_source_window_test.py",
+      "scripts/check_no_matter_profile.py",
       "scripts/check_portal_assets.sh",
       "scripts/check_semantic_imports.py",
       "scripts/ci_local.sh",
@@ -1564,6 +1569,7 @@
       "custom_components/helianthus/energy.py",
       "custom_components/helianthus/entity_updates.py",
       "custom_components/helianthus/entry_cleanup.py",
+      "custom_components/helianthus/entry_runtime.py",
       "custom_components/helianthus/entry_services.py",
       "custom_components/helianthus/entry_setup.py",
       "custom_components/helianthus/evse_m2m.py",
@@ -1588,7 +1594,6 @@
       "custom_components/helianthus/sensor_descriptors.py",
       "custom_components/helianthus/sensor_setup.py",
       "custom_components/helianthus/services.yaml",
-      "custom_components/helianthus/smoke_profile.py",
       "custom_components/helianthus/storage_m2m.py",
       "custom_components/helianthus/strings.json",
       "custom_components/helianthus/subscriptions.py",
@@ -1600,6 +1605,7 @@
       "custom_components/helianthus/zone_parent.py",
       "docs/adversarial-runtime-contract.md",
       "docs/dhw-bound-reprobe.md",
+      "docs/entry-runtime-lifecycle.md",
       "docs/freshness-availability-contract.md",
       "docs/legacy-sensor-shared-migration.md",
       "docs/offline-consumer-acceptance-boundary.md",
@@ -1625,6 +1631,7 @@
       "scripts/readability-baseline.json",
       "scripts/run-ha-dual-topology-smoke.sh",
       "scripts/run_post_parity_adoption_checks.py",
+      "scripts/smoke_profile.py",
       "tests/conftest.py",
       "tests/fixtures/adversarial-runtime/v1/gateway/evaluated-fail.json",
       "tests/fixtures/adversarial-runtime/v1/gateway/execution-error.json",
@@ -1662,6 +1669,7 @@
       "tests/test_entity_icon_gate.py",
       "tests/test_entity_updates.py",
       "tests/test_entry_cleanup_retry_isolation.py",
+      "tests/test_entry_runtime_contract.py",
       "tests/test_entrypoint_phases.py",
       "tests/test_evse_binding_single_faults.py",
       "tests/test_evse_descriptor_collision_axes.py",
@@ -1723,6 +1731,7 @@
       "tests/test_semantic_snapshot_remaining_edges.py",
       "tests/test_semantic_snapshot_sensors.py",
       "tests/test_sensor.py",
+      "tests/test_smoke_cli_location.py",
       "tests/test_smoke_profile.py",
       "tests/test_solar_cylinder.py",
       "tests/test_storage_m2m.py",
@@ -2711,6 +2720,7 @@
       ".github/workflows/readability.yml",
       ".gitignore",
       "AGENTS.md",
+      "CHANGELOG.md",
       "LICENSE",
       "README.md",
       "SOURCE-FILES.txt",
@@ -2756,6 +2766,8 @@
       "api/v1/targets/matter-1.7-ballot-0.9-v1.json",
       "api/v1/targets/matter-1.7-ballot-0.9-v1.md",
       "architecture/glossary.md",
+      "architecture/naming-contract.json",
+      "architecture/naming-contract.md",
       "architecture/repository-ownership-v1.md",
       "author-evidence/issue-16-infrastructure-pack-v1/REPORT.md",
       "author-evidence/issue-16-infrastructure-pack-v1/ci-full.log",
@@ -2771,6 +2783,7 @@
       "scripts/check_docs.sh",
       "scripts/check_document_status.py",
       "scripts/check_local_links.py",
+      "scripts/check_naming_contract.py",
       "scripts/check_readability.py",
       "scripts/check_snapshot_vector_ids.py",
       "scripts/document-status-baseline.json",
@@ -2814,6 +2827,7 @@
       "scripts/validate_thermal_hvac_pack_v1.py",
       "tests/test_glossary_contract.py",
       "tests/test_matter161_target.py",
+      "tests/test_naming_contract.py",
       "tests/test_readability_gate.py",
       "tests/test_storage_cell_voltage_contract.py"
     ],
@@ -2821,6 +2835,7 @@
       ".gitattributes",
       ".github/workflows/docs.yml",
       "AGENTS.md",
+      "CHANGELOG.md",
       "LICENSE",
       "LICENSES/AGPL-3.0-only.txt",
       "LICENSES/CC0-1.0.txt",
@@ -2842,6 +2857,8 @@
       "architecture/growatt-fc04-record-validation-implementation.md",
       "architecture/luna-optional-state-reducer-implementation.md",
       "architecture/luna-provider-port.md",
+      "architecture/naming-contract.json",
+      "architecture/naming-contract.md",
       "architecture/outback-detached-record-implementation.md",
       "architecture/outback-observation-lifecycle.md",
       "architecture/outback-offline-provider-cycle.md",
@@ -2903,9 +2920,11 @@
       "protocols/tesla/tedapi.md",
       "scripts/check_docs.sh",
       "scripts/check_docs_test.sh",
+      "scripts/check_naming_contract.py",
       "scripts/check_outback_contract.py",
       "scripts/outback_contract_rules.json",
       "scripts/test_outback_contract_rules.py",
+      "tests/test_naming_contract.py",
       "tests/test_provider_port_ownership.py"
     ],
     "docs-ebus": [
@@ -2917,6 +2936,7 @@
       ".github/workflows/platform-contracts-combined-ref.yml",
       ".gitignore",
       "AGENTS.md",
+      "CHANGELOG.md",
       "LICENSE",
       "Makefile",
       "README.md",
@@ -3206,6 +3226,8 @@
       "architecture/fixtures/ap26_b525_quality_config.json",
       "architecture/fixtures/aq26_b512_power_stepper_fields.json",
       "architecture/fixtures/dhw-setpoint-semreg-cutover-v1.json",
+      "architecture/fixtures/naming-consumers.json",
+      "architecture/fixtures/non-b524-name-inventory.json",
       "architecture/fixtures/register-name-vocabulary.csv",
       "architecture/fixtures/vaillant-controller-context-receipt-v1.json",
       "architecture/fixtures/vaillant-controller-context-receipt-v1.sha256",
@@ -4975,7 +4997,78 @@
   "limitations": [
     "Unindexed computed names and indirect bindings require manual data-flow review.",
     "Files unavailable or excluded by source inventories are outside this search.",
-    "No consumer closure or absence has been established; source file lists are supplied search universes, not verified bindings."
+    "No consumer closure or absence has been established; source file lists are supplied search universes, not verified bindings.",
+    "Source-file lists refreshed against the supplied public source inventories; dynamic candidates remain lexical and consumer adoption is not implemented here."
   ],
-  "completeness": "incomplete"
+  "completeness": "incomplete",
+  "adoption": {
+    "status": "consumer_adoption_required",
+    "supported_map": [
+      {
+        "previous_name": "device_status",
+        "emitted_name": "status",
+        "binding": "ebusgateway/cmd/gateway/huawei_pv_semreg.go",
+        "obligation": "Replace the native suffix switch with status; accept only grid_connected. No fallback, duplicate field or alias."
+      }
+    ],
+    "provisional_unchanged": [
+      "energy_accumulated",
+      "energy_current_hour",
+      "energy_current_day",
+      "pv_string_voltage",
+      "pv_string_current",
+      "input_power",
+      "active_power"
+    ],
+    "contract": "https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/naming-contract.md",
+    "parity": "Preserve eBUS MCP compatibility and GraphQL parity; downstream re-pin and verification are required before shipping."
+  },
+  "reviewed_consumers": [
+    {
+      "repository": "ebusgateway",
+      "status": "direct_binding_requires_adoption",
+      "files": [
+        "cmd/gateway/huawei_pv_semreg.go"
+      ],
+      "finding": "The status suffix selects pv.status.operating only for grid_connected; accumulated energy selects pv.energy.generated. Other supplied closure matches remain review candidates."
+    },
+    {
+      "repository": "ha-integration",
+      "status": "indirect_semantic_consumer",
+      "files": [
+        "custom_components/helianthus/pv_m2m.py",
+        "custom_components/helianthus/semantic_snapshot_sensors.py"
+      ],
+      "finding": "PV facts and outputs consume semantic projection identities; no direct old-key match in the supplied source universe. This does not establish absence in computed bindings."
+    },
+    {
+      "repository": "ebus-vdev",
+      "status": "generic_consumer_reviewed",
+      "files": [
+        "internal/datasource/graphql_zone.go"
+      ],
+      "finding": "GraphQL zone consumer; no direct old-key match in the supplied source universe. No global absence claim."
+    },
+    {
+      "repository": "vrc-explorer",
+      "status": "generic_consumer_reviewed",
+      "files": [
+        "src/helianthus_vrc_explorer/schema/mapper.py",
+        "src/helianthus_vrc_explorer/ui/browse_hydration.py"
+      ],
+      "finding": "Schema mapping and field display reviewed; no direct old-key match in the supplied source universe. No global absence claim."
+    },
+    {
+      "repository": "matter-binding",
+      "status": "semantic_contract_review_required",
+      "files": [
+        "docs/target-profile/evse.md",
+        "docs/target-profile/metering.md",
+        "docs/target-profile/photovoltaic.md",
+        "docs/target-profile/storage.md",
+        "runtime/semantic_feed.py"
+      ],
+      "finding": "Semantic target profiles do not directly bind the renamed native suffix; coordinated semantic projection review remains required."
+    }
+  ]
 }

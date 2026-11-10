@@ -138,7 +138,7 @@ An Unknown fact carries no value, never a zero.
 | `pv_string_current`, strings 1 to 8 | 32017 + 2(n − 1) | I16, A, gain 100 | Hypothesis | Proven |
 | `input_power` | 32064 | I32, kW, gain 1000 | not read | Proven |
 | `active_power` | 32080 | I32, kW, gain 1000; a negative value stays Unknown | not read | Proven |
-| `device_status` | 32089 | U16; only the observed code is published, as `grid_connected`, and every other code stays Unknown | not read | Hypothesis |
+| `status` | 32089 | U16; only the observed code is published, as `grid_connected`, and every other code stays Unknown | not read | Hypothesis |
 | `energy_accumulated` | 32106 | U32, kWh, gain 100 | Proven at units 1 and 2 | Hypothesis |
 | `energy_current_hour` | 32112 | U32, kWh, gain 100 | Hypothesis | Hypothesis |
 | `energy_current_day` | 32114 | U32, kWh, gain 100 | Hypothesis | Hypothesis |
@@ -148,6 +148,16 @@ A Proven field is graded Hypothesis at an M3 series unit other than units 1 and
 group yields no fact; its words are retained as native evidence, as are the
 string words past string 8, the DC-input energy counter, the statistics time and
 the anchor words of the power group.
+
+The supported field name is `status`; the former name is not accepted by
+`Fact` or emitted by `DecoderKeys`. Profile namespaces and string indexes stay
+part of the exact lookup identity. See the public
+[naming contract](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/naming-contract.md).
+The accumulated-energy row remains provisional: the contract does not establish
+total accumulation across both families, so its existing key is unchanged.
+Proven, Hypothesis and Unknown remain evidence grades, separate from qualification.
+This artifact-changing contract requires renewed affected security, hardware and
+candidate evidence before release; synthetic replay establishes no qualification.
 
 ## Battery and meters
 
