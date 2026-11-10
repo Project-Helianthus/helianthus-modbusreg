@@ -267,7 +267,7 @@ func huaweiSUN2000M1Profile() HuaweiSUN2000MonitoringProfile {
 			kind: huaweiSUN2000Measurement, grade: HuaweiGradeProven},
 		huaweiSUN2000Field{name: "active_power", group: power, offset: 32080, wordType: huaweiSUN2000I32, exponent: -3, unit: "kW",
 			kind: huaweiSUN2000PositiveOnly, grade: HuaweiGradeProven},
-		huaweiSUN2000Field{name: "device_status", group: power, offset: 32089, wordType: huaweiSUN2000U16,
+		huaweiSUN2000Field{name: "status", group: power, offset: 32089, wordType: huaweiSUN2000U16,
 			kind: huaweiSUN2000StateCode, grade: HuaweiGradeHypothesis},
 	)
 	fields = append(fields, huaweiSUN2000EnergyFields(HuaweiGradeHypothesis, HuaweiGradeHypothesis)...)

@@ -1083,7 +1083,7 @@ func TestH05SignConventionAndUnobservedStateCodes(t *testing.T) {
 
 	for _, code := range []uint16{0x0000, 0x0001, 0x0100, 0x0201, 0x0202, 0x0300, 0x0307, 0x0500, 0xa000, 0x01ff, 0x0210, 0xffff} {
 		reading := withPower(func(words []uint16) { words[25] = code })
-		fact := h05FactValue(t, reading, "huawei.sun2000.m1.device_status", 0)
+		fact := h05FactValue(t, reading, "huawei.sun2000.m1.status", 0)
 		if fact.Availability != HuaweiFactUnknown || fact.State != "" || fact.Value != (HuaweiDecimal{}) {
 			t.Fatalf("code %#04x: %+v", code, fact)
 		}
@@ -1091,7 +1091,7 @@ func TestH05SignConventionAndUnobservedStateCodes(t *testing.T) {
 			t.Fatalf("code %#04x not retained as native evidence: %#04x", code, retained)
 		}
 	}
-	observed := h05FactValue(t, withPower(func([]uint16) {}), "huawei.sun2000.m1.device_status", 0)
+	observed := h05FactValue(t, withPower(func([]uint16) {}), "huawei.sun2000.m1.status", 0)
 	if observed.State != "grid_connected" || observed.Value.String() != "512" || observed.Grade != HuaweiGradeHypothesis {
 		t.Fatalf("observed code: %+v", observed)
 	}

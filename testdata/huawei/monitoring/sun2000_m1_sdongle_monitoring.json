@@ -313,7 +313,7 @@
           "grade": "PROVEN"
         },
         {
-          "key": "huawei.sun2000.m1.device_status",
+          "key": "huawei.sun2000.m1.status",
           "index": 0,
           "value": "512",
           "unit": "",

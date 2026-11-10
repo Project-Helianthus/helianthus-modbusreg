@@ -1,5 +1,5 @@
 {
-  "purpose": "Non-runtime preliminary source-derived naming inventory; not an alias table.",
+  "purpose": "Non-runtime decoded-output naming inventory and documentary correspondence; never a runtime alias table.",
   "source_files": [
     ".github/CODEOWNERS",
     ".github/workflows/behavior-names.yml",
@@ -9,6 +9,7 @@
     ".gitignore",
     ".golangci.yml",
     "AGENTS.md",
+    "CHANGELOG.md",
     "CONTRIBUTING.md",
     "LICENSE",
     "README.md",
@@ -165,6 +166,9 @@
     "luna_provider_port.go",
     "luna_provider_port_test.go",
     "mixed_catalog_closure_test.go",
+    "naming-consumers.json",
+    "naming-inventory.json",
+    "naming_contract_test.go",
     "o24_sdongle_software_test.go",
     "observation.go",
     "outback_axs_flavor_contract_test.go",
@@ -478,9 +482,9 @@
       "identity": "HuaweiSUN2000MonitoringProfile / decoded field / pv_string_voltage",
       "owning_file": "huawei_sun2000_monitoring.go",
       "current_name": "pv_string_voltage",
-      "target": null,
+      "target": "pv_string_voltage",
       "category": "decoded_value",
-      "role_decomposition": null,
+      "role_decomposition": "provisional; existing vocabulary unchanged",
       "existing_public_evidence": [
         "huawei_sun2000_monitoring.go"
       ],
@@ -496,9 +500,9 @@
       "identity": "HuaweiSUN2000MonitoringProfile / decoded field / pv_string_current",
       "owning_file": "huawei_sun2000_monitoring.go",
       "current_name": "pv_string_current",
-      "target": null,
+      "target": "pv_string_current",
       "category": "decoded_value",
-      "role_decomposition": null,
+      "role_decomposition": "provisional; existing vocabulary unchanged",
       "existing_public_evidence": [
         "huawei_sun2000_monitoring.go"
       ],
@@ -514,30 +518,30 @@
       "identity": "HuaweiSUN2000MonitoringProfile / decoded field / energy_accumulated",
       "owning_file": "huawei_sun2000_monitoring.go",
       "current_name": "energy_accumulated",
-      "target": null,
+      "target": "energy_accumulated",
       "category": "decoded_value",
-      "role_decomposition": null,
+      "role_decomposition": "provisional; existing vocabulary unchanged",
       "existing_public_evidence": [
         "huawei_sun2000_monitoring.go",
-        "docs-modbus/protocols/huawei/monitoring-readonly-v1.md",
         "docs-modbus/protocols/huawei/monitoring-readonly-v1.md"
       ],
       "value_class": "measurement",
       "unit_metadata": "kWh",
       "status": "provisional",
-      "open_question": "Confirm profile-specific identity, consumer bindings, vocabulary and applicable qualification before adoption.",
+      "open_question": "Total accumulation meaning across both families remains unestablished by the public monitoring contract; keep this exact key provisional.",
       "consumer_files": [
         "ebusgateway/cmd/gateway/huawei_pv_semreg.go"
       ],
-      "candidate_target": "energy_total"
+      "candidate_target": "energy_total",
+      "consumer_obligation": "Gateway generated-energy projection keeps energy_accumulated until the public native contract establishes the candidate target."
     },
     {
       "identity": "HuaweiSUN2000MonitoringProfile / decoded field / energy_current_hour",
       "owning_file": "huawei_sun2000_monitoring.go",
       "current_name": "energy_current_hour",
-      "target": null,
+      "target": "energy_current_hour",
       "category": "decoded_value",
-      "role_decomposition": null,
+      "role_decomposition": "provisional; existing vocabulary unchanged",
       "existing_public_evidence": [
         "huawei_sun2000_monitoring.go"
       ],
@@ -551,9 +555,9 @@
       "identity": "HuaweiSUN2000MonitoringProfile / decoded field / energy_current_day",
       "owning_file": "huawei_sun2000_monitoring.go",
       "current_name": "energy_current_day",
-      "target": null,
+      "target": "energy_current_day",
       "category": "decoded_value",
-      "role_decomposition": null,
+      "role_decomposition": "provisional; existing vocabulary unchanged",
       "existing_public_evidence": [
         "huawei_sun2000_monitoring.go"
       ],
@@ -567,9 +571,9 @@
       "identity": "HuaweiSUN2000MonitoringProfile / decoded field / input_power",
       "owning_file": "huawei_sun2000_monitoring.go",
       "current_name": "input_power",
-      "target": null,
+      "target": "input_power",
       "category": "decoded_value",
-      "role_decomposition": null,
+      "role_decomposition": "provisional; existing vocabulary unchanged",
       "existing_public_evidence": [
         "huawei_sun2000_monitoring.go"
       ],
@@ -585,9 +589,9 @@
       "identity": "HuaweiSUN2000MonitoringProfile / decoded field / active_power",
       "owning_file": "huawei_sun2000_monitoring.go",
       "current_name": "active_power",
-      "target": null,
+      "target": "active_power",
       "category": "decoded_value",
-      "role_decomposition": null,
+      "role_decomposition": "provisional; existing vocabulary unchanged",
       "existing_public_evidence": [
         "huawei_sun2000_monitoring.go"
       ],
@@ -600,31 +604,54 @@
       ]
     },
     {
-      "identity": "HuaweiSUN2000MonitoringProfile / decoded field / device_status",
+      "identity": "HuaweiSUN2000MonitoringProfile / decoded field / status",
       "owning_file": "huawei_sun2000_monitoring.go",
-      "current_name": "device_status",
-      "target": null,
+      "current_name": "status",
+      "target": "status",
       "category": "decoded_value",
-      "role_decomposition": null,
+      "role_decomposition": "state value: status",
       "existing_public_evidence": [
         "huawei_sun2000_monitoring.go",
-        "docs-modbus/protocols/huawei/monitoring-readonly-v1.md",
         "docs-modbus/protocols/huawei/monitoring-readonly-v1.md"
       ],
       "value_class": "state code",
-      "unit_metadata": null,
-      "status": "provisional",
-      "open_question": "Confirm profile-specific identity, consumer bindings, vocabulary and applicable qualification before adoption.",
+      "unit_metadata": "",
+      "status": "adopted",
+      "open_question": "No open naming question; M1 Hypothesis grade and M3 refused power group remain unchanged.",
       "consumer_files": [
         "ebusgateway/cmd/gateway/huawei_pv_semreg.go"
       ],
-      "candidate_target": "status"
+      "candidate_target": "status",
+      "previous_name": "device_status",
+      "consumer_obligation": "Gateway Huawei projection must consume status with no old-key fallback in the coordinated wave; preserve grid_connected and public MCP/GraphQL parity."
     }
   ],
   "limitations": [
-    "Only the bounded Huawei decoded-output slice has been reviewed. Exported Go surface, catalogs, other decoded outputs, identity and dynamic consumer paths remain unenumerated.",
-    "Consumer file matches are lexical candidates and have not been verified as bindings.",
-    "The energy evidence is profile-specific; target adoption is not authorized."
+    "The eight Huawei monitoring outputs are enumerated separately; other decoded outputs and exported surfaces remain unchanged and their enumeration is incomplete, tracked by issue 393.",
+    "The supported status rename is adopted; the energy_total candidate is not authorized by the public native contract.",
+    "Consumer closure requires coordinated downstream adoption and verification; lexical matches do not establish bindings or absence."
   ],
-  "completeness": "incomplete"
+  "completeness": "incomplete",
+  "native_identities": [
+    {
+      "name": "W",
+      "status": "native_identity_unchanged"
+    },
+    {
+      "name": "WH",
+      "status": "native_identity_unchanged"
+    },
+    {
+      "name": "V_SF",
+      "status": "native_identity_unchanged"
+    },
+    {
+      "name": "TEDAPI method and field spellings",
+      "status": "native_identity_unchanged"
+    }
+  ],
+  "remaining_exports": {
+    "status": "unchanged_provisional",
+    "open_question": "Complete classification and enumeration tracked by issue 393."
+  }
 }

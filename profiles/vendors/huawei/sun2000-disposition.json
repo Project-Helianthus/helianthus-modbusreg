@@ -241,7 +241,7 @@
       "withheld": [
         "input_power",
         "active_power",
-        "device_status",
+        "status",
         "battery",
         "meter"
       ],
@@ -382,7 +382,7 @@
           "grade": "PROVEN"
         },
         {
-          "key": "device_status",
+          "key": "status",
           "offset": 32089,
           "stride": 0,
           "count": 1,
@@ -741,7 +741,7 @@
     "huawei.sun2000.m1.pv_string_current",
     "huawei.sun2000.m1.input_power",
     "huawei.sun2000.m1.active_power",
-    "huawei.sun2000.m1.device_status",
+    "huawei.sun2000.m1.status",
     "huawei.sun2000.m1.energy_accumulated",
     "huawei.sun2000.m1.energy_current_hour",
     "huawei.sun2000.m1.energy_current_day"
