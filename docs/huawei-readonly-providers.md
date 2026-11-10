@@ -11,7 +11,8 @@ acquisition sections of the
 [EMMA](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/emma-provider-port.md)
 and
 [S-Dongle](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/sdongle-provider-port.md)
-provider-port pages. The contracts own every protocol fact; this page adds
+provider-port pages, owned by `helianthus-docs-modbus`. This registry owns
+the implementation. The contracts own every protocol fact; this page adds
 none. Nothing here is stable before Helianthus 1.0.
 
 ## One provider per admitted gateway path
