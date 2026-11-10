@@ -285,6 +285,18 @@ func TestSunSpecChainSourceSpansReconstructAndCopiesAreImmutable(t *testing.T) {
 	}
 }
 
+// sourceViewRecord returns the record of the source view with the given identifier by value,
+// so the span checks below never dereference a pointer that an analyzer may judge nilable.
+func sourceViewRecord(views []LogicalViewSnapshot, id uint64) (LogicalViewRecord, bool) {
+	for _, view := range views {
+		record := view.Record()
+		if record.LogicalViewID == id {
+			return record, true
+		}
+	}
+	return LogicalViewRecord{}, false
+}
+
 func TestSunSpecChainSourceSpansUseSourcePDUCoordinates(t *testing.T) {
 	c := NewSunSpecChain(chainPlan(t, []uint16{40000}))
 	id := uint64(1)
@@ -303,19 +315,12 @@ func TestSunSpecChainSourceSpansUseSourcePDUCoordinates(t *testing.T) {
 		views := snapshot.SourceViews()
 		var reconstructed []uint16
 		for _, span := range occurrence.SourceSpans() {
-			var source *LogicalViewRecord
-			for _, view := range views {
-				record := view.Record()
-				if record.LogicalViewID == span.LogicalViewID {
-					source = &record
-					break
-				}
-			}
-			if source == nil {
+			source, found := sourceViewRecord(views, span.LogicalViewID)
+			if !found {
 				t.Fatalf("source view %d is missing", span.LogicalViewID)
 			}
 			if span.PDUOffset != source.SliceOffset || span.WordCount != source.SliceWordCount || uint32(span.PDUOffset)+uint32(span.WordCount) > uint32(source.PhysicalWordCount) {
-				t.Fatalf("span %#v does not identify source PDU slice %#v", span, *source)
+				t.Fatalf("span %#v does not identify source PDU slice %#v", span, source)
 			}
 			reconstructed = append(reconstructed, source.Words...)
 		}
