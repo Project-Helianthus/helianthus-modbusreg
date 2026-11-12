@@ -21,10 +21,10 @@ import (
 // under. It decodes no register, reads no other catalogue file and grants no
 // authority.
 //
-//go:embed profiles/vendors/huawei/catalogue/smartlogger-sdongle-emma/editions.json profiles/vendors/huawei/catalogue/smartlogger-sdongle-emma/services.json
-var huaweiGatewayCatalogueFiles embed.FS
+//go:embed profiles/vendors/huawei/catalog/smartlogger-sdongle-emma/editions.json profiles/vendors/huawei/catalog/smartlogger-sdongle-emma/services.json
+var huaweiGatewayCatalogFiles embed.FS
 
-const huaweiGatewayCatalogueDirectory = "profiles/vendors/huawei/catalogue/smartlogger-sdongle-emma"
+const huaweiGatewayCatalogDirectory = "profiles/vendors/huawei/catalog/smartlogger-sdongle-emma"
 
 // HuaweiGatewayEndpoint is the endpoint class in which the identity was read.
 // A gateway's own identity is read only in its self endpoint.
@@ -76,7 +76,7 @@ const (
 	HuaweiGatewayFamilyMismatch    HuaweiGatewaySelectionReason = "family_mismatch"
 	HuaweiGatewayBelowFloor        HuaweiGatewaySelectionReason = "below_floor"
 	HuaweiGatewaySoftwareMalformed HuaweiGatewaySelectionReason = "software_malformed"
-	HuaweiGatewayCatalogueInvalid  HuaweiGatewaySelectionReason = "catalogue_invalid"
+	HuaweiGatewayCatalogInvalid    HuaweiGatewaySelectionReason = "catalogue_invalid"
 )
 
 // HuaweiGatewayFloorDomain is the extent within which a floor orders builds.
@@ -328,7 +328,7 @@ var (
 	huaweiGatewaySoftwareForm = regexp.MustCompile(`^(?:([A-Za-z][A-Za-z0-9]*) )?(V[0-9]{3}R[0-9]{3}C[0-9]{2}(?:SPC[0-9]{3})?)$`)
 	huaweiGatewayModelToken   = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
-	errHuaweiGatewayCatalogueInvalid = errors.New("invalid SmartLogger, S-Dongle and EMMA catalogue")
+	errHuaweiGatewayCatalogInvalid = errors.New("invalid SmartLogger, S-Dongle and EMMA catalogue")
 )
 
 func parseHuaweiGatewayVersion(text string) (huaweiGatewayVersion, bool) {
@@ -372,33 +372,33 @@ type huaweiGatewayFamilyEdition struct {
 	floors     []huaweiGatewayFloorRecord
 }
 
-type huaweiGatewayCatalogue struct {
+type huaweiGatewayCatalog struct {
 	families map[string]huaweiGatewayFamily
 	err      error
 }
 
 var (
-	huaweiGatewayCatalogueOnce   sync.Once
-	huaweiGatewayCatalogueLoaded huaweiGatewayCatalogue
+	huaweiGatewayCatalogOnce   sync.Once
+	huaweiGatewayCatalogLoaded huaweiGatewayCatalog
 )
 
-func huaweiGatewayLoadedCatalogue() huaweiGatewayCatalogue {
-	huaweiGatewayCatalogueOnce.Do(func() {
-		families, err := loadHuaweiGatewayCatalogue(func(name string) ([]byte, error) {
-			return huaweiGatewayCatalogueFiles.ReadFile(huaweiGatewayCatalogueDirectory + "/" + name)
+func huaweiGatewayLoadedCatalog() huaweiGatewayCatalog {
+	huaweiGatewayCatalogOnce.Do(func() {
+		families, err := loadHuaweiGatewayCatalog(func(name string) ([]byte, error) {
+			return huaweiGatewayCatalogFiles.ReadFile(huaweiGatewayCatalogDirectory + "/" + name)
 		})
-		huaweiGatewayCatalogueLoaded = huaweiGatewayCatalogue{families: families, err: err}
+		huaweiGatewayCatalogLoaded = huaweiGatewayCatalog{families: families, err: err}
 	})
-	return huaweiGatewayCatalogueLoaded
+	return huaweiGatewayCatalogLoaded
 }
 
-func decodeHuaweiGatewayCatalogueFile(data []byte, target any) error {
+func decodeHuaweiGatewayCatalogFile(data []byte, target any) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	if err := decoder.Decode(target); err != nil {
 		return err
 	}
 	if decoder.More() {
-		return errHuaweiGatewayCatalogueInvalid
+		return errHuaweiGatewayCatalogInvalid
 	}
 	return nil
 }
@@ -454,13 +454,13 @@ func huaweiDescriptorKeyNumber(key string) (int, bool) {
 	return number, number <= 255
 }
 
-// loadHuaweiGatewayCatalogue reads the editions and the services entries and
+// loadHuaweiGatewayCatalog reads the editions and the services entries and
 // binds them per family. An edition's own floors are the floors whose
 // component is the family's own component. A family orders the releases of a
 // line when one of its editions, issued for a release of that line, states a
 // floor in another release or branch of the same line: the edition applies to
 // its own release, so it documents that its own release follows the floor.
-func loadHuaweiGatewayCatalogue(read func(string) ([]byte, error)) (map[string]huaweiGatewayFamily, error) {
+func loadHuaweiGatewayCatalog(read func(string) ([]byte, error)) (map[string]huaweiGatewayFamily, error) {
 	var editions struct {
 		Editions []struct {
 			ID         string   `json:"id"`
@@ -493,7 +493,7 @@ func loadHuaweiGatewayCatalogue(read func(string) ([]byte, error)) (map[string]h
 		if err != nil {
 			return nil, err
 		}
-		if err := decodeHuaweiGatewayCatalogueFile(data, target); err != nil {
+		if err := decodeHuaweiGatewayCatalogFile(data, target); err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
 	}
@@ -507,7 +507,7 @@ func loadHuaweiGatewayCatalogue(read func(string) ([]byte, error)) (map[string]h
 	for _, entry := range services.Editions {
 		keys, ok := parseHuaweiDescriptorKeys(entry.Descriptor)
 		if _, repeated := entries[entry.Edition]; repeated || !ok || entry.SelfUnit == nil || entry.AttributeSix == "" {
-			return nil, fmt.Errorf("%w: services entry %q", errHuaweiGatewayCatalogueInvalid, entry.Edition)
+			return nil, fmt.Errorf("%w: services entry %q", errHuaweiGatewayCatalogInvalid, entry.Edition)
 		}
 		entries[entry.Edition] = serviceEntry{selfUnit: *entry.SelfUnit, keys: keys, attributeSix: entry.AttributeSix, quarantine: append([]string(nil), entry.Quarantine...)}
 	}
@@ -523,7 +523,7 @@ func loadHuaweiGatewayCatalogue(read func(string) ([]byte, error)) (map[string]h
 		}
 		service, ok := entries[source.ID]
 		if !ok || source.SelfUnit == nil || *source.SelfUnit != service.selfUnit || service.selfUnit < 0 || service.selfUnit > 247 || len(source.Models) == 0 {
-			return nil, fmt.Errorf("%w: edition %q", errHuaweiGatewayCatalogueInvalid, source.ID)
+			return nil, fmt.Errorf("%w: edition %q", errHuaweiGatewayCatalogInvalid, source.ID)
 		}
 		edition := huaweiGatewayFamilyEdition{
 			edition: HuaweiGatewayEdition{
@@ -535,25 +535,25 @@ func loadHuaweiGatewayCatalogue(read func(string) ([]byte, error)) (map[string]h
 		}
 		for _, floor := range source.Floors {
 			if !floor.Inclusive {
-				return nil, fmt.Errorf("%w: edition %q states a floor that is not inclusive", errHuaweiGatewayCatalogueInvalid, source.ID)
+				return nil, fmt.Errorf("%w: edition %q states a floor that is not inclusive", errHuaweiGatewayCatalogInvalid, source.ID)
 			}
 			if floor.Component != rule.component {
 				continue
 			}
 			version, ok := parseHuaweiGatewayVersion(floor.Minimum)
 			if !ok {
-				return nil, fmt.Errorf("%w: edition %q floor %q", errHuaweiGatewayCatalogueInvalid, source.ID, floor.Minimum)
+				return nil, fmt.Errorf("%w: edition %q floor %q", errHuaweiGatewayCatalogInvalid, source.ID, floor.Minimum)
 			}
 			edition.floors = append(edition.floors, huaweiGatewayFloorRecord{component: floor.Component, minimum: floor.Minimum, version: version})
 		}
 		if len(edition.floors) == 0 {
-			return nil, fmt.Errorf("%w: edition %q states no floor of its family", errHuaweiGatewayCatalogueInvalid, source.ID)
+			return nil, fmt.Errorf("%w: edition %q states no floor of its family", errHuaweiGatewayCatalogInvalid, source.ID)
 		}
 		family, seen := families[rule.family]
 		if !seen {
 			family = huaweiGatewayFamily{rule: rule, selfUnit: uint8(service.selfUnit), orderedLines: map[int]bool{}, buildRequired: true}
 		} else if int(family.selfUnit) != service.selfUnit {
-			return nil, fmt.Errorf("%w: family %s has two self units", errHuaweiGatewayCatalogueInvalid, rule.family)
+			return nil, fmt.Errorf("%w: family %s has two self units", errHuaweiGatewayCatalogInvalid, rule.family)
 		}
 		if cover, ok := parseHuaweiGatewayVersion(source.Branch); ok {
 			for _, floor := range edition.floors {
@@ -570,7 +570,7 @@ func loadHuaweiGatewayCatalogue(read func(string) ([]byte, error)) (map[string]h
 	}
 	for _, rule := range huaweiGatewayFamilyRules {
 		if len(families[rule.family].editions) == 0 {
-			return nil, fmt.Errorf("%w: family %s has no edition", errHuaweiGatewayCatalogueInvalid, rule.family)
+			return nil, fmt.Errorf("%w: family %s has no edition", errHuaweiGatewayCatalogInvalid, rule.family)
 		}
 	}
 	return families, nil
@@ -587,10 +587,10 @@ func loadHuaweiGatewayCatalogue(read func(string) ([]byte, error)) (map[string]h
 // relates to is admitted with grade Hypothesis. Exactly one admitting floor is
 // selected; two or more are ambiguous and none is selected.
 func DecideHuaweiGatewaySelection(input HuaweiGatewaySelectionInput) HuaweiGatewaySelection {
-	return decideHuaweiGatewaySelection(huaweiGatewayLoadedCatalogue(), input)
+	return decideHuaweiGatewaySelection(huaweiGatewayLoadedCatalog(), input)
 }
 
-func decideHuaweiGatewaySelection(catalogue huaweiGatewayCatalogue, input HuaweiGatewaySelectionInput) HuaweiGatewaySelection {
+func decideHuaweiGatewaySelection(catalog huaweiGatewayCatalog, input HuaweiGatewaySelectionInput) HuaweiGatewaySelection {
 	decision := HuaweiGatewaySelection{
 		outcome: HuaweiGatewayNotSelected, family: input.Family, scope: input.Scope, model: input.Model, software: input.Software,
 		grade: HuaweiGradeUnknown,
@@ -599,10 +599,10 @@ func decideHuaweiGatewaySelection(catalogue huaweiGatewayCatalogue, input Huawei
 		decision.outcome, decision.reason, decision.grade, decision.candidates = HuaweiGatewayNotSelected, reason, HuaweiGradeUnknown, candidates
 		return decision
 	}
-	if catalogue.err != nil || len(catalogue.families) == 0 {
-		return refuse(HuaweiGatewayCatalogueInvalid, nil)
+	if catalog.err != nil || len(catalog.families) == 0 {
+		return refuse(HuaweiGatewayCatalogInvalid, nil)
 	}
-	family, known := catalogue.families[input.Family]
+	family, known := catalog.families[input.Family]
 	if !known || input.Scope.Endpoint != HuaweiGatewayEndpointSelf || input.Scope.Unit != family.selfUnit {
 		return refuse(HuaweiGatewayFamilyMismatch, nil)
 	}
@@ -626,7 +626,7 @@ func decideHuaweiGatewaySelection(catalogue huaweiGatewayCatalogue, input Huawei
 		decision.outcome, decision.reason, decision.candidates = HuaweiGatewayAmbiguous, HuaweiGatewaySoftwareNotRead, floors
 		return decision
 	}
-	build, reason := parseHuaweiGatewaySoftware(catalogue, family, input.Software)
+	build, reason := parseHuaweiGatewaySoftware(catalog, family, input.Software)
 	if reason != "" {
 		return refuse(reason, nil)
 	}
@@ -666,12 +666,12 @@ func decideHuaweiGatewaySelection(catalogue huaweiGatewayCatalogue, input Huawei
 // card states on its own, such as an observed build, under the domain rules
 // of the family's catalogue floors.
 func huaweiGatewayRelationOfFloor(familyName, software, minimum string) HuaweiGatewayFloorRelation {
-	catalogue := huaweiGatewayLoadedCatalogue()
-	family, known := catalogue.families[familyName]
-	if catalogue.err != nil || !known {
+	catalog := huaweiGatewayLoadedCatalog()
+	family, known := catalog.families[familyName]
+	if catalog.err != nil || !known {
 		return HuaweiGatewayRelationNotEvaluated
 	}
-	build, reason := parseHuaweiGatewaySoftware(catalogue, family, software)
+	build, reason := parseHuaweiGatewaySoftware(catalog, family, software)
 	if reason != "" {
 		return HuaweiGatewayRelationNotEvaluated
 	}
@@ -711,7 +711,7 @@ func huaweiGatewayFloors(family huaweiGatewayFamily, editions []huaweiGatewayFam
 // component is a family mismatch; any other label, or a version outside the
 // V, R, C and optional SPC form, is malformed. A family whose every floor
 // names a build number requires the text to name one.
-func parseHuaweiGatewaySoftware(catalogue huaweiGatewayCatalogue, family huaweiGatewayFamily, text string) (huaweiGatewayVersion, HuaweiGatewaySelectionReason) {
+func parseHuaweiGatewaySoftware(catalog huaweiGatewayCatalog, family huaweiGatewayFamily, text string) (huaweiGatewayVersion, HuaweiGatewaySelectionReason) {
 	parts := huaweiGatewaySoftwareForm.FindStringSubmatch(text)
 	if parts == nil {
 		return huaweiGatewayVersion{}, HuaweiGatewaySoftwareMalformed
@@ -721,7 +721,7 @@ func parseHuaweiGatewaySoftware(catalogue huaweiGatewayCatalogue, family huaweiG
 	case label == "" && family.rule.labelled:
 		return huaweiGatewayVersion{}, HuaweiGatewaySoftwareMalformed
 	case label != "" && label != family.rule.component:
-		for name, other := range catalogue.families {
+		for name, other := range catalog.families {
 			if name != family.rule.family && label == other.rule.component {
 				return huaweiGatewayVersion{}, HuaweiGatewayFamilyMismatch
 			}
@@ -770,9 +770,9 @@ func huaweiGatewayOrdered(atOrAbove bool) HuaweiGatewayFloorRelation {
 // huaweiGatewayFamilyHoldsModel reports whether the model rows of any edition
 // of a family hold a model text.
 func huaweiGatewayFamilyHoldsModel(familyName, model string) bool {
-	catalogue := huaweiGatewayLoadedCatalogue()
-	family, known := catalogue.families[familyName]
-	if catalogue.err != nil || !known {
+	catalog := huaweiGatewayLoadedCatalog()
+	family, known := catalog.families[familyName]
+	if catalog.err != nil || !known {
 		return false
 	}
 	for _, edition := range family.editions {

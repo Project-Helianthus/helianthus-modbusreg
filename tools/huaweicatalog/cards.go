@@ -10,14 +10,14 @@ import (
 // cardInfo is one profile card of the reference with the accounting the
 // reference states for it.
 type cardInfo struct {
-	ID            string
-	Slug          string
-	CoreCount     int
-	ROCount       int
-	Note          string
-	Source        *censusEntry
-	ModelPages    []int
-	CatalogueFile string
+	ID          string
+	Slug        string
+	CoreCount   int
+	ROCount     int
+	Note        string
+	Source      *censusEntry
+	ModelPages  []int
+	CatalogFile string
 }
 
 var (
@@ -49,7 +49,7 @@ func parseCards(directory, review string) ([]*cardInfo, error) {
 			return nil, fmt.Errorf("card %s listed twice", card.ID)
 		}
 		seen[card.ID] = true
-		card.CatalogueFile = "registers-" + card.Slug + ".json"
+		card.CatalogFile = "registers-" + card.Slug + ".json"
 		cards = append(cards, card)
 	}
 	roCounts := map[string]int{}

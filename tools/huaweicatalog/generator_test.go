@@ -338,7 +338,7 @@ func TestFloorFormRefusesMissingFloorsRangesAndPromotedOrdinals(t *testing.T) {
 // would refuse the identifier variant).
 func TestModelUniquenessCoversEveryIdentityField(t *testing.T) {
 	c, raw := loadCommitted(t)
-	if err := validateCatalogue(c); err != nil {
+	if err := validateCatalog(c); err != nil {
 		t.Fatal(err)
 	}
 	var source modelRow
@@ -399,7 +399,7 @@ func TestModelUniquenessCoversEveryIdentityField(t *testing.T) {
 				copyOf.Editions.Editions[index].ModelRows++
 			}
 		}
-		if err := validateCatalogue(&copyOf); (err == nil) != variant.accept {
+		if err := validateCatalog(&copyOf); (err == nil) != variant.accept {
 			t.Fatalf("%s: err=%v accept=%t", variant.name, err, variant.accept)
 		}
 	}
@@ -411,15 +411,15 @@ func TestQuarantineFlagsAndAffectedRowsMustAgree(t *testing.T) {
 		for index := range doc.Rows {
 			if len(doc.Rows[index].Quarantine) == 0 && doc.Rows[index].Offset != nil {
 				doc.Rows[index].Quarantine = []string{"Q02"}
-				if validateCatalogue(c) == nil {
+				if validateCatalog(c) == nil {
 					t.Fatalf("%s: a flag without an affected entry was accepted", name)
 				}
 				doc.Rows[index].Quarantine = []string{"Z99"}
-				if validateCatalogue(c) == nil {
+				if validateCatalog(c) == nil {
 					t.Fatalf("%s: an unknown quarantine was accepted", name)
 				}
 				doc.Rows[index].Quarantine = nil
-				if err := validateCatalogue(c); err != nil {
+				if err := validateCatalog(c); err != nil {
 					t.Fatal(err)
 				}
 				return

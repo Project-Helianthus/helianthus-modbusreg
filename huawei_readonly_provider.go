@@ -332,13 +332,13 @@ const (
 	HuaweiProviderReasonChildBackoff       HuaweiProviderReason = "child_backoff"
 	HuaweiProviderReasonListingUnconfirmed HuaweiProviderReason = "listing_unconfirmed"
 
-	// HuaweiProviderReasonCatalogueNotSelected: the catalogue decision over
+	// HuaweiProviderReasonCatalogNotSelected the catalogue decision over
 	// the child's identity words selected no row; the observation carries the
 	// decision and its closed reason.
-	HuaweiProviderReasonCatalogueNotSelected HuaweiProviderReason = "catalogue_not_selected"
-	// HuaweiProviderReasonCatalogueAmbiguous: the catalogue decision could not
+	HuaweiProviderReasonCatalogNotSelected HuaweiProviderReason = "catalogue_not_selected"
+	// HuaweiProviderReasonCatalogAmbiguous the catalogue decision could not
 	// tell two or more rows apart; the observation names every candidate.
-	HuaweiProviderReasonCatalogueAmbiguous HuaweiProviderReason = "catalogue_ambiguous"
+	HuaweiProviderReasonCatalogAmbiguous HuaweiProviderReason = "catalogue_ambiguous"
 )
 
 // HuaweiProviderEvidenceState is the evidence state of a child in one cycle.
@@ -429,11 +429,11 @@ type HuaweiProviderChildObservation struct {
 	Evidence             HuaweiProviderEvidenceState
 	Reason               HuaweiProviderReason
 	IdentifiedGeneration uint64
-	// Catalogue is the catalogue decision of the child's last completed
+	// Catalog is the catalogue decision of the child's last completed
 	// admission: the selected row with its card, edition, page, floor and
 	// grade for an admitted child, and the closed reason or every candidate
 	// for a child it withholds. It is nil when no admission completed.
-	Catalogue *HuaweiSUN2000CatalogueDecision
+	Catalog *HuaweiSUN2000CatalogDecision `json:"Catalogue"`
 	// Reading is the typed monitoring state. It is empty for a withheld child.
 	Reading HuaweiSUN2000MonitoringReading
 	Groups  []HuaweiProviderGroupEvidence
@@ -443,13 +443,13 @@ type HuaweiProviderChildObservation struct {
 func (c HuaweiProviderChildObservation) clone() HuaweiProviderChildObservation {
 	c.Groups = append([]HuaweiProviderGroupEvidence(nil), c.Groups...)
 	c.Fenced = c.Fenced.clone()
-	c.Catalogue = huaweiCloneCatalogueDecision(c.Catalogue)
+	c.Catalog = huaweiCloneCatalogDecision(c.Catalog)
 	return c
 }
 
-// huaweiCloneCatalogueDecision copies a decision. A decision is never changed
+// huaweiCloneCatalogDecision copies a decision. A decision is never changed
 // after it is taken and its accessors return copies, so the copy is shallow.
-func huaweiCloneCatalogueDecision(decision *HuaweiSUN2000CatalogueDecision) *HuaweiSUN2000CatalogueDecision {
+func huaweiCloneCatalogDecision(decision *HuaweiSUN2000CatalogDecision) *HuaweiSUN2000CatalogDecision {
 	if decision == nil {
 		return nil
 	}
@@ -629,7 +629,7 @@ type huaweiChildState struct {
 	fenced     *HuaweiProviderFencedReading
 	// catalogue is the decision of the last completed admission. It describes
 	// identity while one is bound, and otherwise the definitive withhold.
-	catalogue *HuaweiSUN2000CatalogueDecision
+	catalog *HuaweiSUN2000CatalogDecision
 }
 
 func (c *huaweiChildState) clone() *huaweiChildState {
@@ -638,7 +638,7 @@ func (c *huaweiChildState) clone() *huaweiChildState {
 		identity := *c.identity
 		copied.identity = &identity
 	}
-	copied.catalogue = huaweiCloneCatalogueDecision(c.catalogue)
+	copied.catalog = huaweiCloneCatalogDecision(c.catalog)
 	copied.groups = make(map[uint16]huaweiGroupMeta, len(c.groups))
 	for key, value := range c.groups {
 		copied.groups[key] = value
@@ -671,10 +671,10 @@ func (c *huaweiChildState) fence() {
 // withhold withholds the child until the next identification event: the
 // reading moves to history, no identity is bound, and the decision that
 // withheld it, if one was taken, is kept to name why.
-func (c *huaweiChildState) withhold(reason HuaweiProviderReason, decision *HuaweiSUN2000CatalogueDecision) {
+func (c *huaweiChildState) withhold(reason HuaweiProviderReason, decision *HuaweiSUN2000CatalogDecision) {
 	c.definitive = reason
 	c.fence()
-	c.identity, c.catalogue = nil, decision
+	c.identity, c.catalog = nil, decision
 }
 
 // identificationEvent makes the child's admission run again at its routed
@@ -684,7 +684,7 @@ func (c *huaweiChildState) withhold(reason HuaweiProviderReason, decision *Huawe
 func (c *huaweiChildState) identificationEvent() {
 	c.definitive, c.identifiedGeneration, c.skipUntil = "", 0, 0
 	if c.identity == nil {
-		c.catalogue = nil
+		c.catalog = nil
 	}
 }
 
@@ -1367,25 +1367,25 @@ func (r *huaweiCycleRun) readChildIdentityWords(child *huaweiChildState) (Huawei
 // with every candidate, a selected row whose family has no profile on this
 // path, a model that disagrees with the listing, or insufficient evidence.
 func (r *huaweiCycleRun) bindChildSelection(child *huaweiChildState, selection HuaweiSUN2000CapabilitySelection) bool {
-	var decision *HuaweiSUN2000CatalogueDecision
-	if taken, ok := selection.Catalogue(); ok {
+	var decision *HuaweiSUN2000CatalogDecision
+	if taken, ok := selection.Catalog(); ok {
 		decision = &taken
 	}
 	profile, ok := selection.Profile()
-	if selection.Outcome() == HuaweiSUN2000ProfileSelected && ok && decision != nil && decision.Outcome() == HuaweiSUN2000CatalogueSelected {
+	if selection.Outcome() == HuaweiSUN2000ProfileSelected && ok && decision != nil && decision.Outcome() == HuaweiSUN2000CatalogSelected {
 		identity := &huaweiChildIdentity{profile: profile, model: profile.Model()}
 		if child.identity != nil && child.identity.key() != identity.key() {
 			child.fence()
 		}
-		child.identity, child.identifiedGeneration, child.definitive, child.catalogue = identity, r.generation, "", decision
+		child.identity, child.identifiedGeneration, child.definitive, child.catalog = identity, r.generation, "", decision
 		return true
 	}
 	reason := HuaweiProviderReasonIdentityInsuff
 	switch {
-	case selection.Reason() == HuaweiSUN2000ReasonCatalogueAmbiguous:
-		reason = HuaweiProviderReasonCatalogueAmbiguous
-	case selection.Reason() == HuaweiSUN2000ReasonCatalogueNotSelected:
-		reason = HuaweiProviderReasonCatalogueNotSelected
+	case selection.Reason() == HuaweiSUN2000ReasonCatalogAmbiguous:
+		reason = HuaweiProviderReasonCatalogAmbiguous
+	case selection.Reason() == HuaweiSUN2000ReasonCatalogNotSelected:
+		reason = HuaweiProviderReasonCatalogNotSelected
 	case selection.Outcome() == HuaweiSUN2000NoAdmissibleProfile:
 		reason = HuaweiProviderReasonNoProfile
 	case selection.Reason() == HuaweiSUN2000ReasonListingModelConflict:
@@ -1502,7 +1502,7 @@ func (r *huaweiCycleRun) monitorChild(child *huaweiChildState) (HuaweiProviderEv
 func (r *huaweiCycleRun) childObservation(child *huaweiChildState, state HuaweiProviderEvidenceState, reason HuaweiProviderReason, current map[uint16]HuaweiSUN2000GroupReading) HuaweiProviderChildObservation {
 	out := HuaweiProviderChildObservation{
 		UnitID: child.unit, ListedClass: child.listedClass, Evidence: state, Reason: reason, Fenced: child.fenced.clone(),
-		Catalogue: huaweiCloneCatalogueDecision(child.catalogue),
+		Catalog: huaweiCloneCatalogDecision(child.catalog),
 	}
 	if child.identity != nil {
 		out.Family, out.ProfileID, out.Model = child.identity.profile.Family(), child.identity.profile.ID(), child.identity.model
@@ -1528,7 +1528,7 @@ func (r *huaweiCycleRun) childObservation(child *huaweiChildState, state HuaweiP
 
 func (r *huaweiCycleRun) recordChildLoss(out HuaweiProviderChildObservation, state HuaweiProviderEvidenceState, reason HuaweiProviderReason) HuaweiProviderChildObservation {
 	if state == HuaweiProviderEvidenceWithheld {
-		r.out.Loss = append(r.out.Loss, HuaweiProviderLoss{Kind: HuaweiProviderLossWithheldChild, HasUnit: true, UnitID: out.UnitID, Detail: huaweiWithheldDetail(reason, out.Catalogue)})
+		r.out.Loss = append(r.out.Loss, HuaweiProviderLoss{Kind: HuaweiProviderLossWithheldChild, HasUnit: true, UnitID: out.UnitID, Detail: huaweiWithheldDetail(reason, out.Catalog)})
 	}
 	for _, group := range out.Groups {
 		if group.Refused {
@@ -1541,15 +1541,15 @@ func (r *huaweiCycleRun) recordChildLoss(out HuaweiProviderChildObservation, sta
 
 // huaweiWithheldDetail names why a child is withheld. A catalogue withhold
 // adds the closed reason, and an ambiguous one names every candidate row.
-func huaweiWithheldDetail(reason HuaweiProviderReason, decision *HuaweiSUN2000CatalogueDecision) string {
+func huaweiWithheldDetail(reason HuaweiProviderReason, decision *HuaweiSUN2000CatalogDecision) string {
 	detail := string(reason)
 	if decision == nil {
 		return detail
 	}
 	switch reason {
-	case HuaweiProviderReasonCatalogueNotSelected:
+	case HuaweiProviderReasonCatalogNotSelected:
 		detail += ": " + string(decision.Reason())
-	case HuaweiProviderReasonCatalogueAmbiguous:
+	case HuaweiProviderReasonCatalogAmbiguous:
 		detail += ":"
 		for index, row := range decision.Candidates() {
 			if index > 0 {

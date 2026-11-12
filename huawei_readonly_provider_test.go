@@ -296,8 +296,8 @@ func TestH06AnUnknownChildClassIsWithheld(t *testing.T) {
 	}
 	// A model token that no catalogue row carries is not selected, with the
 	// closed reason recorded.
-	if otherFamily.Evidence != HuaweiProviderEvidenceWithheld || otherFamily.Reason != HuaweiProviderReasonCatalogueNotSelected ||
-		h06CatalogueSummary(otherFamily.Catalogue) != "NOT_SELECTED no_catalogue_row" || len(otherFamily.Reading.Facts()) != 0 {
+	if otherFamily.Evidence != HuaweiProviderEvidenceWithheld || otherFamily.Reason != HuaweiProviderReasonCatalogNotSelected ||
+		h06CatalogSummary(otherFamily.Catalog) != "NOT_SELECTED no_catalogue_row" || len(otherFamily.Reading.Facts()) != 0 {
 		t.Fatalf("other family: %+v", otherFamily)
 	}
 	for _, exchange := range cycle.Exchanges {
@@ -307,7 +307,7 @@ func TestH06AnUnknownChildClassIsWithheld(t *testing.T) {
 	}
 	// The withheld child is not read again in the next cycle either.
 	next := rig.refresh(t, h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{words: []uint16{sources.smartLoggerInventory.ChangeCounter.Before}}))
-	if child, _ := next.Child(4); child.Reason != HuaweiProviderReasonCatalogueNotSelected || h06CatalogueSummary(child.Catalogue) != "NOT_SELECTED no_catalogue_row" {
+	if child, _ := next.Child(4); child.Reason != HuaweiProviderReasonCatalogNotSelected || h06CatalogSummary(child.Catalog) != "NOT_SELECTED no_catalogue_row" {
 		t.Fatalf("next cycle: %+v", child)
 	}
 }
@@ -618,5 +618,42 @@ func TestH06CancelledCycleCommitsNoReading(t *testing.T) {
 	// A cancelled cycle still counts against the cycle interval.
 	if _, err := rig.provider.Refresh(context.Background()); !errors.Is(err, ErrHuaweiProviderEarly) {
 		t.Fatalf("refresh right after a cancelled cycle: %v", err)
+	}
+}
+
+func TestHuaweiProviderChildObservationPreservesCatalogJSONKey(t *testing.T) {
+	for _, decision := range []*HuaweiSUN2000CatalogDecision{nil, {}} {
+		observation := HuaweiProviderChildObservation{Catalog: decision}
+		data, err := json.Marshal(observation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(data, &fields); err != nil {
+			t.Fatal(err)
+		}
+		value, ok := fields["Catalogue"]
+		if !ok {
+			t.Fatal("missing Catalogue JSON key")
+		}
+		if _, ok := fields["Catalog"]; ok {
+			t.Fatal("unexpected Catalog JSON key")
+		}
+		// The decision has no exported fields, so its JSON value is an
+		// empty object when present and null when absent.
+		want := "null"
+		if decision != nil {
+			want = "{}"
+		}
+		if string(value) != want {
+			t.Fatalf("Catalogue=%s want=%s", value, want)
+		}
+		var decoded HuaweiProviderChildObservation
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(decoded.Catalog, decision) {
+			t.Fatal("Catalogue did not round-trip")
+		}
 	}
 }

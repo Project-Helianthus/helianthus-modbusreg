@@ -1,5 +1,5 @@
-// Command huaweicatalogue generates the Huawei catalogue under
-// profiles/vendors/huawei/catalogue. The inverter mode reads the JSON twins and
+// Command huaweicatalog generates the Huawei catalogue under
+// profiles/vendors/huawei/catalog. The inverter mode reads the JSON twins and
 // model tables of the consulted CC0 inverter reference baseline; the gateway
 // mode reads the JSON edition twins of the consulted CC0 gateway reference
 // baseline and writes the SmartLogger, S-Dongle and EMMA catalogue to its

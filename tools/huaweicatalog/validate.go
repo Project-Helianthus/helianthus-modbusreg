@@ -10,7 +10,7 @@ import (
 )
 
 // catalogue is the full set of committed documents.
-type catalogue struct {
+type catalog struct {
 	Editions     editionsDoc
 	Models       modelsDoc
 	Registers    map[string]*registersDoc
@@ -62,7 +62,7 @@ func parseExpect(text string) (counts, error) {
 	return expect, nil
 }
 
-func countCatalogue(c *catalogue) counts {
+func countCatalog(c *catalog) counts {
 	result := counts{Cards: len(c.Registers), Models: len(c.Models.Rows)}
 	for _, doc := range c.Registers {
 		result.RO += len(doc.Rows)
@@ -85,8 +85,8 @@ const (
 
 func registersFileName(card string) string { return "registers-" + strings.ToLower(card) + ".json" }
 
-// encodeCatalogue returns the canonical bytes of every committed file.
-func encodeCatalogue(c *catalogue) (map[string][]byte, error) {
+// encodeCatalog returns the canonical bytes of every committed file.
+func encodeCatalog(c *catalog) (map[string][]byte, error) {
 	files := map[string][]byte{}
 	documents := map[string]any{editionsFile: &c.Editions, modelsFile: &c.Models, dictionariesFile: &c.Dictionaries, quarantinesFile: &c.Quarantines}
 	for name, doc := range c.Registers {
@@ -102,15 +102,15 @@ func encodeCatalogue(c *catalogue) (map[string][]byte, error) {
 	return files, nil
 }
 
-// loadCatalogue reads and strictly decodes every file of a catalogue
+// loadCatalog reads and strictly decodes every file of a catalogue
 // directory. A file the schema does not name is refused.
-func loadCatalogue(directory string) (*catalogue, map[string][]byte, error) {
+func loadCatalog(directory string) (*catalog, map[string][]byte, error) {
 	entries, err := os.ReadDir(directory)
 	if err != nil {
 		return nil, nil, err
 	}
 	raw := map[string][]byte{}
-	c := &catalogue{Registers: map[string]*registersDoc{}}
+	c := &catalog{Registers: map[string]*registersDoc{}}
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.IsDir() && name == gatewayDirectory {
@@ -344,8 +344,8 @@ func checkModelRow(row modelRow) error {
 	return nil
 }
 
-// validateCatalogue enforces every structural and cross-file invariant.
-func validateCatalogue(c *catalogue) error {
+// validateCatalog enforces every structural and cross-file invariant.
+func validateCatalog(c *catalog) error {
 	if c.Editions.Schema != editionsSchema || c.Models.Schema != modelsSchema || c.Dictionaries.Schema != dictionariesSchema || c.Quarantines.Schema != quarantinesSchema {
 		return fmt.Errorf("unexpected schema identifier")
 	}
@@ -525,7 +525,7 @@ func validateCatalogue(c *catalogue) error {
 
 // checkQuarantines verifies that the affected rows of every quarantine are
 // exactly the rows that carry its flag.
-func checkQuarantines(c *catalogue, editions map[string]edition) error {
+func checkQuarantines(c *catalog, editions map[string]edition) error {
 	builder := newQuarantineBuilder()
 	for _, item := range c.Quarantines.Quarantines {
 		if _, exists := builder.items[item.ID]; exists || !validOrigins[item.Origin] || item.Subject == "" || item.Meaning == "" {
@@ -598,8 +598,8 @@ func checkQuarantines(c *catalogue, editions map[string]edition) error {
 	return nil
 }
 
-// guardCatalogue applies the publication guard to every committed string.
-func guardCatalogue(c *catalogue) error {
+// guardCatalog applies the publication guard to every committed string.
+func guardCatalog(c *catalog) error {
 	documents := map[string]any{editionsFile: c.Editions, modelsFile: c.Models, dictionariesFile: c.Dictionaries, quarantinesFile: c.Quarantines}
 	for name, doc := range c.Registers {
 		documents[name] = doc

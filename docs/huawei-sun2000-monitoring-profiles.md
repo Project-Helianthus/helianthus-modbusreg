@@ -113,9 +113,9 @@ in its scripted session.
 | two catalogue rows that the decision cannot tell apart, including a token of several rows without its identifier, or two profiles for one endpoint and unit | `AMBIGUOUS`, no winner |
 | exactly one profile routed by a selected row | `PROFILE_SELECTED` |
 
-The decision table of `testdata/huawei/selection/sun2000_catalogue_decisions.json`
+The decision table of `testdata/huawei/selection/sun2000_catalog_decisions.json`
 covers the three qualification families and the floor, alias, identifier and
-scope rules, with synthetic software texts; `huawei_sun2000_catalogue_selection_test.go`
+scope rules, with synthetic software texts; `huawei_sun2000_catalog_selection_test.go`
 runs it and the rules on the committed catalogue.
 
 The version gate of the refused groups is a fact per family, not a software
