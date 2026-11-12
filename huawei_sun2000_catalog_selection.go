@@ -53,7 +53,7 @@ const (
 type HuaweiSUN2000CatalogReason string
 
 const (
-	// Reasons of a selected row: how the software text relates to its floor.
+	// HuaweiSUN2000CatalogAtOrAboveFloor indicates software at or above the selected row floor.
 	HuaweiSUN2000CatalogAtOrAboveFloor         HuaweiSUN2000CatalogReason = "at_or_above_floor"
 	HuaweiSUN2000CatalogEqualOnCarriedParts    HuaweiSUN2000CatalogReason = "equal_on_carried_parts"
 	HuaweiSUN2000CatalogNoDocumentedRelation   HuaweiSUN2000CatalogReason = "no_documented_branch_relation"
@@ -81,9 +81,9 @@ const (
 type HuaweiSUN2000CatalogMatch string
 
 const (
-	// HuaweiSUN2000CatalogMatchToken: the model text equals the source token.
+	// HuaweiSUN2000CatalogMatchToken the model text equals the source token.
 	HuaweiSUN2000CatalogMatchToken HuaweiSUN2000CatalogMatch = "TOKEN"
-	// HuaweiSUN2000CatalogMatchWireAlias: the model text equals a wire alias
+	// HuaweiSUN2000CatalogMatchWireAlias the model text equals a wire alias
 	// that the catalogue records for the row, within the alias's scope.
 	HuaweiSUN2000CatalogMatchWireAlias HuaweiSUN2000CatalogMatch = "WIRE_ALIAS"
 )

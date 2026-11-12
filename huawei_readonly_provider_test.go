@@ -620,3 +620,40 @@ func TestH06CancelledCycleCommitsNoReading(t *testing.T) {
 		t.Fatalf("refresh right after a cancelled cycle: %v", err)
 	}
 }
+
+func TestHuaweiProviderChildObservationPreservesCatalogJSONKey(t *testing.T) {
+	for _, decision := range []*HuaweiSUN2000CatalogDecision{nil, {}} {
+		observation := HuaweiProviderChildObservation{Catalog: decision}
+		data, err := json.Marshal(observation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(data, &fields); err != nil {
+			t.Fatal(err)
+		}
+		value, ok := fields["Catalogue"]
+		if !ok {
+			t.Fatal("missing Catalogue JSON key")
+		}
+		if _, ok := fields["Catalog"]; ok {
+			t.Fatal("unexpected Catalog JSON key")
+		}
+		// The decision has no exported fields, so its JSON value is an
+		// empty object when present and null when absent.
+		want := "null"
+		if decision != nil {
+			want = "{}"
+		}
+		if string(value) != want {
+			t.Fatalf("Catalogue=%s want=%s", value, want)
+		}
+		var decoded HuaweiProviderChildObservation
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(decoded.Catalog, decision) {
+			t.Fatal("Catalogue did not round-trip")
+		}
+	}
+}

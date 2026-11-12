@@ -332,11 +332,11 @@ const (
 	HuaweiProviderReasonChildBackoff       HuaweiProviderReason = "child_backoff"
 	HuaweiProviderReasonListingUnconfirmed HuaweiProviderReason = "listing_unconfirmed"
 
-	// HuaweiProviderReasonCatalogNotSelected: the catalogue decision over
+	// HuaweiProviderReasonCatalogNotSelected the catalogue decision over
 	// the child's identity words selected no row; the observation carries the
 	// decision and its closed reason.
 	HuaweiProviderReasonCatalogNotSelected HuaweiProviderReason = "catalogue_not_selected"
-	// HuaweiProviderReasonCatalogAmbiguous: the catalogue decision could not
+	// HuaweiProviderReasonCatalogAmbiguous the catalogue decision could not
 	// tell two or more rows apart; the observation names every candidate.
 	HuaweiProviderReasonCatalogAmbiguous HuaweiProviderReason = "catalogue_ambiguous"
 )
@@ -433,7 +433,7 @@ type HuaweiProviderChildObservation struct {
 	// admission: the selected row with its card, edition, page, floor and
 	// grade for an admitted child, and the closed reason or every candidate
 	// for a child it withholds. It is nil when no admission completed.
-	Catalog *HuaweiSUN2000CatalogDecision
+	Catalog *HuaweiSUN2000CatalogDecision `json:"Catalogue"`
 	// Reading is the typed monitoring state. It is empty for a withheld child.
 	Reading HuaweiSUN2000MonitoringReading
 	Groups  []HuaweiProviderGroupEvidence
