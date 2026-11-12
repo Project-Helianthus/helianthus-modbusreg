@@ -21,10 +21,11 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 echo "==> gofmt"
 # Include unstaged rename destinations and omit paths deleted from the worktree.
 unformatted="$(
+  git ls-files -z --cached --others --exclude-standard '*.go' |
   while IFS= read -r -d '' go_file; do
     [[ -f "$go_file" ]] || continue
     gofmt -l "$go_file" || exit
-  done < <(git ls-files -z --cached --others --exclude-standard '*.go')
+  done
 )"
 if [[ -n "$unformatted" ]]; then
   echo "gofmt required for:"
