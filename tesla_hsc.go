@@ -19,7 +19,9 @@ const (
 	TeslaHSCSystemInfoCompatibilityV1 = "wc3_24_44_3"
 	// TeslaHSCWCLifetimeCompatibilityV1 is the exact operation contract gate for
 	// the bounded WC lifetime snapshot.
-	TeslaHSCWCLifetimeCompatibilityV1   = "wc3_24_44_3"
+	TeslaHSCWCLifetimeCompatibilityV1 = "wc3_24_44_3"
+	// TeslaHSCWCSystemInfoCompatibilityV1 is the exact operation contract gate
+	// for the bounded WC system-information snapshot.
 	TeslaHSCWCSystemInfoCompatibilityV1 = "wc3_24_44_3"
 	// TeslaHSCWCLoadSharingStateCompatibilityV1 is the exact operation
 	// contract gate for the bounded WC load-sharing-state replay.
@@ -40,6 +42,11 @@ const (
 // parse bounded frames. Qualification never grants opaque outbound admission.
 type TeslaHSCDisposition string
 
+// Dispositions. Disabled: the configuration is not enabled. FramingOnly:
+// enabled, but not passive-compatible under TeslaHSCCompatibilityV1; frames are
+// parsed and no operation is admitted. QualifiedReadOnly: enabled,
+// passive-compatible and on TeslaHSCCompatibilityV1; operation admission is
+// still decided per operation.
 const (
 	TeslaHSCDisabled          TeslaHSCDisposition = "disabled"
 	TeslaHSCFramingOnly       TeslaHSCDisposition = "framing_only"
@@ -61,9 +68,15 @@ const (
 	TeslaTEDAPIAdmissionAllowedWCVitals TeslaTEDAPIAdmissionState = "allowed_wc_vitals"
 	// TeslaTEDAPIAdmissionAllowedCommonSystemInfo admits only the explicit
 	// bounded Common system-information operation after all gates pass.
-	TeslaTEDAPIAdmissionAllowedCommonSystemInfo   TeslaTEDAPIAdmissionState = "allowed_common_system_info"
-	TeslaTEDAPIAdmissionAllowedWCLifetime         TeslaTEDAPIAdmissionState = "allowed_wc_lifetime"
-	TeslaTEDAPIAdmissionAllowedWCSystemInfo       TeslaTEDAPIAdmissionState = "allowed_wc_system_info"
+	TeslaTEDAPIAdmissionAllowedCommonSystemInfo TeslaTEDAPIAdmissionState = "allowed_common_system_info"
+	// TeslaTEDAPIAdmissionAllowedWCLifetime admits only the explicit bounded WC
+	// lifetime operation after all gates pass.
+	TeslaTEDAPIAdmissionAllowedWCLifetime TeslaTEDAPIAdmissionState = "allowed_wc_lifetime"
+	// TeslaTEDAPIAdmissionAllowedWCSystemInfo admits only the explicit bounded
+	// WC system-information operation after all gates pass.
+	TeslaTEDAPIAdmissionAllowedWCSystemInfo TeslaTEDAPIAdmissionState = "allowed_wc_system_info"
+	// TeslaTEDAPIAdmissionAllowedWCLoadSharingState admits only the explicit
+	// bounded WC load-sharing-state operation after all gates pass.
 	TeslaTEDAPIAdmissionAllowedWCLoadSharingState TeslaTEDAPIAdmissionState = "allowed_wc_load_sharing_state"
 )
 
@@ -280,6 +293,9 @@ func isTeslaHSCFunction(function modbus.PrivateFunctionCode) bool {
 // TeslaHSCException classifies only the documented opaque response outcomes.
 type TeslaHSCException string
 
+// Exception classes. UnknownFunction: status 1 on any HSC function.
+// CodecFailure: status 4 on FC101 or FC102. Unknown: every other status, or a
+// function outside FC100 to FC102.
 const (
 	TeslaHSCExceptionUnknown         TeslaHSCException = "unknown"
 	TeslaHSCExceptionUnknownFunction TeslaHSCException = "unknown_function"
@@ -471,6 +487,10 @@ func (profile TeslaHSCProfile) DecodeQualifiedFunction(operation string, functio
 	return QualifiedFunctionResult{Payload: response.Payload()}, nil
 }
 
+// DecodeQualifiedFunctionSequence decodes a complete FC100 response sequence
+// for the WC lifetime, WC system-information and WC load-sharing-state
+// operations into redacted replays (kind, length, digest). Any other function
+// or operation, or an invalid sequence, returns an error.
 func (profile TeslaHSCProfile) DecodeQualifiedFunctionSequence(operation string, function modbus.PrivateFunctionCode, payloads [][]byte) ([]QualifiedFunctionResult, error) {
 	if function != teslaHSCFunction100 {
 		return nil, fmt.Errorf("tesla HSC operation response sequence is invalid")
@@ -497,6 +517,8 @@ func (profile TeslaHSCProfile) DecodeQualifiedFunctionSequence(operation string,
 	return results, nil
 }
 
+// HandlesQualifiedFunctionSequence reports whether an operation is decoded as a
+// whole sequence by DecodeQualifiedFunctionSequence rather than per response.
 func (TeslaHSCProfile) HandlesQualifiedFunctionSequence(operation string) bool {
 	return operation == TeslaTEDAPIOperationWCLifetimeV1 ||
 		operation == TeslaTEDAPIOperationWCSystemInfoV1 ||

@@ -40,10 +40,15 @@ type GrowattBMSReadOnlyObservation struct {
 	slices   []GrowattBMSReadOnlySlice
 }
 
+// UnitID returns the validated Modbus unit identifier (1-247).
 func (o GrowattBMSReadOnlyObservation) UnitID() byte { return o.unitID }
+
+// Revision returns the caller-supplied revision tuple the observation was validated against.
 func (o GrowattBMSReadOnlyObservation) Revision() GrowattBMSRevisionTuple {
 	return o.revision
 }
+
+// Slices returns a deep copy of the raw FC03 slices in contract order.
 func (o GrowattBMSReadOnlyObservation) Slices() []GrowattBMSReadOnlySlice {
 	return cloneGrowattBMSReadOnlySlices(o.slices)
 }

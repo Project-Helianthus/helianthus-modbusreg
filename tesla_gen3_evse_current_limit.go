@@ -5,23 +5,37 @@ import (
 	"math"
 )
 
+// TeslaGen3CurrentLimitOperationVersion24443 is the only operation version the
+// current-limit constructors accept; see
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/tesla/gen3-current-limit-operation-v1.md.
 const TeslaGen3CurrentLimitOperationVersion24443 = "wc3_24_44_3"
 const (
 	teslaGen3MinCurrentAmps uint32 = 6
 	teslaGen3MaxTimeoutS    uint32 = 86399
 )
 
+// TeslaGen3PersistentCurrentLimitSpec is the caller's claimed persistent limit
+// in integer amperes and the raw FC100 ConfigureSettings request and terminal
+// payloads that must prove it.
 type TeslaGen3PersistentCurrentLimitSpec struct {
 	OperationVersion                string
 	MaxOutputCurrentAmps            uint32
 	RequestPayload, TerminalPayload []byte
 }
+
+// TeslaGen3PersistentCurrentLimit is an immutable, validated record of one
+// persistent current-limit exchange. It is evidence only and grants no send
+// authority or admission.
 type TeslaGen3PersistentCurrentLimit struct {
 	operationVersion                string
 	maxOutputCurrentAmps            uint32
 	requestPayload, terminalPayload []byte
 }
 
+// NewTeslaGen3PersistentCurrentLimit requires the supported operation version,
+// exactly one terminal response and a claimed amperage equal to both the request
+// and the returned settings value; otherwise it returns an error. Payloads are
+// copied.
 func NewTeslaGen3PersistentCurrentLimit(s TeslaGen3PersistentCurrentLimitSpec) (TeslaGen3PersistentCurrentLimit, error) {
 	r, e := DecodeTeslaFC100OperationSequence(s.OperationVersion, TeslaFC100OperationWCConfigureSettings, s.RequestPayload, [][]byte{s.TerminalPayload})
 	request, requestErr := teslaGen3ExactFC100RequestBody(TeslaFC100OperationWCConfigureSettings, s.RequestPayload)
@@ -39,21 +53,36 @@ func NewTeslaGen3PersistentCurrentLimit(s TeslaGen3PersistentCurrentLimitSpec) (
 	}
 	return TeslaGen3PersistentCurrentLimit{s.OperationVersion, s.MaxOutputCurrentAmps, append([]byte(nil), s.RequestPayload...), append([]byte(nil), s.TerminalPayload...)}, nil
 }
-func (v TeslaGen3PersistentCurrentLimit) OperationVersion() string     { return v.operationVersion }
+
+// OperationVersion returns the validated operation version.
+func (v TeslaGen3PersistentCurrentLimit) OperationVersion() string { return v.operationVersion }
+
+// MaxOutputCurrentAmps returns the validated persistent limit in integer amperes.
 func (v TeslaGen3PersistentCurrentLimit) MaxOutputCurrentAmps() uint32 { return v.maxOutputCurrentAmps }
+
+// RequestPayload returns a copy of the raw request payload.
 func (v TeslaGen3PersistentCurrentLimit) RequestPayload() []byte {
 	return append([]byte(nil), v.requestPayload...)
 }
+
+// TerminalPayload returns a copy of the raw terminal response payload.
 func (v TeslaGen3PersistentCurrentLimit) TerminalPayload() []byte {
 	return append([]byte(nil), v.terminalPayload...)
 }
 
+// TeslaGen3ProvisionalCurrentLimitSpec is the caller's claimed provisional limit
+// (integer amperes, timeout in seconds, inhibit flag) and the raw set, ACK,
+// readback request and readback terminal payloads that must prove it.
 type TeslaGen3ProvisionalCurrentLimitSpec struct {
 	OperationVersion                                                               string
 	LimitCurrentMaxAmps, LimitTimeoutSeconds                                       uint32
 	InhibitCharging                                                                bool
 	SetRequestPayload, AckPayload, ReadbackRequestPayload, ReadbackTerminalPayload []byte
 }
+
+// TeslaGen3ProvisionalCurrentLimit is an immutable, validated record of one
+// provisional set, its empty ACK and its readback. It is evidence only and grants
+// no send authority or admission.
 type TeslaGen3ProvisionalCurrentLimit struct {
 	operationVersion                         string
 	limitCurrentMaxAmps, limitTimeoutSeconds uint32
@@ -65,6 +94,10 @@ type TeslaGen3ProvisionalCurrentLimit struct {
 	readbackTerminalPayload                  []byte
 }
 
+// NewTeslaGen3ProvisionalCurrentLimit requires the supported operation version,
+// an empty ACK body, an empty readback request body, and a claimed triple equal
+// to both the set request and the readback; otherwise it returns an error.
+// Payloads are copied.
 func NewTeslaGen3ProvisionalCurrentLimit(s TeslaGen3ProvisionalCurrentLimitSpec) (TeslaGen3ProvisionalCurrentLimit, error) {
 	a, e := DecodeTeslaFC100OperationSequence(s.OperationVersion, TeslaFC100OperationWCSetProvisional, s.SetRequestPayload, [][]byte{s.AckPayload})
 	b, f := DecodeTeslaFC100OperationSequence(s.OperationVersion, TeslaFC100OperationWCGetProvisional, s.ReadbackRequestPayload, [][]byte{s.ReadbackTerminalPayload})
@@ -114,35 +147,62 @@ func teslaGen3ExactFC100RequestBody(operation TeslaFC100Operation, payload []byt
 	return decodeExactLengthDelimitedField(family, spec.requestTag)
 }
 
-func (v TeslaGen3ProvisionalCurrentLimit) OperationVersion() string    { return v.operationVersion }
+// OperationVersion returns the validated operation version.
+func (v TeslaGen3ProvisionalCurrentLimit) OperationVersion() string { return v.operationVersion }
+
+// LimitCurrentMaxAmps returns the validated provisional limit in integer amperes.
 func (v TeslaGen3ProvisionalCurrentLimit) LimitCurrentMaxAmps() uint32 { return v.limitCurrentMaxAmps }
+
+// LimitTimeoutSeconds returns the validated provisional timeout field in seconds.
 func (v TeslaGen3ProvisionalCurrentLimit) LimitTimeoutSeconds() uint32 { return v.limitTimeoutSeconds }
-func (v TeslaGen3ProvisionalCurrentLimit) InhibitCharging() bool       { return v.inhibitCharging }
+
+// InhibitCharging returns the validated inhibit flag.
+func (v TeslaGen3ProvisionalCurrentLimit) InhibitCharging() bool { return v.inhibitCharging }
+
+// ConfiguredCurrentAmps returns the separate configured-current value from the
+// readback, in integer amperes; it is not compared with the provisional limit.
 func (v TeslaGen3ProvisionalCurrentLimit) ConfiguredCurrentAmps() uint32 {
 	return v.configuredCurrentAmps
 }
+
+// SetRequestPayload returns a copy of the raw set request payload.
 func (v TeslaGen3ProvisionalCurrentLimit) SetRequestPayload() []byte {
 	return append([]byte(nil), v.setRequestPayload...)
 }
+
+// AckPayload returns a copy of the raw ACK payload.
 func (v TeslaGen3ProvisionalCurrentLimit) AckPayload() []byte {
 	return append([]byte(nil), v.ackPayload...)
 }
+
+// ReadbackRequestPayload returns a copy of the raw readback request payload.
 func (v TeslaGen3ProvisionalCurrentLimit) ReadbackRequestPayload() []byte {
 	return append([]byte(nil), v.readbackRequestPayload...)
 }
+
+// ReadbackTerminalPayload returns a copy of the raw readback terminal payload.
 func (v TeslaGen3ProvisionalCurrentLimit) ReadbackTerminalPayload() []byte {
 	return append([]byte(nil), v.readbackTerminalPayload...)
 }
 
+// TeslaGen3InteroperableCurrentLimit is a range-checked current and timeout pair
+// in integer amperes and seconds. It establishes no device maximum and no
+// dispatch admission.
 type TeslaGen3InteroperableCurrentLimit struct{ maxAmps, timeoutSeconds uint32 }
 
+// NewTeslaGen3InteroperableCurrentLimit returns an error unless a is at least
+// 6 A and t is 1 through 86399 seconds.
 func NewTeslaGen3InteroperableCurrentLimit(a, t uint32) (TeslaGen3InteroperableCurrentLimit, error) {
 	if a < teslaGen3MinCurrentAmps || t == 0 || t > teslaGen3MaxTimeoutS {
 		return TeslaGen3InteroperableCurrentLimit{}, fmt.Errorf("Gen3 interoperable current limit is out of bounds")
 	}
 	return TeslaGen3InteroperableCurrentLimit{a, t}, nil
 }
-func (v TeslaGen3InteroperableCurrentLimit) MaxAmps() uint32        { return v.maxAmps }
+
+// MaxAmps returns the current in integer amperes.
+func (v TeslaGen3InteroperableCurrentLimit) MaxAmps() uint32 { return v.maxAmps }
+
+// TimeoutSeconds returns the timeout in seconds.
 func (v TeslaGen3InteroperableCurrentLimit) TimeoutSeconds() uint32 { return v.timeoutSeconds }
 
 type teslaGen3CurrentLimitWireField struct {

@@ -8,6 +8,10 @@ import (
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 )
 
+// ErrGrowattBMSRS485RTUObserverInvalid reports a refused observer construction
+// or call (nil session or context, unit outside 1-247, unsupported revision) or
+// a response whose provenance or word count differs from the requested slice.
+// Session errors are returned unchanged.
 var ErrGrowattBMSRS485RTUObserverInvalid = errors.New("growatt BMS RTU observer is invalid")
 
 // GrowattBMSRS485RTUObserverSession is an already configured, generic RTU

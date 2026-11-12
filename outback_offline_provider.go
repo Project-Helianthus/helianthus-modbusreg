@@ -19,8 +19,17 @@ type OutBackOfflineAttempt struct {
 // Returned buffers must remain untouched until Cycle returns.
 type OutBackDiagnosticSupplier func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error)
 
+// OutBackOfflineStatus is the status of the latest Cycle attempt; it is
+// independent of the retained record. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/outback-offline-provider-cycle.md.
 type OutBackOfflineStatus string
 
+// Attempt statuses. Idle: no attempt since construction or Replace. Running: a
+// supplier call is in progress. Imported: a complete record was retained.
+// Incomplete: the record was not complete; it replaces the retained record only
+// when no complete record is retained. Failed: supplier, association or bound
+// error. Canceled: the caller context or work deadline ended. Retired: Retire was
+// called.
 const (
 	OutBackOfflineIdle       OutBackOfflineStatus = "idle"
 	OutBackOfflineRunning    OutBackOfflineStatus = "running"
@@ -31,6 +40,12 @@ const (
 	OutBackOfflineRetired    OutBackOfflineStatus = "retired"
 )
 
+// OutBack offline provider errors. ErrOutBackOfflineInput: invalid construction
+// or call arguments, or an exhausted generation or attempt counter.
+// ErrOutBackOfflineAssociation: the supplied record names a source other than
+// the frozen attempt source. ErrOutBackOfflineSuperseded: a newer attempt,
+// Replace or Retire happened before publication; nothing was published.
+// ErrOutBackOfflineRetired: the provider is retired.
 var (
 	ErrOutBackOfflineInput       = errors.New("OutBack offline provider: invalid bounded input")
 	ErrOutBackOfflineAssociation = errors.New("OutBack offline provider: supplied association differs from frozen source")

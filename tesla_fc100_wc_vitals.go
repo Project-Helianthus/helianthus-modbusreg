@@ -17,6 +17,8 @@ var teslaFC100WCVitalsRequestPDU = []byte{0x04, 0x32, 0x02, 0x0a, 0x00}
 // from the qualified terminal snapshot without exposing field values.
 type TeslaFC100WCVitalsReplayKind string
 
+// Replay kinds: Intermediate is the exact echo of the request message and carries
+// no snapshot; Terminal carries the length and SHA-256 hex digest of the terminal body.
 const (
 	TeslaFC100WCVitalsIntermediate TeslaFC100WCVitalsReplayKind = "intermediate"
 	TeslaFC100WCVitalsTerminal     TeslaFC100WCVitalsReplayKind = "terminal"

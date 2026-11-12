@@ -89,6 +89,15 @@ Direct replacement of external values and schema identifiers; no aliases or migr
 
 ## Unreleased
 
+- Doc comments now cover every exported declaration in the Tesla, Growatt,
+  OutBack and Fronius family files (first slice of #375; the six declarations
+  in `tesla_gen3_read_acquisition.go` follow in a later slice). Comments state
+  the implemented contract: units and scaling, errors and fail-closed behavior,
+  ownership, concurrency and lifecycle, with protocol meaning left to the
+  public helianthus-docs-modbus pages. The matching `revive/exported` rows are
+  removed from `scripts/go-lint-baseline.json`. No code, name or behavior
+  changes; added comment lines shift the line table, so the change is
+  artifact-changing for consumers that re-pin.
 - Huawei monitoring emits `status` for the M1 family state field. The previous
   field name has no runtime alias or fallback. The public naming contract
   requires coordinated consumer adoption; native identities, grades, units,

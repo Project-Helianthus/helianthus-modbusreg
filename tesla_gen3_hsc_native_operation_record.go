@@ -9,6 +9,7 @@ import (
 // TeslaGen3HSCNativeOperationDirection identifies the retained PDU direction.
 type TeslaGen3HSCNativeOperationDirection string
 
+// Directions. An exception record must use the response direction.
 const (
 	TeslaGen3HSCRequestDirection  TeslaGen3HSCNativeOperationDirection = "request"
 	TeslaGen3HSCResponseDirection TeslaGen3HSCNativeOperationDirection = "response"
@@ -17,6 +18,8 @@ const (
 // TeslaGen3HSCNativeOperationOutcome identifies the normal or exception path.
 type TeslaGen3HSCNativeOperationOutcome string
 
+// Outcomes: Normal for a request or normal response, Exception for a
+// transport-correlated exception response.
 const (
 	TeslaGen3HSCNormalOutcome    TeslaGen3HSCNativeOperationOutcome = "normal"
 	TeslaGen3HSCExceptionOutcome TeslaGen3HSCNativeOperationOutcome = "exception"
@@ -86,26 +89,34 @@ func NewTeslaGen3HSCNativeOperationRecord(config TeslaGen3HSCNativeOperationReco
 	}, nil
 }
 
+// Profile returns the validated HSC profile name.
 func (record TeslaGen3HSCNativeOperationRecord) Profile() string { return record.profile }
 
+// ProfileVersion returns the validated HSC profile compatibility identifier.
 func (record TeslaGen3HSCNativeOperationRecord) ProfileVersion() string { return record.profileVersion }
 
+// OperationVersion returns the FC100 operation compatibility identifier, or the
+// empty string for an opaque FC101 or FC102 record.
 func (record TeslaGen3HSCNativeOperationRecord) OperationVersion() string {
 	return record.operationVersion
 }
 
+// Operation returns the FC100 operation, or the empty string for FC101 and FC102.
 func (record TeslaGen3HSCNativeOperationRecord) Operation() TeslaFC100Operation {
 	return record.operation
 }
 
+// Function returns the HSC private function code of the retained PDU.
 func (record TeslaGen3HSCNativeOperationRecord) Function() modbus.PrivateFunctionCode {
 	return record.function
 }
 
+// Direction returns whether the payload is a request or a response.
 func (record TeslaGen3HSCNativeOperationRecord) Direction() TeslaGen3HSCNativeOperationDirection {
 	return record.direction
 }
 
+// Outcome returns the normal or exception path of the retained PDU.
 func (record TeslaGen3HSCNativeOperationRecord) Outcome() TeslaGen3HSCNativeOperationOutcome {
 	return record.outcome
 }

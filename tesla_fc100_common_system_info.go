@@ -17,6 +17,8 @@ var teslaFC100CommonSystemInfoRequestPDU = []byte{0x04, 0x22, 0x02, 0x12, 0x00}
 // intermediate from the bounded opaque terminal body.
 type TeslaFC100CommonSystemInfoReplayKind string
 
+// Replay kinds: Intermediate is the exact echo of the request message and carries
+// no snapshot; Terminal carries the length and SHA-256 hex digest of the opaque body.
 const (
 	TeslaFC100CommonSystemInfoIntermediate TeslaFC100CommonSystemInfoReplayKind = "intermediate"
 	TeslaFC100CommonSystemInfoTerminal     TeslaFC100CommonSystemInfoReplayKind = "terminal"

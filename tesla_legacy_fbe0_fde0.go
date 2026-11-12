@@ -13,6 +13,11 @@ const (
 // TeslaLegacyQualification states the evidence tier for a legacy Tesla record.
 type TeslaLegacyQualification string
 
+// Qualification tiers, taken from the selected profile's compatibility:
+// FamilyCompatible claims no firmware build; BuildConfirmed is the only
+// exact-build tier. A profile with unknown compatibility yields no typed
+// record. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/tesla/legacy-wall-connector-rs485.md.
 const (
 	TeslaLegacyFamilyCompatible TeslaLegacyQualification = "family_compatible"
 	TeslaLegacyBuildConfirmed   TeslaLegacyQualification = "build_confirmed"
@@ -21,6 +26,8 @@ const (
 // TeslaLegacyFDE0State is the native legacy dynamic-current state byte.
 type TeslaLegacyFDE0State byte
 
+// The two absolute-offer states: 0x05 pre-charge and 0x09 charging. Every
+// other state byte stays native-only.
 const (
 	TeslaLegacyFDE0StatePreCharge TeslaLegacyFDE0State = 0x05
 	TeslaLegacyFDE0StateCharging  TeslaLegacyFDE0State = 0x09
@@ -79,14 +86,24 @@ func NewTeslaLegacyFBE0Observation(spec TeslaLegacyFBE0ObservationSpec) (TeslaLe
 	}, nil
 }
 
+// Qualification returns the evidence tier of the profile that validated the frame.
 func (observation TeslaLegacyFBE0Observation) Qualification() TeslaLegacyQualification {
 	return observation.qualification
 }
+
+// SourceID returns the big-endian source ID from payload bytes 0-1.
 func (observation TeslaLegacyFBE0Observation) SourceID() uint16 { return observation.sourceID }
+
+// DestinationID returns the big-endian destination ID from payload bytes 2-3.
 func (observation TeslaLegacyFBE0Observation) DestinationID() uint16 {
 	return observation.destinationID
 }
+
+// State returns the raw state byte, payload byte 4, whatever its value.
 func (observation TeslaLegacyFBE0Observation) State() TeslaLegacyFDE0State { return observation.state }
+
+// AllocatedMaxCA returns the raw big-endian allocated current from payload bytes
+// 5-6, in centiamperes, for every state; use AbsoluteOfferCA for an absolute value.
 func (observation TeslaLegacyFBE0Observation) AllocatedMaxCA() uint16 {
 	return observation.allocatedMaxCA
 }
@@ -156,17 +173,30 @@ func NewTeslaLegacyFDE0Observation(spec TeslaLegacyFDE0ObservationSpec) (TeslaLe
 	}, nil
 }
 
+// Qualification returns the evidence tier of the profile that validated the frame.
 func (observation TeslaLegacyFDE0Observation) Qualification() TeslaLegacyQualification {
 	return observation.qualification
 }
+
+// SourceID returns the big-endian source ID from payload bytes 0-1.
 func (observation TeslaLegacyFDE0Observation) SourceID() uint16 { return observation.sourceID }
+
+// DestinationID returns the big-endian destination ID from payload bytes 2-3.
 func (observation TeslaLegacyFDE0Observation) DestinationID() uint16 {
 	return observation.destinationID
 }
+
+// State returns the raw state byte, payload byte 4, whatever its value.
 func (observation TeslaLegacyFDE0Observation) State() TeslaLegacyFDE0State { return observation.state }
+
+// AllocatedMaxCA returns the raw big-endian allocated current from payload bytes
+// 5-6, in centiamperes, for every state; use AbsoluteOfferCA for an absolute value.
 func (observation TeslaLegacyFDE0Observation) AllocatedMaxCA() uint16 {
 	return observation.allocatedMaxCA
 }
+
+// ActualCurrentCA returns the raw big-endian actual current from payload bytes
+// 7-8, in centiamperes.
 func (observation TeslaLegacyFDE0Observation) ActualCurrentCA() uint16 {
 	return observation.actualCurrentCA
 }

@@ -35,6 +35,7 @@ type GrowattBMSCellVoltageGroup struct {
 // cell in the revision-scoped 0x0109 word. It has no control semantics.
 type GrowattBMSNativeCellState bool
 
+// Native cell bit values: Off is a clear bit and On is a set bit of the 0x0109 word.
 const (
 	GrowattBMSNativeCellStateOff GrowattBMSNativeCellState = false
 	GrowattBMSNativeCellStateOn  GrowattBMSNativeCellState = true

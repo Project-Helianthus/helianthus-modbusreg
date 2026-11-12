@@ -8,6 +8,11 @@ const maxTeslaLegacyWallConnectorMessage = 256
 // for the legacy, pre-Gen3 Wall Connector RS-485 family.
 type TeslaLegacyWallConnectorCompatibility string
 
+// Evidence tiers. BuildConfirmed: the exact known build label. FamilyCompatible:
+// a locally declared legacy family, without a build claim. Unknown: missing,
+// contradictory or unknown identity; it inherits no build-specific field
+// interpretation. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/tesla/legacy-wall-connector-rs485.md.
 const (
 	TeslaLegacyWallConnectorBuildConfirmed   TeslaLegacyWallConnectorCompatibility = "build_confirmed"
 	TeslaLegacyWallConnectorFamilyCompatible TeslaLegacyWallConnectorCompatibility = "family_compatible"
@@ -18,6 +23,8 @@ const (
 // legacy generation classification.
 type TeslaLegacyWallConnectorGeneration string
 
+// TeslaLegacyWallConnectorGenerationCandidate is the only generation value: a
+// pre-Gen3 candidate, never an exclusive hardware generation claim.
 const TeslaLegacyWallConnectorGenerationCandidate TeslaLegacyWallConnectorGeneration = "pre_gen3_candidate"
 
 // TeslaLegacyWallConnectorProfileConfig selects a legacy protocol tier without
@@ -59,6 +66,7 @@ func (profile TeslaLegacyWallConnectorProfile) Compatibility() TeslaLegacyWallCo
 // TeslaLegacyDirection identifies an offline request or response record.
 type TeslaLegacyDirection string
 
+// Record directions for offline request and response frames.
 const (
 	TeslaLegacyWallConnectorRequest  TeslaLegacyDirection = "request"
 	TeslaLegacyWallConnectorResponse TeslaLegacyDirection = "response"
@@ -73,6 +81,9 @@ type TeslaLegacyCommand struct {
 // TeslaLegacyOperation names only the documented link and heartbeat forms.
 type TeslaLegacyOperation string
 
+// Operations by command: FCE1 primary discovery; FBE2 and FDE2 secondary
+// discovery; FBE0 primary heartbeat; FDE0 secondary heartbeat. Every other
+// command is Unknown and its payload stays native.
 const (
 	TeslaLegacyOperationUnknown            TeslaLegacyOperation = "unknown"
 	TeslaLegacyOperationPrimaryDiscovery   TeslaLegacyOperation = "primary_discovery"

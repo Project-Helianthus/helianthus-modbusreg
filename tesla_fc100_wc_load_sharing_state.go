@@ -17,6 +17,8 @@ var teslaFC100WCLoadSharingStateRequestPDU = []byte{0x04, 0x32, 0x02, 0x5a, 0x00
 // the opaque, terminal load-sharing-state body.
 type TeslaFC100WCLoadSharingStateReplayKind string
 
+// Replay kinds: Intermediate is the exact echo of the request message and carries
+// no snapshot; Terminal carries the length and SHA-256 hex digest of the opaque body.
 const (
 	TeslaFC100WCLoadSharingStateIntermediate TeslaFC100WCLoadSharingStateReplayKind = "intermediate"
 	TeslaFC100WCLoadSharingStateTerminal     TeslaFC100WCLoadSharingStateReplayKind = "terminal"

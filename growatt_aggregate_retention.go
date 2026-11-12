@@ -32,6 +32,8 @@ type GrowattAggregateContext struct {
 	Identity       GrowattAggregateIdentity
 }
 
+// GrowattAggregateAttempt is the latest aggregate cycle attempt: its context,
+// caller cycle number and logical-tick deadline, and its outcome.
 type GrowattAggregateAttempt struct {
 	Context         GrowattAggregateContext
 	Cycle, Deadline uint64

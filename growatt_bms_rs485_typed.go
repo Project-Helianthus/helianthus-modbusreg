@@ -2,8 +2,13 @@ package modbusreg
 
 import "fmt"
 
+// GrowattBMSOperatingState is the decoded operating state of the typed BMS
+// status. Decoding uses the two low bits of the state word and rejects a word
+// whose high byte is nonzero; field meaning is owned by
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/growatt/bms-rs485-1xsxxp-v202.md.
 type GrowattBMSOperatingState string
 
+// Operating states for the bit values 0 to 3, in that order.
 const (
 	GrowattBMSStateSoftStarting GrowattBMSOperatingState = "soft_starting"
 	GrowattBMSStateStandby      GrowattBMSOperatingState = "standby"

@@ -19,8 +19,18 @@ type GrowattDiagnosticCommitContext struct {
 	NativeIdentity               GrowattDiagnosticCommitNativeIdentity
 }
 
+// GrowattDiagnosticCommitRejection is the bounded reason a base or diagnostic
+// candidate is refused; the empty string means accepted. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/growatt-diagnostic-commit-check-implementation.md.
 type GrowattDiagnosticCommitRejection string
 
+// Rejection reasons. InvalidBase: the base evidence does not decode or the base
+// was not built by NewGrowattDiagnosticCommitBase. InvalidContext: missing
+// tokens, zero epoch or cycle, or a unit, function or revision that differs from
+// the base. ContextMismatch: other provenance or continuity words differ.
+// TopologyChanged: the full topology word differs (checked before ContextMismatch).
+// LineageChanged: the decoded reported-group word differs from the expectation.
+// InvalidDiagnostic: the diagnostic decoder refused the input.
 const (
 	GrowattDiagnosticCommitInvalidBase       GrowattDiagnosticCommitRejection = "invalid_base"
 	GrowattDiagnosticCommitInvalidContext    GrowattDiagnosticCommitRejection = "invalid_context"
@@ -68,6 +78,8 @@ func NewGrowattDiagnosticCommitBase(base GrowattBMSTypedReadOnlyStatus, context 
 	return GrowattDiagnosticCommitBase{context: context, base: decoded, valid: true}, ""
 }
 
+// GrowattDiagnosticCommitIdentity is the decoded battery ID and full
+// reported-group word of an accepted diagnostic candidate.
 type GrowattDiagnosticCommitIdentity struct {
 	BatteryID         uint8
 	ReportedGroupWord uint16
@@ -82,10 +94,12 @@ type GrowattDiagnosticCommitCandidate struct {
 	diagnostic GrowattBMSMultiGroupDiagnostic
 }
 
+// Context returns the frozen base context the candidate was checked against.
 func (candidate GrowattDiagnosticCommitCandidate) Context() GrowattDiagnosticCommitContext {
 	return candidate.context
 }
 
+// Identity returns the decoded diagnostic identity.
 func (candidate GrowattDiagnosticCommitCandidate) Identity() GrowattDiagnosticCommitIdentity {
 	return candidate.identity
 }
