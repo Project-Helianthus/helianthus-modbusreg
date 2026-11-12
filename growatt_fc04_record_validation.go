@@ -11,6 +11,13 @@ import (
 	"unicode/utf8"
 )
 
+// FC04 record validation errors; callers match them with errors.Is.
+// ErrGrowattFC04Missing: a required key, reviewed catalog entry or symbolic
+// schema is absent (admission always ends here because the reviewed catalog is
+// empty). ErrGrowattFC04Invalid: the record, identity or comparison is malformed
+// or differs. ErrGrowattFC04Ambiguous: more than one entry or schema matches a
+// reference. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/growatt-fc04-record-validation-implementation.md.
 var (
 	ErrGrowattFC04Missing   = errors.New("growatt FC04 missing or insufficient evidence")
 	ErrGrowattFC04Invalid   = errors.New("growatt FC04 invalid record or comparison")

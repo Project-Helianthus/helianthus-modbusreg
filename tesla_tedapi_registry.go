@@ -14,6 +14,8 @@ const maxTeslaTEDAPIObservations = 64
 // appropriate opaque envelope contract.
 type TeslaTEDAPIDirection string
 
+// Directions: Request selects request-envelope validation, Response selects
+// normal-response validation.
 const (
 	TeslaTEDAPIRequest  TeslaTEDAPIDirection = "request"
 	TeslaTEDAPIResponse TeslaTEDAPIDirection = "response"
@@ -22,6 +24,10 @@ const (
 // TeslaTEDAPISemanticState describes the deliberately narrow projection level.
 type TeslaTEDAPISemanticState string
 
+// Projection levels. FramingOnly: the profile is not qualified read-only.
+// OpaqueQualified: the profile is qualified read-only; the payload stays opaque
+// and grants no outbound permission. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/tesla/tedapi.md.
 const (
 	TeslaTEDAPIFramingOnly     TeslaTEDAPISemanticState = "framing_only"
 	TeslaTEDAPIOpaqueQualified TeslaTEDAPISemanticState = "opaque_qualified"

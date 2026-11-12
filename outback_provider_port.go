@@ -26,6 +26,8 @@ type I27OutBackConfig struct {
 	I27Supplier OutBackDiagnosticSupplier
 }
 
+// ErrI27OutBackBusy is returned by I27Cycle when an earlier supplier callback has
+// not returned yet; the call is refused without a callback, queue or retry.
 var ErrI27OutBackBusy = errors.New("I27 OutBack provider: diagnostic callback still active")
 
 // I27OutBackAdapter composes native lifecycle boundaries without decoding.

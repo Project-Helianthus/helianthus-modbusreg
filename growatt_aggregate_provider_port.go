@@ -23,6 +23,9 @@ type I23GrowattLink struct {
 	I23Receipt                           string
 }
 
+// I23GrowattDiagnostic is an optional same-cycle diagnostic bundle. I23Link must
+// equal the link of the success produced by the same refresh, field by field;
+// I23ExpectedGroup is the expected reported-group word, not a selector.
 type I23GrowattDiagnostic struct {
 	I23Link          I23GrowattLink
 	I23Context       GrowattDiagnosticCommitContext
@@ -30,6 +33,9 @@ type I23GrowattDiagnostic struct {
 	I23Input         GrowattBMSMultiGroupDiagnosticInput
 }
 
+// I23GrowattRequest is one refresh. I23Generation must be positive and strictly
+// increasing and is consumed when work starts; I23Receipt is a nonempty opaque
+// base-record token of at most 128 bytes that differs from the last success.
 type I23GrowattRequest struct {
 	I23Cycle      GrowattAggregateOfflineCycle
 	I23Generation uint64
@@ -46,6 +52,8 @@ type I23GrowattSnapshot struct {
 	I23Retired    bool
 }
 
+// I23GrowattResult reports aggregate and diagnostic outcomes separately: a
+// diagnostic error or rejection leaves a valid aggregate in I23Snapshot.
 type I23GrowattResult struct {
 	I23Snapshot                           I23GrowattSnapshot
 	I23AggregateError, I23DiagnosticError error
@@ -64,6 +72,10 @@ type I23GrowattAdapter struct {
 	i23Published                        I23GrowattSnapshot
 }
 
+// I23NewGrowattProvider wraps a new native aggregate provider. It fails when the
+// slice or word capacity cannot hold the complete native base or when the native
+// constructor refuses its bounds or reader; see
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/growatt-aggregate-provider-port.md.
 func I23NewGrowattProvider(i23MaxTicks, i23MaxSlices, i23MaxWords uint64, i23Reader GrowattAggregateOfflineReader) (*I23GrowattAdapter, error) {
 	// Refuse capacities that cannot hold even the canonical complete base.
 	if i23MaxSlices < 4 || i23MaxWords < 50 {
@@ -76,6 +88,12 @@ func I23NewGrowattProvider(i23MaxTicks, i23MaxSlices, i23MaxWords uint64, i23Rea
 	return &I23GrowattAdapter{i23Native: i23Native, i23Published: I23GrowattSnapshot{I23Aggregate: i23Native.Snapshot()}}, nil
 }
 
+// I23Refresh runs one native aggregate cycle synchronously, then checks the
+// optional diagnostic against that exact success. Overlapping, retired or
+// otherwise refused requests return the published snapshot without calling the
+// supplier. Cancellation after a native commit, or a clock that regresses after
+// it, retires the adapter permanently. The diagnostic input is copied before the
+// supplier runs.
 func (i23P *I23GrowattAdapter) I23Refresh(i23Ctx context.Context, i23Request I23GrowattRequest, i23Clock func() uint64) I23GrowattResult {
 	if i23P == nil {
 		return I23GrowattResult{I23AggregateError: fmt.Errorf("I23 nil provider")}
@@ -183,6 +201,9 @@ func (i23P *I23GrowattAdapter) I23Refresh(i23Ctx context.Context, i23Request I23
 	return i23Result
 }
 
+// I23Advance moves the logical clock forward for the native provider and clears
+// a published diagnostic at its cycle deadline. A backward tick, a retired
+// adapter or a native refusal returns an error and changes nothing.
 func (i23P *I23GrowattAdapter) I23Advance(i23Now uint64) error {
 	if i23P == nil {
 		return fmt.Errorf("I23 nil provider")
@@ -202,6 +223,8 @@ func (i23P *I23GrowattAdapter) I23Advance(i23Now uint64) error {
 	return nil
 }
 
+// I23Retire permanently refuses new refreshes, cancels an in-flight refresh and
+// clears the diagnostic; the last published aggregate stays visible as retired.
 func (i23P *I23GrowattAdapter) I23Retire() {
 	if i23P == nil {
 		return
@@ -216,6 +239,8 @@ func (i23P *I23GrowattAdapter) I23Retire() {
 	}
 }
 
+// I23Snapshot returns a detached copy of the published envelope without
+// advancing time; a nil adapter reports an absent aggregate.
 func (i23P *I23GrowattAdapter) I23Snapshot() I23GrowattSnapshot {
 	if i23P == nil {
 		return I23GrowattSnapshot{I23Aggregate: GrowattAggregateSnapshot{State: "absent"}}

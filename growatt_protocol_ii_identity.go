@@ -45,17 +45,34 @@ type GrowattProtocolIIIdentityObservation struct {
 	protocolVersion uint16
 }
 
+// UnitID returns the validated Modbus unit identifier.
 func (o GrowattProtocolIIIdentityObservation) UnitID() byte { return o.unitID }
+
+// Profile returns the caller-supplied profile the raw words were checked against.
 func (o GrowattProtocolIIIdentityObservation) Profile() GrowattProtocolIIIdentityProfile {
 	return o.profile
 }
+
+// Slices returns a deep copy of the five raw FC03 slices in contract order.
 func (o GrowattProtocolIIIdentityObservation) Slices() []GrowattProtocolIIIdentitySlice {
 	return cloneGrowattProtocolIIIdentitySlices(o.slices)
 }
-func (o GrowattProtocolIIIdentityObservation) FirmwareText() string    { return o.firmwareText }
-func (o GrowattProtocolIIIdentityObservation) SerialText() string      { return o.serialText }
-func (o GrowattProtocolIIIdentityObservation) DeviceType() uint16      { return o.deviceType }
-func (o GrowattProtocolIIIdentityObservation) ModelBuild() [2]uint16   { return o.modelBuild }
+
+// FirmwareText returns the printable ASCII of the six words at offset 9, high
+// byte first, with trailing NUL and space bytes removed.
+func (o GrowattProtocolIIIdentityObservation) FirmwareText() string { return o.firmwareText }
+
+// SerialText returns the printable ASCII of the five words at offset 23, decoded
+// like FirmwareText.
+func (o GrowattProtocolIIIdentityObservation) SerialText() string { return o.serialText }
+
+// DeviceType returns the raw word at offset 43.
+func (o GrowattProtocolIIIdentityObservation) DeviceType() uint16 { return o.deviceType }
+
+// ModelBuild returns the raw words at offsets 82 and 83, in register order.
+func (o GrowattProtocolIIIdentityObservation) ModelBuild() [2]uint16 { return o.modelBuild }
+
+// ProtocolVersion returns the raw word at offset 88.
 func (o GrowattProtocolIIIdentityObservation) ProtocolVersion() uint16 { return o.protocolVersion }
 
 // OutboundAllowed is false for this identity observation. It cannot authorize

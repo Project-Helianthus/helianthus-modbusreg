@@ -51,6 +51,8 @@ type OutBackDetachedRecord struct {
 	valid          bool
 }
 
+// ErrOutBackDetachedRecordBound is returned by NewOutBackDetachedRecord when
+// maxBytes is zero or the accounted evidence bytes would exceed it.
 var ErrOutBackDetachedRecordBound = errors.New("OutBack detached record: positive byte bound exceeded or absent")
 
 // NewOutBackDetachedRecord checks the entire record against maxBytes before
@@ -116,19 +118,32 @@ func cloneOutBackOccurrences(in []OutBackDetachedOccurrence) []OutBackDetachedOc
 	return out
 }
 
-func (r OutBackDetachedRecord) RawWords() []uint16    { return append([]uint16(nil), r.input.Words...) }
+// RawWords returns a copy of the record words in caller order.
+func (r OutBackDetachedRecord) RawWords() []uint16 { return append([]uint16(nil), r.input.Words...) }
+
+// DeclaredWords returns the caller-declared record length in words.
 func (r OutBackDetachedRecord) DeclaredWords() uint64 { return r.input.DeclaredWords }
+
+// PresentSpans returns a copy of the caller-supplied present spans, unvalidated.
 func (r OutBackDetachedRecord) PresentSpans() []OutBackWordSpan {
 	return append([]OutBackWordSpan(nil), r.input.Present...)
 }
+
+// MissingSpans returns a copy of the caller-supplied missing spans.
 func (r OutBackDetachedRecord) MissingSpans() []OutBackWordSpan {
 	return append([]OutBackWordSpan(nil), r.input.Missing...)
 }
+
+// Occurrences returns a deep copy of the occurrences in caller order.
 func (r OutBackDetachedRecord) Occurrences() []OutBackDetachedOccurrence {
 	return cloneOutBackOccurrences(r.input.Occurrences)
 }
+
+// SourceAssociation returns the source metadata captured at construction.
 func (r OutBackDetachedRecord) SourceAssociation() OutBackSourceAssociation { return r.input.Source }
-func (r OutBackDetachedRecord) AccountedBytes() uint64                      { return r.accountedBytes }
+
+// AccountedBytes returns the evidence bytes charged against maxBytes at construction.
+func (r OutBackDetachedRecord) AccountedBytes() uint64 { return r.accountedBytes }
 
 // Complete means only that supplied extents have contiguous ordered coverage.
 // Invalid, gapped, overlapping, empty and missing extents remain diagnostic.
@@ -160,8 +175,13 @@ func outBackCovered(spans []OutBackWordSpan, n uint64) bool {
 	return end == n
 }
 
+// OutBackAssociationDisposition is the result of Association. Neither value
+// admits a layout or qualifies an operation; see
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/outback-detached-record-implementation.md.
 type OutBackAssociationDisposition string
 
+// Association dispositions: Current when every source field matches and both
+// sides are available, otherwise Historical.
 const (
 	OutBackAssociationCurrent    OutBackAssociationDisposition = "current"
 	OutBackAssociationHistorical OutBackAssociationDisposition = "historical"
@@ -188,5 +208,8 @@ func (*OutBackDetachedRecord) Evaluate() OutBackAXSReadOnlyFlavorDecision {
 	return OutBackAXSReadOnlyFlavorDecision{reason: OutBackAXSReadOnlyFlavorReasonSourceNotQualified}
 }
 
+// TypedFacts always returns nil: no OutBack layout is admitted for typed decoding.
 func (*OutBackDetachedRecord) TypedFacts() []SunSpecDecodedModel { return nil }
-func (*OutBackDetachedRecord) Requests() []SunSpecReadRequest    { return nil }
+
+// Requests always returns nil: the record never derives a read request.
+func (*OutBackDetachedRecord) Requests() []SunSpecReadRequest { return nil }

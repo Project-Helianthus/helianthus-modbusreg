@@ -7,23 +7,34 @@ import (
 	"fmt"
 )
 
+// TeslaTEDAPIOperationWCLifetimeV1 identifies the explicitly qualified FC100 WC
+// lifetime-statistics operation; see
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/tesla/tedapi.md.
 const TeslaTEDAPIOperationWCLifetimeV1 = "tesla.hsc.fc100.wc_lifetime.v1"
 
 var teslaFC100WCLifetimeRequestPDU = []byte{0x04, 0x32, 0x02, 0x1a, 0x00}
 
+// TeslaFC100WCLifetimeReplayKind distinguishes an echoed FC100 intermediate from
+// the opaque terminal lifetime body.
 type TeslaFC100WCLifetimeReplayKind string
 
+// Replay kinds: Intermediate is the exact echo of the request message and carries
+// no snapshot; Terminal carries the length and SHA-256 hex digest of the opaque body.
 const (
 	TeslaFC100WCLifetimeIntermediate TeslaFC100WCLifetimeReplayKind = "intermediate"
 	TeslaFC100WCLifetimeTerminal     TeslaFC100WCLifetimeReplayKind = "terminal"
 )
 
+// TeslaFC100WCLifetimeReplay retains only redacted terminal metadata: it has no
+// typed fields and never contains body bytes.
 type TeslaFC100WCLifetimeReplay struct {
 	Kind           TeslaFC100WCLifetimeReplayKind
 	SnapshotLength int
 	SnapshotDigest string
 }
 
+// DecodeTeslaFC100WCLifetimeReplay accepts one FC100 response that is either the
+// exact request echo or a terminal family-6/tag-4 body; anything else is an error.
 func DecodeTeslaFC100WCLifetimeReplay(payload []byte) (TeslaFC100WCLifetimeReplay, error) {
 	response, err := DecodeTeslaHSCResponse(teslaHSCFunction100, payload)
 	if err != nil {
@@ -45,6 +56,8 @@ func DecodeTeslaFC100WCLifetimeReplay(payload []byte) (TeslaFC100WCLifetimeRepla
 	return TeslaFC100WCLifetimeReplay{Kind: TeslaFC100WCLifetimeTerminal, SnapshotLength: len(body), SnapshotDigest: hex.EncodeToString(digest[:])}, nil
 }
 
+// DecodeTeslaFC100WCLifetimeReplaySequence accepts one or two responses: at most
+// one echo, followed by exactly one terminal. Any other order or count is rejected.
 func DecodeTeslaFC100WCLifetimeReplaySequence(payloads [][]byte) ([]TeslaFC100WCLifetimeReplay, error) {
 	if len(payloads) == 0 || len(payloads) > 2 {
 		return nil, fmt.Errorf("tesla WC lifetime response count is invalid")

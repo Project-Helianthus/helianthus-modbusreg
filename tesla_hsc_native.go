@@ -44,5 +44,8 @@ func DecodeTeslaHSCNativeRecord(version string, function modbus.PrivateFunctionC
 	return TeslaHSCNativeRecord{function: function, payload: response.Payload()}, nil
 }
 
+// Function returns FC101 or FC102.
 func (record TeslaHSCNativeRecord) Function() modbus.PrivateFunctionCode { return record.function }
-func (record TeslaHSCNativeRecord) Payload() []byte                      { return append([]byte(nil), record.payload...) }
+
+// Payload returns a copy of the anonymous native message exactly as received.
+func (record TeslaHSCNativeRecord) Payload() []byte { return append([]byte(nil), record.payload...) }

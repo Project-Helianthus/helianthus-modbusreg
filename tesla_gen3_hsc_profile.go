@@ -10,6 +10,10 @@ const maxTeslaGen3HSCVersionEvidence = 252
 // TeslaGen3HSCVersionDisposition is the evidence state of a Gen3 version.
 type TeslaGen3HSCVersionDisposition string
 
+// Version dispositions. KnownObservation: the trimmed version is one of the
+// enumerated observed labels. CompatibleCandidate: another nonempty label with
+// all three capability predicates declared; it is a candidate, not a
+// qualification. Unknown: anything else, including an empty label.
 const (
 	TeslaGen3HSCVersionKnownObservation    TeslaGen3HSCVersionDisposition = "known_observation"
 	TeslaGen3HSCVersionCompatibleCandidate TeslaGen3HSCVersionDisposition = "compatible_candidate"

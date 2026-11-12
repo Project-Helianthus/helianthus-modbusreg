@@ -28,8 +28,13 @@ func (a GrowattProtocolIIFC04Applicability) matches(identity GrowattProtocolIIId
 		a.profile.ProtocolVersion == identity.ProtocolVersion()
 }
 
+// GrowattProtocolIIInverterState is the decoded inverter state of FC04 word 0.
+// Only the values 0, 1 and 3 decode; any other value rejects the whole
+// telemetry record. Meaning is owned by
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/growatt/protocol-ii-readonly-v1.md.
 type GrowattProtocolIIInverterState string
 
+// Inverter states for word values 0 (Waiting), 1 (Normal) and 3 (Fault).
 const (
 	GrowattProtocolIIStateWaiting GrowattProtocolIIInverterState = "waiting"
 	GrowattProtocolIIStateNormal  GrowattProtocolIIInverterState = "normal"
@@ -50,12 +55,17 @@ type GrowattProtocolIIFC04Telemetry struct {
 	TodayGeneratedEnergyKWh, TotalGeneratedEnergyKWh, WorkTimeSeconds float64
 }
 
+// Identity returns the FC03 identity observation the telemetry was admitted for.
 func (t GrowattProtocolIIFC04Telemetry) Identity() GrowattProtocolIIIdentityObservation {
 	return t.identity
 }
+
+// RawSlice returns a copy of the complete raw FC04 slice, including untyped words.
 func (t GrowattProtocolIIFC04Telemetry) RawSlice() GrowattProtocolIIFC04Slice {
 	return GrowattProtocolIIFC04Slice{Offset: t.raw.Offset, Words: append([]uint16(nil), t.raw.Words...)}
 }
+
+// OutboundAllowed is permanently false: telemetry never authorizes a further request or control.
 func (GrowattProtocolIIFC04Telemetry) OutboundAllowed() bool { return false }
 
 // DecodeGrowattProtocolIIFC04Telemetry accepts exactly offsets 0 through 58

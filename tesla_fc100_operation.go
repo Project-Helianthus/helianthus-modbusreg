@@ -18,6 +18,10 @@ const TeslaHSCFC100OperationCompatibilityV1 = "wc3_24_44_3"
 // or a qualified live setter; unrelated settings remain outside EVSE scope.
 type TeslaFC100Operation string
 
+// Retained operations. Each maps to one fixed message family and request and
+// response tag in this compatibility contract; TeslaFC100RecoveredNames returns
+// their message names. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/tesla/tedapi.md.
 const (
 	TeslaFC100OperationCommonSystemInfo      TeslaFC100Operation = "common.system_info"
 	TeslaFC100OperationWCGetVitals           TeslaFC100Operation = "wc.get_vitals"
@@ -74,6 +78,10 @@ var teslaFC100OperationSpecs = map[TeslaFC100Operation]teslaFC100OperationSpec{
 // a TEDAPI application error carried in a normal FC100 response.
 type TeslaFC100OperationResultKind string
 
+// Result kinds: Intermediate is an exact echo of the request message and may only
+// precede the terminal; Terminal carries the opaque response body;
+// ApplicationError carries the Common error status. A sequence has exactly one
+// terminal or application error, and it is last.
 const (
 	TeslaFC100OperationIntermediate     TeslaFC100OperationResultKind = "intermediate"
 	TeslaFC100OperationTerminal         TeslaFC100OperationResultKind = "terminal"

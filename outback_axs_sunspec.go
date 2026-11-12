@@ -3,7 +3,12 @@ package modbusreg
 import "errors"
 
 const (
-	OutBackAXSModelInterface     uint16 = 64110
+	// OutBackAXSModelInterface is the vendor SunSpec model ID of the AXS interface
+	// block; no layout for it is admitted. See
+	// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/outback/axs-port-source-profile-matrix-v1.md.
+	OutBackAXSModelInterface uint16 = 64110
+	// OutBackAXSModelChargeControl is the vendor SunSpec model ID of the AXS charge
+	// control block, which stays opaque.
 	OutBackAXSModelChargeControl uint16 = 64111
 
 	// OutBackAXSOwnerManualRevCInterfaceCandidateWords is the declared length

@@ -8,6 +8,10 @@ import (
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 )
 
+// ErrGrowattProtocolIIIdentityRTUObserverInvalid reports a refused construction
+// or call (nil session or context, unit outside 1-247, invalid profile) or a
+// response whose provenance or word count differs from the requested slice.
+// Session errors are returned unchanged.
 var ErrGrowattProtocolIIIdentityRTUObserverInvalid = errors.New("growatt Protocol II identity RTU observer is invalid")
 
 // GrowattProtocolIIIdentityRTUObserverSession is an already-configured,
@@ -26,6 +30,8 @@ type GrowattProtocolIIIdentityRTUObserver struct {
 	session GrowattProtocolIIIdentityRTUObserverSession
 }
 
+// NewGrowattProtocolIIIdentityRTUObserver binds a caller-selected identity
+// profile and unicast unit to a session without performing I/O.
 func NewGrowattProtocolIIIdentityRTUObserver(
 	profile GrowattProtocolIIIdentityProfile,
 	unitID byte,
@@ -37,6 +43,8 @@ func NewGrowattProtocolIIIdentityRTUObserver(
 	return &GrowattProtocolIIIdentityRTUObserver{profile: profile, unitID: unitID, session: session}, nil
 }
 
+// Observe performs the five fixed FC03 identity reads in order, stops at the
+// first failure, and decodes only after every response matches its request.
 func (observer *GrowattProtocolIIIdentityRTUObserver) Observe(ctx context.Context) (GrowattProtocolIIIdentityObservation, error) {
 	if observer == nil || observer.session == nil || ctx == nil {
 		return GrowattProtocolIIIdentityObservation{}, ErrGrowattProtocolIIIdentityRTUObserverInvalid

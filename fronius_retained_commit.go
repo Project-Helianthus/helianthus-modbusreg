@@ -38,8 +38,15 @@ type FroniusRetainedAttempt struct {
 	Deadline         time.Time
 }
 
+// FroniusRetainedOutcome is the latest-attempt diagnostic of a
+// FroniusRetainedCommit. It never carries caller text, and only Succeeded
+// replaces the retained envelope; see
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/fronius-retained-commit-implementation.md.
 type FroniusRetainedOutcome string
 
+// Latest-attempt outcomes. Pending is the only state in which a token can
+// still commit; Failed also records a rejected Begin or invalid candidate, and
+// Cancelled also records an expired or cancelled caller context.
 const (
 	FroniusRetainedPending   FroniusRetainedOutcome = "pending"
 	FroniusRetainedSucceeded FroniusRetainedOutcome = "succeeded"
@@ -184,6 +191,9 @@ func (s *FroniusRetainedCommit) Cancel(token FroniusRetainedToken) error {
 	return nil
 }
 
+// View returns a detached copy of the retained envelope and the latest attempt.
+// An active attempt whose context has ended is closed as cancelled first. Stale
+// is true when an envelope exists but the latest attempt did not succeed.
 func (s *FroniusRetainedCommit) View() FroniusRetainedView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
