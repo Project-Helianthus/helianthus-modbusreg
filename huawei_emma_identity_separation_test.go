@@ -21,7 +21,7 @@ func TestK20EMMARequiredIdentityIndependentOfOptionalInventory(t *testing.T) {
 		{"missing offering", "", "EMMA-A02", "SmartHEMS V100R025C00SPC102", false, HuaweiEMMAOfflineOfferingMismatch},
 		{"malformed offering", "Smart\nHEMS", "EMMA-A02", "SmartHEMS V100R025C00SPC102", false, HuaweiEMMAOfflineOfferingMismatch},
 		{"missing model", "SmartHEMS", "", "SmartHEMS V100R025C00SPC102", false, HuaweiEMMAOfflineModelMismatch},
-		// The catalogue's model rows name the EMMA family, so a model token of the
+		// The catalog's model rows name the EMMA family, so a model token of the
 		// family is admitted as its own variant, never as an alias of another.
 		{"other EMMA family token", "SmartHEMS", "EMMA-A02-extra", "SmartHEMS V100R025C00SPC102", true, HuaweiEMMAOfflineMatched},
 		{"SmartLogger model with EMMA firmware", "SmartHEMS", "SmartLogger", "SmartHEMS V100R025C00SPC102", false, HuaweiEMMAOfflineModelMismatch},

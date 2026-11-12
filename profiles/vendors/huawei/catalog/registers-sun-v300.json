@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-registers/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-registers/v1",
   "card": "SUN-V300",
   "edition": "sun2000-v300r001c00-solar-inverter-01-2025-01-09",
   "model_pages": [5],

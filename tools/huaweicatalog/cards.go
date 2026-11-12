@@ -27,7 +27,7 @@ var (
 	editionRowPattern = regexp.MustCompile(`^\| \[(PV\d{3})\]\(sources\.md#pv\d{3}\) \| [^|]+ \| (\d+) \|`)
 )
 
-// parseCards reads the profile directory and the read-only catalogue
+// parseCards reads the profile directory and the read-only catalog
 // navigation: the card list, the core and read-only counts per card, and the
 // selection note of each card.
 func parseCards(directory, review string) ([]*cardInfo, error) {

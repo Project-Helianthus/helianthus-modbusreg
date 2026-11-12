@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-registers/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-registers/v1",
   "card": "MC",
   "edition": "sun2000mc-v200r023c00-01-2023-03-17",
   "model_pages": [5],

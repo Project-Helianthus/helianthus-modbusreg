@@ -108,7 +108,7 @@ func TestH03SmartLoggerDispositionSupersedesIdentityStatusAndKeepsProfileClosed(
 
 	// The documentary candidate and the observed entry are separate entries,
 	// each with a software floor and no exact firmware tuple: the documentary
-	// floors come from the catalogue, and the observed entry adds the observed
+	// floors come from the catalog, and the observed entry adds the observed
 	// build as its own floor.
 	admission := huaweiObject(t, record["admission"])
 	requireHuaweiKeys(t, admission, "unit_id", "registered", "executable", "required_tuple", "forbidden_identity",
@@ -132,7 +132,7 @@ func TestH03SmartLoggerDispositionSupersedesIdentityStatusAndKeepsProfileClosed(
 	}
 	if !reflect.DeepEqual(huaweiStringSlice(t, observed["required_tuple"]), []string{
 		"gateway_unit_0", "fc03_65521_q1_u16_counter_equal_before_after", "complete_valid_extended_inventory",
-		"self_entry_model_exact", "self_entry_software_admitted_by_catalogue_floors_and_at_or_above_observed_floor", "self_entry_unit_equals_gateway_unit",
+		"self_entry_model_exact", "self_entry_software_admitted_by_catalog_floors_and_at_or_above_observed_floor", "self_entry_unit_equals_gateway_unit",
 	}) || !reflect.DeepEqual(huaweiStringSlice(t, observed["forbidden_identity"]), []string{
 		"serial_number", "esn", "writable_device_name_65524", "register_readability", "child_listing", "basic_mei_only",
 		"product_string_without_firmware", "mei_request_unit_identifier", "prefix_wildcard_case_folded_or_whitespace_normalized_match",
@@ -188,10 +188,10 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 	tests := []expectation{
 		// The SUN2000 monitoring profiles (#348) admit two families; the
 		// pointer row itself still changes nothing, and what stays missing is
-		// a monitoring profile for the MAP0 series, whose catalogue row the
+		// a monitoring profile for the MAP0 series, whose catalog row the
 		// selection (#362) records.
 		{"sun2000-disposition.json", "OFFLINE_PROFILE_ADMITTED", "OBSERVED_IDENTITY_BEHIND_GATEWAY", []string{identity, observation}, []string{h03FixturePaths[1], h03FixturePaths[3]},
-			"missing_evidence", []string{"catalogue_monitoring_profile"}},
+			"missing_evidence", []string{"catalog_monitoring_profile"}},
 		{"luna2000-disposition.json", "NO_ADMISSIBLE_PROFILE", "NOT_OBSERVED", []string{identity}, []string{},
 			"missing_evidence", []string{"pinned_vendor_document_identity", "companion_docs_modbus_protocol_page", "clean_room_sanitized_identity_fixture", "clean_room_sanitized_monitoring_fixture", "negative_overlap_with_smartlogger_emma_sdongle"}},
 	}
@@ -222,7 +222,7 @@ func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 
 	sun2000 := decodeHuaweiObject(t, "profiles/vendors/huawei/sun2000-disposition.json")
 	families := huaweiObject(t, sun2000["model_families"])
-	if !reflect.DeepEqual(huaweiStringSlice(t, families["covered"]), []string{"SUN2000 M3 series", "SUN2000 M1 series"}) || families["selectable"] != "CATALOGUE_MODEL_ROWS" {
+	if !reflect.DeepEqual(huaweiStringSlice(t, families["covered"]), []string{"SUN2000 M3 series", "SUN2000 M1 series"}) || families["selectable"] != "CATALOG_MODEL_ROWS" {
 		t.Fatalf("SUN2000 coverage changed: %#v", families)
 	}
 	luna := decodeHuaweiObject(t, "profiles/vendors/huawei/luna2000-disposition.json")

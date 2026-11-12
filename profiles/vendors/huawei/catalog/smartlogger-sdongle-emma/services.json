@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-services/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-services/v1",
   "device_list_grammar": "A descriptor is a sequence of number=value character pairs separated by semicolons. The object length bounds the whole string. Integer-valued attributes are still textual values in this grammar.",
   "functions": [
     {"code":"03","purpose":"Read holding registers","status":"listed","boundary":"All selected interface editions list it; only mapped readable fields are candidates"},

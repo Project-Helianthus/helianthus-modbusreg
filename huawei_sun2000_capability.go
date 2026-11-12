@@ -32,9 +32,9 @@ const (
 	HuaweiSUN2000ReasonModelBlockInvalid        HuaweiSUN2000CapabilityReason = "MODEL_BLOCK_INVALID"
 	HuaweiSUN2000ReasonListingModelConflict     HuaweiSUN2000CapabilityReason = "LISTING_MODEL_CONFLICT"
 	HuaweiSUN2000ReasonIdentityWordsInvalid     HuaweiSUN2000CapabilityReason = "IDENTITY_WORDS_INVALID"
-	HuaweiSUN2000ReasonCatalogNotSelected       HuaweiSUN2000CapabilityReason = "CATALOGUE_NOT_SELECTED"
-	HuaweiSUN2000ReasonCatalogAmbiguous         HuaweiSUN2000CapabilityReason = "CATALOGUE_AMBIGUOUS"
-	HuaweiSUN2000ReasonCatalogRowNoProfile      HuaweiSUN2000CapabilityReason = "CATALOGUE_ROW_WITHOUT_PROFILE"
+	HuaweiSUN2000ReasonCatalogNotSelected       HuaweiSUN2000CapabilityReason = "CATALOG_NOT_SELECTED"
+	HuaweiSUN2000ReasonCatalogAmbiguous         HuaweiSUN2000CapabilityReason = "CATALOG_AMBIGUOUS"
+	HuaweiSUN2000ReasonCatalogRowNoProfile      HuaweiSUN2000CapabilityReason = "CATALOG_ROW_WITHOUT_PROFILE"
 	HuaweiSUN2000ReasonMatched                  HuaweiSUN2000CapabilityReason = "MATCHED"
 	HuaweiSUN2000ReasonMultipleProfilesSelected HuaweiSUN2000CapabilityReason = "MULTIPLE_PROFILES_SELECTED"
 )
@@ -72,7 +72,7 @@ type HuaweiSUN2000CapabilityInput struct {
 	// read at UnitID behind the SmartLogger.
 	RoutedModelBlock []byte
 	// Identity is the rest of the identity evidence read at UnitID. The
-	// catalogue decision selects a row only when the model identifier was read.
+	// catalog decision selects a row only when the model identifier was read.
 	Identity HuaweiSUN2000RoutedIdentity
 }
 
@@ -90,7 +90,7 @@ func (e HuaweiSUN2000ProfileEvaluation) Outcome() HuaweiSUN2000CapabilityOutcome
 }
 func (e HuaweiSUN2000ProfileEvaluation) Reason() HuaweiSUN2000CapabilityReason { return e.reason }
 
-// Catalog is the catalogue decision taken for the profile's path, if the
+// Catalog is the catalog decision taken for the profile's path, if the
 // gateway evidence reached it.
 func (e HuaweiSUN2000ProfileEvaluation) Catalog() (HuaweiSUN2000CatalogDecision, bool) {
 	if e.catalog == nil {
@@ -111,7 +111,7 @@ type HuaweiSUN2000CapabilitySelection struct {
 	evaluations []HuaweiSUN2000ProfileEvaluation
 }
 
-// Catalog is the catalogue decision that the outcome rests on: the one of
+// Catalog is the catalog decision that the outcome rests on: the one of
 // the selected profile, or of the evaluation that decided the outcome.
 func (s HuaweiSUN2000CapabilitySelection) Catalog() (HuaweiSUN2000CatalogDecision, bool) {
 	if s.catalog == nil {
@@ -156,13 +156,13 @@ func (HuaweiSUN2000CapabilitySelection) AutomaticRequestCount() int      { retur
 // SelectHuaweiSUN2000MonitoringProfile evaluates every monitoring profile
 // against the input. The gateway identity comes from the observed gateway card,
 // the routed unit and the routed model text; the model row comes from the
-// catalogue decision over the routed identity words in the inverter map scope,
+// catalog decision over the routed identity words in the inverter map scope,
 // and a profile is routed by the selected row of its family. A missing piece
 // of gateway evidence is insufficient evidence; identity established at a
-// routed unit that no profile serves is no admissible profile; a catalogue
+// routed unit that no profile serves is no admissible profile; a catalog
 // decision that cannot tell two rows apart is ambiguous.
 //
-// The catalogue decision alone routes: without the model identifier it selects
+// The catalog decision alone routes: without the model identifier it selects
 // no row, so no profile is selected on the model text alone. The read-only
 // providers read the identifier, the software text and the firmware text at
 // child admission and pass them here.

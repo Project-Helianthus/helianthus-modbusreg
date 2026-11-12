@@ -6,15 +6,15 @@ import (
 	"strings"
 )
 
-// The gateway catalogue (SmartLogger, S-Dongle and EMMA interface editions)
+// The gateway catalog (SmartLogger, S-Dongle and EMMA interface editions)
 // is a second set of documents of the same schema family, written to a
-// subdirectory of the inverter catalogue. It reuses the editions, registers,
+// subdirectory of the inverter catalog. It reuses the editions, registers,
 // dictionaries and quarantines documents and adds one services document.
 const (
 	gatewayDirectory   = "smartlogger-sdongle-emma"
 	defaultInverterOut = "profiles/vendors/huawei/catalog"
 	defaultGatewayOut  = defaultInverterOut + "/" + gatewayDirectory
-	servicesSchema     = "helianthus-modbusreg-huawei-catalogue-services/v1"
+	servicesSchema     = "helianthus-modbusreg-huawei-catalog-services/v1"
 	servicesFile       = "services.json"
 )
 

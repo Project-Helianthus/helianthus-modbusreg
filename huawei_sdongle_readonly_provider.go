@@ -22,7 +22,7 @@ const (
 // including the refusal of basic identification at the gateway unit, and the
 // child's admission reads the model identifier, the software text and the
 // firmware text at the child unit, before the M1 series groups are read there
-// once its catalogue decision selects the M1 series row. Only the gateway unit
+// once its catalog decision selects the M1 series row. Only the gateway unit
 // and the observed child unit are addressed; no meter is read. Do not copy it.
 type HuaweiSDongleReadOnlyProvider struct {
 	core *huaweiProviderCore

@@ -118,7 +118,7 @@ func TestH06EMMAPathHasNoProviderAndKeepsTheMAP0Reason(t *testing.T) {
 	}
 	enablement := EvaluateHuaweiProviderEnablement(recorded)
 	if enablement.Admitted || enablement.Reason != HuaweiProviderNoAdmittedChildProfile ||
-		!reflect.DeepEqual(enablement.Detail, []string{"SUN2000 MAP0 series: catalogue_card_without_monitoring_profile"}) {
+		!reflect.DeepEqual(enablement.Detail, []string{"SUN2000 MAP0 series: catalog_card_without_monitoring_profile"}) {
 		t.Fatalf("EMMA enablement: %+v", enablement)
 	}
 	// Even an identity card of the observed SmartLogger kind would not admit
@@ -281,7 +281,7 @@ func TestH06ProductionProviderRowsMatchTheProviders(t *testing.T) {
 			}
 			if huaweiInt(t, admission["issue"]) != 365 || admission["model_text"] != test.modelText || !reflect.DeepEqual(reads, sent) ||
 				!reflect.DeepEqual(reads, []string{"30070/1 model_identifier", "30050/15 software_text", "30035/15 firmware_text"}) ||
-				admission["read_on"] != "EACH_IDENTIFICATION_EVENT" || admission["decision"] != "catalogue_selection" ||
+				admission["read_on"] != "EACH_IDENTIFICATION_EVENT" || admission["decision"] != "catalog_selection" ||
 				admission["admits_on"] != string(HuaweiSUN2000CatalogSelected) ||
 				!reflect.DeepEqual(huaweiStringSlice(t, admission["withholds_on"]), []string{string(HuaweiSUN2000CatalogNotSelected), string(HuaweiSUN2000CatalogAmbiguous)}) ||
 				admission["failed_read"] != "UNADMITTED_RETRIED_AFTER_CHILD_BACKOFF" {

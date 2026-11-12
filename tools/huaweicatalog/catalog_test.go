@@ -332,12 +332,12 @@ func TestReadExtentsKeepValuesWhole(t *testing.T) {
 }
 
 // TestCatalogIsReadOnlyByTheSelection keeps two product files the readers
-// of the catalogue: the SUN2000 selection (helianthus-modbusreg issue 362),
+// of the catalog: the SUN2000 selection (helianthus-modbusreg issue 362),
 // kept to the inverter editions, the model rows and the register files, and
 // the gateway selection (helianthus-modbusreg issue 366), kept to the
 // SmartLogger, S-Dongle and EMMA editions and services. No dictionary or
 // quarantine file reaches product code, and neither selection reads the other
-// part of the catalogue.
+// part of the catalog.
 func TestCatalogIsReadOnlyByTheSelection(t *testing.T) {
 	files, err := filepath.Glob("../../*.go")
 	if err != nil {
@@ -383,7 +383,7 @@ func TestCatalogIsReadOnlyByTheSelection(t *testing.T) {
 		}
 		check, ok := allowed[filepath.Base(file)]
 		if !ok {
-			t.Fatalf("%s reads the catalogue; only the two selections do", file)
+			t.Fatalf("%s reads the catalog; only the two selections do", file)
 		}
 		if err := check(data); err != nil {
 			t.Fatalf("%s %v", file, err)
@@ -396,7 +396,7 @@ func TestCatalogIsReadOnlyByTheSelection(t *testing.T) {
 		readers[filepath.Base(file)] = true
 	}
 	if len(readers) != len(allowed) {
-		t.Fatalf("%d product files read the catalogue: %v", len(readers), readers)
+		t.Fatalf("%d product files read the catalog: %v", len(readers), readers)
 	}
 }
 

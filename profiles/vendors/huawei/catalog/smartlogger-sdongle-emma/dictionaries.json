@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-dictionaries/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-dictionaries/v1",
   "dictionaries": [
     {"id":"emma-v100r024c00-01-2024-07-15.attached-meter.value-enum.30500","kind":"value_enum","card":"emma-v100r024c00-01-2024-07-15","edition":"emma-v100r024c00-01-2024-07-15","endpoint":"attached-meter","offsets":[30500],"pages":[22],"mode_predicate":"none stated","values":[{"code":"0","meaning":"online"},{"code":"1","meaning":"offline"}],"unlisted":"raw"},
     {"id":"emma-v100r024c00-01-2024-07-15.gateway-self.value-enum.31002","kind":"value_enum","card":"emma-v100r024c00-01-2024-07-15","edition":"emma-v100r024c00-01-2024-07-15","endpoint":"gateway-self","offsets":[31002],"pages":[12],"mode_predicate":"none stated","values":[{"code":"0","meaning":"inactive"},{"code":"1","meaning":"active"}],"unlisted":"raw"},

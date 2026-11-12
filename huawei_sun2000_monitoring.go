@@ -9,10 +9,10 @@ import (
 // The two SUN2000 monitoring profiles of the docs-modbus Huawei read-only
 // monitoring contract: the M3 series behind the observed SmartLogger and the M1
 // series behind the observed S-Dongle. Each profile serves one family behind
-// one observed gateway identity and is routed by the catalogue row of that
+// one observed gateway identity and is routed by the catalog row of that
 // family (see SelectHuaweiSUN2000MonitoringProfile); its read plan and decoder
 // follow the consulted edition the contract checked. The MAP0 series behind
-// the EMMA has a catalogue row and no profile.
+// the EMMA has a catalog row and no profile.
 const (
 	HuaweiSUN2000M3MonitoringProfileID = "huawei.sun2000.m3.monitoring-readonly@1.0.0"
 	HuaweiSUN2000M1MonitoringProfileID = "huawei.sun2000.m1.monitoring-readonly@1.0.0"

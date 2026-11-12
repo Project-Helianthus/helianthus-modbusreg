@@ -92,7 +92,7 @@ type HuaweiSmartLoggerObservedQualificationInput struct {
 
 // HuaweiSmartLoggerObservedQualificationCard is an inert, offline card for the
 // observed SmartLogger entry: gateway unit 0, self-entry model "Smart Logger",
-// self-entry unit "0", and a self-entry software text that the catalogue
+// self-entry unit "0", and a self-entry software text that the catalog
 // decision admits and that is at or above the observed build
 // "V300R023C10SPC620", the floor of the observed facts, within the V300 line
 // or of a line that no floor documents. The observed build is graded Proven and
@@ -158,7 +158,7 @@ func (card HuaweiSmartLoggerObservedQualificationCard) EmptyResult() HuaweiQuali
 
 // Evaluate returns a test-ready result for the observed entry. A wrong unit, an
 // invalid or unstable inventory, a self entry with another model or unit, a
-// software text that the catalogue decision refuses or that is below the
+// software text that the catalog decision refuses or that is below the
 // observed build, and a disagreeing basic reply each produce an empty
 // insufficient result with no retained child list.
 func (card HuaweiSmartLoggerObservedQualificationCard) Evaluate(input HuaweiSmartLoggerObservedQualificationInput) HuaweiQualificationResult {

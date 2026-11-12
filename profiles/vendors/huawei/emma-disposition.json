@@ -366,7 +366,7 @@
     "executable": true,
     "default_denied": true,
     "normalization": "terminal_nul_or_space_only",
-    "model_scope": "EMMA_FAMILY_BY_CATALOGUE_MODEL_ROWS",
+    "model_scope": "EMMA_FAMILY_BY_CATALOG_MODEL_ROWS",
     "observed_models": [
       "EMMA-A01",
       "EMMA-A02"
@@ -374,7 +374,7 @@
     "required_tuple": [
       "bounded_contextual_offering",
       "emma_family_model_token",
-      "software_admitted_by_catalogue_floors"
+      "software_admitted_by_catalog_floors"
     ],
     "optional_enrichment": [
       "basic_mei",
@@ -391,8 +391,8 @@
   },
   "software_selection": {
     "issue": 366,
-    "catalogue": "profiles/vendors/huawei/catalog/smartlogger-sdongle-emma",
-    "catalogue_files": [
+    "catalog": "profiles/vendors/huawei/catalog/smartlogger-sdongle-emma",
+    "catalog_files": [
       "editions.json",
       "services.json"
     ],
@@ -420,7 +420,7 @@
       "family_mismatch",
       "below_floor",
       "software_malformed",
-      "catalogue_invalid"
+      "catalog_invalid"
     ],
     "edition_cover_labels": "IDENTIFY_EDITIONS_NOT_FLOORS",
     "attribute_dictionary": "SERVICES_DESCRIPTOR_ATTRIBUTES_OF_THE_ADMITTED_EDITIONS",

@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-registers/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-registers/v1",
   "card": "HD",
   "edition": "sun2000hd-v100r026c00-01-2026-03-30",
   "model_pages": [6],

@@ -221,7 +221,7 @@ func TestH03ObservedReplayMatchesSanitizedExpectedResult(t *testing.T) {
 		"child_units":                 units,
 		"page_anomalies":              map[string]any{"oversize_responses": anomalies.OversizeResponses, "declared_object_field_differs": anomalies.DeclaredObjectFieldDiffers},
 		"basic_corroboration":         map[string]any{"agrees": result.BasicCorroborated(), "opaque_extra_objects": result.BasicOpaqueObjectCount()},
-		"catalogue_selection":         m86ReplaySelection(result),
+		"catalog_selection":           m86ReplaySelection(result),
 		"missing_evidence":            result.MissingEvidence(),
 		"hardware_test_ready":         result.HardwareTestReady(),
 		"live_qualified":              result.LiveQualified(),

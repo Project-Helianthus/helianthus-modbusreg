@@ -27,7 +27,7 @@
     "agrees": true,
     "opaque_extra_objects": 9
   },
-  "catalogue_selection": {
+  "catalog_selection": {
     "outcome": "SELECTED",
     "reason": "at_or_above_floor",
     "grade": "PROVEN",

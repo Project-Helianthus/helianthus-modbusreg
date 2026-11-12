@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-registers/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-registers/v1",
   "card": "L-LEGACY",
   "edition": "sun2000l-v100r001-05-2018-04-03",
   "model_pages": [7,8],

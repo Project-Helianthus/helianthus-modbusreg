@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// catalogue is the full set of committed documents.
+// catalog is the full set of committed documents.
 type catalog struct {
 	Editions     editionsDoc
 	Models       modelsDoc
@@ -102,7 +102,7 @@ func encodeCatalog(c *catalog) (map[string][]byte, error) {
 	return files, nil
 }
 
-// loadCatalog reads and strictly decodes every file of a catalogue
+// loadCatalog reads and strictly decodes every file of a catalog
 // directory. A file the schema does not name is refused.
 func loadCatalog(directory string) (*catalog, map[string][]byte, error) {
 	entries, err := os.ReadDir(directory)
@@ -176,8 +176,8 @@ func checkRegisterRow(row registerRow, control bool) error {
 }
 
 // checkRegisterRowIn is checkRegisterRow against a given endpoint set: the
-// inverter endpoints for the inverter catalogue, the gateway endpoints for the
-// gateway catalogue.
+// inverter endpoints for the inverter catalog, the gateway endpoints for the
+// gateway catalog.
 func checkRegisterRowIn(row registerRow, control bool, endpoints map[string]bool) error {
 	switch {
 	case !control && !readOnlyClasses[row.Class], control && !controlClasses[row.Class]:

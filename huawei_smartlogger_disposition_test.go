@@ -43,7 +43,7 @@ func TestHuaweiSmartLoggerDispositionPinsFloorCandidateAndNoSend(t *testing.T) {
 			"fc03_65521_q1_u16_counter_stable",
 			"fc2b_mei0e_code03_object87_inventory",
 			"self_entry_model_smartlogger",
-			"self_entry_software_admitted_by_catalogue_floors",
+			"self_entry_software_admitted_by_catalog_floors",
 		}) ||
 		!reflect.DeepEqual(huaweiStringSlice(t, admission["forbidden_identity"]), []string{
 			"writable_device_name_65524", "esn_40713", "basic_mei_only", "optional_offering_string",

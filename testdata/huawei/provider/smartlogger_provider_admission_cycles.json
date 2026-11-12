@@ -4,7 +4,7 @@
   "path": "SmartLogger",
   "provider_id": "huawei.smartlogger.observed-readonly-provider@1.0.0",
   "license": "CC0-1.0",
-  "provenance": "synthetic scripted session composed from the fixtures named in sources: the sanitized identity and monitoring fixtures, and the catalogue decision table, whose model identifiers are the vendor-published ones and whose software texts are synthetic placeholders; a source reply carries only what its fixture holds",
+  "provenance": "synthetic scripted session composed from the fixtures named in sources: the sanitized identity and monitoring fixtures, and the catalog decision table, whose model identifiers are the vendor-published ones and whose software texts are synthetic placeholders; a source reply carries only what its fixture holds",
   "sanitization": {
     "rule": "every source reply inherits the sanitization of its fixture; a literal reply is a placeholder marked synthetic, never an observed value"
   },
@@ -373,19 +373,19 @@
             "unit": 2,
             "evidence": "CURRENT",
             "reason": "read",
-            "catalogue": "SELECTED no_documented_branch_relation MC/471"
+            "catalog": "SELECTED no_documented_branch_relation MC/471"
           },
           {
             "unit": 3,
             "evidence": "WITHHELD",
-            "reason": "catalogue_not_selected",
-            "catalogue": "NOT_SELECTED identifier_mismatch MA-C00/449,MA-C20/449,MC/471"
+            "reason": "catalog_not_selected",
+            "catalog": "NOT_SELECTED identifier_mismatch MA-C00/449,MA-C20/449,MC/471"
           },
           {
             "unit": 4,
             "evidence": "WITHHELD",
-            "reason": "catalogue_ambiguous",
-            "catalogue": "AMBIGUOUS multiple_candidate_rows MA-C00/449,MA-C20/449"
+            "reason": "catalog_ambiguous",
+            "catalog": "AMBIGUOUS multiple_candidate_rows MA-C00/449,MA-C20/449"
           },
           {
             "unit": 5,
@@ -538,25 +538,25 @@
             "unit": 1,
             "evidence": "CURRENT",
             "reason": "read",
-            "catalogue": "SELECTED at_or_above_floor MC/471"
+            "catalog": "SELECTED at_or_above_floor MC/471"
           },
           {
             "unit": 2,
             "evidence": "CURRENT",
             "reason": "read",
-            "catalogue": "SELECTED no_documented_branch_relation MC/471"
+            "catalog": "SELECTED no_documented_branch_relation MC/471"
           },
           {
             "unit": 3,
             "evidence": "WITHHELD",
-            "reason": "catalogue_not_selected",
-            "catalogue": "NOT_SELECTED identifier_mismatch MA-C00/449,MA-C20/449,MC/471"
+            "reason": "catalog_not_selected",
+            "catalog": "NOT_SELECTED identifier_mismatch MA-C00/449,MA-C20/449,MC/471"
           },
           {
             "unit": 4,
             "evidence": "WITHHELD",
-            "reason": "catalogue_ambiguous",
-            "catalogue": "AMBIGUOUS multiple_candidate_rows MA-C00/449,MA-C20/449"
+            "reason": "catalog_ambiguous",
+            "catalog": "AMBIGUOUS multiple_candidate_rows MA-C00/449,MA-C20/449"
           },
           {
             "unit": 5,
@@ -621,7 +621,7 @@
             "unit": 1,
             "evidence": "STALE",
             "reason": "listing_unconfirmed",
-            "catalogue": "SELECTED at_or_above_floor MC/471",
+            "catalog": "SELECTED at_or_above_floor MC/471",
             "retained": [
               32000,
               32016,
@@ -632,7 +632,7 @@
             "unit": 2,
             "evidence": "STALE",
             "reason": "listing_unconfirmed",
-            "catalogue": "SELECTED no_documented_branch_relation MC/471",
+            "catalog": "SELECTED no_documented_branch_relation MC/471",
             "retained": [
               32000,
               32016,
@@ -643,13 +643,13 @@
             "unit": 3,
             "evidence": "WITHHELD",
             "reason": "listing_unconfirmed",
-            "catalogue": "NOT_SELECTED identifier_mismatch MA-C00/449,MA-C20/449,MC/471"
+            "catalog": "NOT_SELECTED identifier_mismatch MA-C00/449,MA-C20/449,MC/471"
           },
           {
             "unit": 4,
             "evidence": "WITHHELD",
             "reason": "listing_unconfirmed",
-            "catalogue": "AMBIGUOUS multiple_candidate_rows MA-C00/449,MA-C20/449"
+            "catalog": "AMBIGUOUS multiple_candidate_rows MA-C00/449,MA-C20/449"
           },
           {
             "unit": 5,
@@ -1051,25 +1051,25 @@
             "unit": 1,
             "evidence": "CURRENT",
             "reason": "read",
-            "catalogue": "SELECTED at_or_above_floor MC/471"
+            "catalog": "SELECTED at_or_above_floor MC/471"
           },
           {
             "unit": 2,
             "evidence": "CURRENT",
             "reason": "read",
-            "catalogue": "SELECTED at_or_above_floor MC/471"
+            "catalog": "SELECTED at_or_above_floor MC/471"
           },
           {
             "unit": 3,
             "evidence": "WITHHELD",
-            "reason": "catalogue_not_selected",
-            "catalogue": "NOT_SELECTED identifier_mismatch MA-C00/449,MA-C20/449,MC/471"
+            "reason": "catalog_not_selected",
+            "catalog": "NOT_SELECTED identifier_mismatch MA-C00/449,MA-C20/449,MC/471"
           },
           {
             "unit": 4,
             "evidence": "WITHHELD",
-            "reason": "catalogue_ambiguous",
-            "catalogue": "AMBIGUOUS multiple_candidate_rows MA-C00/449,MA-C20/449"
+            "reason": "catalog_ambiguous",
+            "catalog": "AMBIGUOUS multiple_candidate_rows MA-C00/449,MA-C20/449"
           },
           {
             "unit": 5,

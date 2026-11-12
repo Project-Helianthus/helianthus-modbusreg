@@ -21,7 +21,7 @@ const (
 // under the observed card, the admission of each listed and allowed SUN2000
 // unit (the routed model read, the model identifier, the software text and the
 // firmware text, read on each identification event only), and the M3 series
-// monitoring groups at each child whose catalogue decision selects the M3
+// monitoring groups at each child whose catalog decision selects the M3
 // series row. The PLC, meter and every other unit without a class contract are
 // never read. Do not copy it.
 type HuaweiSmartLoggerReadOnlyProvider struct {
@@ -395,7 +395,7 @@ func huaweiStaleOrWithheld(child *huaweiChildState) HuaweiProviderEvidenceState 
 
 // identifySmartLoggerChild runs the child's admission at its routed unit: the
 // model read, then the model identifier, the software text and the firmware
-// text, and the SUN2000 capability selection over them, whose catalogue
+// text, and the SUN2000 capability selection over them, whose catalog
 // decision admits or withholds the child. It reports whether the child is
 // identified on this connection generation; otherwise it has already added the
 // child's observation, or the cycle was stopped.

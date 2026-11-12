@@ -124,7 +124,7 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 				if huaweiInt(t, admission["unit_id"]) != 0 || admission["registered"] != false || admission["executable"] != false ||
 					admission["undocumented_attribute_keys"] != "RETAINED_OPAQUE" || admission["count_object"] != "COUNTS_CHILDREN_ONLY" ||
 					admission["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || admission["first_match_priority"] != false ||
-					!reflect.DeepEqual(huaweiStringSlice(t, admission["required_tuple"]), []string{"fc03_65521_q1_u16_counter_stable", "fc2b_mei0e_code03_object87_inventory", "self_entry_model_smartlogger", "self_entry_software_admitted_by_catalogue_floors"}) ||
+					!reflect.DeepEqual(huaweiStringSlice(t, admission["required_tuple"]), []string{"fc03_65521_q1_u16_counter_stable", "fc2b_mei0e_code03_object87_inventory", "self_entry_model_smartlogger", "self_entry_software_admitted_by_catalog_floors"}) ||
 					!reflect.DeepEqual(huaweiStringSlice(t, admission["forbidden_identity"]), []string{"writable_device_name_65524", "esn_40713", "basic_mei_only", "optional_offering_string"}) {
 					t.Fatalf("unexpected SmartLogger admission: %#v", admission)
 				}
@@ -287,9 +287,9 @@ func TestHuaweiEMMAOfflineDispositionIsDefaultDeniedAndPinnedToDocs(t *testing.T
 	requireHuaweiKeys(t, detector, "registered", "executable", "default_denied", "normalization", "model_scope", "observed_models", "required_tuple", "optional_enrichment", "forbidden_identity", "multiple_positive_outcome", "first_match_priority")
 	if detector["registered"] != false || detector["executable"] != true || detector["default_denied"] != true ||
 		detector["normalization"] != "terminal_nul_or_space_only" || detector["multiple_positive_outcome"] != "INSUFFICIENT_EVIDENCE" || detector["first_match_priority"] != false ||
-		detector["model_scope"] != "EMMA_FAMILY_BY_CATALOGUE_MODEL_ROWS" ||
+		detector["model_scope"] != "EMMA_FAMILY_BY_CATALOG_MODEL_ROWS" ||
 		!reflect.DeepEqual(huaweiStringSlice(t, detector["observed_models"]), NewHuaweiEMMAQualificationCard().ModelVariants()) ||
-		!reflect.DeepEqual(huaweiStringSlice(t, detector["required_tuple"]), []string{"bounded_contextual_offering", "emma_family_model_token", "software_admitted_by_catalogue_floors"}) ||
+		!reflect.DeepEqual(huaweiStringSlice(t, detector["required_tuple"]), []string{"bounded_contextual_offering", "emma_family_model_token", "software_admitted_by_catalog_floors"}) ||
 		!reflect.DeepEqual(huaweiStringSlice(t, detector["optional_enrichment"]), []string{"basic_mei", "extended_mei"}) ||
 		!reflect.DeepEqual(huaweiStringSlice(t, detector["forbidden_identity"]), []string{"serial_number_30015", "basic_mei_only", "extended_mei_only", "prefix_or_wildcard_model_match"}) {
 		t.Fatalf("unexpected detector disposition: %#v", detector)

@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-registers/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-registers/v1",
   "card": "emma-v100r025c00spc102-2025-08-14",
   "edition": "emma-v100r025c00spc102-2025-08-14",
   "model_pages": [7],

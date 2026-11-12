@@ -31,7 +31,7 @@
     "next_object_without_continuation": 1
   },
   "first_request_timeout": {"recorded": true, "required": false},
-  "catalogue_selection": {
+  "catalog_selection": {
     "outcome": "AMBIGUOUS",
     "reason": "software_not_read",
     "grade": "UNKNOWN",

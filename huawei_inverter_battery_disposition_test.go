@@ -37,14 +37,14 @@ func huaweiInverterBatteryCases() []huaweiInverterBatteryCase {
 				"identity_words_invalid",
 				"model_prefix_or_wildcard",
 				"model_behind_another_gateway_path",
-				"family_without_catalogue_row",
-				"catalogue_row_without_profile_on_path",
-				"catalogue_identifier_mismatch",
-				"catalogue_software_malformed_or_absent",
-				"catalogue_rows_not_told_apart",
+				"family_without_catalog_row",
+				"catalog_row_without_profile_on_path",
+				"catalog_identifier_mismatch",
+				"catalog_software_malformed_or_absent",
+				"catalog_rows_not_told_apart",
 				"multiple_positive_candidates",
-				"catalogue_m3_row_behind_smartlogger",
-				"catalogue_m1_row_behind_sdongle",
+				"catalog_m3_row_behind_smartlogger",
+				"catalog_m1_row_behind_sdongle",
 				"token_without_identifier_in_several_rows",
 				"token_without_identifier_in_one_row",
 			},
@@ -130,7 +130,7 @@ func TestHuaweiInverterBatteryDispositionsKeepAuthorityClosed(t *testing.T) {
 				t.Fatalf("unexpected docs-modbus page state: %#v", page)
 			}
 			missing := huaweiStringSlice(t, evidence["missing_evidence"])
-			wantMissing := []string{"catalogue_monitoring_profile"}
+			wantMissing := []string{"catalog_monitoring_profile"}
 			if tc.optional {
 				wantMissing = []string{
 					"pinned_vendor_document_identity",
@@ -148,7 +148,7 @@ func TestHuaweiInverterBatteryDispositionsKeepAuthorityClosed(t *testing.T) {
 			if tc.optional {
 				requireHuaweiKeys(t, families, "class", "covered", "unsupported")
 			} else {
-				requireHuaweiKeys(t, families, "class", "covered", "selectable", "without_catalogue_row")
+				requireHuaweiKeys(t, families, "class", "covered", "selectable", "without_catalog_row")
 			}
 			ranges := huaweiObject(t, record["firmware_ranges"])
 			if families["class"] != tc.class || len(h03Array(t, ranges["covered"])) != 0 {
@@ -163,7 +163,7 @@ func TestHuaweiInverterBatteryDispositionsKeepAuthorityClosed(t *testing.T) {
 			} else {
 				requireHuaweiKeys(t, ranges, "covered", "predicate", "reason")
 				if !reflect.DeepEqual(huaweiStringSlice(t, families["covered"]), []string{huaweiSUN2000M3Family, huaweiSUN2000M1Family}) ||
-					families["selectable"] != "CATALOGUE_MODEL_ROWS" || families["without_catalogue_row"] != "NOT_SELECTED" ||
+					families["selectable"] != "CATALOG_MODEL_ROWS" || families["without_catalog_row"] != "NOT_SELECTED" ||
 					ranges["predicate"] != "SOFTWARE_FLOOR_ONLY" {
 					t.Fatalf("unexpected SUN2000 coverage: %#v %#v", families, ranges)
 				}
@@ -258,10 +258,10 @@ func TestHuaweiInverterBatteryCapabilityDetectionDecisionTable(t *testing.T) {
 					t.Fatalf("unexpected LUNA2000 detection: %#v", detection)
 				}
 			} else {
-				requireHuaweiKeys(t, detection, "positive_identity_required", "not_predicates", "catalogue_decision", "forbidden_identity",
+				requireHuaweiKeys(t, detection, "positive_identity_required", "not_predicates", "catalog_decision", "forbidden_identity",
 					"default_outcome", "multiple_positive_outcome", "first_match_priority", "executable", "rows")
 				if detection["executable"] != true || !reflect.DeepEqual(huaweiStringSlice(t, detection["positive_identity_required"]), []string{
-					"observed_gateway_identity_card", "routed_unit", "catalogue_model_row",
+					"observed_gateway_identity_card", "routed_unit", "catalog_model_row",
 				}) || !reflect.DeepEqual(huaweiStringSlice(t, detection["not_predicates"]), []string{"protocol_words"}) {
 					t.Fatalf("unexpected SUN2000 detection: %#v", detection)
 				}
@@ -305,11 +305,11 @@ func TestHuaweiInverterBatteryProfilesAreNotRegistered(t *testing.T) {
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("huawei vendor files=%v want=%v", names, want)
 	}
-	// The generated catalogue is registry data only: it names no profile
+	// The generated catalog is registry data only: it names no profile
 	// identifier, so it registers no SUN2000 or LUNA2000 profile.
 	catalogFiles, err := filepath.Glob("profiles/vendors/huawei/catalog/*.json")
 	if err != nil || len(catalogFiles) == 0 {
-		t.Fatalf("catalogue files not found: %v", err)
+		t.Fatalf("catalog files not found: %v", err)
 	}
 	for _, file := range catalogFiles {
 		data, err := os.ReadFile(file)

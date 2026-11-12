@@ -1,12 +1,12 @@
 package main
 
-// Schema identifiers of the committed catalogue files.
+// Schema identifiers of the committed catalog files.
 const (
-	editionsSchema     = "helianthus-modbusreg-huawei-catalogue-editions/v1"
-	modelsSchema       = "helianthus-modbusreg-huawei-catalogue-models/v1"
-	registersSchema    = "helianthus-modbusreg-huawei-catalogue-registers/v1"
-	dictionariesSchema = "helianthus-modbusreg-huawei-catalogue-dictionaries/v1"
-	quarantinesSchema  = "helianthus-modbusreg-huawei-catalogue-quarantines/v1"
+	editionsSchema     = "helianthus-modbusreg-huawei-catalog-editions/v1"
+	modelsSchema       = "helianthus-modbusreg-huawei-catalog-models/v1"
+	registersSchema    = "helianthus-modbusreg-huawei-catalog-registers/v1"
+	dictionariesSchema = "helianthus-modbusreg-huawei-catalog-dictionaries/v1"
+	quarantinesSchema  = "helianthus-modbusreg-huawei-catalog-quarantines/v1"
 )
 
 // Register row classes. Only reviewed and conditional rows carry decode
