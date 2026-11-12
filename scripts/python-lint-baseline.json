@@ -1,0 +1,39 @@
+{
+  "generator_version": 1,
+  "ruff_version": "0.15.10",
+  "thresholds": {
+    "complexity": 10,
+    "statements": 50
+  },
+  "regenerate": "python3 scripts/check_python_lint.py --generate",
+  "violations": [
+    {
+      "path": "scripts/rename_catalog.py",
+      "rule": "C901",
+      "symbol": "apply",
+      "detail": "`apply` is too complex (measured)",
+      "value": 13
+    },
+    {
+      "path": "scripts/validate_scope_policy.py",
+      "rule": "C901",
+      "symbol": "load_policy",
+      "detail": "`load_policy` is too complex (measured)",
+      "value": 14
+    },
+    {
+      "path": "scripts/validate_scope_policy.py",
+      "rule": "C901",
+      "symbol": "validate_non_go_code",
+      "detail": "`validate_non_go_code` is too complex (measured)",
+      "value": 12
+    },
+    {
+      "path": "scripts/validate_scope_policy.py",
+      "rule": "C901",
+      "symbol": "validate_vendor_evidence",
+      "detail": "`validate_vendor_evidence` is too complex (measured)",
+      "value": 17
+    }
+  ]
+}

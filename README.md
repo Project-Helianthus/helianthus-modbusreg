@@ -257,3 +257,20 @@ The Tesla Gen3 FC100 catalog is limited to the documented
 The Gen3 [read-path acquisition lifecycle](docs/tesla-gen3-read-acquisition.md)
 acquires only the five retained observation operations through the
 helianthus-modbus production endpoint; it adds no mutation path.
+
+## Python lint baseline
+
+Install the pinned tool from `requirements-lint.txt`, then run
+`python3 scripts/check_python_lint.py`. All repository Python sources and tests
+are checked with Ruff naming (`N`), complexity (`C90`, maximum 10), and statement
+count (`PLR0915`, maximum 50) rules. Local caches, virtual environments and
+vendored dependencies are excluded; source ignores and noqa do not hide debt.
+The offline checker requires Ruff 0.15.10 and rejects source symlinks.
+
+The generated [baseline](scripts/python-lint-baseline.json) records path, rule,
+qualified symbol, diagnostic detail and measured values. New violations,
+measured growth, duplicate occurrences and stale entries fail, including in
+files with existing debt. After removing debt, regenerate with
+`python3 scripts/check_python_lint.py --generate` and review the exact changes;
+regeneration must never approve new or growing debt. Run the synthetic guard
+tests with `python3 -m unittest discover -s tests -p test_python_lint.py`.
