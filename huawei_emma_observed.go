@@ -33,7 +33,7 @@ const (
 
 	// huaweiEMMAObservedBuild is the software build that the observation read,
 	// carried by the registry fixture. It grades the selection Proven; it is
-	// not a floor of the card, whose software rule is the catalogue decision.
+	// not a floor of the card, whose software rule is the catalog decision.
 	huaweiEMMAObservedBuild = "V100R025C00SPC131"
 )
 
@@ -117,7 +117,7 @@ type HuaweiEMMAObservedQualificationInput struct {
 //   - gateway unit 0 answers the family label SmartHEMS, the model EMMA-A02 and a
 //     software label that is that family label, a space and a version-style
 //     token, each as text followed by NUL padding only, and the three satisfy the
-//     documentary EMMA identity gate, whose catalogue decision applies to the
+//     documentary EMMA identity gate, whose catalog decision applies to the
 //     token: at or above the floor of its own branch, or of a branch that no
 //     floor documents, the observed build Proven and every other Hypothesis;
 //   - it answers basic identification with vendor Huawei, product HEMS and a
@@ -199,7 +199,7 @@ func (card HuaweiEMMAObservedQualificationCard) EmptyResult() HuaweiQualificatio
 }
 
 // Evaluate returns a test-ready result for the observed entry. A gateway block
-// outside the entry, a software token that the catalogue decision refuses, a
+// outside the entry, a software token that the catalog decision refuses, a
 // basic reply that disagrees with the gateway, an inventory without the
 // observed members and a child read that is not the SUN2000-family string of
 // its own entry each produce an empty insufficient result. Register
@@ -224,7 +224,7 @@ func (card HuaweiEMMAObservedQualificationCard) Evaluate(input HuaweiEMMAObserve
 		return rejected
 	}
 	// The documentary gate reads the three blocks: it admits the models of the
-	// EMMA family and every software label that the catalogue decision admits,
+	// EMMA family and every software label that the catalog decision admits,
 	// and this card pins the one model that was observed. A software label that
 	// passes the gate starts with the family label and a space, so the token is
 	// what follows.

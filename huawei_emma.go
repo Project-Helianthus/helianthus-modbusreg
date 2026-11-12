@@ -49,7 +49,7 @@ func (d HuaweiEMMAOfflineDecision) DefaultDenied() bool { return true }
 
 func (d HuaweiEMMAOfflineDecision) Reason() HuaweiEMMAOfflineReason { return d.reason }
 
-// Selection is the catalogue decision over the software text, recorded for a
+// Selection is the catalog decision over the software text, recorded for a
 // matched tuple and for a tuple refused by its software.
 func (d HuaweiEMMAOfflineDecision) Selection() HuaweiGatewaySelection { return d.selection }
 
@@ -65,14 +65,14 @@ func (d HuaweiEMMAOfflineDecision) ObservedModel() bool {
 }
 
 // huaweiEMMAObservedModels are the model values that the EMMA candidate listed
-// before admission followed the catalogue's model rows. They are kept as the
+// before admission followed the catalog's model rows. They are kept as the
 // observed models; the family scope admits every model token of the family.
 var huaweiEMMAObservedModels = []string{"EMMA-A01", "EMMA-A02"}
 
 // EvaluateHuaweiEMMAOfflineIdentity classifies a complete documented FC03 EMMA
 // identity tuple. The model must be a model token of the EMMA family that the
-// catalogue's model rows hold, and the software text must be admitted by the
-// catalogue decision: at or above the floor of its own branch, or of a branch
+// catalog's model rows hold, and the software text must be admitted by the
+// catalog decision: at or above the floor of its own branch, or of a branch
 // that no floor documents (grade Hypothesis). It performs no transport work
 // and never enables runtime admission.
 func EvaluateHuaweiEMMAOfflineIdentity(offering, model, firmware string) HuaweiEMMAOfflineDecision {
@@ -101,7 +101,7 @@ func EvaluateHuaweiEMMAOfflineIdentity(offering, model, firmware string) HuaweiE
 }
 
 // isHuaweiEMMAFamilyModel reports whether a model text is a model token of the
-// EMMA family under the catalogue's model rows.
+// EMMA family under the catalog's model rows.
 func isHuaweiEMMAFamilyModel(model string) bool {
 	return huaweiGatewayFamilyHoldsModel(HuaweiEMMACanonicalClass, model)
 }

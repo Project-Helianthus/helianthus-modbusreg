@@ -1,13 +1,13 @@
 {
-  "schema": "helianthus-huawei-catalogue-selection-fixture/v1",
-  "kind": "gateway_catalogue_decision_table",
+  "schema": "helianthus-huawei-catalog-selection-fixture/v1",
+  "kind": "gateway_catalog_decision_table",
   "families": [
     "SmartLogger",
     "S-Dongle",
     "EMMA"
   ],
   "license": "CC0-1.0",
-  "provenance": "synthetic decision cases over the documented software minima, model rows and self units of the SmartLogger, S-Dongle and EMMA catalogue; editions are counted, not named; every software text is a synthetic placeholder in the documented version form, apart from the observed builds that the observed-card fixtures already carry",
+  "provenance": "synthetic decision cases over the documented software minima, model rows and self units of the SmartLogger, S-Dongle and EMMA catalog; editions are counted, not named; every software text is a synthetic placeholder in the documented version form, apart from the observed builds that the observed-card fixtures already carry",
   "cases": [
     {
       "name": "smartlogger_observed_build_falls_under_the_v300_floor",
@@ -565,7 +565,7 @@
       }
     },
     {
-      "name": "family_outside_the_catalogue",
+      "name": "family_outside_the_catalog",
       "input": {
         "family": "SUN2000",
         "endpoint": "gateway-self",

@@ -276,3 +276,7 @@ this page, the two `production_provider` rows and the provider lines of
 `evidence.json` and the README restores the state before the providers. The
 child admission alone is reverted by reverting its change, which restores the
 model-text-only admission of the selection.
+
+## Catalog spelling
+
+Provider JSON emits `catalog`; selection and provenance fields use `catalog_selection`, `catalog_decision`, `catalog_files`, `catalog_outcome` and `catalog_reason`. Reason values use `catalog_not_selected`, `catalog_ambiguous`, `catalog_invalid`, `catalog_card_without_monitoring_profile` and `no_catalog_row`. The changelog records the direct replacements. These names add no qualification or read authority.

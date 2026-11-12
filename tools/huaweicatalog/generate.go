@@ -63,7 +63,7 @@ type cardBuild struct {
 	extents []readExtent
 }
 
-// generate builds the whole catalogue from the reference baseline and
+// generate builds the whole catalog from the reference baseline and
 // verifies it against the baseline's own accounting and the expected counts.
 func generate(opts options) (*result, error) {
 	in := reader{root: opts.Reference}

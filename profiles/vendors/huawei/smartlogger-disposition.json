@@ -70,7 +70,7 @@
       "fc03_65521_q1_u16_counter_stable",
       "fc2b_mei0e_code03_object87_inventory",
       "self_entry_model_smartlogger",
-      "self_entry_software_admitted_by_catalogue_floors"
+      "self_entry_software_admitted_by_catalog_floors"
     ],
     "forbidden_identity": [
       "writable_device_name_65524",
@@ -85,8 +85,8 @@
   },
   "software_selection": {
     "issue": 366,
-    "catalogue": "profiles/vendors/huawei/catalog/smartlogger-sdongle-emma",
-    "catalogue_files": [
+    "catalog": "profiles/vendors/huawei/catalog/smartlogger-sdongle-emma",
+    "catalog_files": [
       "editions.json",
       "services.json"
     ],
@@ -122,7 +122,7 @@
       "family_mismatch",
       "below_floor",
       "software_malformed",
-      "catalogue_invalid"
+      "catalog_invalid"
     ],
     "edition_cover_labels": "IDENTIFY_EDITIONS_NOT_FLOORS",
     "attribute_dictionary": "SERVICES_DESCRIPTOR_ATTRIBUTES_OF_THE_ADMITTED_EDITIONS",
@@ -139,7 +139,7 @@
       "fc03_65521_q1_u16_counter_equal_before_after",
       "complete_valid_extended_inventory",
       "self_entry_model_exact",
-      "self_entry_software_admitted_by_catalogue_floors_and_at_or_above_observed_floor",
+      "self_entry_software_admitted_by_catalog_floors_and_at_or_above_observed_floor",
       "self_entry_unit_equals_gateway_unit"
     ],
     "software_selection": {
@@ -324,7 +324,7 @@
         }
       ],
       "read_on": "EACH_IDENTIFICATION_EVENT",
-      "decision": "catalogue_selection",
+      "decision": "catalog_selection",
       "admits_on": "SELECTED",
       "withholds_on": [
         "NOT_SELECTED",

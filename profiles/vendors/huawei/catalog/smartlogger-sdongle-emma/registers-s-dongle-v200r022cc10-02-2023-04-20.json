@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-registers/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-registers/v1",
   "card": "s-dongle-v200r022cc10-02-2023-04-20",
   "edition": "s-dongle-v200r022cc10-02-2023-04-20",
   "model_pages": [8],

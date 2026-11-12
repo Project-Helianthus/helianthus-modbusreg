@@ -85,7 +85,7 @@ type HuaweiSDongleObservedGatewayReads struct {
 	// Software is the raw extent of an FC03 offset 30050 quantity 15 read of
 	// the gateway's own software text, or empty when it was not read. The
 	// observation did not read it; a caller that has it supplies it, and the
-	// catalogue decision then compares it with the S-Dongle floors.
+	// catalog decision then compares it with the S-Dongle floors.
 	Software []byte
 }
 
@@ -133,7 +133,7 @@ type HuaweiSDongleObservedQualificationInput struct {
 //     and never compared, because the editions define it as the network
 //     connection type, a configuration value;
 //   - a software text at gateway unit 100, when one was read, is admitted by the
-//     catalogue decision over the S-Dongle floors;
+//     catalog decision over the S-Dongle floors;
 //   - child unit 1 answers the model read with the text SUN2000-8KTL-M1, a NUL,
 //     opaque printable residue and NUL padding; answers basic identification with
 //     vendor Huawei and product SUN2000; and answers the extended inventory with
@@ -222,7 +222,7 @@ func (card HuaweiSDongleObservedQualificationCard) EmptyResult() HuaweiQualifica
 }
 
 // Evaluate returns a test-ready result for the observed tuple. A gateway read
-// outside the tuple, a gateway software text that the catalogue decision
+// outside the tuple, a gateway software text that the catalog decision
 // refuses, a child unit other than the observed one, a model block or basic
 // reply outside the tuple and an extended inventory without the child's entry
 // each produce an empty insufficient result. Register readability, a serial or

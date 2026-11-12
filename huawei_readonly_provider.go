@@ -16,7 +16,7 @@ import (
 // SmartLogger path and the observed S-Dongle path. A provider drives a supplied
 // read-only session through the gateway identity card, child routing, the
 // child's admission (its identity words read at the routed unit and the SUN2000
-// capability selection over the catalogue decision) and the monitoring cycle
+// capability selection over the catalog decision) and the monitoring cycle
 // of the docs-modbus read pacing and acquisition contract. It opens nothing:
 // the caller supplies the session, the clock and the wait, and owns the
 // cadence.
@@ -206,7 +206,7 @@ func HuaweiRecordedProviderDisposition(path HuaweiProviderPath) (HuaweiProviderD
 			Path: path, IdentityCard: HuaweiEMMAObservedQualificationCardID, IdentityStatus: huaweiIdentityAdmitted,
 			IdentityGateRegistered: true, IdentityScope: huaweiIdentityObservedOnly,
 			ChildProfiles: []HuaweiProviderChildDisposition{
-				{Family: "SUN2000 MAP0 series", Outcome: "NO_ADMISSIBLE_PROFILE", Reason: "catalogue_card_without_monitoring_profile"},
+				{Family: "SUN2000 MAP0 series", Outcome: "NO_ADMISSIBLE_PROFILE", Reason: "catalog_card_without_monitoring_profile"},
 			},
 		}, true
 	}
@@ -332,13 +332,13 @@ const (
 	HuaweiProviderReasonChildBackoff       HuaweiProviderReason = "child_backoff"
 	HuaweiProviderReasonListingUnconfirmed HuaweiProviderReason = "listing_unconfirmed"
 
-	// HuaweiProviderReasonCatalogNotSelected the catalogue decision over
+	// HuaweiProviderReasonCatalogNotSelected the catalog decision over
 	// the child's identity words selected no row; the observation carries the
 	// decision and its closed reason.
-	HuaweiProviderReasonCatalogNotSelected HuaweiProviderReason = "catalogue_not_selected"
-	// HuaweiProviderReasonCatalogAmbiguous the catalogue decision could not
+	HuaweiProviderReasonCatalogNotSelected HuaweiProviderReason = "catalog_not_selected"
+	// HuaweiProviderReasonCatalogAmbiguous the catalog decision could not
 	// tell two or more rows apart; the observation names every candidate.
-	HuaweiProviderReasonCatalogAmbiguous HuaweiProviderReason = "catalogue_ambiguous"
+	HuaweiProviderReasonCatalogAmbiguous HuaweiProviderReason = "catalog_ambiguous"
 )
 
 // HuaweiProviderEvidenceState is the evidence state of a child in one cycle.
@@ -429,11 +429,11 @@ type HuaweiProviderChildObservation struct {
 	Evidence             HuaweiProviderEvidenceState
 	Reason               HuaweiProviderReason
 	IdentifiedGeneration uint64
-	// Catalog is the catalogue decision of the child's last completed
+	// Catalog is the catalog decision of the child's last completed
 	// admission: the selected row with its card, edition, page, floor and
 	// grade for an admitted child, and the closed reason or every candidate
 	// for a child it withholds. It is nil when no admission completed.
-	Catalog *HuaweiSUN2000CatalogDecision `json:"Catalogue"`
+	Catalog *HuaweiSUN2000CatalogDecision `json:"catalog"`
 	// Reading is the typed monitoring state. It is empty for a withheld child.
 	Reading HuaweiSUN2000MonitoringReading
 	Groups  []HuaweiProviderGroupEvidence
@@ -627,7 +627,7 @@ type huaweiChildState struct {
 	failures   int
 	skipUntil  uint64
 	fenced     *HuaweiProviderFencedReading
-	// catalogue is the decision of the last completed admission. It describes
+	// catalog is the decision of the last completed admission. It describes
 	// identity while one is bound, and otherwise the definitive withhold.
 	catalog *HuaweiSUN2000CatalogDecision
 }
@@ -1302,7 +1302,7 @@ func huaweiWordsToBytes(words []uint16) []byte {
 // ---- child admission -----------------------------------------------------------
 
 // The identity words that a child's admission reads at its routed unit besides
-// the model text: the model identifier (30070, defined with the catalogue
+// the model text: the model identifier (30070, defined with the catalog
 // decision), the software text and the firmware text. An admission runs on each
 // identification event, and on a later cycle only for a child that a failed
 // read left unadmitted; the identity words of an admitted child are never read
@@ -1360,7 +1360,7 @@ func (r *huaweiCycleRun) readChildIdentityWords(child *huaweiChildState) (Huawei
 	}, true
 }
 
-// bindChildSelection admits the child on the profile of a selected catalogue
+// bindChildSelection admits the child on the profile of a selected catalog
 // row, recording the decision. A changed identity fences the earlier reading.
 // Anything else withholds the child until the next identification event: a
 // decision that selected no row with its closed reason, an ambiguous decision
@@ -1539,7 +1539,7 @@ func (r *huaweiCycleRun) recordChildLoss(out HuaweiProviderChildObservation, sta
 	return out
 }
 
-// huaweiWithheldDetail names why a child is withheld. A catalogue withhold
+// huaweiWithheldDetail names why a child is withheld. A catalog withhold
 // adds the closed reason, and an ambiguous one names every candidate row.
 func huaweiWithheldDetail(reason HuaweiProviderReason, decision *HuaweiSUN2000CatalogDecision) string {
 	detail := string(reason)

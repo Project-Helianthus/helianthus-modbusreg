@@ -40,7 +40,7 @@
     "next_object_without_continuation": 0
   },
   "request_timing": {"recorded": true, "required": false, "retries": 0},
-  "catalogue_selection": {
+  "catalog_selection": {
     "outcome": "SELECTED",
     "reason": "at_or_above_floor",
     "grade": "PROVEN",

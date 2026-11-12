@@ -13,7 +13,7 @@ type HuaweiEMMAOfflineInventoryInput struct {
 type HuaweiEMMAOfflineInventory = HuaweiGatewayInventory
 
 // ParseHuaweiEMMAOfflineInventory validates a supplied EMMA inventory. A self
-// entry is a model of the EMMA family that the catalogue's model rows hold: a
+// entry is a model of the EMMA family that the catalog's model rows hold: a
 // model token of the family, not only the observed EMMA-A01 and EMMA-A02. A
 // canonical family label alone or a model of another family is fail-closed.
 func ParseHuaweiEMMAOfflineInventory(input HuaweiEMMAOfflineInventoryInput) (HuaweiEMMAOfflineInventory, error) {

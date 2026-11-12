@@ -92,7 +92,7 @@ func m86Got(decision HuaweiGatewaySelection) m86Expect {
 
 // m86SelectionRecord is the record of a selection that the dispositions and
 // the observed replay results carry. The dispositions name the editions by
-// their catalogue keys; the replay results, which the fixture sanitizer scans,
+// their catalog keys; the replay results, which the fixture sanitizer scans,
 // count them.
 func m86SelectionRecord(decision HuaweiGatewaySelection, grade HuaweiEvidenceGrade, named bool) map[string]any {
 	record := map[string]any{
@@ -138,12 +138,12 @@ func m86Normalize(t testing.TB, value any) any {
 }
 
 // m86RequireSoftwareSelection checks the software selection block of a
-// disposition against the loaded catalogue: the family, the scope, every own
+// disposition against the loaded catalog: the family, the scope, every own
 // floor of the family with its domain, and the outcome rules.
 func m86RequireSoftwareSelection(t *testing.T, record map[string]any, family string, unit uint8) {
 	t.Helper()
 	block := huaweiObject(t, record["software_selection"])
-	requireHuaweiKeys(t, block, "issue", "catalogue", "catalogue_files", "family", "scope", "floors", "comparison", "at_or_above_floor",
+	requireHuaweiKeys(t, block, "issue", "catalog", "catalog_files", "family", "scope", "floors", "comparison", "at_or_above_floor",
 		"below_floor_in_domain", "no_documented_relation", "several_admitting_floors", "not_selected_reasons", "edition_cover_labels",
 		"attribute_dictionary", "attribute_6")
 	all := DecideHuaweiGatewaySelection(HuaweiGatewaySelectionInput{Family: family, Scope: HuaweiGatewayScope{Endpoint: HuaweiGatewayEndpointSelf, Unit: unit}})
@@ -152,7 +152,7 @@ func m86RequireSoftwareSelection(t *testing.T, record map[string]any, family str
 		floors = append(floors, map[string]any{"minimum": floor.Minimum, "domain": string(floor.Domain)})
 	}
 	want := map[string]any{
-		"issue": 366, "catalogue": huaweiGatewayCatalogDirectory, "catalogue_files": []string{"editions.json", "services.json"},
+		"issue": 366, "catalog": huaweiGatewayCatalogDirectory, "catalog_files": []string{"editions.json", "services.json"},
 		"family": family, "scope": map[string]any{"endpoint": string(HuaweiGatewayEndpointSelf), "unit": unit}, "floors": floors,
 		"comparison": "WITHIN_FLOOR_DOMAIN", "at_or_above_floor": "SELECTED_HYPOTHESIS", "below_floor_in_domain": "NOT_SELECTED",
 		"no_documented_relation": "ADMITTED_HYPOTHESIS", "several_admitting_floors": "AMBIGUOUS_NO_EDITION_BOUND",
@@ -188,7 +188,7 @@ func m86RequireObservedSelection(t *testing.T, value any, result HuaweiQualifica
 
 func TestM86DecisionFixtureIsSanitizedAndCoversEveryFamily(t *testing.T) {
 	fixture := m86Load(t)
-	if fixture.Schema != "helianthus-huawei-catalogue-selection-fixture/v1" || fixture.Kind != "gateway_catalogue_decision_table" ||
+	if fixture.Schema != "helianthus-huawei-catalog-selection-fixture/v1" || fixture.Kind != "gateway_catalog_decision_table" ||
 		fixture.License != "CC0-1.0" || !reflect.DeepEqual(fixture.Families, []string{HuaweiSmartLoggerCanonicalClass, HuaweiSDongleCanonicalClass, HuaweiEMMACanonicalClass}) {
 		t.Fatalf("fixture header: %+v", fixture)
 	}
@@ -318,7 +318,7 @@ func TestM86LinesAreOrderedOnlyWhereAnEditionDocumentsTheOrder(t *testing.T) {
 	}
 	if catalog.families[HuaweiSmartLoggerCanonicalClass].selfUnit != 0 || catalog.families[HuaweiEMMACanonicalClass].selfUnit != 0 ||
 		catalog.families[HuaweiSDongleCanonicalClass].selfUnit != 100 {
-		t.Fatal("self units do not follow the catalogue")
+		t.Fatal("self units do not follow the catalog")
 	}
 }
 
@@ -352,15 +352,15 @@ func TestM86EditionOrderNeverChoosesAWinner(t *testing.T) {
 	}
 }
 
-// TestM86CatalogLoaderFailsClosed mutates the two catalogue files the
-// selection reads: every malformed binding refuses the catalogue, and a
-// refused catalogue selects nothing.
+// TestM86CatalogLoaderFailsClosed mutates the two catalog files the
+// selection reads: every malformed binding refuses the catalog, and a
+// refused catalog selects nothing.
 func TestM86CatalogLoaderFailsClosed(t *testing.T) {
 	read := func(name string) ([]byte, error) {
 		return huaweiGatewayCatalogFiles.ReadFile(huaweiGatewayCatalogDirectory + "/" + name)
 	}
 	if _, err := loadHuaweiGatewayCatalog(read); err != nil {
-		t.Fatalf("committed catalogue: %v", err)
+		t.Fatalf("committed catalog: %v", err)
 	}
 	mutated := func(file, old, replacement string) func(string) ([]byte, error) {
 		return func(name string) ([]byte, error) {
@@ -399,13 +399,13 @@ func TestM86CatalogLoaderFailsClosed(t *testing.T) {
 	} {
 		families, err := loadHuaweiGatewayCatalog(source)
 		if err == nil || families != nil {
-			t.Fatalf("%s: catalogue accepted", name)
+			t.Fatalf("%s: catalog accepted", name)
 		}
 		decision := decideHuaweiGatewaySelection(huaweiGatewayCatalog{err: err}, HuaweiGatewaySelectionInput{
 			Family: HuaweiSmartLoggerCanonicalClass, Scope: HuaweiGatewayScope{Endpoint: HuaweiGatewayEndpointSelf}, Software: "V300R023C10SPC620",
 		})
 		if decision.Admitted() || decision.Reason() != HuaweiGatewayCatalogInvalid {
-			t.Fatalf("%s: a refused catalogue selected %+v", name, decision)
+			t.Fatalf("%s: a refused catalog selected %+v", name, decision)
 		}
 	}
 }
@@ -528,7 +528,7 @@ func TestM86SelectionIsAbsentOrRefusingOnEveryRejectedCard(t *testing.T) {
 	catalogBelow := h03MutatedInventory(t, h03ReplaceInSelfEntry("2="+h03Firmware+";", "2=V300R000C10;"))
 	result = NewHuaweiSmartLoggerObservedQualificationCard().Evaluate(catalogBelow)
 	if selection, ok := result.Selection(); result.IdentityMatched() || !ok || selection.Outcome() != HuaweiGatewayNotSelected || selection.Reason() != HuaweiGatewayBelowFloor {
-		t.Fatalf("below the catalogue floor: %#v", result)
+		t.Fatalf("below the catalog floor: %#v", result)
 	}
 	emma := NewHuaweiEMMAQualificationCard().Evaluate(HuaweiEMMAQualificationInput{UnitID: 0, Offering: "SmartHEMS", Model: "EMMA-A02", Firmware: "SmartHEMS V100R025C00SPC101"})
 	if selection, ok := emma.Selection(); emma.IdentityMatched() || !ok || selection.Reason() != HuaweiGatewayBelowFloor || emma.SoftwareGrade() != HuaweiGradeUnknown {
@@ -559,8 +559,8 @@ func TestM86ObservedReplayResultsRecordTheSelection(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := m86ReplaySelection(result)
-		if !reflect.DeepEqual(m86Normalize(t, document["catalogue_selection"]), m86Normalize(t, want)) {
-			t.Fatalf("%s: catalogue_selection=%v want=%v", path, document["catalogue_selection"], want)
+		if !reflect.DeepEqual(m86Normalize(t, document["catalog_selection"]), m86Normalize(t, want)) {
+			t.Fatalf("%s: catalog_selection=%v want=%v", path, document["catalog_selection"], want)
 		}
 	}
 }

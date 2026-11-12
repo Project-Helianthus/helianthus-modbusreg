@@ -97,7 +97,7 @@ var presenceOffsets = []int{37502, 37504, 37516}
 // wording, and the pacing topic would otherwise lose its only sentence.
 var advisoryWording = strings.NewReplacer("recommended ", "advisory ")
 
-// generateGateway builds the gateway catalogue from the gateway reference
+// generateGateway builds the gateway catalog from the gateway reference
 // baseline and verifies it against the baseline's own accounting and the
 // expected counts.
 func generateGateway(opts gatewayOptions) (*gatewayResult, error) {

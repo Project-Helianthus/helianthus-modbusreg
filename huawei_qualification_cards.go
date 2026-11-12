@@ -78,7 +78,7 @@ type HuaweiQualificationResult struct {
 	basicOpaqueObjects int
 	modelResidueBytes  int
 
-	// selection is the catalogue decision over the gateway's own software
+	// selection is the catalog decision over the gateway's own software
 	// text, recorded whenever the card reached it.
 	selection *HuaweiGatewaySelection
 	// observedFloor is the card's own floor, the observed build, and
@@ -127,7 +127,7 @@ func (result HuaweiQualificationResult) ChildOpaqueAttributes() []HuaweiGatewayO
 // terminating NUL of a model block. The residue is retained evidence only.
 func (result HuaweiQualificationResult) ModelResidueBytes() int { return result.modelResidueBytes }
 
-// Selection is the catalogue decision over the gateway's own software text:
+// Selection is the catalog decision over the gateway's own software text:
 // the selected floor and its editions, the grade and the reason, or the
 // candidates of an ambiguous decision, or the closed reason of a refusal. It is
 // absent when the card stopped before the software text.
@@ -233,7 +233,7 @@ func (card HuaweiSmartLoggerQualificationCard) EmptyResult() HuaweiQualification
 }
 
 // Evaluate admits a stable, complete inventory at unit 0 whose self entry is
-// exactly the model SmartLogger and whose software text the catalogue
+// exactly the model SmartLogger and whose software text the catalog
 // decision admits: a build of the V300 line at or above the documented
 // minimum, or a build that no documented floor relates to (grade Hypothesis).
 // Child attributes follow the device-list dictionary of the admitted editions,
@@ -309,7 +309,7 @@ func (HuaweiEMMAQualificationCard) CandidateClass() string { return HuaweiEMMACa
 func (HuaweiEMMAQualificationCard) UnitID() uint8          { return 0 }
 
 // ModelVariants are the observed models of the card. Admission follows the
-// catalogue's model rows and holds every model token of the EMMA family.
+// catalog's model rows and holds every model token of the EMMA family.
 func (HuaweiEMMAQualificationCard) ModelVariants() []string {
 	return append([]string(nil), huaweiEMMAObservedModels...)
 }

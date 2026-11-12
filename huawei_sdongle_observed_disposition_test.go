@@ -196,7 +196,7 @@ func TestH15SDongleDispositionSupersedesHardStopForIdentityOnly(t *testing.T) {
 		"gateway_unit_100", "gateway_basic_mei_exception_1", "gateway_fc03_37411_q1_search_state_0",
 		"gateway_fc03_30068_q2_protocol_leading_word_50_second_word_at_or_above_0",
 		"gateway_fc03_37410_q3_state_0_sequence_equal_before_after_type_recorded", "gateway_fc03_37429_q1_capacity_covers_one_child",
-		"gateway_fc03_30050_q15_software_admitted_by_catalogue_floors_when_read",
+		"gateway_fc03_30050_q15_software_admitted_by_catalog_floors_when_read",
 		"child_unit_1", "child_fc03_30000_q15_model_exact_residue_opaque", "child_basic_mei_vendor_and_product_family_exact",
 		"child_extended_inventory_one_page_count_equals_entries_keys_1_to_6_at_least", "child_entry_model_equals_routed_model", "child_entry_unit_equals_unit_read",
 	}) || !reflect.DeepEqual(huaweiStringSlice(t, observed["retained_not_gating"]), []string{

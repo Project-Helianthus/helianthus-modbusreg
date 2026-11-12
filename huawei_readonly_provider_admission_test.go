@@ -9,7 +9,7 @@ import (
 
 // The M89 tests (helianthus-modbusreg issue 365) cover the child admission of
 // the read-only providers: the identity words read at the routed unit, the
-// catalogue decision over them, and what the provider records and reads for
+// catalog decision over them, and what the provider records and reads for
 // each outcome.
 
 // m89IdentityOffsets are the admission reads in the order the providers send
@@ -29,7 +29,7 @@ func m89FixtureText(t testing.TB, set h03ProbeFixture, unit int, offset uint16) 
 }
 
 // TestM89OwnedFamiliesAdmitThroughTheCatalogSelection replays the scripted
-// sessions of the two owned families: each child is admitted on the catalogue
+// sessions of the two owned families: each child is admitted on the catalog
 // row its identity words select, and the observation records the row, its
 // edition, page, floor and grade, the identifier and the texts as read.
 func TestM89OwnedFamiliesAdmitThroughTheCatalogSelection(t *testing.T) {
@@ -53,7 +53,7 @@ func TestM89OwnedFamiliesAdmitThroughTheCatalogSelection(t *testing.T) {
 				for _, unit := range test.units {
 					child, ok := cycle.Child(unit)
 					if !ok || child.Catalog == nil {
-						t.Fatalf("cycle %d unit %d carries no catalogue decision: %+v", cycle.Cycle, unit, child)
+						t.Fatalf("cycle %d unit %d carries no catalog decision: %+v", cycle.Cycle, unit, child)
 					}
 					decision := *child.Catalog
 					row, selected := decision.Row()
@@ -205,8 +205,8 @@ func TestM89AdmissionOutcomesAreRecordedPerChild(t *testing.T) {
 			if cycle.Reason == HuaweiProviderReasonGuardChanged {
 				continue
 			}
-			if withheldDetail(cycle, 3) != "catalogue_not_selected: identifier_mismatch" ||
-				withheldDetail(cycle, 4) != "catalogue_ambiguous: MA-C00 449, MA-C20 449" {
+			if withheldDetail(cycle, 3) != "catalog_not_selected: identifier_mismatch" ||
+				withheldDetail(cycle, 4) != "catalog_ambiguous: MA-C00 449, MA-C20 449" {
 				t.Fatalf("cycle %d withheld details %q %q", cycle.Cycle, withheldDetail(cycle, 3), withheldDetail(cycle, 4))
 			}
 			if _, selected := ambiguous.Catalog.Row(); selected {
@@ -238,7 +238,7 @@ func TestM89AdmissionOutcomesAreRecordedPerChild(t *testing.T) {
 }
 
 // TestM89BuildBelowTheFloorIsWithheld runs a SmartLogger child whose listing
-// and routed model name a catalogue row with a build floor. The two owned rows
+// and routed model name a catalog row with a build floor. The two owned rows
 // state their floor as a branch without a build number, so no build of their
 // branch is below it; the rows with a build floor are on the LB-C10 card. A
 // build below the floor is withheld with the closed reason and is not read
@@ -261,7 +261,7 @@ func TestM89BuildBelowTheFloorIsWithheld(t *testing.T) {
 		summary      string
 		detail       string
 	}{
-		{"build_below_the_floor_is_not_selected", HuaweiProviderReasonCatalogNotSelected, "NOT_SELECTED below_floor LB-C10/380", "catalogue_not_selected: below_floor"},
+		{"build_below_the_floor_is_not_selected", HuaweiProviderReasonCatalogNotSelected, "NOT_SELECTED below_floor LB-C10/380", "catalog_not_selected: below_floor"},
 		{"build_at_the_floor_is_selected", HuaweiProviderReasonNoProfile, "SELECTED at_or_above_floor LB-C10/380", string(HuaweiProviderReasonNoProfile)},
 	} {
 		t.Run(test.decisionCase, func(t *testing.T) {
@@ -420,7 +420,7 @@ func TestM89AdmissionVariesEveryIdentityWord(t *testing.T) {
 }
 
 // TestM89AProfileIsBoundOnlyToASelectedRow hands the binding a selection that
-// names a profile without a selected catalogue row: the provider withholds the
+// names a profile without a selected catalog row: the provider withholds the
 // child instead of trusting the selection outcome alone.
 func TestM89AProfileIsBoundOnlyToASelectedRow(t *testing.T) {
 	profile := h05Profile(t, HuaweiSUN2000M3MonitoringProfileID)

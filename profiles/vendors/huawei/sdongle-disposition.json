@@ -159,7 +159,7 @@
       "gateway_fc03_30068_q2_protocol_leading_word_50_second_word_at_or_above_0",
       "gateway_fc03_37410_q3_state_0_sequence_equal_before_after_type_recorded",
       "gateway_fc03_37429_q1_capacity_covers_one_child",
-      "gateway_fc03_30050_q15_software_admitted_by_catalogue_floors_when_read",
+      "gateway_fc03_30050_q15_software_admitted_by_catalog_floors_when_read",
       "child_unit_1",
       "child_fc03_30000_q15_model_exact_residue_opaque",
       "child_basic_mei_vendor_and_product_family_exact",
@@ -426,8 +426,8 @@
   },
   "software_selection": {
     "issue": 366,
-    "catalogue": "profiles/vendors/huawei/catalog/smartlogger-sdongle-emma",
-    "catalogue_files": [
+    "catalog": "profiles/vendors/huawei/catalog/smartlogger-sdongle-emma",
+    "catalog_files": [
       "editions.json",
       "services.json"
     ],
@@ -455,7 +455,7 @@
       "family_mismatch",
       "below_floor",
       "software_malformed",
-      "catalogue_invalid"
+      "catalog_invalid"
     ],
     "edition_cover_labels": "IDENTIFY_EDITIONS_NOT_FLOORS",
     "attribute_dictionary": "SERVICES_DESCRIPTOR_ATTRIBUTES_OF_THE_ADMITTED_EDITIONS",
@@ -601,7 +601,7 @@
         }
       ],
       "read_on": "EACH_IDENTIFICATION_EVENT",
-      "decision": "catalogue_selection",
+      "decision": "catalog_selection",
       "admits_on": "SELECTED",
       "withholds_on": [
         "NOT_SELECTED",

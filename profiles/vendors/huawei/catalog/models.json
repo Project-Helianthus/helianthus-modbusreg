@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-models/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-models/v1",
   "document_requirements": [
     {"id":"sun2000ha-v100r001-01-2017-02-15/1-2-system-requirements","edition":"sun2000ha-v100r001-01-2017-02-15","page":7,"section":"1.2 System Requirements","minimum":"V100R001C00","inclusive":true,"component":"inverter firmware","model_tokens":["SUN2000-60KTL-HV-D1","SUN2000-45KTL-US-HV-D0","SUN2000-55KTL-HV-D1","SUN2000-55KTL-IN-HV-D1","SUN2000-55KTL-HV-D1-001","SUN2000-60KTL-HV-D1-001"]},
     {"id":"sun2000ha-v100r001-02-2017-02-15/1-2-system-requirements","edition":"sun2000ha-v100r001-02-2017-02-15","page":7,"section":"1.2 System Requirements","minimum":"V100R001C00","inclusive":true,"component":"inverter firmware","model_tokens":["SUN2000-60KTL-HV-D1","SUN2000-45KTL-US-HV-D0","SUN2000-55KTL-HV-D1","SUN2000-55KTL-IN-HV-D1","SUN2000-55KTL-HV-D1-001","SUN2000-60KTL-HV-D1-001"]},

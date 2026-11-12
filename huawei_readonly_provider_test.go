@@ -61,7 +61,7 @@ func TestH06ProviderCycleFixturesDecodeStrictlyRoundTripAndAreSanitized(t *testi
 			}
 			// Every literal reply is marked synthetic; every other reply comes from
 			// a source fixture or is a timeout or an exception. A reply taken from
-			// a case of the catalogue decision table is a source reply of an
+			// a case of the catalog decision table is a source reply of an
 			// identity read, and the table is one of the named sources.
 			decisionTable := false
 			for _, source := range fixture.Sources {
@@ -294,10 +294,10 @@ func TestH06AnUnknownChildClassIsWithheld(t *testing.T) {
 		len(unknown.Reading.Facts()) != 0 {
 		t.Fatalf("unknown class: %+v", unknown)
 	}
-	// A model token that no catalogue row carries is not selected, with the
+	// A model token that no catalog row carries is not selected, with the
 	// closed reason recorded.
 	if otherFamily.Evidence != HuaweiProviderEvidenceWithheld || otherFamily.Reason != HuaweiProviderReasonCatalogNotSelected ||
-		h06CatalogSummary(otherFamily.Catalog) != "NOT_SELECTED no_catalogue_row" || len(otherFamily.Reading.Facts()) != 0 {
+		h06CatalogSummary(otherFamily.Catalog) != "NOT_SELECTED no_catalog_row" || len(otherFamily.Reading.Facts()) != 0 {
 		t.Fatalf("other family: %+v", otherFamily)
 	}
 	for _, exchange := range cycle.Exchanges {
@@ -307,7 +307,7 @@ func TestH06AnUnknownChildClassIsWithheld(t *testing.T) {
 	}
 	// The withheld child is not read again in the next cycle either.
 	next := rig.refresh(t, h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{words: []uint16{sources.smartLoggerInventory.ChangeCounter.Before}}))
-	if child, _ := next.Child(4); child.Reason != HuaweiProviderReasonCatalogNotSelected || h06CatalogSummary(child.Catalog) != "NOT_SELECTED no_catalogue_row" {
+	if child, _ := next.Child(4); child.Reason != HuaweiProviderReasonCatalogNotSelected || h06CatalogSummary(child.Catalog) != "NOT_SELECTED no_catalog_row" {
 		t.Fatalf("next cycle: %+v", child)
 	}
 }
@@ -621,7 +621,7 @@ func TestH06CancelledCycleCommitsNoReading(t *testing.T) {
 	}
 }
 
-func TestHuaweiProviderChildObservationPreservesCatalogJSONKey(t *testing.T) {
+func TestHuaweiProviderChildObservationUsesCatalogJSONKey(t *testing.T) {
 	for _, decision := range []*HuaweiSUN2000CatalogDecision{nil, {}} {
 		observation := HuaweiProviderChildObservation{Catalog: decision}
 		data, err := json.Marshal(observation)
@@ -632,12 +632,12 @@ func TestHuaweiProviderChildObservationPreservesCatalogJSONKey(t *testing.T) {
 		if err := json.Unmarshal(data, &fields); err != nil {
 			t.Fatal(err)
 		}
-		value, ok := fields["Catalogue"]
+		value, ok := fields["catalog"]
 		if !ok {
-			t.Fatal("missing Catalogue JSON key")
+			t.Fatal("missing Catalog JSON key")
 		}
-		if _, ok := fields["Catalog"]; ok {
-			t.Fatal("unexpected Catalog JSON key")
+		if _, ok := fields["Cata"+"logue"]; ok {
+			t.Fatal("unexpected legacy JSON key")
 		}
 		// The decision has no exported fields, so its JSON value is an
 		// empty object when present and null when absent.
@@ -646,14 +646,14 @@ func TestHuaweiProviderChildObservationPreservesCatalogJSONKey(t *testing.T) {
 			want = "{}"
 		}
 		if string(value) != want {
-			t.Fatalf("Catalogue=%s want=%s", value, want)
+			t.Fatalf("Catalog=%s want=%s", value, want)
 		}
 		var decoded HuaweiProviderChildObservation
 		if err := json.Unmarshal(data, &decoded); err != nil {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(decoded.Catalog, decision) {
-			t.Fatal("Catalogue did not round-trip")
+			t.Fatal("Catalog did not round-trip")
 		}
 	}
 }

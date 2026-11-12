@@ -68,7 +68,7 @@ func (d HuaweiSDongleOfflineDecision) DefaultDenied() bool { return true }
 
 func (d HuaweiSDongleOfflineDecision) Reason() HuaweiSDongleOfflineReason { return d.reason }
 
-// Selection is the catalogue decision over the firmware text, recorded once
+// Selection is the catalog decision over the firmware text, recorded once
 // the model is admitted.
 func (d HuaweiSDongleOfflineDecision) Selection() HuaweiGatewaySelection { return d.selection }
 
@@ -79,7 +79,7 @@ func (d HuaweiSDongleOfflineDecision) Selection() HuaweiGatewaySelection { retur
 const huaweiSDongleProtocolMainRevision = 5
 
 // EvaluateHuaweiSDongleOfflineObservation validates a complete, already-read
-// gateway observation. The firmware must be admitted by the catalogue decision
+// gateway observation. The firmware must be admitted by the catalog decision
 // over the S-Dongle floors (V200R022C10 for the listed models, compared within
 // the V200 line, whose order the editions document); a build of a line that no
 // floor documents is admitted with grade Hypothesis. The protocol version must
@@ -125,7 +125,7 @@ func EvaluateHuaweiSDongleOfflineObservation(observation HuaweiSDongleOfflineObs
 	}
 }
 
-// huaweiSDongleCatalogModel is the spelling of a wire model in the catalogue
+// huaweiSDongleCatalogModel is the spelling of a wire model in the catalog
 // model rows, which write the family name without the hyphen after the S.
 func huaweiSDongleCatalogModel(model string) string {
 	return strings.Replace(model, "S-Dongle", "SDongle", 1)

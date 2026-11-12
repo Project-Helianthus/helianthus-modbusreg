@@ -19,7 +19,7 @@ func compactJSON(v any) ([]byte, error) {
 	return bytes.TrimSuffix(buffer.Bytes(), []byte("\n")), nil
 }
 
-// encodeDocument writes the canonical form of a catalogue document: one
+// encodeDocument writes the canonical form of a catalog document: one
 // top-level key per line, every element of an array of objects on its own
 // line, and every other value compact. The form is a pure function of the
 // value, so decoding and re-encoding a committed file reproduces its bytes.
@@ -120,7 +120,7 @@ func isEmptyValue(value reflect.Value) bool {
 	return false
 }
 
-// decodeStrict decodes one catalogue document and refuses unknown fields and
+// decodeStrict decodes one catalog document and refuses unknown fields and
 // trailing data.
 func decodeStrict(data []byte, target any) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))

@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-dictionaries/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-dictionaries/v1",
   "dictionaries": [
     {"id":"commercial.bitmap.32000","kind":"bitmap","card":"COMMERCIAL","edition":"sun2000-commercial-inverter-01-2017-12-26","endpoint":"inverter","offsets":[32000],"pages":[9],"mode_predicate":"none stated","values":[{"code":"0","meaning":"idle"},{"code":"1","meaning":"grid_connected"},{"code":"2","meaning":"grid_running_normal"},{"code":"3","meaning":"dispatch_derating"},{"code":"4","meaning":"internal_derating"},{"code":"5","meaning":"normal_stop"},{"code":"6","meaning":"fault_stop"},{"code":"7","meaning":"dispatch_stop"},{"code":"8","meaning":"shutdown"},{"code":"9","meaning":"inspection"}],"unlisted":"unknown"},
     {"id":"commercial.bitmap.32002","kind":"bitmap","card":"COMMERCIAL","edition":"sun2000-commercial-inverter-01-2017-12-26","endpoint":"inverter","offsets":[32002],"pages":[9],"mode_predicate":"none stated","values":[{"code":"0","meaning":"lock_released"},{"code":"1","meaning":"pv_connected"},{"code":"2","meaning":"dsp_data_available"}],"unlisted":"unknown"},

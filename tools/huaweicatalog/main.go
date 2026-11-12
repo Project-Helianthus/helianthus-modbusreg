@@ -1,8 +1,8 @@
-// Command huaweicatalog generates the Huawei catalogue under
+// Command huaweicatalog generates the Huawei catalog under
 // profiles/vendors/huawei/catalog. The inverter mode reads the JSON twins and
 // model tables of the consulted CC0 inverter reference baseline; the gateway
 // mode reads the JSON edition twins of the consulted CC0 gateway reference
-// baseline and writes the SmartLogger, S-Dongle and EMMA catalogue to its
+// baseline and writes the SmartLogger, S-Dongle and EMMA catalog to its
 // subdirectory. Both modes are deterministic, refuse counts that differ from
 // the baseline accounting unless -expect states the reviewed numbers, and
 // write locators beyond title, issue, date and page only to a sidecar
@@ -21,7 +21,7 @@ import (
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
-		writeLine(os.Stderr, "huaweicatalogue: "+err.Error())
+		writeLine(os.Stderr, "huaweicatalog: "+err.Error())
 		os.Exit(1)
 	}
 }
@@ -30,8 +30,8 @@ func writeLine(w io.Writer, text string) {
 	_, _ = fmt.Fprintln(w, text)
 }
 
-// checkSidecar refuses a sidecar directory inside the catalogue directory or
-// inside any module checkout: the module root above the catalogue directory,
+// checkSidecar refuses a sidecar directory inside the catalog directory or
+// inside any module checkout: the module root above the catalog directory,
 // above the working directory and above the sidecar itself.
 func checkSidecar(out, sidecar string) error {
 	guarded := []string{out}
@@ -50,20 +50,20 @@ func checkSidecar(out, sidecar string) error {
 			return err
 		}
 		if inside {
-			return fmt.Errorf("the sidecar directory must lie outside the repository and the catalogue directory")
+			return fmt.Errorf("the sidecar directory must lie outside the repository and the catalog directory")
 		}
 	}
 	return nil
 }
 
 func run(arguments []string, stdout io.Writer) error {
-	flags := flag.NewFlagSet("huaweicatalogue", flag.ContinueOnError)
-	mode := flags.String("mode", "inverter", "catalogue to generate: inverter (SUN2000 reference) or gateway (SmartLogger, S-Dongle and EMMA reference)")
+	flags := flag.NewFlagSet("huaweicatalog", flag.ContinueOnError)
+	mode := flags.String("mode", "inverter", "catalog to generate: inverter (SUN2000 reference) or gateway (SmartLogger, S-Dongle and EMMA reference)")
 	reference := flags.String("reference", "", "root of the consulted reference of the mode (required)")
-	out := flags.String("out", "", "catalogue directory (default "+defaultInverterOut+" for inverter, "+defaultGatewayOut+" for gateway)")
+	out := flags.String("out", "", "catalog directory (default "+defaultInverterOut+" for inverter, "+defaultGatewayOut+" for gateway)")
 	sidecar := flags.String("sidecar", "", "private sidecar directory outside the repository (optional)")
 	expect := flags.String("expect", "", "reviewed counts that replace the baseline accounting: ro=N,core=N,controls=N,models=N,cards=N for inverter; editions=N,ro=N,controls=N,rows=N,alarms=N for gateway")
-	check := flags.Bool("check", false, "compare the generated files with the catalogue directory and write nothing")
+	check := flags.Bool("check", false, "compare the generated files with the catalog directory and write nothing")
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func run(arguments []string, stdout io.Writer) error {
 	return fmt.Errorf("unknown -mode %q", *mode)
 }
 
-// emit compares the generated files with the catalogue directory (-check) or
+// emit compares the generated files with the catalog directory (-check) or
 // writes them, and writes the sidecar outside the repository. The nested
 // directory, when named, belongs to the other mode and is left alone.
 func emit(stdout io.Writer, out string, files, sidecarFiles map[string][]byte, sidecar string, check bool, line, nested string) error {
@@ -135,9 +135,9 @@ func emit(stdout io.Writer, out string, files, sidecarFiles map[string][]byte, s
 			differences = append(differences, fmt.Sprintf("%d files present, %d generated", present, len(names)))
 		}
 		if len(differences) > 0 {
-			return fmt.Errorf("catalogue differs from the reference: %v", differences)
+			return fmt.Errorf("catalog differs from the reference: %v", differences)
 		}
-		writeLine(stdout, "catalogue matches the reference: "+line)
+		writeLine(stdout, "catalog matches the reference: "+line)
 		return nil
 	}
 	if sidecar != "" {
@@ -157,7 +157,7 @@ func emit(stdout io.Writer, out string, files, sidecarFiles map[string][]byte, s
 			continue
 		}
 		if _, ok := files[entry.Name()]; !ok {
-			return fmt.Errorf("the catalogue directory holds %s, which the generator does not produce", entry.Name())
+			return fmt.Errorf("the catalog directory holds %s, which the generator does not produce", entry.Name())
 		}
 	}
 	for _, name := range names {
@@ -175,6 +175,6 @@ func emit(stdout io.Writer, out string, files, sidecarFiles map[string][]byte, s
 			}
 		}
 	}
-	writeLine(stdout, "catalogue written: "+line)
+	writeLine(stdout, "catalog written: "+line)
 	return nil
 }

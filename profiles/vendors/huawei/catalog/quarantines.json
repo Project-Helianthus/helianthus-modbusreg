@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-quarantines/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-quarantines/v1",
   "quarantines": [
     {"id":"A01","origin":"reference","subject":"HA Issue 08 extra-string formula against the explicit PV25 pair","meaning":"HA Issue 08 p. 11 gives the extra-string formula 32344 + 2n / 32345 + 2n with n = 1…4. P. 13 explicitly starts PV25 at 32344/32345, contradicting that formula's first pair. Preserve the literal table and formula separately; no silent index correction.","editions":["solar-inverter-v3-0-08-2026-06-01"],"affected":[{"set":"registers","card":"HA","offset":32344,"key":"pv.channel.pv_channel25.pv25volts"},{"set":"registers","card":"HA","offset":32345,"key":"pv.channel.pv_channel25.pv25amps"}]},
     {"id":"A02","origin":"reference","subject":"HA Issue 08 PV15 current listed twice, PV14 current absent","meaning":"P. 12 duplicates PV15 current 32045 and omits a distinct PV14-current row.","editions":["solar-inverter-v3-0-08-2026-06-01"],"affected":[{"set":"registers","card":"HA","offset":32045,"key":"pv.channel.pv_channel15.pv15amps","occurrence":1},{"set":"registers","card":"HA","offset":32045,"key":"pv.channel.pv_channel15.pv15amps","occurrence":2}]},

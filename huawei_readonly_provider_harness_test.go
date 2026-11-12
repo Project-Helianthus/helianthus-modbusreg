@@ -19,7 +19,7 @@ import (
 
 // The H06 harness drives the providers through scripted sessions. A script is
 // the exact request order of one or more cycles; every reply is taken from the
-// sanitized identity and monitoring fixtures or from a case of the catalogue
+// sanitized identity and monitoring fixtures or from a case of the catalog
 // decision table, or is a timeout, an exception or a value the provider-cycle
 // fixture marks synthetic.
 
@@ -273,7 +273,7 @@ func h06FC2B(unit uint8, code, object uint8, answer h06Answer) h06Expected {
 
 type h06Reply struct {
 	Kind string `json:"kind"`
-	// Case names the case of the catalogue decision table that a source reply
+	// Case names the case of the catalog decision table that a source reply
 	// of an identity read comes from (see h06CaseAnswer).
 	Case         string   `json:"case,omitempty"`
 	Words        []uint16 `json:"words,omitempty"`
@@ -296,9 +296,9 @@ type h06ExpectChild struct {
 	Unit     uint8  `json:"unit"`
 	Evidence string `json:"evidence"`
 	Reason   string `json:"reason"`
-	// Catalog is h06CatalogSummary of the child's catalogue decision, or
+	// Catalog is h06CatalogSummary of the child's catalog decision, or
 	// empty when no admission of the child completed.
-	Catalog  string   `json:"catalogue,omitempty"`
+	Catalog  string   `json:"catalog,omitempty"`
 	Retained []uint16 `json:"retained,omitempty"`
 }
 
@@ -423,7 +423,7 @@ func h06MonitoringAnswer(t testing.TB, fixture h05Fixture, unit uint8, offset, q
 	return h06Answer{}
 }
 
-// h06DecisionTableSource is the source entry of the catalogue decision table.
+// h06DecisionTableSource is the source entry of the catalog decision table.
 const h06DecisionTableSource = "selection/sun2000_catalog_decisions.json"
 
 // h06BlockWords returns the register words of a read extent.
@@ -435,7 +435,7 @@ func h06BlockWords(block []byte) []uint16 {
 	return words
 }
 
-// h06CaseAnswer resolves an identity read from a case of the catalogue decision
+// h06CaseAnswer resolves an identity read from a case of the catalog decision
 // table, as the routed read returns it: the model text at 30000 and the
 // software text at 30050 as NUL padded 15-word extents, and the identifier word
 // at 30070. The table's identifiers are the vendor-published ones and its
@@ -462,7 +462,7 @@ func h06CaseAnswer(t testing.TB, step h06Step) h06Answer {
 	return h06Answer{}
 }
 
-// h06CatalogSummary is the compact form of a child's catalogue decision in
+// h06CatalogSummary is the compact form of a child's catalog decision in
 // the provider-cycle fixtures: the outcome, the closed reason and every row the
 // decision names, as card/identifier.
 func h06CatalogSummary(decision *HuaweiSUN2000CatalogDecision) string {
@@ -553,7 +553,7 @@ func (s h06Sources) resolve(t testing.TB, path string, step h06Step) h06Answer {
 }
 
 // h06AdmissionWords is the script of a child's identity reads after its model
-// read: the identifier and the software text of a case of the catalogue
+// read: the identifier and the software text of a case of the catalog
 // decision table and the firmware text of the path's identity fixture.
 func h06AdmissionWords(t testing.TB, sources h06Sources, path string, unit uint8, decisionCase string) []h06Expected {
 	t.Helper()
@@ -723,7 +723,7 @@ func h06RequireExpect(t testing.TB, name string, cycle HuaweiProviderCycle, expe
 			t.Fatalf("%s: child %d = unit %d %s %s, want unit %d %s %s", name, index, got.UnitID, got.Evidence, got.Reason, want.Unit, want.Evidence, want.Reason)
 		}
 		if summary := h06CatalogSummary(got.Catalog); summary != want.Catalog {
-			t.Fatalf("%s: unit %d catalogue decision %q, want %q", name, got.UnitID, summary, want.Catalog)
+			t.Fatalf("%s: unit %d catalog decision %q, want %q", name, got.UnitID, summary, want.Catalog)
 		}
 		var retained []uint16
 		for _, group := range got.Groups {

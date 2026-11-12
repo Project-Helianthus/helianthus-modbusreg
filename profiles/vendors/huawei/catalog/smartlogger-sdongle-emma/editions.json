@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-editions/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-editions/v1",
   "reference_baseline": "2026-10-26.1",
   "attribution": "Register, model and dictionary facts are taken from an independently prepared reference whose original tables, keys and labels are dedicated under CC0-1.0. Vendor publications keep their own rights; the catalogue copies no vendor text, label table, link, locator or digest, and it names each consulted edition by title, issue and date only.",
   "editions": [

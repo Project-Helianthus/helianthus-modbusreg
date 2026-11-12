@@ -860,7 +860,7 @@ func TestH18ObservedReplayMatchesSanitizedExpectedResult(t *testing.T) {
 		"children":                    children,
 		"page_anomalies":              map[string]any{"oversize_responses": anomalies.OversizeResponses, "declared_object_field_differs": anomalies.DeclaredObjectFieldDiffers, "next_object_without_continuation": anomalies.NextObjectWithoutContinuation},
 		"request_timing":              map[string]any{"recorded": len(f.Timing.Observations) > 0, "required": f.Timing.RequiredByCard, "retries": f.Timing.Retries},
-		"catalogue_selection":         m86ReplaySelection(result),
+		"catalog_selection":           m86ReplaySelection(result),
 		"missing_evidence":            result.MissingEvidence(),
 		"hardware_test_ready":         result.HardwareTestReady(),
 		"live_qualified":              result.LiveQualified(),

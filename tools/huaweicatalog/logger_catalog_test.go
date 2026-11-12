@@ -610,7 +610,7 @@ func TestGatewayTextPassesThePublicationRules(t *testing.T) {
 		}
 		for _, profile := range []string{"huawei.smartlogger", "huawei.sdongle", "huawei.emma", "huawei.sun2000"} {
 			if strings.Contains(lower, profile) {
-				t.Fatalf("%s names a profile identifier; the catalogue registers nothing", name)
+				t.Fatalf("%s names a profile identifier; the catalog registers nothing", name)
 			}
 		}
 	}

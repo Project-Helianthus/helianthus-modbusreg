@@ -12,8 +12,8 @@ import (
 	"sync"
 )
 
-// The SUN2000 catalogue decision reads the generated inverter catalogue (see
-// docs/huawei-catalogue.md) and decides which model row, if any, a routed
+// The SUN2000 catalog decision reads the generated inverter catalog (see
+// docs/huawei-catalog.md) and decides which model row, if any, a routed
 // inverter belongs to. It reads the editions, the model rows and the identity
 // rows of each card; it decodes no register and grants no authority.
 //
@@ -40,7 +40,7 @@ const (
 	HuaweiSUN2000ScopeGatewayNamespace HuaweiSUN2000EndpointScope = "GATEWAY_NAMESPACE"
 )
 
-// HuaweiSUN2000CatalogOutcome is the outcome of the catalogue decision.
+// HuaweiSUN2000CatalogOutcome is the outcome of the catalog decision.
 type HuaweiSUN2000CatalogOutcome string
 
 const (
@@ -49,7 +49,7 @@ const (
 	HuaweiSUN2000CatalogAmbiguous   HuaweiSUN2000CatalogOutcome = "AMBIGUOUS"
 )
 
-// HuaweiSUN2000CatalogReason is the closed reason of a catalogue decision.
+// HuaweiSUN2000CatalogReason is the closed reason of a catalog decision.
 type HuaweiSUN2000CatalogReason string
 
 const (
@@ -61,13 +61,13 @@ const (
 	HuaweiSUN2000CatalogModelTextInvalid       HuaweiSUN2000CatalogReason = "model_text_invalid"
 	HuaweiSUN2000CatalogScopeInvalid           HuaweiSUN2000CatalogReason = "scope_invalid"
 	HuaweiSUN2000CatalogSoftwareMalformed      HuaweiSUN2000CatalogReason = "software_malformed"
-	HuaweiSUN2000CatalogNoCatalogRow           HuaweiSUN2000CatalogReason = "no_catalogue_row"
+	HuaweiSUN2000CatalogNoCatalogRow           HuaweiSUN2000CatalogReason = "no_catalog_row"
 	HuaweiSUN2000CatalogIdentifierMismatch     HuaweiSUN2000CatalogReason = "identifier_mismatch"
 	HuaweiSUN2000CatalogScopeMismatch          HuaweiSUN2000CatalogReason = "scope_mismatch"
 	HuaweiSUN2000CatalogSoftwareAbsent         HuaweiSUN2000CatalogReason = "software_absent"
 	HuaweiSUN2000CatalogIdentifierAbsent       HuaweiSUN2000CatalogReason = "identifier_absent"
 	HuaweiSUN2000CatalogBelowFloor             HuaweiSUN2000CatalogReason = "below_floor"
-	HuaweiSUN2000CatalogInvalid                HuaweiSUN2000CatalogReason = "catalogue_invalid"
+	HuaweiSUN2000CatalogInvalid                HuaweiSUN2000CatalogReason = "catalog_invalid"
 	HuaweiSUN2000CatalogMultipleCandidateRows  HuaweiSUN2000CatalogReason = "multiple_candidate_rows"
 )
 
@@ -84,12 +84,12 @@ const (
 	// HuaweiSUN2000CatalogMatchToken the model text equals the source token.
 	HuaweiSUN2000CatalogMatchToken HuaweiSUN2000CatalogMatch = "TOKEN"
 	// HuaweiSUN2000CatalogMatchWireAlias the model text equals a wire alias
-	// that the catalogue records for the row, within the alias's scope.
+	// that the catalog records for the row, within the alias's scope.
 	HuaweiSUN2000CatalogMatchWireAlias HuaweiSUN2000CatalogMatch = "WIRE_ALIAS"
 )
 
 // HuaweiSUN2000FloorRelation is how a software text relates to a row floor
-// under the catalogue's branch form: a line (V), a release (R), a branch (C)
+// under the catalog's branch form: a line (V), a release (R), a branch (C)
 // and a build (SPC). Builds of one branch are ordered by their SPC number; no
 // two branches are ordered.
 type HuaweiSUN2000FloorRelation string
@@ -113,8 +113,8 @@ const (
 	HuaweiSUN2000BuildFirmwareText HuaweiSUN2000BuildSource = "FIRMWARE_TEXT_30035"
 )
 
-// HuaweiSUN2000CatalogEdition is the identity of a catalogue edition: its
-// catalogue key and its title, issue and date as the edition states them.
+// HuaweiSUN2000CatalogEdition is the identity of a catalog edition: its
+// catalog key and its title, issue and date as the edition states them.
 type HuaweiSUN2000CatalogEdition struct {
 	ID    string
 	Title string
@@ -177,7 +177,7 @@ type HuaweiSUN2000CatalogInput struct {
 	ProtocolWords []uint16
 }
 
-// HuaweiSUN2000CatalogDecision is the result of the catalogue decision. A
+// HuaweiSUN2000CatalogDecision is the result of the catalog decision. A
 // row is selected only when exactly one candidate row admits the software
 // text; order, priority and card name never choose a winner.
 type HuaweiSUN2000CatalogDecision struct {
@@ -268,9 +268,9 @@ var (
 	huaweiSUN2000CatalogOnce   sync.Once
 	huaweiSUN2000CatalogLoaded huaweiSUN2000Catalog
 
-	errHuaweiSUN2000CatalogInvalid = errors.New("invalid SUN2000 catalogue")
+	errHuaweiSUN2000CatalogInvalid = errors.New("invalid SUN2000 catalog")
 
-	// huaweiSUN2000VersionForm is the catalogue's branch form: an optional
+	// huaweiSUN2000VersionForm is the catalog's branch form: an optional
 	// product prefix, then the line, the release, the branch and the build.
 	huaweiSUN2000VersionForm = regexp.MustCompile(`^(?:(SUN[0-9]+[A-Z]*) )?V([0-9]{3})R([0-9]{3})(?:C([0-9]{2})(?:SPC([0-9]{3}))?)?$`)
 	// huaweiSUN2000AliasIdentifier finds the exact identifier an alias scope names.
@@ -446,7 +446,7 @@ func loadHuaweiSUN2000Catalog(read func(string) ([]byte, error), list func() ([]
 			entry.row.Identifier, entry.row.HasIdentifier = *source.Identifier, true
 		}
 		for _, alias := range source.WireAliases {
-			// An alias holds only within the scope that the catalogue records
+			// An alias holds only within the scope that the catalog records
 			// for it: the exact identifier of its row and the inverter endpoint.
 			// An alias whose scope does not state both is never applied.
 			named := huaweiSUN2000AliasIdentifier.FindStringSubmatch(alias.Scope)
@@ -540,7 +540,7 @@ func validHuaweiSUN2000ModelText(text string) bool {
 	return true
 }
 
-// DecideHuaweiSUN2000CatalogSelection decides which catalogue model row the
+// DecideHuaweiSUN2000CatalogSelection decides which catalog model row the
 // identity words belong to. A candidate row is a row of a card edition whose
 // exact token, or a wire alias recorded for it within its scope, equals the
 // model text, whose identifier equals the identifier read, and whose card map

@@ -33,7 +33,7 @@
     },
     "eligible": true,
     "missing_evidence": [
-      "catalogue_monitoring_profile"
+      "catalog_monitoring_profile"
     ],
     "vendor_documentation": {
       "source_class": "OFFICIAL_VENDOR_DOCUMENTATION_ONLY",
@@ -75,13 +75,13 @@
       "SUN2000 M3 series",
       "SUN2000 M1 series"
     ],
-    "selectable": "CATALOGUE_MODEL_ROWS",
-    "without_catalogue_row": "NOT_SELECTED"
+    "selectable": "CATALOG_MODEL_ROWS",
+    "without_catalog_row": "NOT_SELECTED"
   },
   "firmware_ranges": {
     "covered": [],
     "predicate": "SOFTWARE_FLOOR_ONLY",
-    "reason": "the software text read at 30050, or the firmware text read at 30035 when no software text is read, is compared with the floor of each candidate catalogue row within its branch only; no row carries an upper bound, a text below a floor within its branch removes that row, and a text with no documented relation to a floor keeps the row with grade Hypothesis"
+    "reason": "the software text read at 30050, or the firmware text read at 30035 when no software text is read, is compared with the floor of each candidate catalog row within its branch only; no row carries an upper bound, a text below a floor within its branch removes that row, and a text with no documented relation to a floor keeps the row with grade Hypothesis"
   },
   "monitoring_profiles": [
     {
@@ -98,7 +98,7 @@
         "date": "2023-03-17"
       },
       "edition_binding": "EDITION_SUPPORTED_MODEL_TABLE",
-      "catalogue_selection": {
+      "catalog_selection": {
         "decision_case": "m3_series_identifier_selects_the_mc_card",
         "outcome": "SELECTED",
         "reason": "at_or_above_floor",
@@ -126,8 +126,8 @@
           "firmware_text_30035"
         ],
         "identifier_read": true,
-        "catalogue_outcome": "SELECTED",
-        "catalogue_reason": "at_or_above_floor",
+        "catalog_outcome": "SELECTED",
+        "catalog_reason": "at_or_above_floor",
         "grade": "HYPOTHESIS",
         "card": "MC",
         "edition": {
@@ -262,7 +262,7 @@
         "date": "2023-03-17"
       },
       "edition_binding": "EDITION_LAYOUT_LIVE_CHECKED",
-      "catalogue_selection": {
+      "catalog_selection": {
         "decision_case": "m1_series_identifier_selects_the_ma_c00_card",
         "outcome": "SELECTED",
         "reason": "at_or_above_floor",
@@ -290,8 +290,8 @@
           "firmware_text_30035"
         ],
         "identifier_read": true,
-        "catalogue_outcome": "SELECTED",
-        "catalogue_reason": "at_or_above_floor",
+        "catalog_outcome": "SELECTED",
+        "catalog_reason": "at_or_above_floor",
         "grade": "HYPOTHESIS",
         "card": "MA-C00",
         "edition": {
@@ -437,8 +437,8 @@
       "family": "SUN2000 MAP0 series",
       "gateway_path": "EMMA",
       "outcome": "NO_ADMISSIBLE_PROFILE",
-      "reason": "catalogue_card_without_monitoring_profile",
-      "catalogue_selection": {
+      "reason": "catalog_card_without_monitoring_profile",
+      "catalog_selection": {
         "decision_case": "map0_series_wire_alias_selects_the_ma_v200_card",
         "outcome": "SELECTED",
         "reason": "at_or_above_floor",
@@ -458,7 +458,7 @@
         "floor_basis": "row"
       },
       "missing_evidence": [
-        "catalogue_monitoring_profile"
+        "catalog_monitoring_profile"
       ]
     }
   ],
@@ -516,12 +516,12 @@
     "positive_identity_required": [
       "observed_gateway_identity_card",
       "routed_unit",
-      "catalogue_model_row"
+      "catalog_model_row"
     ],
     "not_predicates": [
       "protocol_words"
     ],
-    "catalogue_decision": {
+    "catalog_decision": {
       "inputs": [
         "model_text_30000",
         "model_identifier_30070",
@@ -542,7 +542,7 @@
       "provider_admits_on": "SELECTED",
       "routing": "the selected row of the profile's family on the profile's gateway path",
       "fixture": "testdata/huawei/selection/sun2000_catalog_decisions.json",
-      "docs_page": "protocols/huawei/sun2000-inverter-catalogue-v1.md"
+      "docs_page": "protocols/huawei/sun2000-inverter-catalog-v1.md"
     },
     "forbidden_identity": [
       "serial_number",
@@ -618,49 +618,49 @@
         "outcome": "NO_ADMISSIBLE_PROFILE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "a model text that only shares a prefix with a catalogue token is a different token: it matches its own row or none"
+        "reason": "a model text that only shares a prefix with a catalog token is a different token: it matches its own row or none"
       },
       {
         "id": "model_behind_another_gateway_path",
         "outcome": "NO_ADMISSIBLE_PROFILE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "a catalogue row whose monitoring profile is on another gateway path is no admitted pair on this path; the path routes and never decides applicability"
+        "reason": "a catalog row whose monitoring profile is on another gateway path is no admitted pair on this path; the path routes and never decides applicability"
       },
       {
-        "id": "family_without_catalogue_row",
+        "id": "family_without_catalog_row",
         "outcome": "NO_ADMISSIBLE_PROFILE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "a model text that no catalogue row carries is not selected, reason no_catalogue_row"
+        "reason": "a model text that no catalog row carries is not selected, reason no_catalog_row"
       },
       {
-        "id": "catalogue_row_without_profile_on_path",
+        "id": "catalog_row_without_profile_on_path",
         "outcome": "NO_ADMISSIBLE_PROFILE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "the catalogue selects a row whose family has no monitoring profile on this path; the selection is recorded and nothing is read"
+        "reason": "the catalog selects a row whose family has no monitoring profile on this path; the selection is recorded and nothing is read"
       },
       {
-        "id": "catalogue_identifier_mismatch",
+        "id": "catalog_identifier_mismatch",
         "outcome": "NO_ADMISSIBLE_PROFILE",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "the identifier read is not the identifier of any catalogue row that carries the model text"
+        "reason": "the identifier read is not the identifier of any catalog row that carries the model text"
       },
       {
-        "id": "catalogue_software_malformed_or_absent",
+        "id": "catalog_software_malformed_or_absent",
         "outcome": "NO_ADMISSIBLE_PROFILE",
         "selected_profile": "",
         "native_fact_count": 0,
         "reason": "with the identifier read, a software text outside the branch form, or no software or firmware text, leaves the floor unchecked and selects nothing"
       },
       {
-        "id": "catalogue_rows_not_told_apart",
+        "id": "catalog_rows_not_told_apart",
         "outcome": "AMBIGUOUS",
         "selected_profile": "",
         "native_fact_count": 0,
-        "reason": "two catalogue rows carry the model text and the identifier in one map scope and the software text admits both: no row is chosen"
+        "reason": "two catalog rows carry the model text and the identifier in one map scope and the software text admits both: no row is chosen"
       },
       {
         "id": "multiple_positive_candidates",
@@ -670,18 +670,18 @@
         "reason": "two observed gateway identities for one endpoint and unit, each admitting its profile: no winner chosen by order or priority"
       },
       {
-        "id": "catalogue_m3_row_behind_smartlogger",
+        "id": "catalog_m3_row_behind_smartlogger",
         "outcome": "PROFILE_SELECTED",
         "selected_profile": "huawei.sun2000.m3.monitoring-readonly@1.0.0",
         "native_fact_count": 19,
-        "reason": "the SmartLogger tuple, a listed unit, and the catalogue row selected by the M3 series token, its identifier and a software text at or above its floor, or of a branch with no documented relation to it"
+        "reason": "the SmartLogger tuple, a listed unit, and the catalog row selected by the M3 series token, its identifier and a software text at or above its floor, or of a branch with no documented relation to it"
       },
       {
-        "id": "catalogue_m1_row_behind_sdongle",
+        "id": "catalog_m1_row_behind_sdongle",
         "outcome": "PROFILE_SELECTED",
         "selected_profile": "huawei.sun2000.m1.monitoring-readonly@1.0.0",
         "native_fact_count": 22,
-        "reason": "the S-Dongle tuple, the observed child unit, and the catalogue row selected by the M1 series token, its identifier and a software text at or above its floor"
+        "reason": "the S-Dongle tuple, the observed child unit, and the catalog row selected by the M1 series token, its identifier and a software text at or above its floor"
       },
       {
         "id": "token_without_identifier_in_several_rows",
@@ -752,6 +752,6 @@
   "support_claim": false,
   "write_authority": false,
   "reopen_requires": [
-    "catalogue_monitoring_profile"
+    "catalog_monitoring_profile"
   ]
 }

@@ -137,7 +137,7 @@ func h05RoutedModelBlock(text string) []byte {
 }
 
 // h05M3Input is the M3 series evidence behind the SmartLogger with the routed
-// identity words of the decision table, so the catalogue selects the MC row.
+// identity words of the decision table, so the catalog selects the MC row.
 func h05M3Input(t testing.TB, unit uint8) HuaweiSUN2000CapabilityInput {
 	t.Helper()
 	input := h05ObservedM3Input(t, unit)
@@ -153,7 +153,7 @@ func h05M1Input(t testing.TB) HuaweiSUN2000CapabilityInput {
 }
 
 // h05ObservedM3Input is the evidence of the observed SmartLogger path without
-// the routed identity words, the model text only: the catalogue cannot select
+// the routed identity words, the model text only: the catalog cannot select
 // a row without the identifier.
 func h05ObservedM3Input(t testing.TB, unit uint8) HuaweiSUN2000CapabilityInput {
 	t.Helper()
@@ -752,30 +752,30 @@ func h05RowInputs(t testing.TB) map[string][]HuaweiSUN2000CapabilityInput {
 			h05WithListedModel(t, h05ObservedM3Input(t, 1), huaweiSDongleObservedChildModel),
 			h05WithIdentity(h05WithListedModel(t, h05M3Input(t, 1), huaweiSDongleObservedChildModel), m1Identity, nil),
 		},
-		"family_without_catalogue_row": {
+		"family_without_catalog_row": {
 			h05WithListedModel(t, h05ObservedM3Input(t, 4), "SUN2000-00K-MAP0"),
 			m3With(4, "SUN2000-00K-MAP0", nil),
 		},
-		"catalogue_row_without_profile_on_path": {
+		"catalog_row_without_profile_on_path": {
 			m3With(5, "SUN2000-50KTL-NHM3", identifier(472)),
 			h05WithIdentity(h05WithListedModel(t, h05M3Input(t, 6), "SUN2000-12K-MAP0"), map0, nil),
 		},
-		"catalogue_identifier_mismatch": {
+		"catalog_identifier_mismatch": {
 			m3With(1, huaweiSUN2000M3Model, identifier(470)),
 			m3With(1, huaweiSUN2000M3Model, identifier(472)),
 			h05WithIdentity(h05M1Input(t), m1Identity, identifier(471)),
 		},
-		"catalogue_software_malformed_or_absent": {
+		"catalog_software_malformed_or_absent": {
 			m3With(1, huaweiSUN2000M3Model, func(i *HuaweiSUN2000RoutedIdentity) { i.SoftwareBlock = h05RoutedModelBlock("V200R023C0") }),
 			m3With(1, huaweiSUN2000M3Model, func(i *HuaweiSUN2000RoutedIdentity) { i.SoftwareBlock = nil }),
 		},
-		"catalogue_rows_not_told_apart": {m3With(1, huaweiSUN2000M3Model, identifier(449))},
-		"multiple_positive_candidates":  {h05AmbiguousInput(t)},
-		"catalogue_m3_row_behind_smartlogger": {
+		"catalog_rows_not_told_apart":  {m3With(1, huaweiSUN2000M3Model, identifier(449))},
+		"multiple_positive_candidates": {h05AmbiguousInput(t)},
+		"catalog_m3_row_behind_smartlogger": {
 			h05M3Input(t, 1), h05M3Input(t, 2), h05M3Input(t, 8),
 			m3With(1, huaweiSUN2000M3Model, func(i *HuaweiSUN2000RoutedIdentity) { i.SoftwareBlock = h05RoutedModelBlock("V200R025C00SPC100") }),
 		},
-		"catalogue_m1_row_behind_sdongle":          {h05M1Input(t)},
+		"catalog_m1_row_behind_sdongle":            {h05M1Input(t)},
 		"token_without_identifier_in_several_rows": {h05ObservedM3Input(t, 1), h05ObservedM3Input(t, 2), h05ObservedM3Input(t, 8)},
 		"token_without_identifier_in_one_row":      {h05ObservedM1Input(t)},
 	}
@@ -822,7 +822,7 @@ func TestH05CapabilityDecisionTableRowsAreExecutable(t *testing.T) {
 
 // TestH05MutatedTupleSelectsNoProfile varies every field of the selection key
 // one at a time: the gateway tuple (unit, inventory, model block at the child),
-// the routed unit, each character of the routed model text on the catalogue
+// the routed unit, each character of the routed model text on the catalog
 // and the observed path, and each routed identity word: the identifier value
 // and shape, the software text shape and the protocol word shape.
 func TestH05MutatedTupleSelectsNoProfile(t *testing.T) {
@@ -834,7 +834,7 @@ func TestH05MutatedTupleSelectsNoProfile(t *testing.T) {
 	for position := 0; position < len(huaweiSUN2000M3Model); position++ {
 		model := []byte(huaweiSUN2000M3Model)
 		model[position] ^= 0x01
-		for name, base := range map[string]HuaweiSUN2000CapabilityInput{"catalogue": h05M3Input(t, 1), "observed": h05ObservedM3Input(t, 1)} {
+		for name, base := range map[string]HuaweiSUN2000CapabilityInput{"catalog": h05M3Input(t, 1), "observed": h05ObservedM3Input(t, 1)} {
 			input := base
 			input.RoutedModelBlock = h05RoutedModelBlock(string(model))
 			mutations = append(mutations, mutation{fmt.Sprintf("M3 model character %d on the %s path", position, name), input})
@@ -1318,9 +1318,9 @@ func TestH05ProfilesAgreeWithTheDisposition(t *testing.T) {
 		t.Fatalf("decoder keys %v want %v", record["decoder_keys"], keys)
 	}
 	mapZero := huaweiObject(t, rows[len(rows)-1])
-	requireHuaweiKeys(t, mapZero, "family", "gateway_path", "outcome", "reason", "catalogue_selection", "missing_evidence")
+	requireHuaweiKeys(t, mapZero, "family", "gateway_path", "outcome", "reason", "catalog_selection", "missing_evidence")
 	if mapZero["family"] != "SUN2000 MAP0 series" || mapZero["gateway_path"] != "EMMA" || mapZero["outcome"] != "NO_ADMISSIBLE_PROFILE" ||
-		mapZero["reason"] != "catalogue_card_without_monitoring_profile" || !reflect.DeepEqual(huaweiStringSlice(t, mapZero["missing_evidence"]), []string{"catalogue_monitoring_profile"}) {
+		mapZero["reason"] != "catalog_card_without_monitoring_profile" || !reflect.DeepEqual(huaweiStringSlice(t, mapZero["missing_evidence"]), []string{"catalog_monitoring_profile"}) {
 		t.Fatalf("MAP0 row: %#v", mapZero)
 	}
 	for _, profile := range profiles {

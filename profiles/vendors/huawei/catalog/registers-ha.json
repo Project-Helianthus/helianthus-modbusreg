@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-registers/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-registers/v1",
   "card": "HA",
   "edition": "solar-inverter-v3-0-08-2026-06-01",
   "model_pages": [6],

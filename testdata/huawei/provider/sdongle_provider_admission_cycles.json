@@ -4,7 +4,7 @@
   "path": "S-Dongle",
   "provider_id": "huawei.sdongle.observed-readonly-provider@1.0.0",
   "license": "CC0-1.0",
-  "provenance": "synthetic scripted session composed from the fixtures named in sources: the sanitized identity and monitoring fixtures, and the catalogue decision table, whose model identifiers are the vendor-published ones and whose software texts are synthetic placeholders; a source reply carries only what its fixture holds",
+  "provenance": "synthetic scripted session composed from the fixtures named in sources: the sanitized identity and monitoring fixtures, and the catalog decision table, whose model identifiers are the vendor-published ones and whose software texts are synthetic placeholders; a source reply carries only what its fixture holds",
   "sanitization": {
     "rule": "every source reply inherits the sanitization of its fixture; a literal reply is a placeholder marked synthetic, never an observed value"
   },
@@ -235,8 +235,8 @@
           {
             "unit": 1,
             "evidence": "WITHHELD",
-            "reason": "catalogue_not_selected",
-            "catalogue": "NOT_SELECTED identifier_mismatch MA-C00/428"
+            "reason": "catalog_not_selected",
+            "catalog": "NOT_SELECTED identifier_mismatch MA-C00/428"
           }
         ]
       }
@@ -261,8 +261,8 @@
           {
             "unit": 1,
             "evidence": "WITHHELD",
-            "reason": "catalogue_not_selected",
-            "catalogue": "NOT_SELECTED identifier_mismatch MA-C00/428"
+            "reason": "catalog_not_selected",
+            "catalog": "NOT_SELECTED identifier_mismatch MA-C00/428"
           }
         ]
       }
@@ -294,7 +294,7 @@
             "unit": 1,
             "evidence": "WITHHELD",
             "reason": "listing_unconfirmed",
-            "catalogue": "NOT_SELECTED identifier_mismatch MA-C00/428"
+            "catalog": "NOT_SELECTED identifier_mismatch MA-C00/428"
           }
         ]
       }
@@ -484,7 +484,7 @@
             "unit": 1,
             "evidence": "CURRENT",
             "reason": "read",
-            "catalogue": "SELECTED at_or_above_floor MA-C00/428"
+            "catalog": "SELECTED at_or_above_floor MA-C00/428"
           }
         ]
       }
@@ -546,7 +546,7 @@
             "unit": 1,
             "evidence": "CURRENT",
             "reason": "read",
-            "catalogue": "SELECTED at_or_above_floor MA-C00/428"
+            "catalog": "SELECTED at_or_above_floor MA-C00/428"
           }
         ]
       }

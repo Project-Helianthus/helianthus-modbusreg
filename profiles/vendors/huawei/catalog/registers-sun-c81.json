@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-registers/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-registers/v1",
   "card": "SUN-C81",
   "edition": "sun2000-v100r001c81-solar-inverter-01-2025-03-27",
   "model_pages": [6,7,8],

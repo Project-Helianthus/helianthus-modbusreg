@@ -14,11 +14,11 @@ import (
 )
 
 // The gateway selection reads two files of the generated SmartLogger, S-Dongle
-// and EMMA catalogue (see docs/huawei-catalogue.md): the editions, with their
+// and EMMA catalog (see docs/huawei-catalog.md): the editions, with their
 // documented software minima, model scope and self unit, and the services,
 // with the device-list attributes that each edition defines. It decides which
 // documented floor, and so which editions, a gateway's own software text falls
-// under. It decodes no register, reads no other catalogue file and grants no
+// under. It decodes no register, reads no other catalog file and grants no
 // authority.
 //
 //go:embed profiles/vendors/huawei/catalog/smartlogger-sdongle-emma/editions.json profiles/vendors/huawei/catalog/smartlogger-sdongle-emma/services.json
@@ -47,7 +47,7 @@ type HuaweiGatewaySelectionInput struct {
 	Family string
 	Scope  HuaweiGatewayScope
 	// Model is the gateway's model text, or empty when the card compares no
-	// model with the catalogue rows.
+	// model with the catalog rows.
 	Model string
 	// Software is the gateway's own software text, or empty when it was not
 	// read.
@@ -76,7 +76,7 @@ const (
 	HuaweiGatewayFamilyMismatch    HuaweiGatewaySelectionReason = "family_mismatch"
 	HuaweiGatewayBelowFloor        HuaweiGatewaySelectionReason = "below_floor"
 	HuaweiGatewaySoftwareMalformed HuaweiGatewaySelectionReason = "software_malformed"
-	HuaweiGatewayCatalogInvalid    HuaweiGatewaySelectionReason = "catalogue_invalid"
+	HuaweiGatewayCatalogInvalid    HuaweiGatewaySelectionReason = "catalog_invalid"
 )
 
 // HuaweiGatewayFloorDomain is the extent within which a floor orders builds.
@@ -103,7 +103,7 @@ const (
 	HuaweiGatewayRelationNotEvaluated         HuaweiGatewayFloorRelation = "NOT_EVALUATED"
 )
 
-// HuaweiGatewayEdition is one catalogue edition as the selection saw it: its
+// HuaweiGatewayEdition is one catalog edition as the selection saw it: its
 // identity as the edition states it and the device-list attributes that its
 // services entry defines.
 type HuaweiGatewayEdition struct {
@@ -147,7 +147,7 @@ func (f HuaweiGatewayFloor) clone() HuaweiGatewayFloor {
 	return f
 }
 
-// EditionIDs lists the catalogue keys of the editions that state the floor.
+// EditionIDs lists the catalog keys of the editions that state the floor.
 func (f HuaweiGatewayFloor) EditionIDs() []string {
 	ids := make([]string, len(f.Editions))
 	for index, edition := range f.Editions {
@@ -292,7 +292,7 @@ func (s HuaweiGatewaySelection) withObservedBuild(observed string) HuaweiGateway
 }
 
 // huaweiGatewayFamilyRule is the registry's reading of a family's own software
-// text: the component that names the family's own floors in the catalogue,
+// text: the component that names the family's own floors in the catalog,
 // and whether the text carries that component label and a space before the
 // version.
 type huaweiGatewayFamilyRule struct {
@@ -328,7 +328,7 @@ var (
 	huaweiGatewaySoftwareForm = regexp.MustCompile(`^(?:([A-Za-z][A-Za-z0-9]*) )?(V[0-9]{3}R[0-9]{3}C[0-9]{2}(?:SPC[0-9]{3})?)$`)
 	huaweiGatewayModelToken   = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
-	errHuaweiGatewayCatalogInvalid = errors.New("invalid SmartLogger, S-Dongle and EMMA catalogue")
+	errHuaweiGatewayCatalogInvalid = errors.New("invalid SmartLogger, S-Dongle and EMMA catalog")
 )
 
 func parseHuaweiGatewayVersion(text string) (huaweiGatewayVersion, bool) {
@@ -578,7 +578,7 @@ func loadHuaweiGatewayCatalog(read func(string) ([]byte, error)) (map[string]hua
 
 // DecideHuaweiGatewaySelection decides which documented floor of a gateway
 // family the gateway's own software text falls under. The family must be one
-// of the catalogue's, the scope its self endpoint at its self unit, and a
+// of the catalog's, the scope its self endpoint at its self unit, and a
 // model, when given, one that the family's model rows hold. The software text
 // is compared with every floor of the family in the floor's own domain: a
 // floor of the text's line or branch admits it at or above the minimum and
@@ -664,7 +664,7 @@ func decideHuaweiGatewaySelection(catalog huaweiGatewayCatalog, input HuaweiGate
 
 // huaweiGatewayRelationOfFloor compares a software text with a floor that a
 // card states on its own, such as an observed build, under the domain rules
-// of the family's catalogue floors.
+// of the family's catalog floors.
 func huaweiGatewayRelationOfFloor(familyName, software, minimum string) HuaweiGatewayFloorRelation {
 	catalog := huaweiGatewayLoadedCatalog()
 	family, known := catalog.families[familyName]

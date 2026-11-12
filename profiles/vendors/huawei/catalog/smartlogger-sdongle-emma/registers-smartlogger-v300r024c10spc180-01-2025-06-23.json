@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-registers/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-registers/v1",
   "card": "smartlogger-v300r024c10spc180-01-2025-06-23",
   "edition": "smartlogger-v300r024c10spc180-01-2025-06-23",
   "model_pages": [16],

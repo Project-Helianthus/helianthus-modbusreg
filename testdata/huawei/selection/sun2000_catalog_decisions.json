@@ -1,9 +1,9 @@
 {
-  "schema": "helianthus-huawei-catalogue-selection-fixture/v1",
-  "kind": "catalogue_decision_table",
+  "schema": "helianthus-huawei-catalog-selection-fixture/v1",
+  "kind": "catalog_decision_table",
   "family": "SUN2000",
   "license": "CC0-1.0",
-  "provenance": "synthetic decision cases over the vendor-published model tokens, wire alias and identifiers of the catalogue; every software and firmware text is a synthetic placeholder in the documented branch form, never an observed value",
+  "provenance": "synthetic decision cases over the vendor-published model tokens, wire alias and identifiers of the catalog; every software and firmware text is a synthetic placeholder in the documented branch form, never an observed value",
   "qualification_families": [
     {
       "family": "SUN2000 M3 series",
@@ -289,7 +289,7 @@
       }
     },
     {
-      "name": "token_without_catalogue_row_is_not_selected",
+      "name": "token_without_catalog_row_is_not_selected",
       "input": {
         "scope": "INVERTER_MAP",
         "model_text": "SUN2000-50KTL-M4",
@@ -300,7 +300,7 @@
       },
       "expect": {
         "outcome": "NOT_SELECTED",
-        "reason": "no_catalogue_row",
+        "reason": "no_catalog_row",
         "grade": "UNKNOWN",
         "card": "",
         "matched_by": "",

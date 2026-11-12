@@ -1,5 +1,5 @@
 {
-  "schema": "helianthus-modbusreg-huawei-catalogue-registers/v1",
+  "schema": "helianthus-modbusreg-huawei-catalog-registers/v1",
   "card": "COMMERCIAL",
   "edition": "sun2000-commercial-inverter-01-2017-12-26",
   "model_pages": [7],
