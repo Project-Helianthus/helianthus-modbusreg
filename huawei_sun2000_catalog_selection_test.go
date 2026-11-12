@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-const m85FixturePath = "testdata/huawei/selection/sun2000_catalogue_decisions.json"
+const m85FixturePath = "testdata/huawei/selection/sun2000_catalog_decisions.json"
 
 type m85Row struct {
 	Card       string `json:"card"`
@@ -91,8 +91,8 @@ func m85Case(t testing.TB, name string) m85DecisionCase {
 	return m85DecisionCase{}
 }
 
-func (input m85Input) catalogueInput() HuaweiSUN2000CatalogueInput {
-	out := HuaweiSUN2000CatalogueInput{
+func (input m85Input) catalogInput() HuaweiSUN2000CatalogInput {
+	out := HuaweiSUN2000CatalogInput{
 		Scope: HuaweiSUN2000EndpointScope(input.Scope), ModelText: input.ModelText, SoftwareText: input.SoftwareText,
 		FirmwareText: input.FirmwareText, ProtocolWords: input.ProtocolWords,
 	}
@@ -105,7 +105,7 @@ func (input m85Input) catalogueInput() HuaweiSUN2000CatalogueInput {
 
 func m85Identifier(value uint16) *uint16 { return &value }
 
-func m85Rows(rows []HuaweiSUN2000CatalogueRow) []m85Row {
+func m85Rows(rows []HuaweiSUN2000CatalogRow) []m85Row {
 	out := make([]m85Row, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, m85Row{Card: row.Card, Identifier: row.Identifier})
@@ -119,30 +119,30 @@ func m85Rows(rows []HuaweiSUN2000CatalogueRow) []m85Row {
 	return out
 }
 
-// m85CatalogueRow is a model row of a card edition read straight from the
+// m85CatalogRow is a model row of a card edition read straight from the
 // committed catalogue files, independently of the production loader.
-type m85CatalogueRow struct {
+type m85CatalogRow struct {
 	Card, Edition, Title, Issue, Date, Token, Floor, FloorBasis, Requirement string
 	Page, Identifier                                                         int
 	Quarantine                                                               []string
 }
 
 var (
-	m85CatalogueRowsOnce  sync.Once
-	m85CatalogueRowsCache []m85CatalogueRow
-	m85CatalogueRowsErr   error
+	m85CatalogRowsOnce  sync.Once
+	m85CatalogRowsCache []m85CatalogRow
+	m85CatalogRowsErr   error
 )
 
-func m85CatalogueRows(t testing.TB) []m85CatalogueRow {
+func m85CatalogRows(t testing.TB) []m85CatalogRow {
 	t.Helper()
-	m85CatalogueRowsOnce.Do(func() { m85CatalogueRowsCache, m85CatalogueRowsErr = m85ReadCatalogueRows() })
-	if m85CatalogueRowsErr != nil {
-		t.Fatal(m85CatalogueRowsErr)
+	m85CatalogRowsOnce.Do(func() { m85CatalogRowsCache, m85CatalogRowsErr = m85ReadCatalogRows() })
+	if m85CatalogRowsErr != nil {
+		t.Fatal(m85CatalogRowsErr)
 	}
-	return m85CatalogueRowsCache
+	return m85CatalogRowsCache
 }
 
-func m85ReadCatalogueRows() ([]m85CatalogueRow, error) {
+func m85ReadCatalogRows() ([]m85CatalogRow, error) {
 	var editions struct {
 		Editions []map[string]any `json:"editions"`
 	}
@@ -150,7 +150,7 @@ func m85ReadCatalogueRows() ([]m85CatalogueRow, error) {
 		Rows []map[string]any `json:"rows"`
 	}
 	for name, target := range map[string]any{"editions.json": &editions, "models.json": &models} {
-		data, err := os.ReadFile(filepath.Join(huaweiSUN2000CatalogueDirectory, name))
+		data, err := os.ReadFile(filepath.Join(huaweiSUN2000CatalogDirectory, name))
 		if err != nil {
 			return nil, err
 		}
@@ -164,13 +164,13 @@ func m85ReadCatalogueRows() ([]m85CatalogueRow, error) {
 			byEdition[edition["id"].(string)] = edition
 		}
 	}
-	var rows []m85CatalogueRow
+	var rows []m85CatalogRow
 	for _, row := range models.Rows {
 		edition, ok := byEdition[row["edition"].(string)]
 		if !ok {
 			continue
 		}
-		out := m85CatalogueRow{
+		out := m85CatalogRow{
 			Card: edition["card"].(string), Edition: edition["id"].(string), Title: edition["title"].(string), Issue: edition["issue"].(string),
 			Date: edition["date"].(string), Token: row["token"].(string), Floor: row["minimum_software"].(string), FloorBasis: row["floor_basis"].(string),
 			Page: int(row["page"].(float64)), Identifier: -1,
@@ -194,10 +194,10 @@ func m85ReadCatalogueRows() ([]m85CatalogueRow, error) {
 	return rows, nil
 }
 
-func m85CatalogueRowOf(t testing.TB, card string, identifier int) m85CatalogueRow {
+func m85CatalogRowOf(t testing.TB, card string, identifier int) m85CatalogRow {
 	t.Helper()
-	var found []m85CatalogueRow
-	for _, row := range m85CatalogueRows(t) {
+	var found []m85CatalogRow
+	for _, row := range m85CatalogRows(t) {
 		if row.Card == card && row.Identifier == identifier {
 			found = append(found, row)
 		}
@@ -210,19 +210,19 @@ func m85CatalogueRowOf(t testing.TB, card string, identifier int) m85CatalogueRo
 
 // m85RequireRowFacts checks a decided row against the committed catalogue:
 // edition identity, page, token, floor and floor basis.
-func m85RequireRowFacts(t testing.TB, row HuaweiSUN2000CatalogueRow) {
+func m85RequireRowFacts(t testing.TB, row HuaweiSUN2000CatalogRow) {
 	t.Helper()
-	want := m85CatalogueRowOf(t, row.Card, row.Identifier)
-	if row.Edition != (HuaweiSUN2000CatalogueEdition{ID: want.Edition, Title: want.Title, Issue: want.Issue, Date: want.Date}) ||
+	want := m85CatalogRowOf(t, row.Card, row.Identifier)
+	if row.Edition != (HuaweiSUN2000CatalogEdition{ID: want.Edition, Title: want.Title, Issue: want.Issue, Date: want.Date}) ||
 		row.Page != want.Page || row.Token != want.Token || row.Floor != want.Floor || row.FloorBasis != want.FloorBasis ||
 		row.DocumentRequirement != want.Requirement || !reflect.DeepEqual(row.Quarantine, want.Quarantine) || !row.HasIdentifier {
 		t.Fatalf("row %+v disagrees with the catalogue row %+v", row, want)
 	}
 }
 
-func m85Decide(t testing.TB, input HuaweiSUN2000CatalogueInput) HuaweiSUN2000CatalogueDecision {
+func m85Decide(t testing.TB, input HuaweiSUN2000CatalogInput) HuaweiSUN2000CatalogDecision {
 	t.Helper()
-	decision := DecideHuaweiSUN2000CatalogueSelection(input)
+	decision := DecideHuaweiSUN2000CatalogSelection(input)
 	if decision.LiveQualified() || decision.SupportClaim() || decision.WriteAuthority() {
 		t.Fatal("a catalogue decision grants authority")
 	}
@@ -279,7 +279,7 @@ func TestM85DecisionTableFixtureCases(t *testing.T) {
 	outcomes := map[string]int{}
 	for _, tc := range fixture.Cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			decision := m85Decide(t, tc.Input.catalogueInput())
+			decision := m85Decide(t, tc.Input.catalogInput())
 			row, selected := decision.Row()
 			candidates := m85Rows(decision.Candidates())
 			if string(decision.Outcome()) != tc.Expect.Outcome || string(decision.Reason()) != tc.Expect.Reason ||
@@ -297,7 +297,7 @@ func TestM85DecisionTableFixtureCases(t *testing.T) {
 			}
 			if selected {
 				m85RequireRowFacts(t, row)
-				if row.Scope != decision.Scope() || (row.MatchedBy == HuaweiSUN2000CatalogueMatchWireAlias) != (row.WireAlias == tc.Input.ModelText && row.AliasEvidence != "") {
+				if row.Scope != decision.Scope() || (row.MatchedBy == HuaweiSUN2000CatalogMatchWireAlias) != (row.WireAlias == tc.Input.ModelText && row.AliasEvidence != "") {
 					t.Fatalf("selected row %+v", row)
 				}
 			}
@@ -320,30 +320,30 @@ func TestM85QualificationFamiliesResolveToTheirCards(t *testing.T) {
 	fixture, _ := m85Load(t)
 	for _, family := range fixture.Qualification {
 		tc := m85Case(t, family.Case)
-		row, ok := m85Decide(t, tc.Input.catalogueInput()).Row()
+		row, ok := m85Decide(t, tc.Input.catalogInput()).Row()
 		if !ok || row.Card != family.Card || tc.Input.Scope != string(HuaweiSUN2000ScopeInverterMap) {
 			t.Fatalf("%s resolves to %+v, want %s", family.Family, row, family.Card)
 		}
 	}
 	aliases := 0
-	for _, catalogueRow := range m85CatalogueRows(t) {
-		if catalogueRow.Card != "MA-V200" {
+	for _, catalogRow := range m85CatalogRows(t) {
+		if catalogRow.Card != "MA-V200" {
 			continue
 		}
-		identifier := uint16(catalogueRow.Identifier)
-		input := HuaweiSUN2000CatalogueInput{Scope: HuaweiSUN2000ScopeInverterMap, ModelText: catalogueRow.Token, ModelIdentifier: &identifier, SoftwareText: "V200R024C00SPC100"}
+		identifier := uint16(catalogRow.Identifier)
+		input := HuaweiSUN2000CatalogInput{Scope: HuaweiSUN2000ScopeInverterMap, ModelText: catalogRow.Token, ModelIdentifier: &identifier, SoftwareText: "V200R024C00SPC100"}
 		row, ok := m85Decide(t, input).Row()
-		if !ok || row.Card != "MA-V200" || row.MatchedBy != HuaweiSUN2000CatalogueMatchToken {
-			t.Fatalf("%s/%d does not select its MA-V200 row: %+v", catalogueRow.Token, identifier, row)
+		if !ok || row.Card != "MA-V200" || row.MatchedBy != HuaweiSUN2000CatalogMatchToken {
+			t.Fatalf("%s/%d does not select its MA-V200 row: %+v", catalogRow.Token, identifier, row)
 		}
-		input.ModelText = strings.ReplaceAll(catalogueRow.Token, "_", "-")
+		input.ModelText = strings.ReplaceAll(catalogRow.Token, "_", "-")
 		decision := m85Decide(t, input)
 		if row, ok := decision.Row(); ok {
-			if row.MatchedBy != HuaweiSUN2000CatalogueMatchWireAlias || row.Identifier != int(identifier) {
+			if row.MatchedBy != HuaweiSUN2000CatalogMatchWireAlias || row.Identifier != int(identifier) {
 				t.Fatalf("%s selected %+v", input.ModelText, row)
 			}
 			aliases++
-		} else if decision.Reason() != HuaweiSUN2000CatalogueNoCatalogueRow {
+		} else if decision.Reason() != HuaweiSUN2000CatalogNoCatalogRow {
 			t.Fatalf("%s: %s", input.ModelText, decision.Reason())
 		}
 	}
@@ -401,38 +401,38 @@ func TestM85FloorRelationVariesEveryComponent(t *testing.T) {
 }
 
 func TestM85MalformedAndAbsentInputsSelectNothing(t *testing.T) {
-	m3 := m85Case(t, "m3_series_identifier_selects_the_mc_card").Input.catalogueInput()
+	m3 := m85Case(t, "m3_series_identifier_selects_the_mc_card").Input.catalogInput()
 	cases := []struct {
 		name   string
-		mutate func(*HuaweiSUN2000CatalogueInput)
-		reason HuaweiSUN2000CatalogueReason
+		mutate func(*HuaweiSUN2000CatalogInput)
+		reason HuaweiSUN2000CatalogReason
 	}{
-		{"empty model text", func(i *HuaweiSUN2000CatalogueInput) { i.ModelText = "" }, HuaweiSUN2000CatalogueModelTextInvalid},
-		{"model text with a NUL", func(i *HuaweiSUN2000CatalogueInput) { i.ModelText += "\x00" }, HuaweiSUN2000CatalogueModelTextInvalid},
-		{"model text beyond the read", func(i *HuaweiSUN2000CatalogueInput) { i.ModelText = strings.Repeat("S", 31) }, HuaweiSUN2000CatalogueModelTextInvalid},
-		{"model text with a trailing space", func(i *HuaweiSUN2000CatalogueInput) { i.ModelText += " " }, HuaweiSUN2000CatalogueNoCatalogueRow},
-		{"model text in lower case", func(i *HuaweiSUN2000CatalogueInput) { i.ModelText = strings.ToLower(i.ModelText) }, HuaweiSUN2000CatalogueNoCatalogueRow},
-		{"model text prefix", func(i *HuaweiSUN2000CatalogueInput) { i.ModelText = "SUN2000-50KTL-M" }, HuaweiSUN2000CatalogueNoCatalogueRow},
-		{"unknown scope", func(i *HuaweiSUN2000CatalogueInput) { i.Scope = "INVERTER" }, HuaweiSUN2000CatalogueScopeInvalid},
-		{"empty scope", func(i *HuaweiSUN2000CatalogueInput) { i.Scope = "" }, HuaweiSUN2000CatalogueScopeInvalid},
-		{"malformed software text", func(i *HuaweiSUN2000CatalogueInput) { i.SoftwareText = "V200R023C0" }, HuaweiSUN2000CatalogueSoftwareMalformed},
-		{"suffixed software text", func(i *HuaweiSUN2000CatalogueInput) { i.SoftwareText += "B001" }, HuaweiSUN2000CatalogueSoftwareMalformed},
-		{"malformed software text beside a valid firmware text", func(i *HuaweiSUN2000CatalogueInput) {
+		{"empty model text", func(i *HuaweiSUN2000CatalogInput) { i.ModelText = "" }, HuaweiSUN2000CatalogModelTextInvalid},
+		{"model text with a NUL", func(i *HuaweiSUN2000CatalogInput) { i.ModelText += "\x00" }, HuaweiSUN2000CatalogModelTextInvalid},
+		{"model text beyond the read", func(i *HuaweiSUN2000CatalogInput) { i.ModelText = strings.Repeat("S", 31) }, HuaweiSUN2000CatalogModelTextInvalid},
+		{"model text with a trailing space", func(i *HuaweiSUN2000CatalogInput) { i.ModelText += " " }, HuaweiSUN2000CatalogNoCatalogRow},
+		{"model text in lower case", func(i *HuaweiSUN2000CatalogInput) { i.ModelText = strings.ToLower(i.ModelText) }, HuaweiSUN2000CatalogNoCatalogRow},
+		{"model text prefix", func(i *HuaweiSUN2000CatalogInput) { i.ModelText = "SUN2000-50KTL-M" }, HuaweiSUN2000CatalogNoCatalogRow},
+		{"unknown scope", func(i *HuaweiSUN2000CatalogInput) { i.Scope = "INVERTER" }, HuaweiSUN2000CatalogScopeInvalid},
+		{"empty scope", func(i *HuaweiSUN2000CatalogInput) { i.Scope = "" }, HuaweiSUN2000CatalogScopeInvalid},
+		{"malformed software text", func(i *HuaweiSUN2000CatalogInput) { i.SoftwareText = "V200R023C0" }, HuaweiSUN2000CatalogSoftwareMalformed},
+		{"suffixed software text", func(i *HuaweiSUN2000CatalogInput) { i.SoftwareText += "B001" }, HuaweiSUN2000CatalogSoftwareMalformed},
+		{"malformed software text beside a valid firmware text", func(i *HuaweiSUN2000CatalogInput) {
 			i.SoftwareText, i.FirmwareText = "V200R023C0", "V200R023"
-		}, HuaweiSUN2000CatalogueSoftwareMalformed},
-		{"malformed firmware text without software text", func(i *HuaweiSUN2000CatalogueInput) {
+		}, HuaweiSUN2000CatalogSoftwareMalformed},
+		{"malformed firmware text without software text", func(i *HuaweiSUN2000CatalogInput) {
 			i.SoftwareText, i.FirmwareText = "", "X000X000"
-		}, HuaweiSUN2000CatalogueSoftwareMalformed},
-		{"neither software nor firmware text", func(i *HuaweiSUN2000CatalogueInput) { i.SoftwareText = "" }, HuaweiSUN2000CatalogueSoftwareAbsent},
-		{"another identifier", func(i *HuaweiSUN2000CatalogueInput) { i.ModelIdentifier = m85Identifier(472) }, HuaweiSUN2000CatalogueIdentifierMismatch},
-		{"identifier zero", func(i *HuaweiSUN2000CatalogueInput) { i.ModelIdentifier = m85Identifier(0) }, HuaweiSUN2000CatalogueIdentifierMismatch},
-		{"identifier absent", func(i *HuaweiSUN2000CatalogueInput) { i.ModelIdentifier = nil }, HuaweiSUN2000CatalogueMultipleCandidateRows},
+		}, HuaweiSUN2000CatalogSoftwareMalformed},
+		{"neither software nor firmware text", func(i *HuaweiSUN2000CatalogInput) { i.SoftwareText = "" }, HuaweiSUN2000CatalogSoftwareAbsent},
+		{"another identifier", func(i *HuaweiSUN2000CatalogInput) { i.ModelIdentifier = m85Identifier(472) }, HuaweiSUN2000CatalogIdentifierMismatch},
+		{"identifier zero", func(i *HuaweiSUN2000CatalogInput) { i.ModelIdentifier = m85Identifier(0) }, HuaweiSUN2000CatalogIdentifierMismatch},
+		{"identifier absent", func(i *HuaweiSUN2000CatalogInput) { i.ModelIdentifier = nil }, HuaweiSUN2000CatalogMultipleCandidateRows},
 	}
 	for _, tc := range cases {
 		input := m3
 		tc.mutate(&input)
 		decision := m85Decide(t, input)
-		if _, ok := decision.Row(); ok || decision.Outcome() == HuaweiSUN2000CatalogueSelected || decision.Reason() != tc.reason || decision.Grade() != HuaweiGradeUnknown {
+		if _, ok := decision.Row(); ok || decision.Outcome() == HuaweiSUN2000CatalogSelected || decision.Reason() != tc.reason || decision.Grade() != HuaweiGradeUnknown {
 			t.Errorf("%s: %s %s", tc.name, decision.Outcome(), decision.Reason())
 		}
 	}
@@ -444,7 +444,7 @@ func TestM85MalformedAndAbsentInputsSelectNothing(t *testing.T) {
 		t.Fatalf("build %q from %s", build, source)
 	}
 	input.SoftwareText = ""
-	if decision := m85Decide(t, input); decision.Reason() != HuaweiSUN2000CatalogueNoDocumentedRelation {
+	if decision := m85Decide(t, input); decision.Reason() != HuaweiSUN2000CatalogNoDocumentedRelation {
 		t.Fatalf("firmware text of another line: %s", decision.Reason())
 	} else if build, source := decision.Build(); build != "V100R001" || source != HuaweiSUN2000BuildFirmwareText {
 		t.Fatalf("build %q from %s", build, source)
@@ -456,7 +456,7 @@ func TestM85MalformedAndAbsentInputsSelectNothing(t *testing.T) {
 // requirement, each found in the committed catalogue.
 func TestM85QuarantinedAndDocumentFloorsAreRecorded(t *testing.T) {
 	pairs := map[string]int{}
-	rows := m85CatalogueRows(t)
+	rows := m85CatalogRows(t)
 	scopeOf := func(card string) HuaweiSUN2000EndpointScope {
 		if card == "SUN-C81" {
 			return HuaweiSUN2000ScopeC81Map
@@ -482,7 +482,7 @@ func TestM85QuarantinedAndDocumentFloorsAreRecorded(t *testing.T) {
 				build = "V" + minimum.line + "R" + minimum.release + "C" + minimum.branch + "SPC999"
 			}
 		}
-		decision := m85Decide(t, HuaweiSUN2000CatalogueInput{Scope: scopeOf(row.Card), ModelText: row.Token, ModelIdentifier: m85Identifier(uint16(row.Identifier)), SoftwareText: build})
+		decision := m85Decide(t, HuaweiSUN2000CatalogInput{Scope: scopeOf(row.Card), ModelText: row.Token, ModelIdentifier: m85Identifier(uint16(row.Identifier)), SoftwareText: build})
 		selected, ok := decision.Row()
 		if !ok || selected.Card != row.Card {
 			t.Fatalf("%s %s/%d with %s: %s %s", row.Card, row.Token, row.Identifier, build, decision.Outcome(), decision.Reason())
@@ -490,17 +490,17 @@ func TestM85QuarantinedAndDocumentFloorsAreRecorded(t *testing.T) {
 		m85RequireRowFacts(t, selected)
 		switch {
 		case outside:
-			if decision.Reason() != HuaweiSUN2000CatalogueFloorOutsideBranchForm || len(selected.Quarantine) == 0 {
+			if decision.Reason() != HuaweiSUN2000CatalogFloorOutsideBranchForm || len(selected.Quarantine) == 0 {
 				t.Fatalf("%s %s: %s quarantine %v", row.Card, row.Token, decision.Reason(), selected.Quarantine)
 			}
 			quarantined++
 		case row.FloorBasis == "document":
-			if !selected.DocumentFloor() || selected.DocumentRequirement == "" || decision.Reason() != HuaweiSUN2000CatalogueAtOrAboveFloor {
+			if !selected.DocumentFloor() || selected.DocumentRequirement == "" || decision.Reason() != HuaweiSUN2000CatalogAtOrAboveFloor {
 				t.Fatalf("%s %s: document floor %+v", row.Card, row.Token, selected)
 			}
 			document++
 		default:
-			if selected.DocumentFloor() || decision.Reason() != HuaweiSUN2000CatalogueAtOrAboveFloor {
+			if selected.DocumentFloor() || decision.Reason() != HuaweiSUN2000CatalogAtOrAboveFloor {
 				t.Fatalf("%s %s: product floor %+v %s", row.Card, row.Token, selected, decision.Reason())
 			}
 			prefixed++
@@ -515,13 +515,13 @@ func TestM85QuarantinedAndDocumentFloorsAreRecorded(t *testing.T) {
 // two card rows of one scope share, and decides one pair with the model rows in
 // reverse order: no order, card name or position chooses a winner.
 func TestM85DuplicatePairsAreAmbiguousWhateverTheRowOrder(t *testing.T) {
-	catalogue := huaweiSUN2000LoadedCatalogue()
-	if catalogue.err != nil {
-		t.Fatal(catalogue.err)
+	catalog := huaweiSUN2000LoadedCatalog()
+	if catalog.err != nil {
+		t.Fatal(catalog.err)
 	}
-	groups := map[string][]HuaweiSUN2000CatalogueRow{}
+	groups := map[string][]HuaweiSUN2000CatalogRow{}
 	var keys []string
-	for _, entry := range catalogue.entries {
+	for _, entry := range catalog.entries {
 		key := fmt.Sprintf("%s|%s|%d", entry.row.Scope, entry.row.Token, entry.row.Identifier)
 		if len(groups[key]) == 0 {
 			keys = append(keys, key)
@@ -536,16 +536,16 @@ func TestM85DuplicatePairsAreAmbiguousWhateverTheRowOrder(t *testing.T) {
 		}
 		duplicates++
 		// A build of a line no floor names relates to none of them.
-		input := HuaweiSUN2000CatalogueInput{Scope: rows[0].Scope, ModelText: rows[0].Token, ModelIdentifier: m85Identifier(uint16(rows[0].Identifier)), SoftwareText: "V900R900C90SPC900"}
-		decision := decideHuaweiSUN2000Catalogue(catalogue, input)
-		if decision.Outcome() != HuaweiSUN2000CatalogueAmbiguous || len(decision.Candidates()) != len(rows) {
+		input := HuaweiSUN2000CatalogInput{Scope: rows[0].Scope, ModelText: rows[0].Token, ModelIdentifier: m85Identifier(uint16(rows[0].Identifier)), SoftwareText: "V900R900C90SPC900"}
+		decision := decideHuaweiSUN2000Catalog(catalog, input)
+		if decision.Outcome() != HuaweiSUN2000CatalogAmbiguous || len(decision.Candidates()) != len(rows) {
 			t.Fatalf("%s: %s with %d candidates", key, decision.Outcome(), len(decision.Candidates()))
 		}
-		reversed := huaweiSUN2000Catalogue{entries: make([]huaweiSUN2000CatalogueEntry, len(catalogue.entries))}
-		for index, entry := range catalogue.entries {
-			reversed.entries[len(catalogue.entries)-1-index] = entry
+		reversed := huaweiSUN2000Catalog{entries: make([]huaweiSUN2000CatalogEntry, len(catalog.entries))}
+		for index, entry := range catalog.entries {
+			reversed.entries[len(catalog.entries)-1-index] = entry
 		}
-		again := decideHuaweiSUN2000Catalogue(reversed, input)
+		again := decideHuaweiSUN2000Catalog(reversed, input)
 		if again.Outcome() != decision.Outcome() || !reflect.DeepEqual(m85Rows(again.Candidates()), m85Rows(decision.Candidates())) {
 			t.Fatalf("%s: the row order changed the decision", key)
 		}
@@ -556,16 +556,16 @@ func TestM85DuplicatePairsAreAmbiguousWhateverTheRowOrder(t *testing.T) {
 	t.Logf("%d pairs are listed by two card rows of one scope", duplicates)
 }
 
-func m85CatalogueReader(t testing.TB, replace map[string]string) (func(string) ([]byte, error), func() ([]string, error)) {
+func m85CatalogReader(t testing.TB, replace map[string]string) (func(string) ([]byte, error), func() ([]string, error)) {
 	t.Helper()
 	read := func(name string) ([]byte, error) {
 		if text, ok := replace[name]; ok {
 			return []byte(text), nil
 		}
-		return os.ReadFile(filepath.Join(huaweiSUN2000CatalogueDirectory, name))
+		return os.ReadFile(filepath.Join(huaweiSUN2000CatalogDirectory, name))
 	}
 	list := func() ([]string, error) {
-		entries, err := os.ReadDir(huaweiSUN2000CatalogueDirectory)
+		entries, err := os.ReadDir(huaweiSUN2000CatalogDirectory)
 		if err != nil {
 			return nil, err
 		}
@@ -582,18 +582,18 @@ func m85CatalogueReader(t testing.TB, replace map[string]string) (func(string) (
 // against its committed identity rows and refuses a card file without an
 // identity map, a card file of another edition and a repeated card.
 func TestM85CardMapScopesComeFromTheIdentityRows(t *testing.T) {
-	catalogue := huaweiSUN2000LoadedCatalogue()
-	if catalogue.err != nil {
-		t.Fatal(catalogue.err)
+	catalog := huaweiSUN2000LoadedCatalog()
+	if catalog.err != nil {
+		t.Fatal(catalog.err)
 	}
 	scopes := map[string]HuaweiSUN2000EndpointScope{}
-	for _, entry := range catalogue.entries {
+	for _, entry := range catalog.entries {
 		if scope, ok := scopes[entry.row.Card]; ok && scope != entry.row.Scope {
 			t.Fatalf("card %s has two scopes", entry.row.Card)
 		}
 		scopes[entry.row.Card] = entry.row.Scope
 	}
-	files, err := filepath.Glob(filepath.Join(huaweiSUN2000CatalogueDirectory, "registers-*.json"))
+	files, err := filepath.Glob(filepath.Join(huaweiSUN2000CatalogDirectory, "registers-*.json"))
 	if err != nil || len(files) != 16 {
 		t.Fatalf("registers files %v: %v", files, err)
 	}
@@ -636,11 +636,11 @@ func TestM85CardMapScopesComeFromTheIdentityRows(t *testing.T) {
 		}
 	}
 
-	mc, err := os.ReadFile(filepath.Join(huaweiSUN2000CatalogueDirectory, "registers-mc.json"))
+	mc, err := os.ReadFile(filepath.Join(huaweiSUN2000CatalogDirectory, "registers-mc.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	editions, err := os.ReadFile(filepath.Join(huaweiSUN2000CatalogueDirectory, "editions.json"))
+	editions, err := os.ReadFile(filepath.Join(huaweiSUN2000CatalogDirectory, "editions.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -650,11 +650,11 @@ func TestM85CardMapScopesComeFromTheIdentityRows(t *testing.T) {
 		"repeated card":                {"editions.json": strings.Replace(string(editions), `"card":"MA-C20"`, `"card":"MC"`, 1)},
 		"trailing content":             {"models.json": "{\"rows\":[]}{}"},
 	} {
-		read, list := m85CatalogueReader(t, replace)
-		if _, err := loadHuaweiSUN2000Catalogue(read, list); err == nil {
+		read, list := m85CatalogReader(t, replace)
+		if _, err := loadHuaweiSUN2000Catalog(read, list); err == nil {
 			t.Errorf("%s: loaded", name)
 		}
-		if decision := decideHuaweiSUN2000Catalogue(huaweiSUN2000Catalogue{err: errHuaweiSUN2000CatalogueInvalid}, m85Case(t, "m3_series_identifier_selects_the_mc_card").Input.catalogueInput()); decision.Reason() != HuaweiSUN2000CatalogueInvalid {
+		if decision := decideHuaweiSUN2000Catalog(huaweiSUN2000Catalog{err: errHuaweiSUN2000CatalogInvalid}, m85Case(t, "m3_series_identifier_selects_the_mc_card").Input.catalogInput()); decision.Reason() != HuaweiSUN2000CatalogInvalid {
 			t.Fatalf("an invalid catalogue decided %s", decision.Reason())
 		}
 	}
@@ -664,7 +664,7 @@ func TestM85CardMapScopesComeFromTheIdentityRows(t *testing.T) {
 // scope: an alias whose scope names another identifier, or no inverter
 // endpoint, is never applied.
 func TestM85WireAliasHoldsOnlyWithinItsRecordedScope(t *testing.T) {
-	models, err := os.ReadFile(filepath.Join(huaweiSUN2000CatalogueDirectory, "models.json"))
+	models, err := os.ReadFile(filepath.Join(huaweiSUN2000CatalogDirectory, "models.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -672,22 +672,22 @@ func TestM85WireAliasHoldsOnlyWithinItsRecordedScope(t *testing.T) {
 	if strings.Count(string(models), recorded) == 0 {
 		t.Fatal("the recorded alias scope changed")
 	}
-	alias := m85Case(t, "map0_series_wire_alias_selects_the_ma_v200_card").Input.catalogueInput()
+	alias := m85Case(t, "map0_series_wire_alias_selects_the_ma_v200_card").Input.catalogInput()
 	for name, scope := range map[string]string{
 		"recorded scope":       recorded,
 		"another identifier":   strings.Replace(recorded, "ID1006", "ID1005", 1),
 		"no identifier":        strings.Replace(recorded, "ID1006", "model", 1),
 		"no inverter endpoint": strings.Replace(recorded, "inverter endpoint", "gateway", 1),
 	} {
-		read, list := m85CatalogueReader(t, map[string]string{"models.json": strings.ReplaceAll(string(models), recorded, scope)})
-		entries, err := loadHuaweiSUN2000Catalogue(read, list)
+		read, list := m85CatalogReader(t, map[string]string{"models.json": strings.ReplaceAll(string(models), recorded, scope)})
+		entries, err := loadHuaweiSUN2000Catalog(read, list)
 		if err != nil {
 			t.Fatal(err)
 		}
-		decision := decideHuaweiSUN2000Catalogue(huaweiSUN2000Catalogue{entries: entries}, alias)
+		decision := decideHuaweiSUN2000Catalog(huaweiSUN2000Catalog{entries: entries}, alias)
 		row, selected := decision.Row()
-		if selected != (name == "recorded scope") || (selected && row.MatchedBy != HuaweiSUN2000CatalogueMatchWireAlias) ||
-			(!selected && decision.Reason() != HuaweiSUN2000CatalogueNoCatalogueRow) {
+		if selected != (name == "recorded scope") || (selected && row.MatchedBy != HuaweiSUN2000CatalogMatchWireAlias) ||
+			(!selected && decision.Reason() != HuaweiSUN2000CatalogNoCatalogRow) {
 			t.Fatalf("%s: %s %s", name, decision.Outcome(), decision.Reason())
 		}
 	}
@@ -695,7 +695,7 @@ func TestM85WireAliasHoldsOnlyWithinItsRecordedScope(t *testing.T) {
 	for _, scope := range []HuaweiSUN2000EndpointScope{HuaweiSUN2000ScopeC81Map, HuaweiSUN2000ScopeGatewayNamespace} {
 		input := alias
 		input.Scope = scope
-		if decision := m85Decide(t, input); decision.Reason() != HuaweiSUN2000CatalogueScopeMismatch {
+		if decision := m85Decide(t, input); decision.Reason() != HuaweiSUN2000CatalogScopeMismatch {
 			t.Fatalf("%s: %s", scope, decision.Reason())
 		}
 	}
@@ -707,23 +707,23 @@ func TestM85WireAliasHoldsOnlyWithinItsRecordedScope(t *testing.T) {
 // its identifier; a profile keeps reading the groups of its own contract.
 func TestM85SelectionRoutesTheMonitoringProfilesByTheSelectedRow(t *testing.T) {
 	for _, tc := range []struct {
-		input              HuaweiSUN2000CapabilityInput
-		profile, card      string
-		identifier         int
-		reason             HuaweiSUN2000CatalogueReason
-		catalogueCandidate []m85Row
+		input            HuaweiSUN2000CapabilityInput
+		profile, card    string
+		identifier       int
+		reason           HuaweiSUN2000CatalogReason
+		catalogCandidate []m85Row
 	}{
-		{h05M3Input(t, 1), HuaweiSUN2000M3MonitoringProfileID, "MC", 471, HuaweiSUN2000CatalogueAtOrAboveFloor, []m85Row{{"MC", 471}}},
-		{h05M1Input(t), HuaweiSUN2000M1MonitoringProfileID, "MA-C00", 428, HuaweiSUN2000CatalogueAtOrAboveFloor, []m85Row{{"MA-C00", 428}}},
+		{h05M3Input(t, 1), HuaweiSUN2000M3MonitoringProfileID, "MC", 471, HuaweiSUN2000CatalogAtOrAboveFloor, []m85Row{{"MC", 471}}},
+		{h05M1Input(t), HuaweiSUN2000M1MonitoringProfileID, "MA-C00", 428, HuaweiSUN2000CatalogAtOrAboveFloor, []m85Row{{"MA-C00", 428}}},
 		{h05WithIdentity(h05M3Input(t, 2), h05RoutedIdentity(t, "m3_series_identifier_selects_the_mc_card"), func(i *HuaweiSUN2000RoutedIdentity) {
 			i.SoftwareBlock = h05RoutedModelBlock("V200R025C00SPC100")
-		}), HuaweiSUN2000M3MonitoringProfileID, "MC", 471, HuaweiSUN2000CatalogueNoDocumentedRelation, []m85Row{{"MC", 471}}},
+		}), HuaweiSUN2000M3MonitoringProfileID, "MC", 471, HuaweiSUN2000CatalogNoDocumentedRelation, []m85Row{{"MC", 471}}},
 	} {
 		selection := h05Select(t, tc.input, tc.profile)
-		decision, ok := selection.Catalogue()
+		decision, ok := selection.Catalog()
 		row, selected := decision.Row()
 		if !ok || !selected || selection.Reason() != HuaweiSUN2000ReasonMatched || row.Card != tc.card || row.Identifier != tc.identifier ||
-			decision.Reason() != tc.reason || decision.Grade() != HuaweiGradeHypothesis || !reflect.DeepEqual(m85Rows(decision.Candidates()), tc.catalogueCandidate) {
+			decision.Reason() != tc.reason || decision.Grade() != HuaweiGradeHypothesis || !reflect.DeepEqual(m85Rows(decision.Candidates()), tc.catalogCandidate) {
 			t.Fatalf("%s: reason=%s row=%+v decision=%s", tc.profile, selection.Reason(), row, decision.Reason())
 		}
 		m85RequireRowFacts(t, row)
@@ -742,17 +742,17 @@ func TestM85SelectionRoutesTheMonitoringProfilesByTheSelectedRow(t *testing.T) {
 		input      HuaweiSUN2000CapabilityInput
 		outcome    HuaweiSUN2000CapabilityOutcome
 		reason     HuaweiSUN2000CapabilityReason
-		decided    HuaweiSUN2000CatalogueOutcome
-		closed     HuaweiSUN2000CatalogueReason
+		decided    HuaweiSUN2000CatalogOutcome
+		closed     HuaweiSUN2000CatalogReason
 		candidates []m85Row
 	}{
-		{h05ObservedM3Input(t, 1), HuaweiSUN2000AmbiguousMultipleProfiles, HuaweiSUN2000ReasonCatalogueAmbiguous,
-			HuaweiSUN2000CatalogueAmbiguous, HuaweiSUN2000CatalogueMultipleCandidateRows, []m85Row{{"MA-C00", 449}, {"MA-C20", 449}, {"MC", 471}}},
-		{h05ObservedM1Input(t), HuaweiSUN2000NoAdmissibleProfile, HuaweiSUN2000ReasonCatalogueNotSelected,
-			HuaweiSUN2000CatalogueNotSelected, HuaweiSUN2000CatalogueIdentifierAbsent, []m85Row{{"MA-C00", 428}}},
+		{h05ObservedM3Input(t, 1), HuaweiSUN2000AmbiguousMultipleProfiles, HuaweiSUN2000ReasonCatalogAmbiguous,
+			HuaweiSUN2000CatalogAmbiguous, HuaweiSUN2000CatalogMultipleCandidateRows, []m85Row{{"MA-C00", 449}, {"MA-C20", 449}, {"MC", 471}}},
+		{h05ObservedM1Input(t), HuaweiSUN2000NoAdmissibleProfile, HuaweiSUN2000ReasonCatalogNotSelected,
+			HuaweiSUN2000CatalogNotSelected, HuaweiSUN2000CatalogIdentifierAbsent, []m85Row{{"MA-C00", 428}}},
 	} {
 		selection := SelectHuaweiSUN2000MonitoringProfile(tc.input)
-		decision, ok := selection.Catalogue()
+		decision, ok := selection.Catalog()
 		_, profiled := selection.Profile()
 		if _, selected := decision.Row(); !ok || selected || profiled || len(selection.Plan()) != 0 || selection.Outcome() != tc.outcome ||
 			selection.Reason() != tc.reason || decision.Outcome() != tc.decided || decision.Reason() != tc.closed ||
@@ -765,8 +765,8 @@ func TestM85SelectionRoutesTheMonitoringProfilesByTheSelectedRow(t *testing.T) {
 	// no observer; a selected row of another family selects no profile.
 	m3Identity := h05RoutedIdentity(t, "m3_series_identifier_selects_the_mc_card")
 	ambiguous := SelectHuaweiSUN2000MonitoringProfile(h05WithIdentity(h05M3Input(t, 1), m3Identity, func(i *HuaweiSUN2000RoutedIdentity) { i.IdentifierWords = []uint16{449} }))
-	decision, _ := ambiguous.Catalogue()
-	if ambiguous.Outcome() != HuaweiSUN2000AmbiguousMultipleProfiles || ambiguous.Reason() != HuaweiSUN2000ReasonCatalogueAmbiguous || len(ambiguous.Plan()) != 0 ||
+	decision, _ := ambiguous.Catalog()
+	if ambiguous.Outcome() != HuaweiSUN2000AmbiguousMultipleProfiles || ambiguous.Reason() != HuaweiSUN2000ReasonCatalogAmbiguous || len(ambiguous.Plan()) != 0 ||
 		!reflect.DeepEqual(m85Rows(decision.Candidates()), []m85Row{{"MA-C00", 449}, {"MA-C20", 449}}) {
 		t.Fatalf("449: %s %s %v", ambiguous.Outcome(), ambiguous.Reason(), m85Rows(decision.Candidates()))
 	}
@@ -775,29 +775,29 @@ func TestM85SelectionRoutesTheMonitoringProfilesByTheSelectedRow(t *testing.T) {
 	}
 	alias := h05WithIdentity(h05WithListedModel(t, h05M3Input(t, 6), "SUN2000-12K-MAP0"), h05RoutedIdentity(t, "map0_series_wire_alias_selects_the_ma_v200_card"), nil)
 	withoutProfile := SelectHuaweiSUN2000MonitoringProfile(alias)
-	decision, _ = withoutProfile.Catalogue()
-	if row, ok := decision.Row(); withoutProfile.Outcome() != HuaweiSUN2000NoAdmissibleProfile || withoutProfile.Reason() != HuaweiSUN2000ReasonCatalogueRowNoProfile ||
-		!ok || row.Card != "MA-V200" || row.MatchedBy != HuaweiSUN2000CatalogueMatchWireAlias {
+	decision, _ = withoutProfile.Catalog()
+	if row, ok := decision.Row(); withoutProfile.Outcome() != HuaweiSUN2000NoAdmissibleProfile || withoutProfile.Reason() != HuaweiSUN2000ReasonCatalogRowNoProfile ||
+		!ok || row.Card != "MA-V200" || row.MatchedBy != HuaweiSUN2000CatalogMatchWireAlias {
 		t.Fatalf("MAP0 behind the SmartLogger: %s %s %+v", withoutProfile.Outcome(), withoutProfile.Reason(), row)
 	}
-	if _, ok := SelectHuaweiSUN2000MonitoringProfile(HuaweiSUN2000CapabilityInput{}).Catalogue(); ok {
+	if _, ok := SelectHuaweiSUN2000MonitoringProfile(HuaweiSUN2000CapabilityInput{}).Catalog(); ok {
 		t.Fatal("a decision without gateway evidence")
 	}
 }
 
-// TestM85DispositionRecordsTheCatalogueSelection compares the selection
+// TestM85DispositionRecordsTheCatalogSelection compares the selection
 // records of the SUN2000 disposition with the decisions they name.
-func TestM85DispositionRecordsTheCatalogueSelection(t *testing.T) {
+func TestM85DispositionRecordsTheCatalogSelection(t *testing.T) {
 	record := decodeHuaweiObject(t, "profiles/vendors/huawei/sun2000-disposition.json")
 	detection := huaweiObject(t, record["capability_detection"])
-	catalogue := huaweiObject(t, detection["catalogue_decision"])
-	requireHuaweiKeys(t, catalogue, "inputs", "candidate_row", "scope", "floor", "outcomes", "selected_grade", "without_identifier",
+	catalog := huaweiObject(t, detection["catalogue_decision"])
+	requireHuaweiKeys(t, catalog, "inputs", "candidate_row", "scope", "floor", "outcomes", "selected_grade", "without_identifier",
 		"provider_admits_on", "routing", "fixture", "docs_page")
-	if catalogue["fixture"] != m85FixturePath || catalogue["docs_page"] != "protocols/huawei/sun2000-inverter-catalogue-v1.md" ||
-		catalogue["scope"] != string(HuaweiSUN2000ScopeInverterMap) || catalogue["selected_grade"] != string(HuaweiGradeHypothesis) ||
-		catalogue["provider_admits_on"] != string(HuaweiSUN2000CatalogueSelected) ||
-		!reflect.DeepEqual(huaweiStringSlice(t, catalogue["outcomes"]), []string{"SELECTED", "NOT_SELECTED", "AMBIGUOUS"}) {
-		t.Fatalf("catalogue decision policy: %#v", catalogue)
+	if catalog["fixture"] != m85FixturePath || catalog["docs_page"] != "protocols/huawei/sun2000-inverter-catalogue-v1.md" ||
+		catalog["scope"] != string(HuaweiSUN2000ScopeInverterMap) || catalog["selected_grade"] != string(HuaweiGradeHypothesis) ||
+		catalog["provider_admits_on"] != string(HuaweiSUN2000CatalogSelected) ||
+		!reflect.DeepEqual(huaweiStringSlice(t, catalog["outcomes"]), []string{"SELECTED", "NOT_SELECTED", "AMBIGUOUS"}) {
+		t.Fatalf("catalogue decision policy: %#v", catalog)
 	}
 	h03RequireFiles(t, []string{m85FixturePath})
 	rows := h03Array(t, record["monitoring_profiles"])
@@ -809,7 +809,7 @@ func TestM85DispositionRecordsTheCatalogueSelection(t *testing.T) {
 		selection := huaweiObject(t, row["catalogue_selection"])
 		requireHuaweiKeys(t, selection, "decision_case", "outcome", "reason", "grade", "card", "edition", "page", "token", "identifier",
 			"matched_by", "wire_alias", "floor", "floor_basis")
-		decision := m85Decide(t, m85Case(t, selection["decision_case"].(string)).Input.catalogueInput())
+		decision := m85Decide(t, m85Case(t, selection["decision_case"].(string)).Input.catalogInput())
 		decided, ok := decision.Row()
 		edition := huaweiObject(t, selection["edition"])
 		if !ok || selection["outcome"] != string(decision.Outcome()) || selection["reason"] != string(decision.Reason()) ||
@@ -842,10 +842,10 @@ func TestM85DispositionRecordsTheCatalogueSelection(t *testing.T) {
 		provider, _ := h06Load(t, fixtureName)
 		_, cycles := h06RunFixture(t, fixtureName)
 		child, found := cycles[0].Child(1)
-		if !found || child.Catalogue == nil || child.ProfileID != id || provider.Path != row["gateway_path"] {
+		if !found || child.Catalog == nil || child.ProfileID != id || provider.Path != row["gateway_path"] {
 			t.Fatalf("%s: the provider admitted no child of the family: %+v", id, child)
 		}
-		admitted := *child.Catalogue
+		admitted := *child.Catalog
 		admittedRow, rowSelected := admitted.Row()
 		identifier, read := admitted.Identifier()
 		pathEdition := huaweiObject(t, path["edition"])

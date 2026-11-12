@@ -28,11 +28,11 @@ func m89FixtureText(t testing.TB, set h03ProbeFixture, unit int, offset uint16) 
 	return text
 }
 
-// TestM89OwnedFamiliesAdmitThroughTheCatalogueSelection replays the scripted
+// TestM89OwnedFamiliesAdmitThroughTheCatalogSelection replays the scripted
 // sessions of the two owned families: each child is admitted on the catalogue
 // row its identity words select, and the observation records the row, its
 // edition, page, floor and grade, the identifier and the texts as read.
-func TestM89OwnedFamiliesAdmitThroughTheCatalogueSelection(t *testing.T) {
+func TestM89OwnedFamiliesAdmitThroughTheCatalogSelection(t *testing.T) {
 	sources := h06LoadSources(t)
 	for _, test := range []struct {
 		fixture, profile, decisionCase string
@@ -52,16 +52,16 @@ func TestM89OwnedFamiliesAdmitThroughTheCatalogueSelection(t *testing.T) {
 			for _, cycle := range cycles {
 				for _, unit := range test.units {
 					child, ok := cycle.Child(unit)
-					if !ok || child.Catalogue == nil {
+					if !ok || child.Catalog == nil {
 						t.Fatalf("cycle %d unit %d carries no catalogue decision: %+v", cycle.Cycle, unit, child)
 					}
-					decision := *child.Catalogue
+					decision := *child.Catalog
 					row, selected := decision.Row()
 					identifier, read := decision.Identifier()
 					build, from := decision.Build()
-					if !selected || decision.Outcome() != HuaweiSUN2000CatalogueSelected || decision.Reason() != HuaweiSUN2000CatalogueAtOrAboveFloor ||
+					if !selected || decision.Outcome() != HuaweiSUN2000CatalogSelected || decision.Reason() != HuaweiSUN2000CatalogAtOrAboveFloor ||
 						decision.Grade() != HuaweiGradeHypothesis || row.Card != test.card || row.Identifier != int(test.identifier) ||
-						row.MatchedBy != HuaweiSUN2000CatalogueMatchToken || row.FloorRelation != HuaweiSUN2000FloorAtOrAbove ||
+						row.MatchedBy != HuaweiSUN2000CatalogMatchToken || row.FloorRelation != HuaweiSUN2000FloorAtOrAbove ||
 						!read || identifier != test.identifier || build != software || from != HuaweiSUN2000BuildSoftwareText ||
 						decision.FirmwareText() != test.firmware || decision.Scope() != HuaweiSUN2000ScopeInverterMap ||
 						!reflect.DeepEqual(m85Rows(decision.Candidates()), []m85Row{{test.card, int(test.identifier)}}) {
@@ -175,19 +175,19 @@ func TestM89AdmissionOutcomesAreRecordedPerChild(t *testing.T) {
 				attempts = append(attempts, fmt.Sprintf("%d:%d:%s", exchange.Offset, exchange.Attempt, exchange.Outcome))
 			}
 		}
-		if timedOut.Catalogue != nil || timedOut.ProfileID != "" || timedOut.Reason != HuaweiProviderReasonChildTimeout ||
+		if timedOut.Catalog != nil || timedOut.ProfileID != "" || timedOut.Reason != HuaweiProviderReasonChildTimeout ||
 			!reflect.DeepEqual(attempts, []string{"30000:1:ANSWERED", "30070:1:TIMEOUT", "30070:2:TIMEOUT", "30070:3:TIMEOUT", "30070:4:TIMEOUT"}) ||
 			withheldDetail(first, 1) != string(HuaweiProviderReasonChildTimeout) {
 			t.Fatalf("identifier timeout: %+v attempts %v", timedOut, attempts)
 		}
-		if again, _ := retried.Child(1); again.Evidence != HuaweiProviderEvidenceCurrent || again.Catalogue == nil || again.IdentifiedGeneration != retried.Generation {
+		if again, _ := retried.Child(1); again.Evidence != HuaweiProviderEvidenceCurrent || again.Catalog == nil || again.IdentifiedGeneration != retried.Generation {
 			t.Fatalf("the admission was not retried: %+v", again)
 		}
 
 		unrelated, _ := first.Child(2)
-		row, _ := unrelated.Catalogue.Row()
-		if unrelated.Evidence != HuaweiProviderEvidenceCurrent || unrelated.Catalogue.Reason() != HuaweiSUN2000CatalogueNoDocumentedRelation ||
-			unrelated.Catalogue.Grade() != HuaweiGradeHypothesis || row.FloorRelation != HuaweiSUN2000FloorNoDocumentedRelation || row.Card != "MC" {
+		row, _ := unrelated.Catalog.Row()
+		if unrelated.Evidence != HuaweiProviderEvidenceCurrent || unrelated.Catalog.Reason() != HuaweiSUN2000CatalogNoDocumentedRelation ||
+			unrelated.Catalog.Grade() != HuaweiGradeHypothesis || row.FloorRelation != HuaweiSUN2000FloorNoDocumentedRelation || row.Card != "MC" {
 			t.Fatalf("unrelated branch: %+v %+v", unrelated, row)
 		}
 		m85RequireRowFacts(t, row)
@@ -195,8 +195,8 @@ func TestM89AdmissionOutcomesAreRecordedPerChild(t *testing.T) {
 		for _, cycle := range cycles {
 			mismatch, _ := cycle.Child(3)
 			ambiguous, _ := cycle.Child(4)
-			if mismatch.Catalogue == nil || mismatch.Catalogue.Reason() != HuaweiSUN2000CatalogueIdentifierMismatch || len(mismatch.Reading.Facts()) != 0 ||
-				ambiguous.Catalogue == nil || ambiguous.Catalogue.Outcome() != HuaweiSUN2000CatalogueAmbiguous || len(ambiguous.Reading.Facts()) != 0 {
+			if mismatch.Catalog == nil || mismatch.Catalog.Reason() != HuaweiSUN2000CatalogIdentifierMismatch || len(mismatch.Reading.Facts()) != 0 ||
+				ambiguous.Catalog == nil || ambiguous.Catalog.Outcome() != HuaweiSUN2000CatalogAmbiguous || len(ambiguous.Reading.Facts()) != 0 {
 				t.Fatalf("cycle %d: mismatch %+v ambiguous %+v", cycle.Cycle, mismatch, ambiguous)
 			}
 			if groupsRead(cycle, 3) || groupsRead(cycle, 4) {
@@ -209,7 +209,7 @@ func TestM89AdmissionOutcomesAreRecordedPerChild(t *testing.T) {
 				withheldDetail(cycle, 4) != "catalogue_ambiguous: MA-C00 449, MA-C20 449" {
 				t.Fatalf("cycle %d withheld details %q %q", cycle.Cycle, withheldDetail(cycle, 3), withheldDetail(cycle, 4))
 			}
-			if _, selected := ambiguous.Catalogue.Row(); selected {
+			if _, selected := ambiguous.Catalog.Row(); selected {
 				t.Fatalf("cycle %d: an ambiguous decision selected a row", cycle.Cycle)
 			}
 		}
@@ -218,12 +218,12 @@ func TestM89AdmissionOutcomesAreRecordedPerChild(t *testing.T) {
 	t.Run("S-Dongle", func(t *testing.T) {
 		_, cycles := h06RunFixture(t, "sdongle_provider_admission_cycles.json")
 		timedOut, _ := cycles[0].Child(1)
-		if timedOut.Catalogue != nil || timedOut.ProfileID != "" || timedOut.Reason != HuaweiProviderReasonChildTimeout || groupsRead(cycles[0], 1) {
+		if timedOut.Catalog != nil || timedOut.ProfileID != "" || timedOut.Reason != HuaweiProviderReasonChildTimeout || groupsRead(cycles[0], 1) {
 			t.Fatalf("identifier timeout: %+v", timedOut)
 		}
 		for _, cycle := range cycles[1:4] {
 			child, _ := cycle.Child(1)
-			if child.Catalogue == nil || child.Catalogue.Reason() != HuaweiSUN2000CatalogueIdentifierMismatch || groupsRead(cycle, 1) || len(child.Reading.Facts()) != 0 {
+			if child.Catalog == nil || child.Catalog.Reason() != HuaweiSUN2000CatalogIdentifierMismatch || groupsRead(cycle, 1) || len(child.Reading.Facts()) != 0 {
 				t.Fatalf("cycle %d mismatch: %+v", cycle.Cycle, child)
 			}
 		}
@@ -231,7 +231,7 @@ func TestM89AdmissionOutcomesAreRecordedPerChild(t *testing.T) {
 			t.Fatalf("a withheld child was read in a guard-held cycle: %+v", cycles[2].Exchanges)
 		}
 		admitted, _ := cycles[4].Child(1)
-		if admitted.Evidence != HuaweiProviderEvidenceCurrent || admitted.Catalogue == nil || admitted.Catalogue.Outcome() != HuaweiSUN2000CatalogueSelected {
+		if admitted.Evidence != HuaweiProviderEvidenceCurrent || admitted.Catalog == nil || admitted.Catalog.Outcome() != HuaweiSUN2000CatalogSelected {
 			t.Fatalf("re-identification: %+v", admitted)
 		}
 	})
@@ -249,7 +249,7 @@ func TestM89BuildBelowTheFloorIsWithheld(t *testing.T) {
 		card       string
 		identifier int
 	}{{"MC", 471}, {"MA-C00", 428}} {
-		floor, ok := parseHuaweiSUN2000Version(m85CatalogueRowOf(t, owned.card, owned.identifier).Floor)
+		floor, ok := parseHuaweiSUN2000Version(m85CatalogRowOf(t, owned.card, owned.identifier).Floor)
 		if !ok || floor.hasBuild {
 			t.Fatalf("%s %d: the floor carries a build number; a below-floor build of its branch exists", owned.card, owned.identifier)
 		}
@@ -261,7 +261,7 @@ func TestM89BuildBelowTheFloorIsWithheld(t *testing.T) {
 		summary      string
 		detail       string
 	}{
-		{"build_below_the_floor_is_not_selected", HuaweiProviderReasonCatalogueNotSelected, "NOT_SELECTED below_floor LB-C10/380", "catalogue_not_selected: below_floor"},
+		{"build_below_the_floor_is_not_selected", HuaweiProviderReasonCatalogNotSelected, "NOT_SELECTED below_floor LB-C10/380", "catalogue_not_selected: below_floor"},
 		{"build_at_the_floor_is_selected", HuaweiProviderReasonNoProfile, "SELECTED at_or_above_floor LB-C10/380", string(HuaweiProviderReasonNoProfile)},
 	} {
 		t.Run(test.decisionCase, func(t *testing.T) {
@@ -296,15 +296,15 @@ func TestM89BuildBelowTheFloorIsWithheld(t *testing.T) {
 			script = append(script, h06AdmissionWords(t, sources, "SmartLogger", unit, test.decisionCase)...)
 			cycle := rig.refresh(t, script...)
 			child, _ := cycle.Child(unit)
-			if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != test.reason || h06CatalogueSummary(child.Catalogue) != test.summary ||
+			if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != test.reason || h06CatalogSummary(child.Catalog) != test.summary ||
 				child.ProfileID != "" || len(child.Reading.Facts()) != 0 {
-				t.Fatalf("child: %s %s %q", child.Evidence, child.Reason, h06CatalogueSummary(child.Catalogue))
+				t.Fatalf("child: %s %s %q", child.Evidence, child.Reason, h06CatalogSummary(child.Catalog))
 			}
-			candidates := child.Catalogue.Candidates()
+			candidates := child.Catalog.Candidates()
 			if len(candidates) != 1 || candidates[0].Floor != "V300R024C10SPC100" {
 				t.Fatalf("candidates %+v", candidates)
 			}
-			if test.reason == HuaweiProviderReasonCatalogueNotSelected && candidates[0].FloorRelation != HuaweiSUN2000FloorBelow {
+			if test.reason == HuaweiProviderReasonCatalogNotSelected && candidates[0].FloorRelation != HuaweiSUN2000FloorBelow {
 				t.Fatalf("floor relation %s", candidates[0].FloorRelation)
 			}
 			found := false
@@ -316,7 +316,7 @@ func TestM89BuildBelowTheFloorIsWithheld(t *testing.T) {
 			}
 			// The guard holds: the withheld child is neither read nor admitted.
 			next := rig.refresh(t, h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{words: []uint16{sources.smartLoggerInventory.ChangeCounter.Before}}))
-			if again, _ := next.Child(unit); again.Reason != test.reason || h06CatalogueSummary(again.Catalogue) != test.summary || len(next.Exchanges) != 1 {
+			if again, _ := next.Child(unit); again.Reason != test.reason || h06CatalogSummary(again.Catalog) != test.summary || len(next.Exchanges) != 1 {
 				t.Fatalf("next cycle: %+v, %d exchanges", again, len(next.Exchanges))
 			}
 		})
@@ -357,17 +357,17 @@ func TestM89AdmissionVariesEveryIdentityWord(t *testing.T) {
 		{"baseline", 0, nil, HuaweiProviderReasonRead, "SELECTED at_or_above_floor MC/471", "V200R023"},
 		{"model of another family", huaweiSUN2000ModelOffset, m89Text("SUN2000-50KTL-M4"), HuaweiProviderReasonIdentityMismatch, "", ""},
 		{"model without text", huaweiSUN2000ModelOffset, blank, HuaweiProviderReasonIdentityInsuff, "", ""},
-		{"identifier of another row", huaweiSUN2000IdentifierOffset, []uint16{470}, HuaweiProviderReasonCatalogueNotSelected,
+		{"identifier of another row", huaweiSUN2000IdentifierOffset, []uint16{470}, HuaweiProviderReasonCatalogNotSelected,
 			"NOT_SELECTED identifier_mismatch MA-C00/449,MA-C20/449,MC/471", ""},
-		{"identifier of two rows", huaweiSUN2000IdentifierOffset, []uint16{449}, HuaweiProviderReasonCatalogueAmbiguous,
+		{"identifier of two rows", huaweiSUN2000IdentifierOffset, []uint16{449}, HuaweiProviderReasonCatalogAmbiguous,
 			"AMBIGUOUS multiple_candidate_rows MA-C00/449,MA-C20/449", ""},
-		{"identifier of no row", huaweiSUN2000IdentifierOffset, []uint16{0}, HuaweiProviderReasonCatalogueNotSelected,
+		{"identifier of no row", huaweiSUN2000IdentifierOffset, []uint16{0}, HuaweiProviderReasonCatalogNotSelected,
 			"NOT_SELECTED identifier_mismatch MA-C00/449,MA-C20/449,MC/471", ""},
 		{"software of an unrelated branch", huaweiSUN2000SoftwareOffset, m89Text("V200R025C00SPC100"), HuaweiProviderReasonRead,
 			"SELECTED no_documented_branch_relation MC/471", "V200R023"},
 		{"software of another build", huaweiSUN2000SoftwareOffset, m89Text("V200R023C00SPC001"), HuaweiProviderReasonRead,
 			"SELECTED at_or_above_floor MC/471", "V200R023"},
-		{"software outside the branch form", huaweiSUN2000SoftwareOffset, m89Text("V200R023C0"), HuaweiProviderReasonCatalogueNotSelected,
+		{"software outside the branch form", huaweiSUN2000SoftwareOffset, m89Text("V200R023C0"), HuaweiProviderReasonCatalogNotSelected,
 			"NOT_SELECTED software_malformed", ""},
 		{"software without text", huaweiSUN2000SoftwareOffset, blank, HuaweiProviderReasonIdentityInsuff, "", ""},
 		{"another firmware text", huaweiSUN2000FirmwareOffset, m89Text("V200R024"), HuaweiProviderReasonRead, "SELECTED at_or_above_floor MC/471", "V200R024"},
@@ -396,8 +396,8 @@ func TestM89AdmissionVariesEveryIdentityWord(t *testing.T) {
 			}
 			cycle := rig.refresh(t, script...)
 			child, _ := cycle.Child(unit)
-			if child.Reason != tc.reason || h06CatalogueSummary(child.Catalogue) != tc.summary {
-				t.Fatalf("child %s %s %q, want %s %q", child.Evidence, child.Reason, h06CatalogueSummary(child.Catalogue), tc.reason, tc.summary)
+			if child.Reason != tc.reason || h06CatalogSummary(child.Catalog) != tc.summary {
+				t.Fatalf("child %s %s %q, want %s %q", child.Evidence, child.Reason, h06CatalogSummary(child.Catalog), tc.reason, tc.summary)
 			}
 			if (child.Evidence == HuaweiProviderEvidenceCurrent) != (tc.reason == HuaweiProviderReasonRead) || (child.ProfileID != "") != (tc.reason == HuaweiProviderReasonRead) {
 				t.Fatalf("admission %s profile %q", child.Evidence, child.ProfileID)
@@ -405,15 +405,15 @@ func TestM89AdmissionVariesEveryIdentityWord(t *testing.T) {
 			if tc.reason != HuaweiProviderReasonRead {
 				return
 			}
-			identifier, read := child.Catalogue.Identifier()
-			build, from := child.Catalogue.Build()
+			identifier, read := child.Catalog.Identifier()
+			build, from := child.Catalog.Build()
 			software, _ := parseHuaweiSUN2000TextBlock(huaweiWordsToBytes(base[huaweiSUN2000SoftwareOffset]), huaweiSUN2000TextBlockBytes)
 			if tc.offset == huaweiSUN2000SoftwareOffset {
 				software, _ = parseHuaweiSUN2000TextBlock(huaweiWordsToBytes(tc.words), huaweiSUN2000TextBlockBytes)
 			}
-			if !read || identifier != 471 || build != software || from != HuaweiSUN2000BuildSoftwareText || child.Catalogue.FirmwareText() != tc.firmware ||
-				child.Catalogue.Grade() != HuaweiGradeHypothesis {
-				t.Fatalf("recorded identifier %d %v build %q %s firmware %q", identifier, read, build, from, child.Catalogue.FirmwareText())
+			if !read || identifier != 471 || build != software || from != HuaweiSUN2000BuildSoftwareText || child.Catalog.FirmwareText() != tc.firmware ||
+				child.Catalog.Grade() != HuaweiGradeHypothesis {
+				t.Fatalf("recorded identifier %d %v build %q %s firmware %q", identifier, read, build, from, child.Catalog.FirmwareText())
 			}
 		})
 	}
@@ -424,10 +424,10 @@ func TestM89AdmissionVariesEveryIdentityWord(t *testing.T) {
 // child instead of trusting the selection outcome alone.
 func TestM89AProfileIsBoundOnlyToASelectedRow(t *testing.T) {
 	profile := h05Profile(t, HuaweiSUN2000M3MonitoringProfileID)
-	ambiguous := DecideHuaweiSUN2000CatalogueSelection(m85Case(t, "m3_series_token_without_identifier_is_ambiguous").Input.catalogueInput())
-	selected := DecideHuaweiSUN2000CatalogueSelection(m85Case(t, "m3_series_identifier_selects_the_mc_card").Input.catalogueInput())
+	ambiguous := DecideHuaweiSUN2000CatalogSelection(m85Case(t, "m3_series_token_without_identifier_is_ambiguous").Input.catalogInput())
+	selected := DecideHuaweiSUN2000CatalogSelection(m85Case(t, "m3_series_identifier_selects_the_mc_card").Input.catalogInput())
 	for name, tc := range map[string]struct {
-		decision *HuaweiSUN2000CatalogueDecision
+		decision *HuaweiSUN2000CatalogDecision
 		bound    bool
 	}{
 		"selected row":       {&selected, true},
@@ -437,7 +437,7 @@ func TestM89AProfileIsBoundOnlyToASelectedRow(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			run := &huaweiCycleRun{state: &huaweiProviderState{children: map[uint8]*huaweiChildState{}}, generation: 1}
 			child := run.state.child(1)
-			selection := HuaweiSUN2000CapabilitySelection{outcome: HuaweiSUN2000ProfileSelected, reason: HuaweiSUN2000ReasonMatched, unitID: 1, profile: &profile, catalogue: tc.decision}
+			selection := HuaweiSUN2000CapabilitySelection{outcome: HuaweiSUN2000ProfileSelected, reason: HuaweiSUN2000ReasonMatched, unitID: 1, profile: &profile, catalog: tc.decision}
 			if bound := run.bindChildSelection(child, selection); bound != tc.bound || (child.identity != nil) != tc.bound {
 				t.Fatalf("bound=%v identity=%v", bound, child.identity)
 			}
@@ -483,11 +483,11 @@ func TestM89AnIdentificationEventDropsTheDecisionOfAWithheldChild(t *testing.T) 
 	script = append(script, h06AdmissionWords(t, rig.sources, fixture.Path, 4, "m3_series_token_with_identifier_449_stays_ambiguous_between_two_cards")...)
 	cycle := rig.refresh(t, script...)
 	child, _ := cycle.Child(3)
-	if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != HuaweiProviderReasonChildTimeout || child.Catalogue != nil {
-		t.Fatalf("child 3 after the timed-out admission: %s %s %q", child.Evidence, child.Reason, h06CatalogueSummary(child.Catalogue))
+	if child.Evidence != HuaweiProviderEvidenceWithheld || child.Reason != HuaweiProviderReasonChildTimeout || child.Catalog != nil {
+		t.Fatalf("child 3 after the timed-out admission: %s %s %q", child.Evidence, child.Reason, h06CatalogSummary(child.Catalog))
 	}
-	if admitted, _ := cycle.Child(2); admitted.Catalogue == nil || admitted.Catalogue.Reason() != HuaweiSUN2000CatalogueAtOrAboveFloor {
-		t.Fatalf("child 2 keeps the decision of its earlier admission: %q", h06CatalogueSummary(admitted.Catalogue))
+	if admitted, _ := cycle.Child(2); admitted.Catalog == nil || admitted.Catalog.Reason() != HuaweiSUN2000CatalogAtOrAboveFloor {
+		t.Fatalf("child 2 keeps the decision of its earlier admission: %q", h06CatalogSummary(admitted.Catalog))
 	}
 }
 
@@ -525,7 +525,7 @@ func TestM89AGuardChangeMakesTheAdmissionRunAgainAfterAFailedRead(t *testing.T) 
 	}
 	again := rig.refresh(t, retry...)
 	if child, _ := again.Child(1); again.Reason != HuaweiProviderReasonGuardHeld || child.Evidence != HuaweiProviderEvidenceCurrent ||
-		child.IdentifiedGeneration != again.Generation || child.Catalogue == nil {
+		child.IdentifiedGeneration != again.Generation || child.Catalog == nil {
 		t.Fatalf("retried admission: %s %+v", again.Reason, child)
 	}
 }

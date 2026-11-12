@@ -282,8 +282,8 @@ func TestH06ProductionProviderRowsMatchTheProviders(t *testing.T) {
 			if huaweiInt(t, admission["issue"]) != 365 || admission["model_text"] != test.modelText || !reflect.DeepEqual(reads, sent) ||
 				!reflect.DeepEqual(reads, []string{"30070/1 model_identifier", "30050/15 software_text", "30035/15 firmware_text"}) ||
 				admission["read_on"] != "EACH_IDENTIFICATION_EVENT" || admission["decision"] != "catalogue_selection" ||
-				admission["admits_on"] != string(HuaweiSUN2000CatalogueSelected) ||
-				!reflect.DeepEqual(huaweiStringSlice(t, admission["withholds_on"]), []string{string(HuaweiSUN2000CatalogueNotSelected), string(HuaweiSUN2000CatalogueAmbiguous)}) ||
+				admission["admits_on"] != string(HuaweiSUN2000CatalogSelected) ||
+				!reflect.DeepEqual(huaweiStringSlice(t, admission["withholds_on"]), []string{string(HuaweiSUN2000CatalogNotSelected), string(HuaweiSUN2000CatalogAmbiguous)}) ||
 				admission["failed_read"] != "UNADMITTED_RETRIED_AFTER_CHILD_BACKOFF" {
 				t.Fatalf("child admission row %#v; the provider sent %v", admission, sent)
 			}

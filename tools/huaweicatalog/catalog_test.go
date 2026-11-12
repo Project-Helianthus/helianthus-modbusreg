@@ -12,20 +12,20 @@ import (
 	"testing"
 )
 
-const catalogueDirectory = "../../profiles/vendors/huawei/catalogue"
+const catalogDirectory = "../../profiles/vendors/huawei/catalog"
 
-func loadCommitted(t *testing.T) (*catalogue, map[string][]byte) {
+func loadCommitted(t *testing.T) (*catalog, map[string][]byte) {
 	t.Helper()
-	c, raw, err := loadCatalogue(catalogueDirectory)
+	c, raw, err := loadCatalog(catalogDirectory)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return c, raw
 }
 
-func TestCommittedCatalogueRoundTripsByteForByte(t *testing.T) {
+func TestCommittedCatalogRoundTripsByteForByte(t *testing.T) {
 	c, raw := loadCommitted(t)
-	encoded, err := encodeCatalogue(c)
+	encoded, err := encodeCatalog(c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,9 +39,9 @@ func TestCommittedCatalogueRoundTripsByteForByte(t *testing.T) {
 	}
 }
 
-func TestCommittedCatalogueMatchesTheBaselineAccounting(t *testing.T) {
+func TestCommittedCatalogMatchesTheBaselineAccounting(t *testing.T) {
 	c, _ := loadCommitted(t)
-	if got := countCatalogue(c); got != defaultExpect {
+	if got := countCatalog(c); got != defaultExpect {
 		t.Fatalf("counts %s, want %s", got, defaultExpect)
 	}
 	if c.Editions.ReferenceBaseline != "2026-10-26.1" || len(c.Editions.Editions) != 49 {
@@ -91,12 +91,12 @@ func TestCommittedCatalogueMatchesTheBaselineAccounting(t *testing.T) {
 	}
 }
 
-func TestCommittedCatalogueSatisfiesEveryInvariant(t *testing.T) {
+func TestCommittedCatalogSatisfiesEveryInvariant(t *testing.T) {
 	c, _ := loadCommitted(t)
-	if err := validateCatalogue(c); err != nil {
+	if err := validateCatalog(c); err != nil {
 		t.Fatal(err)
 	}
-	if err := guardCatalogue(c); err != nil {
+	if err := guardCatalog(c); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -232,7 +232,7 @@ func TestModelTokenAndIdentifierAreUniquePerEdition(t *testing.T) {
 
 // cardsOfIdentifier returns the cards whose source edition lists a model row
 // with the identifier, and those rows.
-func cardsOfIdentifier(c *catalogue, identifier int) ([]string, []modelRow) {
+func cardsOfIdentifier(c *catalog, identifier int) ([]string, []modelRow) {
 	cardOf := map[string]string{}
 	for _, record := range c.Editions.Editions {
 		if record.Card != "" {
@@ -331,20 +331,20 @@ func TestReadExtentsKeepValuesWhole(t *testing.T) {
 	}
 }
 
-// TestCatalogueIsReadOnlyByTheSelection keeps two product files the readers
+// TestCatalogIsReadOnlyByTheSelection keeps two product files the readers
 // of the catalogue: the SUN2000 selection (helianthus-modbusreg issue 362),
 // kept to the inverter editions, the model rows and the register files, and
 // the gateway selection (helianthus-modbusreg issue 366), kept to the
 // SmartLogger, S-Dongle and EMMA editions and services. No dictionary or
 // quarantine file reaches product code, and neither selection reads the other
 // part of the catalogue.
-func TestCatalogueIsReadOnlyByTheSelection(t *testing.T) {
+func TestCatalogIsReadOnlyByTheSelection(t *testing.T) {
 	files, err := filepath.Glob("../../*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
 	allowed := map[string]func(data []byte) error{
-		"huawei_sun2000_catalogue_selection.go": func(data []byte) error {
+		"huawei_sun2000_catalog_selection.go": func(data []byte) error {
 			if bytes.Contains(data, []byte("smartlogger-sdongle-emma")) {
 				return fmt.Errorf("reads the gateway part")
 			}
@@ -355,7 +355,7 @@ func TestCatalogueIsReadOnlyByTheSelection(t *testing.T) {
 				return fmt.Errorf("reads a register or model file")
 			}
 			for _, line := range strings.Split(string(data), "\n") {
-				if strings.Contains(line, "huawei/catalogue") && !strings.Contains(line, "huawei/catalogue/smartlogger-sdongle-emma") {
+				if strings.Contains(line, "huawei/catalog") && !strings.Contains(line, "huawei/catalog/smartlogger-sdongle-emma") {
 					return fmt.Errorf("reads outside the gateway part: %s", line)
 				}
 				if strings.HasPrefix(line, "//go:embed ") {
@@ -378,7 +378,7 @@ func TestCatalogueIsReadOnlyByTheSelection(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Contains(data, []byte("huawei/catalogue")) && !bytes.Contains(data, []byte("registers-")) {
+		if !bytes.Contains(data, []byte("huawei/catalog")) && !bytes.Contains(data, []byte("registers-")) {
 			continue
 		}
 		check, ok := allowed[filepath.Base(file)]
@@ -400,7 +400,7 @@ func TestCatalogueIsReadOnlyByTheSelection(t *testing.T) {
 	}
 }
 
-func TestCommittedCatalogueTextPassesThePublicationRules(t *testing.T) {
+func TestCommittedCatalogTextPassesThePublicationRules(t *testing.T) {
 	_, raw := loadCommitted(t)
 	for name, data := range raw {
 		text := string(data)

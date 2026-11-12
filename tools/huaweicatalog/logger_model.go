@@ -12,7 +12,7 @@ import (
 // dictionaries and quarantines documents and adds one services document.
 const (
 	gatewayDirectory   = "smartlogger-sdongle-emma"
-	defaultInverterOut = "profiles/vendors/huawei/catalogue"
+	defaultInverterOut = "profiles/vendors/huawei/catalog"
 	defaultGatewayOut  = defaultInverterOut + "/" + gatewayDirectory
 	servicesSchema     = "helianthus-modbusreg-huawei-catalogue-services/v1"
 	servicesFile       = "services.json"
@@ -157,8 +157,8 @@ type contractPages struct {
 	Last     int    `json:"last"`
 }
 
-// gatewayCatalogue is the full set of committed gateway documents.
-type gatewayCatalogue struct {
+// gatewayCatalog is the full set of committed gateway documents.
+type gatewayCatalog struct {
 	Editions     editionsDoc
 	Registers    map[string]*registersDoc
 	Dictionaries dictionariesDoc
@@ -216,7 +216,7 @@ func parseGatewayExpect(text string) (gatewayCounts, error) {
 	return expect, nil
 }
 
-func countGatewayCatalogue(c *gatewayCatalogue) gatewayCounts {
+func countGatewayCatalog(c *gatewayCatalog) gatewayCounts {
 	result := gatewayCounts{Editions: len(c.Editions.Editions)}
 	for _, doc := range c.Registers {
 		result.RO += len(doc.Rows)

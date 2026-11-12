@@ -16,7 +16,7 @@
     "identity/sdongle_child_extended_inventory.json",
     "identity/sdongle_first_request_timing.json",
     "monitoring/sun2000_m1_sdongle_monitoring.json",
-    "selection/sun2000_catalogue_decisions.json"
+    "selection/sun2000_catalog_decisions.json"
   ],
   "allowed_units": [
     1

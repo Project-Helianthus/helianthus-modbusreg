@@ -32,9 +32,9 @@ const (
 	HuaweiSUN2000ReasonModelBlockInvalid        HuaweiSUN2000CapabilityReason = "MODEL_BLOCK_INVALID"
 	HuaweiSUN2000ReasonListingModelConflict     HuaweiSUN2000CapabilityReason = "LISTING_MODEL_CONFLICT"
 	HuaweiSUN2000ReasonIdentityWordsInvalid     HuaweiSUN2000CapabilityReason = "IDENTITY_WORDS_INVALID"
-	HuaweiSUN2000ReasonCatalogueNotSelected     HuaweiSUN2000CapabilityReason = "CATALOGUE_NOT_SELECTED"
-	HuaweiSUN2000ReasonCatalogueAmbiguous       HuaweiSUN2000CapabilityReason = "CATALOGUE_AMBIGUOUS"
-	HuaweiSUN2000ReasonCatalogueRowNoProfile    HuaweiSUN2000CapabilityReason = "CATALOGUE_ROW_WITHOUT_PROFILE"
+	HuaweiSUN2000ReasonCatalogNotSelected       HuaweiSUN2000CapabilityReason = "CATALOGUE_NOT_SELECTED"
+	HuaweiSUN2000ReasonCatalogAmbiguous         HuaweiSUN2000CapabilityReason = "CATALOGUE_AMBIGUOUS"
+	HuaweiSUN2000ReasonCatalogRowNoProfile      HuaweiSUN2000CapabilityReason = "CATALOGUE_ROW_WITHOUT_PROFILE"
 	HuaweiSUN2000ReasonMatched                  HuaweiSUN2000CapabilityReason = "MATCHED"
 	HuaweiSUN2000ReasonMultipleProfilesSelected HuaweiSUN2000CapabilityReason = "MULTIPLE_PROFILES_SELECTED"
 )
@@ -81,7 +81,7 @@ type HuaweiSUN2000ProfileEvaluation struct {
 	profileID string
 	outcome   HuaweiSUN2000CapabilityOutcome
 	reason    HuaweiSUN2000CapabilityReason
-	catalogue *HuaweiSUN2000CatalogueDecision
+	catalog   *HuaweiSUN2000CatalogDecision
 }
 
 func (e HuaweiSUN2000ProfileEvaluation) ProfileID() string { return e.profileID }
@@ -90,13 +90,13 @@ func (e HuaweiSUN2000ProfileEvaluation) Outcome() HuaweiSUN2000CapabilityOutcome
 }
 func (e HuaweiSUN2000ProfileEvaluation) Reason() HuaweiSUN2000CapabilityReason { return e.reason }
 
-// Catalogue is the catalogue decision taken for the profile's path, if the
+// Catalog is the catalogue decision taken for the profile's path, if the
 // gateway evidence reached it.
-func (e HuaweiSUN2000ProfileEvaluation) Catalogue() (HuaweiSUN2000CatalogueDecision, bool) {
-	if e.catalogue == nil {
-		return HuaweiSUN2000CatalogueDecision{}, false
+func (e HuaweiSUN2000ProfileEvaluation) Catalog() (HuaweiSUN2000CatalogDecision, bool) {
+	if e.catalog == nil {
+		return HuaweiSUN2000CatalogDecision{}, false
 	}
-	return *e.catalogue, true
+	return *e.catalog, true
 }
 
 // HuaweiSUN2000CapabilitySelection is the result of capability detection. A
@@ -107,17 +107,17 @@ type HuaweiSUN2000CapabilitySelection struct {
 	reason      HuaweiSUN2000CapabilityReason
 	unitID      uint8
 	profile     *HuaweiSUN2000MonitoringProfile
-	catalogue   *HuaweiSUN2000CatalogueDecision
+	catalog     *HuaweiSUN2000CatalogDecision
 	evaluations []HuaweiSUN2000ProfileEvaluation
 }
 
-// Catalogue is the catalogue decision that the outcome rests on: the one of
+// Catalog is the catalogue decision that the outcome rests on: the one of
 // the selected profile, or of the evaluation that decided the outcome.
-func (s HuaweiSUN2000CapabilitySelection) Catalogue() (HuaweiSUN2000CatalogueDecision, bool) {
-	if s.catalogue == nil {
-		return HuaweiSUN2000CatalogueDecision{}, false
+func (s HuaweiSUN2000CapabilitySelection) Catalog() (HuaweiSUN2000CatalogDecision, bool) {
+	if s.catalog == nil {
+		return HuaweiSUN2000CatalogDecision{}, false
 	}
-	return *s.catalogue, true
+	return *s.catalog, true
 }
 
 func (s HuaweiSUN2000CapabilitySelection) Outcome() HuaweiSUN2000CapabilityOutcome {
@@ -205,7 +205,7 @@ func SelectHuaweiSUN2000MonitoringProfile(input HuaweiSUN2000CapabilityInput) Hu
 		selection.outcome, selection.reason, selection.profile = HuaweiSUN2000ProfileSelected, selection.evaluations[matched[0]].reason, &profile
 		decided = matched[0]
 	case ambiguous >= 0:
-		selection.outcome, selection.reason = HuaweiSUN2000AmbiguousMultipleProfiles, HuaweiSUN2000ReasonCatalogueAmbiguous
+		selection.outcome, selection.reason = HuaweiSUN2000AmbiguousMultipleProfiles, HuaweiSUN2000ReasonCatalogAmbiguous
 		decided = ambiguous
 	case noAdmissible >= 0:
 		selection.outcome, selection.reason = HuaweiSUN2000NoAdmissibleProfile, selection.evaluations[noAdmissible].reason
@@ -215,7 +215,7 @@ func SelectHuaweiSUN2000MonitoringProfile(input HuaweiSUN2000CapabilityInput) Hu
 		decided = firstInsufficient
 	}
 	if decided >= 0 {
-		selection.catalogue = selection.evaluations[decided].catalogue
+		selection.catalog = selection.evaluations[decided].catalog
 	}
 	return selection
 }
@@ -266,35 +266,35 @@ func evaluateHuaweiSUN2000Profile(profile HuaweiSUN2000MonitoringProfile, input 
 	default:
 		return insufficient(HuaweiSUN2000ReasonNoGatewayIdentity)
 	}
-	catalogueInput, valid := huaweiSUN2000CatalogueInputOf(model, input.Identity)
+	catalogInput, valid := huaweiSUN2000CatalogInputOf(model, input.Identity)
 	if !valid {
 		return insufficient(HuaweiSUN2000ReasonIdentityWordsInvalid)
 	}
-	decision := DecideHuaweiSUN2000CatalogueSelection(catalogueInput)
+	decision := DecideHuaweiSUN2000CatalogSelection(catalogInput)
 	evaluated := func(outcome HuaweiSUN2000CapabilityOutcome, reason HuaweiSUN2000CapabilityReason) HuaweiSUN2000ProfileEvaluation {
 		evaluation := result(outcome, reason)
-		evaluation.catalogue = &decision
+		evaluation.catalog = &decision
 		return evaluation
 	}
 	if row, selected := decision.Row(); selected {
 		if row.Token != profile.model {
-			return evaluated(HuaweiSUN2000NoAdmissibleProfile, HuaweiSUN2000ReasonCatalogueRowNoProfile)
+			return evaluated(HuaweiSUN2000NoAdmissibleProfile, HuaweiSUN2000ReasonCatalogRowNoProfile)
 		}
 		return evaluated(HuaweiSUN2000ProfileSelected, HuaweiSUN2000ReasonMatched)
 	}
-	if decision.Outcome() == HuaweiSUN2000CatalogueAmbiguous {
-		return evaluated(HuaweiSUN2000AmbiguousMultipleProfiles, HuaweiSUN2000ReasonCatalogueAmbiguous)
+	if decision.Outcome() == HuaweiSUN2000CatalogAmbiguous {
+		return evaluated(HuaweiSUN2000AmbiguousMultipleProfiles, HuaweiSUN2000ReasonCatalogAmbiguous)
 	}
-	return evaluated(HuaweiSUN2000NoAdmissibleProfile, HuaweiSUN2000ReasonCatalogueNotSelected)
+	return evaluated(HuaweiSUN2000NoAdmissibleProfile, HuaweiSUN2000ReasonCatalogNotSelected)
 }
 
-// huaweiSUN2000CatalogueInputOf decodes the routed identity words. A part that
+// huaweiSUN2000CatalogInputOf decodes the routed identity words. A part that
 // was read but does not have the shape of its read is invalid evidence.
-func huaweiSUN2000CatalogueInputOf(model string, identity HuaweiSUN2000RoutedIdentity) (HuaweiSUN2000CatalogueInput, bool) {
-	input := HuaweiSUN2000CatalogueInput{Scope: HuaweiSUN2000ScopeInverterMap, ModelText: model}
+func huaweiSUN2000CatalogInputOf(model string, identity HuaweiSUN2000RoutedIdentity) (HuaweiSUN2000CatalogInput, bool) {
+	input := HuaweiSUN2000CatalogInput{Scope: HuaweiSUN2000ScopeInverterMap, ModelText: model}
 	if identity.IdentifierWords != nil {
 		if len(identity.IdentifierWords) != 1 {
-			return HuaweiSUN2000CatalogueInput{}, false
+			return HuaweiSUN2000CatalogInput{}, false
 		}
 		identifier := identity.IdentifierWords[0]
 		input.ModelIdentifier = &identifier
@@ -308,13 +308,13 @@ func huaweiSUN2000CatalogueInputOf(model string, identity HuaweiSUN2000RoutedIde
 		}
 		text, valid := parseHuaweiSUN2000TextBlock(part.block, huaweiSUN2000TextBlockBytes)
 		if !valid {
-			return HuaweiSUN2000CatalogueInput{}, false
+			return HuaweiSUN2000CatalogInput{}, false
 		}
 		*part.target = text
 	}
 	if identity.ProtocolWords != nil {
 		if len(identity.ProtocolWords) != huaweiSUN2000ProtocolWords {
-			return HuaweiSUN2000CatalogueInput{}, false
+			return HuaweiSUN2000CatalogInput{}, false
 		}
 		input.ProtocolWords = append([]uint16(nil), identity.ProtocolWords...)
 	}

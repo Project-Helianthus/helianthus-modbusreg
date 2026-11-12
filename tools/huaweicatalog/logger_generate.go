@@ -15,10 +15,10 @@ type gatewayOptions struct {
 }
 
 type gatewayResult struct {
-	Catalogue *gatewayCatalogue
-	Files     map[string][]byte
-	Sidecar   map[string][]byte
-	Counts    gatewayCounts
+	Catalog *gatewayCatalog
+	Files   map[string][]byte
+	Sidecar map[string][]byte
+	Counts  gatewayCounts
 }
 
 type gatewayIndex struct {
@@ -183,7 +183,7 @@ func generateGateway(opts gatewayOptions) (*gatewayResult, error) {
 		return nil, fmt.Errorf("%d register rows, the index states %d", rowTotal, index.RegisterCount)
 	}
 
-	c := &gatewayCatalogue{Registers: map[string]*registersDoc{}}
+	c := &gatewayCatalog{Registers: map[string]*registersDoc{}}
 	c.Editions = editionsDoc{Schema: editionsSchema, ReferenceBaseline: baseline, Attribution: attributionNote}
 	var dictionaries []dictionary
 	for _, build := range builds {
@@ -234,7 +234,7 @@ func generateGateway(opts gatewayOptions) (*gatewayResult, error) {
 		return nil, err
 	}
 
-	got := countGatewayCatalogue(c)
+	got := countGatewayCatalog(c)
 	alarmTotal := 0
 	for _, entry := range index.Editions {
 		alarmTotal += entry.Alarms
@@ -245,13 +245,13 @@ func generateGateway(opts gatewayOptions) (*gatewayResult, error) {
 	if got != opts.Expect {
 		return nil, fmt.Errorf("counts %s differ from the expected baseline accounting %s; review the reference change and rerun with -expect %s", got, opts.Expect, got)
 	}
-	if err := validateGatewayCatalogue(c); err != nil {
+	if err := validateGatewayCatalog(c); err != nil {
 		return nil, err
 	}
-	if err := guardGatewayCatalogue(c); err != nil {
+	if err := guardGatewayCatalog(c); err != nil {
 		return nil, err
 	}
-	files, err := encodeGatewayCatalogue(c)
+	files, err := encodeGatewayCatalog(c)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +263,7 @@ func generateGateway(opts gatewayOptions) (*gatewayResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &gatewayResult{Catalogue: c, Files: files, Sidecar: sidecar, Counts: got}, nil
+	return &gatewayResult{Catalog: c, Files: files, Sidecar: sidecar, Counts: got}, nil
 }
 
 func readText[T any](in reader, relative string, parse func(string) (T, error)) (T, error) {

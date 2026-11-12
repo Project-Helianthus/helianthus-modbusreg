@@ -36,11 +36,11 @@ type cardCoverage struct {
 }
 
 type result struct {
-	Catalogue *catalogue
-	Files     map[string][]byte
-	Sidecar   map[string][]byte
-	Counts    counts
-	Coverage  []cardCoverage
+	Catalog  *catalog
+	Files    map[string][]byte
+	Sidecar  map[string][]byte
+	Counts   counts
+	Coverage []cardCoverage
 }
 
 type reader struct{ root string }
@@ -224,7 +224,7 @@ func generate(opts options) (*result, error) {
 		return nil, err
 	}
 
-	c := &catalogue{Registers: map[string]*registersDoc{}}
+	c := &catalog{Registers: map[string]*registersDoc{}}
 	c.Editions = editionsDoc{Schema: editionsSchema, ReferenceBaseline: baseline, Attribution: attributionNote}
 	for _, record := range editionBySHA {
 		c.Editions.Editions = append(c.Editions.Editions, *record)
@@ -319,7 +319,7 @@ func generate(opts options) (*result, error) {
 			}
 			doc.AdditiveSupport = support
 		}
-		c.Registers[card.CatalogueFile] = doc
+		c.Registers[card.CatalogFile] = doc
 		items, err := cardDictionaries(card, editionID, &build.rows)
 		if err != nil {
 			return nil, fmt.Errorf("%s dictionaries: %w", card.ID, err)
@@ -360,20 +360,20 @@ func generate(opts options) (*result, error) {
 	}
 	c.Quarantines = quarantinesDoc{Schema: quarantinesSchema, Quarantines: builder.build()}
 
-	got := countCatalogue(c)
+	got := countCatalog(c)
 	if got.RO != roTotal || got.Controls != controlTotal || got.Core != coreCount || got.Models != sumCounts(statedModels) {
 		return nil, fmt.Errorf("internal accounting mismatch: %s", got)
 	}
 	if got != opts.Expect {
 		return nil, fmt.Errorf("counts %s differ from the expected baseline accounting %s; review the reference change and rerun with -expect %s", got, opts.Expect, got)
 	}
-	if err := validateCatalogue(c); err != nil {
+	if err := validateCatalog(c); err != nil {
 		return nil, err
 	}
-	if err := guardCatalogue(c); err != nil {
+	if err := guardCatalog(c); err != nil {
 		return nil, err
 	}
-	files, err := encodeCatalogue(c)
+	files, err := encodeCatalog(c)
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +381,7 @@ func generate(opts options) (*result, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &result{Catalogue: c, Files: files, Sidecar: sidecar, Counts: got, Coverage: coverage}, nil
+	return &result{Catalog: c, Files: files, Sidecar: sidecar, Counts: got, Coverage: coverage}, nil
 }
 
 func firstOffset(item dictionary) int {

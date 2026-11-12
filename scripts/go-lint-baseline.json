@@ -1690,13 +1690,13 @@
     },
     {
       "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderReasonCatalogueAmbiguous",
+      "symbol": "HuaweiProviderReasonCatalogAmbiguous",
       "rule": "revive/exported",
       "count": 1
     },
     {
       "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderReasonCatalogueNotSelected",
+      "symbol": "HuaweiProviderReasonCatalogNotSelected",
       "rule": "revive/exported",
       "count": 1
     },
@@ -2127,97 +2127,97 @@
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
+      "path": "huawei_sun2000_catalog_selection.go",
       "symbol": "HuaweiSUN2000BuildNone",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueAtOrAboveFloor",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogAtOrAboveFloor",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueDecision.FirmwareText",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogDecision.FirmwareText",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueDecision.LiveQualified",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogDecision.LiveQualified",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueDecision.ModelText",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogDecision.ModelText",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueDecision.Outcome",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogDecision.Outcome",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueDecision.ProtocolWords",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogDecision.ProtocolWords",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueDecision.Reason",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogDecision.Reason",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueDecision.Scope",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogDecision.Scope",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueDecision.SupportClaim",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogDecision.SupportClaim",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueDecision.WriteAuthority",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogDecision.WriteAuthority",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueEqualOnCarriedParts",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogEqualOnCarriedParts",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueMatchToken",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogMatchToken",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueMatchWireAlias",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogMatchWireAlias",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
-      "symbol": "HuaweiSUN2000CatalogueSelected",
+      "path": "huawei_sun2000_catalog_selection.go",
+      "symbol": "HuaweiSUN2000CatalogSelected",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_sun2000_catalogue_selection.go",
+      "path": "huawei_sun2000_catalog_selection.go",
       "symbol": "HuaweiSUN2000FloorAtOrAbove",
       "rule": "revive/exported",
       "count": 1

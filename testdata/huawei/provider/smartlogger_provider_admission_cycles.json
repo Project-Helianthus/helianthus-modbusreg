@@ -13,7 +13,7 @@
     "identity/smartlogger_basic_reply.json",
     "identity/sun2000_routed_identity.json",
     "monitoring/sun2000_m3_smartlogger_monitoring.json",
-    "selection/sun2000_catalogue_decisions.json"
+    "selection/sun2000_catalog_decisions.json"
   ],
   "allowed_units": [
     1,

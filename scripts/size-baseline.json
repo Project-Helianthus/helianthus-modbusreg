@@ -176,26 +176,26 @@
       "value": 96
     },
     {
-      "path": "tools/huaweicatalogue/generate.go",
+      "path": "tools/huaweicatalog/generate.go",
       "symbol": "generate",
       "metric": "function_lines",
       "value": 318
     },
     {
-      "path": "tools/huaweicatalogue/logger_generate.go",
+      "path": "tools/huaweicatalog/logger_generate.go",
       "symbol": "$file",
       "metric": "file_lines",
       "value": 1139
     },
     {
-      "path": "tools/huaweicatalogue/logger_generate.go",
+      "path": "tools/huaweicatalog/logger_generate.go",
       "symbol": "generateGateway",
       "metric": "function_lines",
       "value": 165
     },
     {
-      "path": "tools/huaweicatalogue/validate.go",
-      "symbol": "validateCatalogue",
+      "path": "tools/huaweicatalog/validate.go",
+      "symbol": "validateCatalog",
       "metric": "function_lines",
       "value": 177
     }

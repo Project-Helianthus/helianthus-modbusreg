@@ -541,7 +541,7 @@
       "without_identifier": "NOT_SELECTED_OR_AMBIGUOUS",
       "provider_admits_on": "SELECTED",
       "routing": "the selected row of the profile's family on the profile's gateway path",
-      "fixture": "testdata/huawei/selection/sun2000_catalogue_decisions.json",
+      "fixture": "testdata/huawei/selection/sun2000_catalog_decisions.json",
       "docs_page": "protocols/huawei/sun2000-inverter-catalogue-v1.md"
     },
     "forbidden_identity": [

@@ -426,7 +426,7 @@
   },
   "software_selection": {
     "issue": 366,
-    "catalogue": "profiles/vendors/huawei/catalogue/smartlogger-sdongle-emma",
+    "catalogue": "profiles/vendors/huawei/catalog/smartlogger-sdongle-emma",
     "catalogue_files": [
       "editions.json",
       "services.json"

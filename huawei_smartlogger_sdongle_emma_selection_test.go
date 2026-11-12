@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-const m86FixturePath = "testdata/huawei/selection/smartlogger_sdongle_emma_catalogue_decisions.json"
+const m86FixturePath = "testdata/huawei/selection/smartlogger_sdongle_emma_catalog_decisions.json"
 
 type m86Input struct {
 	Family   string `json:"family"`
@@ -152,11 +152,11 @@ func m86RequireSoftwareSelection(t *testing.T, record map[string]any, family str
 		floors = append(floors, map[string]any{"minimum": floor.Minimum, "domain": string(floor.Domain)})
 	}
 	want := map[string]any{
-		"issue": 366, "catalogue": huaweiGatewayCatalogueDirectory, "catalogue_files": []string{"editions.json", "services.json"},
+		"issue": 366, "catalogue": huaweiGatewayCatalogDirectory, "catalogue_files": []string{"editions.json", "services.json"},
 		"family": family, "scope": map[string]any{"endpoint": string(HuaweiGatewayEndpointSelf), "unit": unit}, "floors": floors,
 		"comparison": "WITHIN_FLOOR_DOMAIN", "at_or_above_floor": "SELECTED_HYPOTHESIS", "below_floor_in_domain": "NOT_SELECTED",
 		"no_documented_relation": "ADMITTED_HYPOTHESIS", "several_admitting_floors": "AMBIGUOUS_NO_EDITION_BOUND",
-		"not_selected_reasons": []string{string(HuaweiGatewayFamilyMismatch), string(HuaweiGatewayBelowFloor), string(HuaweiGatewaySoftwareMalformed), string(HuaweiGatewayCatalogueInvalid)},
+		"not_selected_reasons": []string{string(HuaweiGatewayFamilyMismatch), string(HuaweiGatewayBelowFloor), string(HuaweiGatewaySoftwareMalformed), string(HuaweiGatewayCatalogInvalid)},
 		"edition_cover_labels": "IDENTIFY_EDITIONS_NOT_FLOORS", "attribute_dictionary": "SERVICES_DESCRIPTOR_ATTRIBUTES_OF_THE_ADMITTED_EDITIONS",
 		"attribute_6": "EDITION_GRAMMAR_RECORDED_NEVER_DECODED",
 	}
@@ -297,9 +297,9 @@ func TestM86FloorRelationVariesEveryVersionPart(t *testing.T) {
 }
 
 func TestM86LinesAreOrderedOnlyWhereAnEditionDocumentsTheOrder(t *testing.T) {
-	catalogue := huaweiGatewayLoadedCatalogue()
-	if catalogue.err != nil {
-		t.Fatal(catalogue.err)
+	catalog := huaweiGatewayLoadedCatalog()
+	if catalog.err != nil {
+		t.Fatal(catalog.err)
 	}
 	want := map[string]map[int]bool{
 		HuaweiSmartLoggerCanonicalClass: {300: true},
@@ -307,17 +307,17 @@ func TestM86LinesAreOrderedOnlyWhereAnEditionDocumentsTheOrder(t *testing.T) {
 		HuaweiEMMACanonicalClass:        {},
 	}
 	for family, lines := range want {
-		got := catalogue.families[family].orderedLines
+		got := catalog.families[family].orderedLines
 		if !reflect.DeepEqual(got, lines) {
 			t.Fatalf("%s ordered lines %v want %v", family, got, lines)
 		}
 	}
-	if !catalogue.families[HuaweiEMMACanonicalClass].buildRequired || catalogue.families[HuaweiSmartLoggerCanonicalClass].buildRequired ||
-		catalogue.families[HuaweiSDongleCanonicalClass].buildRequired {
+	if !catalog.families[HuaweiEMMACanonicalClass].buildRequired || catalog.families[HuaweiSmartLoggerCanonicalClass].buildRequired ||
+		catalog.families[HuaweiSDongleCanonicalClass].buildRequired {
 		t.Fatal("the build-number requirement does not follow the floors")
 	}
-	if catalogue.families[HuaweiSmartLoggerCanonicalClass].selfUnit != 0 || catalogue.families[HuaweiEMMACanonicalClass].selfUnit != 0 ||
-		catalogue.families[HuaweiSDongleCanonicalClass].selfUnit != 100 {
+	if catalog.families[HuaweiSmartLoggerCanonicalClass].selfUnit != 0 || catalog.families[HuaweiEMMACanonicalClass].selfUnit != 0 ||
+		catalog.families[HuaweiSDongleCanonicalClass].selfUnit != 100 {
 		t.Fatal("self units do not follow the catalogue")
 	}
 }
@@ -325,7 +325,7 @@ func TestM86LinesAreOrderedOnlyWhereAnEditionDocumentsTheOrder(t *testing.T) {
 // TestM86EditionOrderNeverChoosesAWinner reverses and rotates the editions of
 // each family: the decision of every fixture case stays the same.
 func TestM86EditionOrderNeverChoosesAWinner(t *testing.T) {
-	loaded := huaweiGatewayLoadedCatalogue()
+	loaded := huaweiGatewayLoadedCatalog()
 	for _, tc := range m86Load(t).Cases {
 		reference := m86Got(decideHuaweiGatewaySelection(loaded, tc.Input.selection()))
 		for _, permute := range []func([]huaweiGatewayFamilyEdition) []huaweiGatewayFamilyEdition{
@@ -340,7 +340,7 @@ func TestM86EditionOrderNeverChoosesAWinner(t *testing.T) {
 				return append(append([]huaweiGatewayFamilyEdition(nil), in[1:]...), in[0])
 			},
 		} {
-			permuted := huaweiGatewayCatalogue{families: map[string]huaweiGatewayFamily{}}
+			permuted := huaweiGatewayCatalog{families: map[string]huaweiGatewayFamily{}}
 			for name, family := range loaded.families {
 				family.editions = permute(family.editions)
 				permuted.families[name] = family
@@ -352,14 +352,14 @@ func TestM86EditionOrderNeverChoosesAWinner(t *testing.T) {
 	}
 }
 
-// TestM86CatalogueLoaderFailsClosed mutates the two catalogue files the
+// TestM86CatalogLoaderFailsClosed mutates the two catalogue files the
 // selection reads: every malformed binding refuses the catalogue, and a
 // refused catalogue selects nothing.
-func TestM86CatalogueLoaderFailsClosed(t *testing.T) {
+func TestM86CatalogLoaderFailsClosed(t *testing.T) {
 	read := func(name string) ([]byte, error) {
-		return huaweiGatewayCatalogueFiles.ReadFile(huaweiGatewayCatalogueDirectory + "/" + name)
+		return huaweiGatewayCatalogFiles.ReadFile(huaweiGatewayCatalogDirectory + "/" + name)
 	}
-	if _, err := loadHuaweiGatewayCatalogue(read); err != nil {
+	if _, err := loadHuaweiGatewayCatalog(read); err != nil {
 		t.Fatalf("committed catalogue: %v", err)
 	}
 	mutated := func(file, old, replacement string) func(string) ([]byte, error) {
@@ -397,14 +397,14 @@ func TestM86CatalogueLoaderFailsClosed(t *testing.T) {
 			return read(name)
 		},
 	} {
-		families, err := loadHuaweiGatewayCatalogue(source)
+		families, err := loadHuaweiGatewayCatalog(source)
 		if err == nil || families != nil {
 			t.Fatalf("%s: catalogue accepted", name)
 		}
-		decision := decideHuaweiGatewaySelection(huaweiGatewayCatalogue{err: err}, HuaweiGatewaySelectionInput{
+		decision := decideHuaweiGatewaySelection(huaweiGatewayCatalog{err: err}, HuaweiGatewaySelectionInput{
 			Family: HuaweiSmartLoggerCanonicalClass, Scope: HuaweiGatewayScope{Endpoint: HuaweiGatewayEndpointSelf}, Software: "V300R023C10SPC620",
 		})
-		if decision.Admitted() || decision.Reason() != HuaweiGatewayCatalogueInvalid {
+		if decision.Admitted() || decision.Reason() != HuaweiGatewayCatalogInvalid {
 			t.Fatalf("%s: a refused catalogue selected %+v", name, decision)
 		}
 	}
@@ -421,10 +421,10 @@ func TestM86DescriptorDictionaryComesFromTheServicesPerEdition(t *testing.T) {
 			t.Fatalf("%q: %v %t", text, got, ok)
 		}
 	}
-	catalogue := huaweiGatewayLoadedCatalogue()
+	catalog := huaweiGatewayLoadedCatalog()
 	keys := map[string][]int{}
 	grammars := map[string]string{}
-	for _, family := range catalogue.families {
+	for _, family := range catalog.families {
 		for _, edition := range family.editions {
 			keys[edition.edition.ID], grammars[edition.edition.ID] = edition.edition.DescriptorKeys, edition.edition.AttributeSix
 		}
@@ -525,8 +525,8 @@ func TestM86SelectionIsAbsentOrRefusingOnEveryRejectedCard(t *testing.T) {
 	if floor, relation := result.ObservedFloor(); floor != h03Firmware || relation != HuaweiGatewayRelationBelow || result.SoftwareGrade() != HuaweiGradeUnknown {
 		t.Fatalf("below the observed floor: %q %s %s", floor, relation, result.SoftwareGrade())
 	}
-	catalogueBelow := h03MutatedInventory(t, h03ReplaceInSelfEntry("2="+h03Firmware+";", "2=V300R000C10;"))
-	result = NewHuaweiSmartLoggerObservedQualificationCard().Evaluate(catalogueBelow)
+	catalogBelow := h03MutatedInventory(t, h03ReplaceInSelfEntry("2="+h03Firmware+";", "2=V300R000C10;"))
+	result = NewHuaweiSmartLoggerObservedQualificationCard().Evaluate(catalogBelow)
 	if selection, ok := result.Selection(); result.IdentityMatched() || !ok || selection.Outcome() != HuaweiGatewayNotSelected || selection.Reason() != HuaweiGatewayBelowFloor {
 		t.Fatalf("below the catalogue floor: %#v", result)
 	}
@@ -634,7 +634,7 @@ func TestM86OpaqueAttributesKeepTheChildComparable(t *testing.T) {
 	}
 }
 
-func TestHuaweiGatewayModelWithCatalogueParentheticalRow(t *testing.T) {
+func TestHuaweiGatewayModelWithCatalogParentheticalRow(t *testing.T) {
 	selection := DecideHuaweiGatewaySelection(HuaweiGatewaySelectionInput{
 		Family:   "SmartLogger",
 		Scope:    HuaweiGatewayScope{Endpoint: HuaweiGatewayEndpointSelf, Unit: 0},

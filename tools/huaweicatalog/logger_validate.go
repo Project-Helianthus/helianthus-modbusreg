@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-// encodeGatewayCatalogue returns the canonical bytes of every gateway file.
-func encodeGatewayCatalogue(c *gatewayCatalogue) (map[string][]byte, error) {
+// encodeGatewayCatalog returns the canonical bytes of every gateway file.
+func encodeGatewayCatalog(c *gatewayCatalog) (map[string][]byte, error) {
 	files := map[string][]byte{}
 	documents := map[string]any{editionsFile: &c.Editions, dictionariesFile: &c.Dictionaries, quarantinesFile: &c.Quarantines, servicesFile: &c.Services}
 	for name, doc := range c.Registers {
@@ -26,15 +26,15 @@ func encodeGatewayCatalogue(c *gatewayCatalogue) (map[string][]byte, error) {
 	return files, nil
 }
 
-// loadGatewayCatalogue reads and strictly decodes every file of the gateway
+// loadGatewayCatalog reads and strictly decodes every file of the gateway
 // directory. A file the schema does not name, or a directory, is refused.
-func loadGatewayCatalogue(directory string) (*gatewayCatalogue, map[string][]byte, error) {
+func loadGatewayCatalog(directory string) (*gatewayCatalog, map[string][]byte, error) {
 	entries, err := os.ReadDir(directory)
 	if err != nil {
 		return nil, nil, err
 	}
 	raw := map[string][]byte{}
-	c := &gatewayCatalogue{Registers: map[string]*registersDoc{}}
+	c := &gatewayCatalog{Registers: map[string]*registersDoc{}}
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.IsDir() {
@@ -74,7 +74,7 @@ func loadGatewayCatalogue(directory string) (*gatewayCatalogue, map[string][]byt
 // on a read-only row.
 var conflictSubjects = map[string]bool{topicRemapLayouts: true, topicEnvironmentScope: true, topicSerialWidth: true}
 
-func validateGatewayEditions(c *gatewayCatalogue) (map[string]edition, error) {
+func validateGatewayEditions(c *gatewayCatalog) (map[string]edition, error) {
 	if c.Editions.Schema != editionsSchema || c.Dictionaries.Schema != dictionariesSchema || c.Quarantines.Schema != quarantinesSchema || c.Services.Schema != servicesSchema {
 		return nil, fmt.Errorf("unexpected schema identifier")
 	}
@@ -119,9 +119,9 @@ func validateGatewayEditions(c *gatewayCatalogue) (map[string]edition, error) {
 	return editions, nil
 }
 
-// validateGatewayCatalogue enforces every structural and cross-file invariant
+// validateGatewayCatalog enforces every structural and cross-file invariant
 // of the gateway documents.
-func validateGatewayCatalogue(c *gatewayCatalogue) error {
+func validateGatewayCatalog(c *gatewayCatalog) error {
 	editions, err := validateGatewayEditions(c)
 	if err != nil {
 		return err
@@ -222,7 +222,7 @@ func validateGatewayCatalogue(c *gatewayCatalogue) error {
 	return checkGatewayQuarantines(c, editions)
 }
 
-func validateGatewayDictionaries(c *gatewayCatalogue, editions map[string]edition, rowsByCard map[string]map[int][]registerRow, cardOffsets map[string]map[int]bool) error {
+func validateGatewayDictionaries(c *gatewayCatalog, editions map[string]edition, rowsByCard map[string]map[int][]registerRow, cardOffsets map[string]map[int]bool) error {
 	ids := map[string]bool{}
 	for _, item := range c.Dictionaries.Dictionaries {
 		record, ok := editions[item.Edition]
@@ -287,7 +287,7 @@ func validateGatewayDictionaries(c *gatewayCatalogue, editions map[string]editio
 	return nil
 }
 
-func validateServices(c *gatewayCatalogue, editions map[string]edition) error {
+func validateServices(c *gatewayCatalog, editions map[string]edition) error {
 	services := c.Services
 	if services.DeviceListGrammar == "" || len(services.Functions) == 0 || len(services.Exceptions) == 0 || len(services.ListObjects) == 0 ||
 		len(services.Attributes) == 0 || len(services.Limits) == 0 {
@@ -360,7 +360,7 @@ func validateServices(c *gatewayCatalogue, editions map[string]edition) error {
 
 // checkGatewayQuarantines verifies that the affected rows, services entries
 // and alarm bits of every quarantine are exactly the ones that carry its flag.
-func checkGatewayQuarantines(c *gatewayCatalogue, editions map[string]edition) error {
+func checkGatewayQuarantines(c *gatewayCatalog, editions map[string]edition) error {
 	builder := newQuarantineBuilder()
 	for _, item := range c.Quarantines.Quarantines {
 		if _, exists := builder.items[item.ID]; exists || !validOrigins[item.Origin] || item.Subject == "" || item.Meaning == "" || item.Editions == nil || item.Affected == nil {
@@ -437,9 +437,9 @@ func checkGatewayQuarantines(c *gatewayCatalogue, editions map[string]edition) e
 	return nil
 }
 
-// guardGatewayCatalogue applies the publication guard to every committed
+// guardGatewayCatalog applies the publication guard to every committed
 // string, and refuses source identifiers of the reference.
-func guardGatewayCatalogue(c *gatewayCatalogue) error {
+func guardGatewayCatalog(c *gatewayCatalog) error {
 	documents := map[string]any{editionsFile: c.Editions, dictionariesFile: c.Dictionaries, quarantinesFile: c.Quarantines, servicesFile: c.Services}
 	for name, doc := range c.Registers {
 		documents[name] = doc

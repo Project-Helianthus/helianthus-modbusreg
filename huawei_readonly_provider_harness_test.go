@@ -296,10 +296,10 @@ type h06ExpectChild struct {
 	Unit     uint8  `json:"unit"`
 	Evidence string `json:"evidence"`
 	Reason   string `json:"reason"`
-	// Catalogue is h06CatalogueSummary of the child's catalogue decision, or
+	// Catalog is h06CatalogSummary of the child's catalogue decision, or
 	// empty when no admission of the child completed.
-	Catalogue string   `json:"catalogue,omitempty"`
-	Retained  []uint16 `json:"retained,omitempty"`
+	Catalog  string   `json:"catalogue,omitempty"`
+	Retained []uint16 `json:"retained,omitempty"`
 }
 
 type h06Expect struct {
@@ -424,7 +424,7 @@ func h06MonitoringAnswer(t testing.TB, fixture h05Fixture, unit uint8, offset, q
 }
 
 // h06DecisionTableSource is the source entry of the catalogue decision table.
-const h06DecisionTableSource = "selection/sun2000_catalogue_decisions.json"
+const h06DecisionTableSource = "selection/sun2000_catalog_decisions.json"
 
 // h06BlockWords returns the register words of a read extent.
 func h06BlockWords(block []byte) []uint16 {
@@ -462,10 +462,10 @@ func h06CaseAnswer(t testing.TB, step h06Step) h06Answer {
 	return h06Answer{}
 }
 
-// h06CatalogueSummary is the compact form of a child's catalogue decision in
+// h06CatalogSummary is the compact form of a child's catalogue decision in
 // the provider-cycle fixtures: the outcome, the closed reason and every row the
 // decision names, as card/identifier.
-func h06CatalogueSummary(decision *HuaweiSUN2000CatalogueDecision) string {
+func h06CatalogSummary(decision *HuaweiSUN2000CatalogDecision) string {
 	if decision == nil {
 		return ""
 	}
@@ -722,8 +722,8 @@ func h06RequireExpect(t testing.TB, name string, cycle HuaweiProviderCycle, expe
 		if got.UnitID != want.Unit || string(got.Evidence) != want.Evidence || string(got.Reason) != want.Reason {
 			t.Fatalf("%s: child %d = unit %d %s %s, want unit %d %s %s", name, index, got.UnitID, got.Evidence, got.Reason, want.Unit, want.Evidence, want.Reason)
 		}
-		if summary := h06CatalogueSummary(got.Catalogue); summary != want.Catalogue {
-			t.Fatalf("%s: unit %d catalogue decision %q, want %q", name, got.UnitID, summary, want.Catalogue)
+		if summary := h06CatalogSummary(got.Catalog); summary != want.Catalog {
+			t.Fatalf("%s: unit %d catalogue decision %q, want %q", name, got.UnitID, summary, want.Catalog)
 		}
 		var retained []uint16
 		for _, group := range got.Groups {

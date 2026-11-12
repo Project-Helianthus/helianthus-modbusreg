@@ -20,7 +20,7 @@ import (
 
 var (
 	sourceAnchorPattern  = regexp.MustCompile(`sources\.md#(gw\d{2})\)`)
-	catalogueLinkPattern = regexp.MustCompile(`catalogues/(gw\d{2})(?:-alarms)?\.md`)
+	catalogLinkPattern   = regexp.MustCompile(`catalogues/(gw\d{2})(?:-alarms)?\.md`)
 	sourceIDTokenPattern = regexp.MustCompile(`\bGW\d{2}\b`)
 	pageRangePattern     = regexp.MustCompile(`^(\d+)–(\d+)$`)
 	functionListPattern  = regexp.MustCompile(`^The edition lists (FC[0-9A-F]{2}(?:/MEI[0-9A-F]{2})?(?:, FC[0-9A-F]{2}(?:/MEI[0-9A-F]{2})?)* and FC[0-9A-F]{2}(?:/MEI[0-9A-F]{2})?)\. `)
@@ -563,7 +563,7 @@ func parseContradictions(text string) (*contradictionTables, error) {
 		return nil, err
 	}
 	for _, row := range collisions {
-		match := catalogueLinkPattern.FindStringSubmatch(row[0])
+		match := catalogLinkPattern.FindStringSubmatch(row[0])
 		if match == nil {
 			return nil, fmt.Errorf("collision row %v", row)
 		}
@@ -579,7 +579,7 @@ func parseContradictions(text string) (*contradictionTables, error) {
 		return nil, err
 	}
 	for _, row := range only {
-		match := catalogueLinkPattern.FindStringSubmatch(row[0])
+		match := catalogLinkPattern.FindStringSubmatch(row[0])
 		address, err := strconv.Atoi(row[1])
 		if match == nil || err != nil {
 			return nil, fmt.Errorf("dictionary-only row %v", row)

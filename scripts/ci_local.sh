@@ -19,14 +19,17 @@ echo "==> scope policy mutation tests"
 python3 -m unittest discover -s tests -p 'test_*.py'
 
 echo "==> gofmt"
-go_files="$(git ls-files '*.go' | LC_ALL=C sort)"
-if [[ -n "$go_files" ]]; then
-  unformatted="$(gofmt -l $go_files)"
-  if [[ -n "$unformatted" ]]; then
-    echo "gofmt required for:"
-    echo "$unformatted"
-    exit 1
-  fi
+# Include unstaged rename destinations and omit paths deleted from the worktree.
+unformatted="$(
+  while IFS= read -r -d '' go_file; do
+    [[ -f "$go_file" ]] || continue
+    gofmt -l "$go_file" || exit
+  done < <(git ls-files -z --cached --others --exclude-standard '*.go')
+)"
+if [[ -n "$unformatted" ]]; then
+  echo "gofmt required for:"
+  echo "$unformatted"
+  exit 1
 fi
 
 echo "==> go vet"

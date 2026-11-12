@@ -11,11 +11,11 @@ import (
 	"testing"
 )
 
-const gatewayCatalogueDirectory = catalogueDirectory + "/" + gatewayDirectory
+const gatewayCatalogDirectory = catalogDirectory + "/" + gatewayDirectory
 
-func loadGatewayCommitted(t *testing.T) (*gatewayCatalogue, map[string][]byte) {
+func loadGatewayCommitted(t *testing.T) (*gatewayCatalog, map[string][]byte) {
 	t.Helper()
-	c, raw, err := loadGatewayCatalogue(gatewayCatalogueDirectory)
+	c, raw, err := loadGatewayCatalog(gatewayCatalogDirectory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +24,7 @@ func loadGatewayCommitted(t *testing.T) (*gatewayCatalogue, map[string][]byte) {
 
 // gatewayEditionsBy returns the edition records keyed by family and issue
 // label, e.g. "SmartLogger Issue 49".
-func gatewayEditionsBy(c *gatewayCatalogue) map[string]edition {
+func gatewayEditionsBy(c *gatewayCatalog) map[string]edition {
 	out := map[string]edition{}
 	for _, record := range c.Editions.Editions {
 		out[record.Family+" "+record.Issue+" "+record.Date] = record
@@ -32,13 +32,13 @@ func gatewayEditionsBy(c *gatewayCatalogue) map[string]edition {
 	return out
 }
 
-func gatewayRegisters(c *gatewayCatalogue, editionID string) *registersDoc {
+func gatewayRegisters(c *gatewayCatalog, editionID string) *registersDoc {
 	return c.Registers[registersFileName(editionID)]
 }
 
-func TestGatewayCatalogueRoundTripsByteForByte(t *testing.T) {
+func TestGatewayCatalogRoundTripsByteForByte(t *testing.T) {
 	c, raw := loadGatewayCommitted(t)
-	encoded, err := encodeGatewayCatalogue(c)
+	encoded, err := encodeGatewayCatalog(c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,9 +52,9 @@ func TestGatewayCatalogueRoundTripsByteForByte(t *testing.T) {
 	}
 }
 
-func TestGatewayCatalogueMatchesTheReferenceAccounting(t *testing.T) {
+func TestGatewayCatalogMatchesTheReferenceAccounting(t *testing.T) {
 	c, _ := loadGatewayCommitted(t)
-	if got := countGatewayCatalogue(c); got != defaultGatewayExpect {
+	if got := countGatewayCatalog(c); got != defaultGatewayExpect {
 		t.Fatalf("counts %s, want %s", got, defaultGatewayExpect)
 	}
 	if c.Editions.ReferenceBaseline != "2026-10-26.1" || len(c.Editions.Editions) != 18 {
@@ -121,12 +121,12 @@ func TestGatewayCatalogueMatchesTheReferenceAccounting(t *testing.T) {
 	}
 }
 
-func TestGatewayCatalogueSatisfiesEveryInvariant(t *testing.T) {
+func TestGatewayCatalogSatisfiesEveryInvariant(t *testing.T) {
 	c, _ := loadGatewayCommitted(t)
-	if err := validateGatewayCatalogue(c); err != nil {
+	if err := validateGatewayCatalog(c); err != nil {
 		t.Fatal(err)
 	}
-	if err := guardGatewayCatalogue(c); err != nil {
+	if err := guardGatewayCatalog(c); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -321,7 +321,7 @@ func TestMeterProtocolGuardStaysOnTheNamedMeterRows(t *testing.T) {
 	}
 }
 
-func quarantineBySubject(c *gatewayCatalogue, subject string) quarantine {
+func quarantineBySubject(c *gatewayCatalog, subject string) quarantine {
 	for _, item := range c.Quarantines.Quarantines {
 		if item.Subject == subject {
 			return item
@@ -413,7 +413,7 @@ func TestGatewayQuarantinesFlagTheNamedConflicts(t *testing.T) {
 	}
 }
 
-func gatewayEditionKey(c *gatewayCatalogue, editionID string) string {
+func gatewayEditionKey(c *gatewayCatalog, editionID string) string {
 	for _, record := range c.Editions.Editions {
 		if record.ID == editionID {
 			return record.Family
@@ -506,7 +506,7 @@ func TestGatewayDictionariesAreWithheldFromRawOnlyAndConflictRows(t *testing.T) 
 			if *row.Offset == item.Offsets[0] && row.Endpoint == item.Endpoint {
 				saved := doc.Rows[index]
 				doc.Rows[index].Class, doc.Rows[index].Literal, doc.Rows[index].Decode = classRawOnly, row.Decode, nil
-				err := validateGatewayCatalogue(c)
+				err := validateGatewayCatalog(c)
 				doc.Rows[index] = saved
 				if err == nil {
 					t.Fatalf("%s: a dictionary on a raw-only row was accepted", item.ID)
@@ -621,16 +621,16 @@ func TestInverterLoaderSkipsOnlyTheGatewayDirectory(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(root, gatewayDirectory), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := loadCatalogue(root); err != nil {
+	if _, _, err := loadCatalog(root); err != nil {
 		t.Fatalf("the gateway directory was not skipped: %v", err)
 	}
 	if err := os.Mkdir(filepath.Join(root, "other"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := loadCatalogue(root); err == nil {
+	if _, _, err := loadCatalog(root); err == nil {
 		t.Fatal("an unexpected directory was accepted")
 	}
-	if _, _, err := loadGatewayCatalogue(root); err == nil {
+	if _, _, err := loadGatewayCatalog(root); err == nil {
 		t.Fatal("the gateway loader accepted a directory")
 	}
 }
@@ -638,7 +638,7 @@ func TestInverterLoaderSkipsOnlyTheGatewayDirectory(t *testing.T) {
 // Each mutation changes one field of an identity, class or binding the
 // validator covers and must be refused.
 func TestGatewayValidatorRefusesIdentityAndBindingMutations(t *testing.T) {
-	first := func(c *gatewayCatalogue) *registersDoc {
+	first := func(c *gatewayCatalog) *registersDoc {
 		names := make([]string, 0, len(c.Registers))
 		for name := range c.Registers {
 			names = append(names, name)
@@ -648,18 +648,18 @@ func TestGatewayValidatorRefusesIdentityAndBindingMutations(t *testing.T) {
 	}
 	for _, mutation := range []struct {
 		name   string
-		mutate func(c *gatewayCatalogue)
+		mutate func(c *gatewayCatalog)
 	}{
-		{"row key", func(c *gatewayCatalogue) { first(c).Rows[0].Key += "x" }},
-		{"row endpoint", func(c *gatewayCatalogue) { first(c).Rows[0].Endpoint = endpointInverter }},
-		{"row offset", func(c *gatewayCatalogue) { *first(c).Rows[0].Offset++ }},
-		{"row class", func(c *gatewayCatalogue) { first(c).Rows[0].Class = classConflict }},
-		{"control class", func(c *gatewayCatalogue) { first(c).Controls[0].Class = classNoSend }},
-		{"edition id", func(c *gatewayCatalogue) { c.Editions.Editions[1].ID = c.Editions.Editions[0].ID }},
-		{"edition floor", func(c *gatewayCatalogue) { c.Editions.Editions[0].Floors[0].Inclusive = false }},
-		{"edition self unit", func(c *gatewayCatalogue) { *c.Editions.Editions[0].SelfUnit = 7 }},
-		{"namespace rows", func(c *gatewayCatalogue) { c.Editions.Editions[0].Namespaces[0].Rows++ }},
-		{"dropped row flag", func(c *gatewayCatalogue) {
+		{"row key", func(c *gatewayCatalog) { first(c).Rows[0].Key += "x" }},
+		{"row endpoint", func(c *gatewayCatalog) { first(c).Rows[0].Endpoint = endpointInverter }},
+		{"row offset", func(c *gatewayCatalog) { *first(c).Rows[0].Offset++ }},
+		{"row class", func(c *gatewayCatalog) { first(c).Rows[0].Class = classConflict }},
+		{"control class", func(c *gatewayCatalog) { first(c).Controls[0].Class = classNoSend }},
+		{"edition id", func(c *gatewayCatalog) { c.Editions.Editions[1].ID = c.Editions.Editions[0].ID }},
+		{"edition floor", func(c *gatewayCatalog) { c.Editions.Editions[0].Floors[0].Inclusive = false }},
+		{"edition self unit", func(c *gatewayCatalog) { *c.Editions.Editions[0].SelfUnit = 7 }},
+		{"namespace rows", func(c *gatewayCatalog) { c.Editions.Editions[0].Namespaces[0].Rows++ }},
+		{"dropped row flag", func(c *gatewayCatalog) {
 			for _, doc := range c.Registers {
 				for index := range doc.Rows {
 					if len(doc.Rows[index].Quarantine) > 0 {
@@ -669,12 +669,12 @@ func TestGatewayValidatorRefusesIdentityAndBindingMutations(t *testing.T) {
 				}
 			}
 		}},
-		{"services self unit", func(c *gatewayCatalogue) { c.Services.Editions[0].SelfUnit = 9 }},
-		{"services exception", func(c *gatewayCatalogue) {
+		{"services self unit", func(c *gatewayCatalog) { c.Services.Editions[0].SelfUnit = 9 }},
+		{"services exception", func(c *gatewayCatalog) {
 			c.Services.Editions[0].ExceptionCodes = append(c.Services.Editions[0].ExceptionCodes, "C1")
 		}},
-		{"services flag", func(c *gatewayCatalogue) { c.Services.Editions[0].Quarantine = nil }},
-		{"alarm flag", func(c *gatewayCatalogue) {
+		{"services flag", func(c *gatewayCatalog) { c.Services.Editions[0].Quarantine = nil }},
+		{"alarm flag", func(c *gatewayCatalog) {
 			for index := range c.Dictionaries.Dictionaries {
 				for position := range c.Dictionaries.Dictionaries[index].Bits {
 					if hasFlag(c.Dictionaries.Dictionaries[index].Bits[position].Quarantine, quarantineAlarmCollision) {
@@ -688,7 +688,7 @@ func TestGatewayValidatorRefusesIdentityAndBindingMutations(t *testing.T) {
 		t.Run(mutation.name, func(t *testing.T) {
 			c, _ := loadGatewayCommitted(t)
 			mutation.mutate(c)
-			if err := validateGatewayCatalogue(c); err == nil {
+			if err := validateGatewayCatalog(c); err == nil {
 				t.Fatalf("mutation %q was accepted", mutation.name)
 			}
 		})
