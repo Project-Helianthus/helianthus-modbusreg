@@ -6,6 +6,9 @@ cd "$repo_root"
 export GOWORK=off
 export PYTHONDONTWRITEBYTECODE=1
 
+echo "==> Python lint baseline"
+python3 scripts/check_python_lint.py
+
 echo "==> terminology gate"
 if git grep -nIwiE 'm[a]ster|s[l]ave'; then
   echo "Found legacy terminology."
