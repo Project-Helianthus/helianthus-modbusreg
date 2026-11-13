@@ -1,5 +1,76 @@
 # Changelog
 
+## Growatt package (#377)
+
+The Growatt profiles move from the module root to package `github.com/Project-Helianthus/helianthus-modbusreg/growatt`. Exported names that began with `Growatt` lose that prefix and constructors follow their types; methods, fields, wire values and behavior are unchanged. No alias or forwarding declaration remains in the root package. Consumers replace each previous name with the current one:
+
+| Previous name | Current name |
+| --- | --- |
+| `modbusreg.GrowattAggregateAttempt` | `growatt.AggregateAttempt` |
+| `modbusreg.GrowattAggregateContext` | `growatt.AggregateContext` |
+| `modbusreg.GrowattAggregateHistoryLimit` | `growatt.AggregateHistoryLimit` |
+| `modbusreg.GrowattAggregateIdentity` | `growatt.AggregateIdentity` |
+| `modbusreg.GrowattAggregateOfflineCycle` | `growatt.AggregateOfflineCycle` |
+| `modbusreg.GrowattAggregateOfflineProvider` | `growatt.AggregateOfflineProvider` |
+| `modbusreg.GrowattAggregateOfflineReader` | `growatt.AggregateOfflineReader` |
+| `modbusreg.GrowattAggregateRetention` | `growatt.AggregateRetention` |
+| `modbusreg.GrowattAggregateSnapshot` | `growatt.AggregateSnapshot` |
+| `modbusreg.GrowattBMSCellVoltageGroup` | `growatt.BMSCellVoltageGroup` |
+| `modbusreg.GrowattBMSDiagnosticRawSlice` | `growatt.BMSDiagnosticRawSlice` |
+| `modbusreg.GrowattBMSMultiGroupDiagnostic` | `growatt.BMSMultiGroupDiagnostic` |
+| `modbusreg.GrowattBMSMultiGroupDiagnosticInput` | `growatt.BMSMultiGroupDiagnosticInput` |
+| `modbusreg.GrowattBMSNativeCellState` | `growatt.BMSNativeCellState` |
+| `modbusreg.GrowattBMSNativeCellStateOff` | `growatt.BMSNativeCellStateOff` |
+| `modbusreg.GrowattBMSNativeCellStateOn` | `growatt.BMSNativeCellStateOn` |
+| `modbusreg.GrowattBMSOperatingState` | `growatt.BMSOperatingState` |
+| `modbusreg.GrowattBMSRS485RTUObserver` | `growatt.BMSRS485RTUObserver` |
+| `modbusreg.GrowattBMSRS485RTUObserverSession` | `growatt.BMSRS485RTUObserverSession` |
+| `modbusreg.GrowattBMSReadOnlyInput` | `growatt.BMSReadOnlyInput` |
+| `modbusreg.GrowattBMSReadOnlyObservation` | `growatt.BMSReadOnlyObservation` |
+| `modbusreg.GrowattBMSReadOnlySlice` | `growatt.BMSReadOnlySlice` |
+| `modbusreg.GrowattBMSRevisionTuple` | `growatt.BMSRevisionTuple` |
+| `modbusreg.GrowattBMSStateCharging` | `growatt.BMSStateCharging` |
+| `modbusreg.GrowattBMSStateDischarging` | `growatt.BMSStateDischarging` |
+| `modbusreg.GrowattBMSStateSoftStarting` | `growatt.BMSStateSoftStarting` |
+| `modbusreg.GrowattBMSStateStandby` | `growatt.BMSStateStandby` |
+| `modbusreg.GrowattBMSTypedReadOnlyStatus` | `growatt.BMSTypedReadOnlyStatus` |
+| `modbusreg.GrowattDiagnosticCommitBase` | `growatt.DiagnosticCommitBase` |
+| `modbusreg.GrowattDiagnosticCommitCandidate` | `growatt.DiagnosticCommitCandidate` |
+| `modbusreg.GrowattDiagnosticCommitContext` | `growatt.DiagnosticCommitContext` |
+| `modbusreg.GrowattDiagnosticCommitContextMismatch` | `growatt.DiagnosticCommitContextMismatch` |
+| `modbusreg.GrowattDiagnosticCommitIdentity` | `growatt.DiagnosticCommitIdentity` |
+| `modbusreg.GrowattDiagnosticCommitInvalidBase` | `growatt.DiagnosticCommitInvalidBase` |
+| `modbusreg.GrowattDiagnosticCommitInvalidContext` | `growatt.DiagnosticCommitInvalidContext` |
+| `modbusreg.GrowattDiagnosticCommitInvalidDiagnostic` | `growatt.DiagnosticCommitInvalidDiagnostic` |
+| `modbusreg.GrowattDiagnosticCommitLineageChanged` | `growatt.DiagnosticCommitLineageChanged` |
+| `modbusreg.GrowattDiagnosticCommitNativeIdentity` | `growatt.DiagnosticCommitNativeIdentity` |
+| `modbusreg.GrowattDiagnosticCommitRejection` | `growatt.DiagnosticCommitRejection` |
+| `modbusreg.GrowattDiagnosticCommitTopologyChanged` | `growatt.DiagnosticCommitTopologyChanged` |
+| `modbusreg.GrowattFC04FieldExtent` | `growatt.FC04FieldExtent` |
+| `modbusreg.GrowattFC04Record` | `growatt.FC04Record` |
+| `modbusreg.GrowattFC04SymbolicSchema` | `growatt.FC04SymbolicSchema` |
+| `modbusreg.GrowattProtocolIIFC04Applicability` | `growatt.ProtocolIIFC04Applicability` |
+| `modbusreg.GrowattProtocolIIFC04RTUObserver` | `growatt.ProtocolIIFC04RTUObserver` |
+| `modbusreg.GrowattProtocolIIFC04RTUObserverSession` | `growatt.ProtocolIIFC04RTUObserverSession` |
+| `modbusreg.GrowattProtocolIIFC04Slice` | `growatt.ProtocolIIFC04Slice` |
+| `modbusreg.GrowattProtocolIIFC04Telemetry` | `growatt.ProtocolIIFC04Telemetry` |
+| `modbusreg.GrowattProtocolIIIdentityInput` | `growatt.ProtocolIIIdentityInput` |
+| `modbusreg.GrowattProtocolIIIdentityObservation` | `growatt.ProtocolIIIdentityObservation` |
+| `modbusreg.GrowattProtocolIIIdentityProfile` | `growatt.ProtocolIIIdentityProfile` |
+| `modbusreg.GrowattProtocolIIIdentityRTUObserver` | `growatt.ProtocolIIIdentityRTUObserver` |
+| `modbusreg.GrowattProtocolIIIdentityRTUObserverSession` | `growatt.ProtocolIIIdentityRTUObserverSession` |
+| `modbusreg.GrowattProtocolIIIdentitySlice` | `growatt.ProtocolIIIdentitySlice` |
+| `modbusreg.GrowattProtocolIIInverterState` | `growatt.ProtocolIIInverterState` |
+| `modbusreg.GrowattProtocolIIStateFault` | `growatt.ProtocolIIStateFault` |
+| `modbusreg.GrowattProtocolIIStateNormal` | `growatt.ProtocolIIStateNormal` |
+| `modbusreg.GrowattProtocolIIStateWaiting` | `growatt.ProtocolIIStateWaiting` |
+| `modbusreg.NewGrowattAggregateOfflineProvider` | `growatt.NewAggregateOfflineProvider` |
+| `modbusreg.NewGrowattAggregateRetention` | `growatt.NewAggregateRetention` |
+| `modbusreg.NewGrowattBMSRS485RTUObserver` | `growatt.NewBMSRS485RTUObserver` |
+| `modbusreg.NewGrowattDiagnosticCommitBase` | `growatt.NewDiagnosticCommitBase` |
+| `modbusreg.NewGrowattProtocolIIFC04RTUObserver` | `growatt.NewProtocolIIFC04RTUObserver` |
+| `modbusreg.NewGrowattProtocolIIIdentityRTUObserver` | `growatt.NewProtocolIIIdentityRTUObserver` |
+
 ## Catalog spelling (#379)
 
 Direct replacement of external values and schema identifiers; no aliases or migration acceptance. Native evidence, qualification and admission remain unchanged.

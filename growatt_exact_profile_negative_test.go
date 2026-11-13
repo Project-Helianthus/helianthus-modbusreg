@@ -8,6 +8,7 @@ import (
 
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/growatt"
 )
 
 func TestK21GrowattExactProfileNegativeAdmissionMatrix(t *testing.T) {
@@ -21,21 +22,21 @@ func TestK21GrowattExactProfileNegativeAdmissionMatrix(t *testing.T) {
 	before := catalog.Profiles()
 	tests := []struct {
 		name       string
-		mutate     func(*reg.GrowattProtocolIIIdentityInput)
+		mutate     func(*growatt.ProtocolIIIdentityInput)
 		rawAllowed bool
 	}{
-		{"exact_but_unqualified", func(*reg.GrowattProtocolIIIdentityInput) {}, true},
-		{"similar_family_text", func(in *reg.GrowattProtocolIIIdentityInput) { in.Profile.Family = "MAX-X" }, false},
-		{"wrong_function", func(in *reg.GrowattProtocolIIIdentityInput) { in.Function = reg.FunctionReadInputRegisters }, false},
-		{"absent_schema_revision", func(in *reg.GrowattProtocolIIIdentityInput) { in.Profile.Schema = "" }, false},
-		{"previous_schema_revision", func(in *reg.GrowattProtocolIIIdentityInput) { in.Profile.Schema = "Protocol II v1.23 TL3-X" }, false},
-		{"next_schema_revision", func(in *reg.GrowattProtocolIIIdentityInput) { in.Profile.Schema = "Protocol II v1.25 TL3-X" }, false},
+		{"exact_but_unqualified", func(*growatt.ProtocolIIIdentityInput) {}, true},
+		{"similar_family_text", func(in *growatt.ProtocolIIIdentityInput) { in.Profile.Family = "MAX-X" }, false},
+		{"wrong_function", func(in *growatt.ProtocolIIIdentityInput) { in.Function = reg.FunctionReadInputRegisters }, false},
+		{"absent_schema_revision", func(in *growatt.ProtocolIIIdentityInput) { in.Profile.Schema = "" }, false},
+		{"previous_schema_revision", func(in *growatt.ProtocolIIIdentityInput) { in.Profile.Schema = "Protocol II v1.23 TL3-X" }, false},
+		{"next_schema_revision", func(in *growatt.ProtocolIIIdentityInput) { in.Profile.Schema = "Protocol II v1.25 TL3-X" }, false},
 		// Matching caller/raw values may be retained as observations, but are
 		// never a source-backed mapping from a wire value to a manual revision.
-		{"absent_wire_revision", func(in *reg.GrowattProtocolIIIdentityInput) {
+		{"absent_wire_revision", func(in *growatt.ProtocolIIIdentityInput) {
 			in.Profile.ProtocolVersion, in.Slices[4].Words[0] = 0, 0
 		}, true},
-		{"adjacent_wire_revision", func(in *reg.GrowattProtocolIIIdentityInput) {
+		{"adjacent_wire_revision", func(in *growatt.ProtocolIIIdentityInput) {
 			in.Profile.ProtocolVersion++
 			in.Slices[4].Words[0] = in.Profile.ProtocolVersion
 		}, true},
@@ -45,7 +46,7 @@ func TestK21GrowattExactProfileNegativeAdmissionMatrix(t *testing.T) {
 			input := publicGrowattProtocolIIIdentityInput()
 			test.mutate(&input)
 			rawBefore := input.Slices
-			identity, identityErr := reg.DecodeGrowattProtocolIIIdentity(input)
+			identity, identityErr := growatt.DecodeGrowattProtocolIIIdentity(input)
 			if (identityErr == nil) != test.rawAllowed {
 				t.Fatalf("raw identity retention: allowed=%t err=%v", test.rawAllowed, identityErr)
 			}
@@ -78,16 +79,16 @@ func TestK21GrowattExactProfileNegativeAdmissionMatrix(t *testing.T) {
 
 			// Public callers cannot construct the missing exact FC04 admission.
 			// In particular, retaining an FC03 observation is insufficient.
-			var admission reg.GrowattProtocolIIFC04Applicability
+			var admission growatt.ProtocolIIFC04Applicability
 			session := &k21InputSession{}
-			observer, err := reg.NewGrowattProtocolIIFC04RTUObserver(identity, admission, session)
-			if !errors.Is(err, reg.ErrGrowattProtocolIIFC04RTUObserverInvalid) || observer != nil {
+			observer, err := growatt.NewProtocolIIFC04RTUObserver(identity, admission, session)
+			if !errors.Is(err, growatt.ErrGrowattProtocolIIFC04RTUObserverInvalid) || observer != nil {
 				t.Fatalf("candidate created executable read: observer=%v err=%v", observer, err)
 			}
 			if session.reads != 0 {
 				t.Fatalf("rejected candidate read count=%d", session.reads)
 			}
-			telemetry, err := reg.DecodeGrowattProtocolIIFC04Telemetry(identity, admission, reg.GrowattProtocolIIFC04Slice{Words: make([]uint16, 59)})
+			telemetry, err := growatt.DecodeGrowattProtocolIIFC04Telemetry(identity, admission, growatt.ProtocolIIFC04Slice{Words: make([]uint16, 59)})
 			if err == nil || telemetry.Identity().UnitID() != 0 || len(telemetry.RawSlice().Words) != 0 {
 				t.Fatalf("candidate acquired typed FC04 decoder output: telemetry=%v err=%v", telemetry, err)
 			}

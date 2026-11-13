@@ -25,20 +25,20 @@ statuses. A successful offline cycle grants no acquisition or outbound authority
 
 ## Local API
 
-Implementation: [provider](../growatt_aggregate_offline_provider.go),
-[tests](../growatt_aggregate_offline_provider_test.go),
-[retention owner](../growatt_aggregate_retention.go).
+Implementation: [provider](../growatt/growatt_aggregate_offline_provider.go),
+[tests](../growatt/growatt_aggregate_offline_provider_test.go),
+[retention owner](../growatt/growatt_aggregate_retention.go).
 
 ```go
-type GrowattAggregateOfflineCycle struct {
-    Context GrowattAggregateContext
+type AggregateOfflineCycle struct {
+    Context AggregateContext
     Cycle, Deadline uint64
 }
-type GrowattAggregateOfflineReader func(context.Context, GrowattAggregateOfflineCycle) (GrowattBMSReadOnlyInput, error)
-func NewGrowattAggregateOfflineProvider(maxCycleTicks, maxSlices, maxWords uint64, reader GrowattAggregateOfflineReader) (*GrowattAggregateOfflineProvider, error)
-func (p *GrowattAggregateOfflineProvider) Cycle(ctx context.Context, cycle GrowattAggregateOfflineCycle, clock func() uint64) error
-func (p *GrowattAggregateOfflineProvider) Advance(now uint64) error
-func (p *GrowattAggregateOfflineProvider) Snapshot() GrowattAggregateSnapshot
+type AggregateOfflineReader func(context.Context, AggregateOfflineCycle) (BMSReadOnlyInput, error)
+func NewAggregateOfflineProvider(maxCycleTicks, maxSlices, maxWords uint64, reader AggregateOfflineReader) (*AggregateOfflineProvider, error)
+func (p *AggregateOfflineProvider) Cycle(ctx context.Context, cycle AggregateOfflineCycle, clock func() uint64) error
+func (p *AggregateOfflineProvider) Advance(now uint64) error
+func (p *AggregateOfflineProvider) Snapshot() AggregateSnapshot
 ```
 
 Construction requires positive explicit bounds and a nonnil reader. `maxWords`

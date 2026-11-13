@@ -8,13 +8,13 @@ The public [native contract](https://github.com/Project-Helianthus/helianthus-do
 owns register meanings, fixed extents and revision applicability. The
 [battery group retention contract](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/growatt-battery-group-retention.md)
 owns the lifecycle proposal. This implementation adds only a pure candidate
-check around the [existing diagnostic decoder](https://github.com/Project-Helianthus/helianthus-modbusreg/blob/main/growatt_bms_rs485_multigroup.go).
+check around the [existing diagnostic decoder](https://github.com/Project-Helianthus/helianthus-modbusreg/blob/main/growatt/growatt_bms_rs485_multigroup.go).
 It implements no aggregate store or retained-state lifecycle.
 
 ## API and caller obligations
 
 1. Decode a complete base with `DecodeGrowattBMSTypedReadOnlyStatus`.
-2. Call `NewGrowattDiagnosticCommitBase(base, context)`. The context contains
+2. Call `NewDiagnosticCommitBase(base, context)`. The context contains
    an opaque successful base-record token, source-instance token, nonzero owner
    epoch and cycle, unit, function, all four revision components and the raw
    native continuity tuple: MCU version, BMS company/generation word, pack
@@ -89,7 +89,7 @@ is changed; later bindings must preserve equivalent presence, provenance and
 rejection meaning. eBUS MCP compatibility, G5 D1-D5/O8 and the driver-owned
 eeBUS output binding are unchanged.
 
-The focused suite is `go test . -run '^TestGrowattDiagnosticCommit' -count=1`.
+The focused suite is `go test ./growatt -run '^TestGrowattDiagnosticCommit' -count=1`.
 Documentation review checks sources, claims, transitions, examples and link
 destinations manually; it is not hardware or passive-capture evidence.
 

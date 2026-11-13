@@ -7,13 +7,13 @@ is the protocol authority. This application lifecycle page adds no protocol
 fact, read extent, qualification result or admission rule. Nothing is stable
 before Helianthus 1.0.
 
-Implementation: [aggregate owner](https://github.com/Project-Helianthus/helianthus-modbusreg/blob/main/growatt_aggregate_retention.go),
-[synthetic tests](https://github.com/Project-Helianthus/helianthus-modbusreg/blob/main/growatt_aggregate_retention_test.go),
-[existing complete typed decoder](https://github.com/Project-Helianthus/helianthus-modbusreg/blob/main/growatt_bms_rs485_typed.go).
+Implementation: [aggregate owner](https://github.com/Project-Helianthus/helianthus-modbusreg/blob/main/growatt/growatt_aggregate_retention.go),
+[synthetic tests](https://github.com/Project-Helianthus/helianthus-modbusreg/blob/main/growatt/growatt_aggregate_retention_test.go),
+[existing complete typed decoder](https://github.com/Project-Helianthus/helianthus-modbusreg/blob/main/growatt/growatt_bms_rs485_typed.go).
 
 ## API and caller responsibilities
 
-`NewGrowattAggregateRetention(maxCycleTicks)` requires a positive finite
+`NewAggregateRetention(maxCycleTicks)` requires a positive finite
 maximum completion span. All tick arguments are caller-supplied monotonic
 logical counters in one consistent unit. They are neither capture times nor
 wall-clock age. There is no default freshness policy.
@@ -32,7 +32,7 @@ operation, a pending snapshot stays pending. Time cannot move backwards,
 including across epoch changes on the same instance. A rejected callback for
 another context or cycle cannot advance the active owner's clock.
 
-`GrowattAggregateContext` contains `SourceInstance`, `OwnerEpoch`, `UnitID`,
+`AggregateContext` contains `SourceInstance`, `OwnerEpoch`, `UnitID`,
 `Function`, the entire `Revision`, `IdentityKnown` and `Identity`. The token
 is internal correlation, not a serial number, endpoint, public installation
 identifier or wire transaction identifier. Callers must start a newer epoch
@@ -67,7 +67,7 @@ component does not decode or store diagnostic groups.
 
 Source tokens are bounded to 128 bytes, MCU version strings to 32 bytes, and
 each revision component to 64 bytes. Other context members are fixed-size.
-`GrowattAggregateHistoryLimit` is one last-success record; only one latest
+`AggregateHistoryLimit` is one last-success record; only one latest
 attempt is stored. A new success discards the previous success. There is no
 historical query or persistence API, and no unbounded callback ledger.
 Counters fail closed on replacement-revision exhaustion; no wrapping revision
