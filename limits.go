@@ -15,14 +15,28 @@ const (
 	// It is not a scheduler configuration value.
 	PinnedMaxCoalescedDependents = 4096
 
-	MaxProfileDependencies       = PinnedMaxCoalescedDependents
-	MaxProfileCodecs             = PinnedMaxCoalescedDependents
+	// MaxProfileDependencies bounds the dependencies of one observation and the
+	// entries of every collection sized by it (decision evidence, ledger claim
+	// entries per attempt, fixture records).
+	MaxProfileDependencies = PinnedMaxCoalescedDependents
+	// MaxProfileCodecs is the contract bound on codecs in one profile.
+	MaxProfileCodecs = PinnedMaxCoalescedDependents
+	// MaxProfileEvidenceReferences bounds the evidence references of one
+	// declaration.
 	MaxProfileEvidenceReferences = PinnedMaxCoalescedDependents
-	MaxCodecSentinels            = 256
-	MaxRawWords                  = modbus.MaxReadRegisters
-	MaxContractStringBytes       = 4096
-	MaxContractJSONDepth         = 32
-	MaxSerializedContractBytes   = 4 * 1024 * 1024
+	// MaxCodecSentinels bounds the raw sentinels of one codec.
+	MaxCodecSentinels = 256
+	// MaxRawWords is the widest single FC03/FC04 read in 16-bit registers, taken
+	// from the pinned transport library.
+	MaxRawWords = modbus.MaxReadRegisters
+	// MaxContractStringBytes bounds every contract string, in UTF-8 bytes.
+	MaxContractStringBytes = 4096
+	// MaxContractJSONDepth bounds the nesting depth that input preflight and
+	// JSON decoding accept.
+	MaxContractJSONDepth = 32
+	// MaxSerializedContractBytes is the cumulative byte budget (4 MiB) for one
+	// contract input or serialized contract record.
+	MaxSerializedContractBytes = 4 * 1024 * 1024
 	// MaxWireResponseEvidenceBytes covers the largest pinned FC03/FC04 data
 	// payload plus a bounded transport envelope. It is independent of the
 	// serialized-contract aggregate budget.

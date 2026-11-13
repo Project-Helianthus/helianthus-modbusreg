@@ -13,8 +13,12 @@ type EmmaIdentityContext struct {
 	Cancelled            bool
 }
 
+// EmmaFC03Status is the caller-reported acquisition status of the FC03
+// identity tuple. Only EmmaFC03Complete lets Commit evaluate the identity;
+// missing and failed tuples yield EmmaCommitIdentityUnavailable.
 type EmmaFC03Status string
 
+// FC03 acquisition statuses.
 const (
 	EmmaFC03Missing  EmmaFC03Status = "missing"
 	EmmaFC03Failed   EmmaFC03Status = "failed"
@@ -33,23 +37,38 @@ type EmmaIdentityInput struct {
 	Response []byte
 }
 
+// EmmaMEIStatus records the optional MEI device-identification read as
+// diagnostics only. A successful MEI read never replaces a missing or failed
+// FC03 tuple.
 type EmmaMEIStatus string
 
+// MEI diagnostic statuses.
 const (
 	EmmaMEINotRequested EmmaMEIStatus = "not_requested"
 	EmmaMEIFailed       EmmaMEIStatus = "failed"
 	EmmaMEISucceeded    EmmaMEIStatus = "succeeded"
 )
 
+// EmmaInventoryStatus reports whether the caller asked for the child
+// inventory. The identity transaction cannot acquire inventory, so a requested
+// inventory is always EmmaInventoryBlocked.
 type EmmaInventoryStatus string
 
+// Inventory statuses.
 const (
 	EmmaInventoryNotRequested EmmaInventoryStatus = "not_requested"
 	EmmaInventoryBlocked      EmmaInventoryStatus = "blocked"
 )
 
+// EmmaCommitReason explains the outcome of one Commit. Only
+// EmmaCommitIdentityCommitted replaces the retained identity.
+// EmmaCommitContextRejected covers a zero, cancelled, expired or stale context;
+// EmmaCommitIdentityUnavailable an FC03 tuple that is not complete; and
+// EmmaCommitIdentityMismatch a complete tuple that
+// EvaluateHuaweiEMMAOfflineIdentity does not match.
 type EmmaCommitReason string
 
+// Commit reasons.
 const (
 	EmmaCommitContextRejected     EmmaCommitReason = "context_rejected"
 	EmmaCommitIdentityUnavailable EmmaCommitReason = "identity_unavailable"
@@ -66,6 +85,10 @@ type EmmaIdentityAttempt struct {
 	inventoryRequested bool
 }
 
+// NewEmmaIdentityAttempt freezes one attempt with detached copies of the
+// native evidence. It validates nothing; Commit does. The lifecycle is
+// described in
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/emma-identity-transaction-implementation.md.
 func NewEmmaIdentityAttempt(context EmmaIdentityContext, input EmmaIdentityInput, mei EmmaMEIStatus, inventoryRequested bool) EmmaIdentityAttempt {
 	return EmmaIdentityAttempt{context: context, input: cloneEmmaIdentityInput(input), mei: mei, inventoryRequested: inventoryRequested}
 }
@@ -77,10 +100,17 @@ type EmmaRetainedIdentity struct {
 	observedAt time.Time
 }
 
+// Context returns the context of the attempt that committed this identity.
 func (identity EmmaRetainedIdentity) Context() EmmaIdentityContext { return identity.context }
+
+// Input returns a detached copy of the committed FC03 tuple and its native
+// request and response bytes.
 func (identity EmmaRetainedIdentity) Input() EmmaIdentityInput {
 	return cloneEmmaIdentityInput(identity.input)
 }
+
+// ObservedAt returns the caller-supplied commit time. Later failed attempts do
+// not refresh it.
 func (identity EmmaRetainedIdentity) ObservedAt() time.Time { return identity.observedAt }
 
 // EmmaIdentityResult separates this attempt's outcome from retained history.
@@ -97,46 +127,90 @@ type EmmaIdentityResult struct {
 	reason             EmmaCommitReason
 }
 
+// AttemptContext returns this attempt's context, also when it was rejected.
 func (result EmmaIdentityResult) AttemptContext() EmmaIdentityContext { return result.context }
+
+// AttemptInput returns a detached copy of this attempt's input, also when it
+// was rejected, for diagnostics.
 func (result EmmaIdentityResult) AttemptInput() EmmaIdentityInput {
 	return cloneEmmaIdentityInput(result.input)
 }
+
+// IdentityMatch reports that this attempt's complete tuple matched within the
+// current context fence.
 func (result EmmaIdentityResult) IdentityMatch() bool { return result.matched }
-func (result EmmaIdentityResult) Committed() bool     { return result.committed }
+
+// Committed reports that this call replaced the retained identity.
+func (result EmmaIdentityResult) Committed() bool { return result.committed }
+
+// Reason returns the commit outcome; the zero result reports
+// EmmaCommitContextRejected.
 func (result EmmaIdentityResult) Reason() EmmaCommitReason {
 	if result.reason == "" {
 		return EmmaCommitContextRejected
 	}
 	return result.reason
 }
+
+// MEIStatus returns the optional MEI diagnostic status, EmmaMEINotRequested
+// when none was given.
 func (result EmmaIdentityResult) MEIStatus() EmmaMEIStatus {
 	if result.mei == "" {
 		return EmmaMEINotRequested
 	}
 	return result.mei
 }
+
+// InventoryStatus returns EmmaInventoryBlocked when the attempt requested the
+// inventory and EmmaInventoryNotRequested otherwise.
 func (result EmmaIdentityResult) InventoryStatus() EmmaInventoryStatus {
 	if result.inventoryRequested {
 		return EmmaInventoryBlocked
 	}
 	return EmmaInventoryNotRequested
 }
-func (EmmaIdentityResult) InventoryComplete() bool                      { return false }
+
+// InventoryComplete is always false: this transaction never acquires the
+// child inventory.
+func (EmmaIdentityResult) InventoryComplete() bool { return false }
+
+// InventoryAssociationInvalidated reports that a successful commit replaced a
+// retained identity with a different offering, model, firmware, parent
+// source, source revision or connection generation, so any inventory tied to
+// the old identity must be retired by its owner.
 func (result EmmaIdentityResult) InventoryAssociationInvalidated() bool { return result.invalidated }
+
+// RetainedIdentity returns a detached copy of the last committed identity and
+// whether one exists. It is history, not proof of current availability.
 func (result EmmaIdentityResult) RetainedIdentity() (EmmaRetainedIdentity, bool) {
 	identity := result.retained
 	identity.input = cloneEmmaIdentityInput(identity.input)
 	return identity, result.hasRetained
 }
+
+// Qualification is always HuaweiQualificationEvidenceBlocked: an identity
+// match is not qualification evidence.
 func (EmmaIdentityResult) Qualification() HuaweiQualificationReadiness {
 	return HuaweiQualificationEvidenceBlocked
 }
-func (EmmaIdentityResult) DefaultDenied() bool             { return true }
+
+// DefaultDenied is always true: identity matching never admits the device.
+func (EmmaIdentityResult) DefaultDenied() bool { return true }
+
+// AutomaticRuntimeAdmission is always false.
 func (EmmaIdentityResult) AutomaticRuntimeAdmission() bool { return false }
-func (EmmaIdentityResult) LiveQualified() bool             { return false }
-func (EmmaIdentityResult) CatalogRegistered() bool         { return false }
-func (EmmaIdentityResult) SupportClaim() bool              { return false }
-func (EmmaIdentityResult) WriteAuthority() bool            { return false }
+
+// LiveQualified is always false.
+func (EmmaIdentityResult) LiveQualified() bool { return false }
+
+// CatalogRegistered is always false.
+func (EmmaIdentityResult) CatalogRegistered() bool { return false }
+
+// SupportClaim is always false.
+func (EmmaIdentityResult) SupportClaim() bool { return false }
+
+// WriteAuthority is always false.
+func (EmmaIdentityResult) WriteAuthority() bool { return false }
 
 // Commit is a pure transition. The owner must serialize reading current and
 // publishing the returned value against changes to that parent's context.

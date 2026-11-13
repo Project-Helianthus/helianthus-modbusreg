@@ -55,12 +55,19 @@ type HuaweiSmartLoggerInventory struct {
 // HuaweiGatewayInventory is a validated shared offline inventory view.
 type HuaweiGatewayInventory = HuaweiSmartLoggerInventory
 
+// DeclaredChildren returns the child count that the count object declared. A
+// parsed inventory always has it equal to ChildCount.
 func (i HuaweiSmartLoggerInventory) DeclaredChildren() int { return i.declaredChildren }
 
+// ChildCount returns the number of child entries; the gateway's own entry is
+// not counted.
 func (i HuaweiSmartLoggerInventory) ChildCount() int { return len(i.children) }
 
+// DefaultDenied is always true: a listed child is never admitted by listing.
 func (i HuaweiSmartLoggerInventory) DefaultDenied() bool { return true }
 
+// Children returns a fresh slice of the child entries in object order, without
+// the gateway's own entry.
 func (i HuaweiSmartLoggerInventory) Children() []HuaweiSmartLoggerInventoryChild {
 	return append([]HuaweiSmartLoggerInventoryChild(nil), i.children...)
 }
@@ -93,8 +100,11 @@ type HuaweiGatewayOpaqueAttribute struct {
 // HuaweiGatewayInventoryChild is a non-sensitive shared child view.
 type HuaweiGatewayInventoryChild = HuaweiSmartLoggerInventoryChild
 
+// ObjectID returns the extended identification object that carried the entry.
 func (c HuaweiSmartLoggerInventoryChild) ObjectID() uint8 { return c.objectID }
 
+// Address returns the raw text of attribute key 5, the unit address the entry
+// lists; it is not parsed into a unit identifier.
 func (c HuaweiSmartLoggerInventoryChild) Address() string { return c.address }
 
 // OpaqueAttributes lists the retained opaque attributes in entry order.
@@ -129,6 +139,11 @@ func (c *HuaweiSmartLoggerInventoryChild) retainOpaque(key, value string) {
 	c.opaque += key + "=" + value
 }
 
+// Attribute returns a decoded attribute by canonical name: model (key 1),
+// software_version (key 2), protocol_version (key 3), feature_version (key 6;
+// empty where the reader keeps key 6 opaque) or product_type (key 8). An
+// unknown name or an absent attribute returns the empty string; the unit
+// address is read with Address.
 func (c HuaweiSmartLoggerInventoryChild) Attribute(name string) string {
 	switch name {
 	case "model":

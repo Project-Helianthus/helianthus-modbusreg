@@ -4,6 +4,10 @@ import (
 	"strings"
 )
 
+// EMMA family identity. HuaweiEMMACanonicalClass is the family class a
+// matched decision reports, and HuaweiEMMAReadOnlyProfileID the read-only
+// profile it names. The native identity contract is
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/gateway-readonly-v1.md.
 const (
 	HuaweiEMMACanonicalClass    = "EMMA"
 	HuaweiEMMAReadOnlyProfileID = "huawei.emma.readonly.v1"
@@ -12,6 +16,9 @@ const (
 // HuaweiEMMAOfflineReason explains one transport-free identity gate result.
 type HuaweiEMMAOfflineReason string
 
+// EMMA identity gate reasons, checked in this order: the offering text is not
+// bounded printable ASCII, the model is not a model token of the EMMA family,
+// or the catalog decision does not admit the software text.
 const (
 	HuaweiEMMAOfflineMatched          HuaweiEMMAOfflineReason = "matched"
 	HuaweiEMMAOfflineOfferingMismatch HuaweiEMMAOfflineReason = "offering_mismatch"
@@ -27,8 +34,11 @@ type HuaweiEMMAOfflineDecision struct {
 	selection HuaweiGatewaySelection
 }
 
+// Matched reports that the offering, model and software gates all passed.
 func (d HuaweiEMMAOfflineDecision) Matched() bool { return d.matched }
 
+// CanonicalClass returns HuaweiEMMACanonicalClass for a matched decision and
+// the empty string otherwise.
 func (d HuaweiEMMAOfflineDecision) CanonicalClass() string {
 	if !d.matched {
 		return ""
@@ -36,8 +46,12 @@ func (d HuaweiEMMAOfflineDecision) CanonicalClass() string {
 	return HuaweiEMMACanonicalClass
 }
 
+// ModelVariant returns the matched model text with terminal NUL and space
+// padding removed, and the empty string when the decision did not match.
 func (d HuaweiEMMAOfflineDecision) ModelVariant() string { return d.model }
 
+// ProfileID returns HuaweiEMMAReadOnlyProfileID for a matched decision and the
+// empty string otherwise.
 func (d HuaweiEMMAOfflineDecision) ProfileID() string {
 	if !d.matched {
 		return ""
@@ -45,8 +59,10 @@ func (d HuaweiEMMAOfflineDecision) ProfileID() string {
 	return HuaweiEMMAReadOnlyProfileID
 }
 
+// DefaultDenied is always true: a match never admits the device at runtime.
 func (d HuaweiEMMAOfflineDecision) DefaultDenied() bool { return true }
 
+// Reason returns the first gate that failed, or HuaweiEMMAOfflineMatched.
 func (d HuaweiEMMAOfflineDecision) Reason() HuaweiEMMAOfflineReason { return d.reason }
 
 // Selection is the catalog decision over the software text, recorded for a

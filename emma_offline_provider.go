@@ -29,6 +29,8 @@ type EmmaOfflineProvider struct {
 	cycle   uint64
 }
 
+// NewEmmaOfflineProvider returns a provider fenced to current with no
+// published attempt. It never validates current; the first Cycle does.
 func NewEmmaOfflineProvider(current EmmaIdentityContext) *EmmaOfflineProvider {
 	return &EmmaOfflineProvider{current: current}
 }

@@ -100,20 +100,35 @@ type HuaweiSmartLoggerObservedQualificationInput struct {
 // evidence. The card sends nothing and grants no authority.
 type HuaweiSmartLoggerObservedQualificationCard struct{}
 
+// NewHuaweiSmartLoggerObservedQualificationCard returns the stateless card.
+// The observation contract is
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/smartlogger-observed-inventory-v1.md.
 func NewHuaweiSmartLoggerObservedQualificationCard() HuaweiSmartLoggerObservedQualificationCard {
 	return HuaweiSmartLoggerObservedQualificationCard{}
 }
 
+// ID returns HuaweiSmartLoggerObservedQualificationCardID.
 func (HuaweiSmartLoggerObservedQualificationCard) ID() string {
 	return HuaweiSmartLoggerObservedQualificationCardID
 }
+
+// CandidateClass returns HuaweiSmartLoggerCanonicalClass.
 func (HuaweiSmartLoggerObservedQualificationCard) CandidateClass() string {
 	return HuaweiSmartLoggerCanonicalClass
 }
+
+// UnitID returns the gateway unit identifier the counter and inventory reads
+// must carry.
 func (HuaweiSmartLoggerObservedQualificationCard) UnitID() uint8 { return 0 }
+
+// Vendor returns the vendor object an optional basic identification reply must
+// carry to corroborate the self entry.
 func (HuaweiSmartLoggerObservedQualificationCard) Vendor() string {
 	return huaweiSmartLoggerObservedVendor
 }
+
+// Model returns the exact self-entry model of the observed dialect. It is not
+// an alias of the documentary card's model.
 func (HuaweiSmartLoggerObservedQualificationCard) Model() string {
 	return huaweiSmartLoggerObservedModel
 }
@@ -122,6 +137,9 @@ func (HuaweiSmartLoggerObservedQualificationCard) Model() string {
 func (HuaweiSmartLoggerObservedQualificationCard) Firmware() string {
 	return huaweiSmartLoggerObservedFirmware
 }
+
+// SelfEntryUnit returns the unit text the self entry's address attribute must
+// carry.
 func (HuaweiSmartLoggerObservedQualificationCard) SelfEntryUnit() string {
 	return huaweiSmartLoggerObservedSelfUnit
 }
@@ -132,6 +150,9 @@ func (HuaweiSmartLoggerObservedQualificationCard) MissingEvidence() []string {
 	return []string{"pairwise_negative_overlap_with_emma_fixture"}
 }
 
+// Steps is the replay procedure: the change counter before and after the
+// extended inventory read, then the optional basic identification read, all at
+// the gateway unit.
 func (HuaweiSmartLoggerObservedQualificationCard) Steps() []HuaweiQualificationStep {
 	return []HuaweiQualificationStep{
 		{operation: "FC03_COUNTER_BEFORE", unitID: 0, offset: 65521, quantity: 1},
@@ -141,6 +162,9 @@ func (HuaweiSmartLoggerObservedQualificationCard) Steps() []HuaweiQualificationS
 	}
 }
 
+// Limits are the resource policy of the gateway contract and the shared
+// response cap of the observed dialect. The observed response length is a
+// lower bound, never a cap.
 func (HuaweiSmartLoggerObservedQualificationCard) Limits() HuaweiQualificationInventoryLimits {
 	return HuaweiQualificationInventoryLimits{
 		DeadlineMilliseconds: 15000,
@@ -152,6 +176,10 @@ func (HuaweiSmartLoggerObservedQualificationCard) Limits() HuaweiQualificationIn
 	}
 }
 
+// EmptyResult returns the base rejection: insufficient evidence with an
+// identity-invalid reason, no selection and no child list. Evaluate starts
+// from it, may replace the reason with a more specific one and may attach the
+// catalog selection and floor relation of the self-entry software text.
 func (card HuaweiSmartLoggerObservedQualificationCard) EmptyResult() HuaweiQualificationResult {
 	return HuaweiQualificationResult{candidateClass: card.CandidateClass(), readiness: HuaweiQualificationInsufficientEvidence, reason: HuaweiQualificationIdentityInvalid}
 }

@@ -6,14 +6,24 @@ import (
 	"time"
 )
 
+// SDongleOfflineState is the documentary state of one offline provider run.
 type SDongleOfflineState string
 
+// Offline states. SDongleOfflineReady follows a planned decision and is
+// documentary readiness only; SDongleOfflineDenied follows a no-send decision;
+// SDongleOfflineBlocked covers a withheld decision and every failed run.
 const (
 	SDongleOfflineReady   SDongleOfflineState = "ready"
 	SDongleOfflineBlocked SDongleOfflineState = "blocked"
 	SDongleOfflineDenied  SDongleOfflineState = "denied"
 )
 
+// Offline provider errors. ErrSDongleOfflineInput reports a missing context or
+// callback, a zero attempt time, bounds that are zero or above their ceilings
+// (15 s lookup timeout, 1 MiB input, 256 references), an incomplete or
+// oversized key, an invalid previous record, or a lookup result over the
+// bounds. ErrSDongleOfflineAssociation reports a lookup result for a different
+// key.
 var (
 	ErrSDongleOfflineInput       = errors.New("sdongle offline: invalid or excessive input")
 	ErrSDongleOfflineAssociation = errors.New("sdongle offline: requested and returned keys differ")
@@ -38,6 +48,10 @@ type SDongleOfflineRecord struct {
 	EvaluatedAt time.Time
 }
 
+// SDongleOfflineRequest is the input of one RunSDongleOfflineProvider call.
+// AttemptedAt is the caller's local attempt time; it becomes EvaluatedAt of a
+// new retained record and never renews native source age. Previous, when set,
+// must be a planned decision with a nonzero EvaluatedAt.
 type SDongleOfflineRequest struct {
 	Key         SDongleRouteKey
 	Bounds      SDongleOfflineBounds
@@ -54,6 +68,7 @@ type SDongleOfflineResult struct {
 	Retained *SDongleOfflineRecord
 }
 
+// DefaultDenied is always true: a ready result authorizes no I/O.
 func (SDongleOfflineResult) DefaultDenied() bool { return true }
 
 // RunSDongleOfflineProvider composes one cooperative, bounded offline lookup

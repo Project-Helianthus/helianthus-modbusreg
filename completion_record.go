@@ -39,6 +39,10 @@ var (
 // CompletionDisposition is the closed decision set for a completion record.
 type CompletionDisposition string
 
+// Completion dispositions. CompletionDispositionStandardOnly records that the
+// standard profile covers the qualified boundary without a vendor overlay.
+// CompletionDispositionOverlayRequired is reserved: the current evidence
+// contract rejects it in NewFMV3M303CompletionRecord.
 const (
 	CompletionDispositionStandardOnly    CompletionDisposition = "STANDARD_ONLY"
 	CompletionDispositionOverlayRequired CompletionDisposition = "OVERLAY_REQUIRED"
@@ -156,27 +160,60 @@ func (record CompletionRecord) Spec() CompletionRecordSpec {
 	return spec
 }
 
-func (record CompletionRecord) SchemaID() string      { return record.spec.SchemaID }
+// SchemaID returns the record schema identifier, always
+// FMV3M303CompletionSchemaID.
+func (record CompletionRecord) SchemaID() string { return record.spec.SchemaID }
+
+// SchemaVersion returns the record schema version, always
+// FMV3M303CompletionSchemaVersion.
 func (record CompletionRecord) SchemaVersion() uint16 { return record.spec.SchemaVersion }
+
+// Disposition returns the decision; a validated record is STANDARD_ONLY.
 func (record CompletionRecord) Disposition() CompletionDisposition {
 	return record.spec.Disposition
 }
+
+// Evidence returns the public evidence references the decision rests on.
 func (record CompletionRecord) Evidence() CompletionEvidenceRefs { return record.spec.Evidence }
-func (record CompletionRecord) ReadOnly() bool                   { return record.spec.ReadOnly }
-func (record CompletionRecord) TransportNeutral() bool           { return record.spec.TransportNeutral }
-func (record CompletionRecord) OverlayPresent() bool             { return record.spec.OverlayPresent }
-func (record CompletionRecord) WriteCapable() bool               { return record.spec.WriteCapable }
+
+// ReadOnly reports the read-only boundary; a validated record is always true.
+func (record CompletionRecord) ReadOnly() bool { return record.spec.ReadOnly }
+
+// TransportNeutral reports that the decision binds no transport; a validated
+// record is always true.
+func (record CompletionRecord) TransportNeutral() bool { return record.spec.TransportNeutral }
+
+// OverlayPresent reports a vendor overlay; a validated record is always false.
+func (record CompletionRecord) OverlayPresent() bool { return record.spec.OverlayPresent }
+
+// WriteCapable reports write capability; a validated record is always false.
+func (record CompletionRecord) WriteCapable() bool { return record.spec.WriteCapable }
+
+// AutomaticProductQualification reports whether the record qualifies products
+// automatically; a validated record is always false.
 func (record CompletionRecord) AutomaticProductQualification() bool {
 	return record.spec.AutomaticProductQualification
 }
+
+// StandardProfileID returns the standard profile the decision applies to.
 func (record CompletionRecord) StandardProfileID() string { return record.spec.StandardProfileID }
+
+// StandardProfileVersion returns the version of StandardProfileID.
 func (record CompletionRecord) StandardProfileVersion() string {
 	return record.spec.StandardProfileVersion
 }
+
+// Applicability returns an independent copy of the applicability statements.
 func (record CompletionRecord) Applicability() []string {
 	return cloneStrings(record.spec.Applicability)
 }
+
+// Limitations returns an independent copy of the limitation statements; UNKNOWN
+// marks a family the evidence does not cover.
 func (record CompletionRecord) Limitations() []string { return cloneStrings(record.spec.Limitations) }
+
+// InvalidationRollback returns an independent copy of the invalidation and
+// rollback rules.
 func (record CompletionRecord) InvalidationRollback() []string {
 	return cloneStrings(record.spec.InvalidationRollback)
 }

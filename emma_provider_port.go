@@ -38,6 +38,12 @@ type I19EmmaProvider struct {
 	i19Sequence uint64
 }
 
+// I19NewEmmaProvider validates the configuration and the initial context and
+// returns a provider with no published attempt. A nil reader or clock, a zero
+// MaxReaderWork, a nonpositive MaxInputBytes, or a context that Commit would
+// reject at the current clock reading returns an error. The port lifecycle is
+// described in
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/emma-provider-port.md.
 func I19NewEmmaProvider(i19Current EmmaIdentityContext, i19Config I19EmmaProviderConfig) (*I19EmmaProvider, error) {
 	if i19Config.I19Reader == nil || i19Config.I19Now == nil || i19Config.I19Bounds.MaxReaderWork == 0 || i19Config.I19Bounds.MaxInputBytes <= 0 {
 		return nil, errors.New("invalid I19 EMMA configuration")
@@ -65,6 +71,10 @@ func (i19Port *I19EmmaProvider) I19SetContext(i19Current EmmaIdentityContext) er
 	return nil
 }
 
+// I19Retire cancels the active context, so any in-flight refresh cannot
+// publish, and rejects every later I19SetContext and I19Refresh. It is
+// idempotent, safe on a nil provider, and keeps I19Latest and
+// I19RetainedIdentity readable.
 func (i19Port *I19EmmaProvider) I19Retire() {
 	if i19Port == nil {
 		return
@@ -120,6 +130,8 @@ func (i19Port *I19EmmaProvider) I19Refresh(i19Refresh context.Context, i19Expect
 	return i19Result, i19Err
 }
 
+// I19Latest returns the latest published attempt result, or the zero result
+// for a nil or uninitialized provider. It is safe for concurrent use.
 func (i19Port *I19EmmaProvider) I19Latest() EmmaIdentityResult {
 	if i19Port == nil {
 		return EmmaIdentityResult{}
@@ -151,6 +163,9 @@ func (i19Port *I19EmmaProvider) I19Identity() (EmmaIdentityInput, bool) {
 	return i19Latest.AttemptInput(), true
 }
 
+// I19RetainedIdentity returns the last committed identity of the latest
+// result. It is history, and remains readable after retirement or a failed
+// refresh; use I19Identity for the current identity.
 func (i19Port *I19EmmaProvider) I19RetainedIdentity() (EmmaRetainedIdentity, bool) {
 	return i19Port.I19Latest().RetainedIdentity()
 }

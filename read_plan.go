@@ -10,6 +10,9 @@ import (
 // ProbeFunction is the closed read-only Modbus function set used by detection.
 type ProbeFunction string
 
+// Probe functions: FC03 reads holding registers and FC04 reads input
+// registers. NewProbePlan rejects every other function, so a plan can never
+// carry a write.
 const (
 	ProbeReadHoldingRegisters ProbeFunction = "fc03"
 	ProbeReadInputRegisters   ProbeFunction = "fc04"
@@ -18,6 +21,8 @@ const (
 // ProbeIdentityField identifies one authoritative device identity value.
 type ProbeIdentityField string
 
+// Probe identity fields. A plan has at most one declaration per field; the
+// detector compares the decoded values with the candidate profiles.
 const (
 	ProbeIdentityManufacturer ProbeIdentityField = "manufacturer"
 	ProbeIdentityModel        ProbeIdentityField = "model"
@@ -225,6 +230,9 @@ type ProbeReader interface {
 // ProbeReadStatus is the closed read disposition set.
 type ProbeReadStatus string
 
+// Probe read statuses. A succeeded result carries 1..MaxWordsPerRead words and
+// exception code zero; an exception result carries no words and the nonzero
+// Modbus exception code.
 const (
 	ProbeReadSucceeded ProbeReadStatus = "succeeded"
 	ProbeReadException ProbeReadStatus = "exception"

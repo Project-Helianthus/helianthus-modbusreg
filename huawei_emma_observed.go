@@ -134,22 +134,45 @@ type HuaweiEMMAObservedQualificationInput struct {
 // no authority.
 type HuaweiEMMAObservedQualificationCard struct{}
 
+// NewHuaweiEMMAObservedQualificationCard returns the stateless card. The
+// observation contract is
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/emma-observed-identity-v1.md.
 func NewHuaweiEMMAObservedQualificationCard() HuaweiEMMAObservedQualificationCard {
 	return HuaweiEMMAObservedQualificationCard{}
 }
 
+// ID returns HuaweiEMMAObservedQualificationCardID.
 func (HuaweiEMMAObservedQualificationCard) ID() string {
 	return HuaweiEMMAObservedQualificationCardID
 }
+
+// CandidateClass returns HuaweiEMMACanonicalClass.
 func (HuaweiEMMAObservedQualificationCard) CandidateClass() string { return HuaweiEMMACanonicalClass }
-func (HuaweiEMMAObservedQualificationCard) UnitID() uint8          { return huaweiEMMAObservedGatewayUnit }
-func (HuaweiEMMAObservedQualificationCard) FamilyLabel() string    { return huaweiEMMAObservedLabel }
-func (HuaweiEMMAObservedQualificationCard) Model() string          { return huaweiEMMAObservedModel }
-func (HuaweiEMMAObservedQualificationCard) Vendor() string         { return huaweiEMMAObservedVendor }
-func (HuaweiEMMAObservedQualificationCard) Product() string        { return huaweiEMMAObservedProduct }
+
+// UnitID returns the gateway unit identifier the gateway reads must carry.
+func (HuaweiEMMAObservedQualificationCard) UnitID() uint8 { return huaweiEMMAObservedGatewayUnit }
+
+// FamilyLabel returns the exact offering text the gateway must answer.
+func (HuaweiEMMAObservedQualificationCard) FamilyLabel() string { return huaweiEMMAObservedLabel }
+
+// Model returns the one observed model this card pins; other models of the
+// family pass the documentary gate but not this card.
+func (HuaweiEMMAObservedQualificationCard) Model() string { return huaweiEMMAObservedModel }
+
+// Vendor returns the vendor object the basic identification reply must carry.
+func (HuaweiEMMAObservedQualificationCard) Vendor() string { return huaweiEMMAObservedVendor }
+
+// Product returns the product object the basic identification reply must
+// carry, which is also the product type of the gateway's own inventory entry.
+func (HuaweiEMMAObservedQualificationCard) Product() string { return huaweiEMMAObservedProduct }
+
+// ChildFamily returns the family token that the child inverter entries and
+// their model reads must carry.
 func (HuaweiEMMAObservedQualificationCard) ChildFamily() string {
 	return huaweiEMMAObservedChildFamily
 }
+
+// ChildUnits returns a fresh copy of the inverter units the card reads.
 func (HuaweiEMMAObservedQualificationCard) ChildUnits() []uint8 {
 	return slices.Clone(huaweiEMMAObservedChildUnits)
 }
@@ -194,6 +217,9 @@ func (HuaweiEMMAObservedQualificationCard) Limits() HuaweiQualificationInventory
 	}
 }
 
+// EmptyResult returns the base rejection: insufficient evidence with an
+// identity-invalid reason and no selection. Evaluate starts from it and may
+// attach the catalog selection of the software text it read.
 func (card HuaweiEMMAObservedQualificationCard) EmptyResult() HuaweiQualificationResult {
 	return HuaweiQualificationResult{candidateClass: card.CandidateClass(), readiness: HuaweiQualificationInsufficientEvidence, reason: HuaweiQualificationIdentityInvalid}
 }

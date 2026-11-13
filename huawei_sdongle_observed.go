@@ -145,32 +145,58 @@ type HuaweiSDongleObservedQualificationInput struct {
 // no authority.
 type HuaweiSDongleObservedQualificationCard struct{}
 
+// NewHuaweiSDongleObservedQualificationCard returns the stateless card. The
+// observation contract is
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/sdongle-observed-identity-v1.md.
 func NewHuaweiSDongleObservedQualificationCard() HuaweiSDongleObservedQualificationCard {
 	return HuaweiSDongleObservedQualificationCard{}
 }
 
+// ID returns HuaweiSDongleObservedQualificationCardID.
 func (HuaweiSDongleObservedQualificationCard) ID() string {
 	return HuaweiSDongleObservedQualificationCardID
 }
+
+// CandidateClass returns HuaweiSDongleCanonicalClass.
 func (HuaweiSDongleObservedQualificationCard) CandidateClass() string {
 	return HuaweiSDongleCanonicalClass
 }
+
+// UnitID returns the gateway unit identifier the gateway reads must carry.
 func (HuaweiSDongleObservedQualificationCard) UnitID() uint8 { return huaweiSDongleObservedGatewayUnit }
+
+// ChildUnit returns the one child unit identifier the card reads.
 func (HuaweiSDongleObservedQualificationCard) ChildUnit() uint8 {
 	return huaweiSDongleObservedChildUnit
 }
+
+// ChildModel returns the model text the child's model read must carry before
+// its NUL terminator, compared exactly with no prefix or family match.
 func (HuaweiSDongleObservedQualificationCard) ChildModel() string {
 	return huaweiSDongleObservedChildModel
 }
+
+// ChildVendor returns the vendor object the child's basic identification
+// reply must carry.
 func (HuaweiSDongleObservedQualificationCard) ChildVendor() string {
 	return huaweiSDongleObservedChildVendor
 }
+
+// ChildFamily returns the product object the child's basic identification
+// reply must carry.
 func (HuaweiSDongleObservedQualificationCard) ChildFamily() string {
 	return huaweiSDongleObservedChildFamily
 }
+
+// GatewayBasicException returns the Modbus exception code the gateway unit
+// must answer to basic device identification.
 func (HuaweiSDongleObservedQualificationCard) GatewayBasicException() uint8 {
 	return huaweiSDongleObservedBasicRefusal
 }
+
+// GatewayProtocolWords returns a fresh copy of the observed protocol words, as
+// read and never decoded. The leading word must equal the first one and the
+// second word must be at or above the second one.
 func (HuaweiSDongleObservedQualificationCard) GatewayProtocolWords() []uint16 {
 	return slices.Clone(huaweiSDongleObservedProtocolWords)
 }
@@ -217,6 +243,10 @@ func (HuaweiSDongleObservedQualificationCard) Limits() HuaweiQualificationInvent
 	}
 }
 
+// EmptyResult returns the base rejection: insufficient evidence with an
+// identity-invalid reason and no selection. Evaluate starts from it, may
+// replace the reason with a more specific one and may attach the catalog
+// selection of the gateway software text.
 func (card HuaweiSDongleObservedQualificationCard) EmptyResult() HuaweiQualificationResult {
 	return HuaweiQualificationResult{candidateClass: card.CandidateClass(), readiness: HuaweiQualificationInsufficientEvidence, reason: HuaweiQualificationIdentityInvalid}
 }
