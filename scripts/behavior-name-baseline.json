@@ -1274,687 +1274,687 @@
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Advance",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Aggregate",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23AggregateError",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Context",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Cycle",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Diagnostic",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23DiagnosticError",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23DiagnosticRejection",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23ExpectedGroup",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Generation",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23GrowattAdapter",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23GrowattDiagnostic",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23GrowattLink",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23GrowattProvider",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23GrowattRequest",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23GrowattResult",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23GrowattSnapshot",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Input",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Link",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23NewGrowattProvider",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Receipt",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Refresh",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Retire",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Retired",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Revision",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "I23Snapshot",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23AggregateErr",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Base",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Busy",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Cancel",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Candidate",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Clock",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23CloneSnapshot",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Context",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Copy",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Ctx",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Deadline",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Err",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Generation",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Index",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23MaxSlices",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23MaxTicks",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23MaxWords",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Mu",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Native",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Next",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Now",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23P",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Published",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Raw",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Reader",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Reason",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Rejected",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Request",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Result",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Retired",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Tick",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Value",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23View",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port.go",
+      "path": "growatt/growatt_aggregate_provider_port.go",
       "symbol": "i23Work",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23AggregateContinuityAxes",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23DiagnosticCompletionDeadline",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23DiagnosticContextAxes",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23DiagnosticExpiryAndFreeze",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23DiagnosticFailuresPreserveBase",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23DiagnosticLinkAxes",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23DocumentarySuccessDeniesFC04Admission",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23Lifecycle",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23PartialAndZeroReplacement",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23PostNativeCancellation",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23PostNativeClockRegression",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23Refusals",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23ReplayRefusals",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23Retention",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "TestI23SuccessDetached",
       "category": "test"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Admission",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Axes",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Before",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Bounds",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Bytes",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23C",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Calls",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Cancel",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Clock",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23ClockCalls",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23ContextAxes",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Ctx",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Cycle",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Diagnostic",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23DiagnosticAxes",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Err",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Fail",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23First",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Index",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Input",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23InputValue",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23L",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Link",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23LinkAxes",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Mode",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Mutate",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Name",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Next",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23NextMode",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Other",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Port",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23PortValue",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Provider",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Reader",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Request",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23RequestValue",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Result",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23T",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Tick",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Value",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23View",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Want",
       "category": "identifier"
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "i23Work",
       "category": "identifier"
     },
     {
-      "path": "growatt_bms_rs485.go",
+      "path": "growatt/growatt_bms_rs485.go",
       "symbol": "growatt_bms_rs485.go",
       "category": "filename"
     },
     {
-      "path": "growatt_bms_rs485_multigroup.go",
+      "path": "growatt/growatt_bms_rs485_multigroup.go",
       "symbol": "growatt_bms_rs485_multigroup.go",
       "category": "filename"
     },
     {
-      "path": "growatt_bms_rs485_multigroup_test.go",
+      "path": "growatt/growatt_bms_rs485_multigroup_test.go",
       "symbol": "growatt_bms_rs485_multigroup_test.go",
       "category": "filename"
     },
     {
-      "path": "growatt_bms_rs485_rtu_observer.go",
+      "path": "growatt/growatt_bms_rs485_rtu_observer.go",
       "symbol": "ErrGrowattBMSRS485RTUObserverInvalid",
       "category": "identifier"
     },
     {
-      "path": "growatt_bms_rs485_rtu_observer.go",
-      "symbol": "GrowattBMSRS485RTUObserver",
+      "path": "growatt/growatt_bms_rs485_rtu_observer.go",
+      "symbol": "BMSRS485RTUObserver",
       "category": "identifier"
     },
     {
-      "path": "growatt_bms_rs485_rtu_observer.go",
-      "symbol": "GrowattBMSRS485RTUObserverSession",
+      "path": "growatt/growatt_bms_rs485_rtu_observer.go",
+      "symbol": "BMSRS485RTUObserverSession",
       "category": "identifier"
     },
     {
-      "path": "growatt_bms_rs485_rtu_observer.go",
-      "symbol": "NewGrowattBMSRS485RTUObserver",
+      "path": "growatt/growatt_bms_rs485_rtu_observer.go",
+      "symbol": "NewBMSRS485RTUObserver",
       "category": "identifier"
     },
     {
-      "path": "growatt_bms_rs485_rtu_observer.go",
+      "path": "growatt/growatt_bms_rs485_rtu_observer.go",
       "symbol": "growatt_bms_rs485_rtu_observer.go",
       "category": "filename"
     },
     {
-      "path": "growatt_bms_rs485_rtu_observer_test.go",
+      "path": "growatt/growatt_bms_rs485_rtu_observer_test.go",
       "symbol": "TestGrowattBMSRS485RTUObserverReadsExactSlicesInOrder",
       "category": "test"
     },
     {
-      "path": "growatt_bms_rs485_rtu_observer_test.go",
+      "path": "growatt/growatt_bms_rs485_rtu_observer_test.go",
       "symbol": "TestGrowattBMSRS485RTUObserverRejectsInvalidCallerSelectionBeforeRead",
       "category": "test"
     },
     {
-      "path": "growatt_bms_rs485_rtu_observer_test.go",
+      "path": "growatt/growatt_bms_rs485_rtu_observer_test.go",
       "symbol": "TestGrowattBMSRS485RTUObserverRejectsMismatchedResponse",
       "category": "test"
     },
     {
-      "path": "growatt_bms_rs485_rtu_observer_test.go",
+      "path": "growatt/growatt_bms_rs485_rtu_observer_test.go",
       "symbol": "TestGrowattBMSRS485RTUObserverRejectsShortFC03Response",
       "category": "test"
     },
     {
-      "path": "growatt_bms_rs485_rtu_observer_test.go",
+      "path": "growatt/growatt_bms_rs485_rtu_observer_test.go",
       "symbol": "TestGrowattBMSRS485RTUObserverStopsWithoutPartialStatus",
       "category": "test"
     },
     {
-      "path": "growatt_bms_rs485_rtu_observer_test.go",
+      "path": "growatt/growatt_bms_rs485_rtu_observer_test.go",
       "symbol": "growatt_bms_rs485_rtu_observer_test.go",
       "category": "filename"
     },
     {
-      "path": "growatt_bms_rs485_test.go",
+      "path": "growatt/growatt_bms_rs485_test.go",
       "symbol": "growatt_bms_rs485_test.go",
       "category": "filename"
     },
     {
-      "path": "growatt_bms_rs485_typed.go",
+      "path": "growatt/growatt_bms_rs485_typed.go",
       "symbol": "growatt_bms_rs485_typed.go",
       "category": "filename"
     },
     {
-      "path": "growatt_bms_rs485_typed_test.go",
+      "path": "growatt/growatt_bms_rs485_typed_test.go",
       "symbol": "TestDecodeGrowattBMSTypedReadOnlyStatusProjectsOnlyExactV202Fields",
       "category": "test"
     },
     {
-      "path": "growatt_bms_rs485_typed_test.go",
+      "path": "growatt/growatt_bms_rs485_typed_test.go",
       "symbol": "growatt_bms_rs485_typed_test.go",
       "category": "filename"
     },
     {
-      "path": "growatt_exact_profile_internal_test.go",
+      "path": "growatt/growatt_exact_profile_internal_test.go",
       "symbol": "TestM52GrowattAdjacentRevisionsReachRevisionComparison",
       "category": "test"
     },
@@ -1994,62 +1994,62 @@
       "category": "test"
     },
     {
-      "path": "growatt_fixture_flag_followup_test.go",
+      "path": "growatt/growatt_fixture_flag_followup_test.go",
       "symbol": "TestS06GrowattFixtureFlagRequiredForOtherwiseMatchingAdmission",
       "category": "test"
     },
     {
-      "path": "growatt_protocol_ii_fc04.go",
+      "path": "growatt/growatt_protocol_ii_fc04.go",
       "symbol": "DecodeGrowattProtocolIIFC04Telemetry",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04.go",
-      "symbol": "GrowattProtocolIIFC04Applicability",
+      "path": "growatt/growatt_protocol_ii_fc04.go",
+      "symbol": "ProtocolIIFC04Applicability",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04.go",
-      "symbol": "GrowattProtocolIIFC04Slice",
+      "path": "growatt/growatt_protocol_ii_fc04.go",
+      "symbol": "ProtocolIIFC04Slice",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04.go",
-      "symbol": "GrowattProtocolIIFC04Telemetry",
+      "path": "growatt/growatt_protocol_ii_fc04.go",
+      "symbol": "ProtocolIIFC04Telemetry",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04.go",
+      "path": "growatt/growatt_protocol_ii_fc04.go",
       "symbol": "Phase1CurrentAmps",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04.go",
+      "path": "growatt/growatt_protocol_ii_fc04.go",
       "symbol": "Phase1VoltageVolts",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04.go",
+      "path": "growatt/growatt_protocol_ii_fc04.go",
       "symbol": "Phase2CurrentAmps",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04.go",
+      "path": "growatt/growatt_protocol_ii_fc04.go",
       "symbol": "Phase2VoltageVolts",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04.go",
+      "path": "growatt/growatt_protocol_ii_fc04.go",
       "symbol": "Phase3CurrentAmps",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04.go",
+      "path": "growatt/growatt_protocol_ii_fc04.go",
       "symbol": "Phase3VoltageVolts",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04.go",
+      "path": "growatt/growatt_protocol_ii_fc04.go",
       "symbol": "u32",
       "category": "identifier"
     },
@@ -2064,62 +2064,62 @@
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04_rtu_observer.go",
+      "path": "growatt/growatt_protocol_ii_fc04_rtu_observer.go",
       "symbol": "ErrGrowattProtocolIIFC04RTUObserverInvalid",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04_rtu_observer.go",
-      "symbol": "GrowattProtocolIIFC04RTUObserver",
+      "path": "growatt/growatt_protocol_ii_fc04_rtu_observer.go",
+      "symbol": "ProtocolIIFC04RTUObserver",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04_rtu_observer.go",
-      "symbol": "GrowattProtocolIIFC04RTUObserverSession",
+      "path": "growatt/growatt_protocol_ii_fc04_rtu_observer.go",
+      "symbol": "ProtocolIIFC04RTUObserverSession",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04_rtu_observer.go",
-      "symbol": "NewGrowattProtocolIIFC04RTUObserver",
+      "path": "growatt/growatt_protocol_ii_fc04_rtu_observer.go",
+      "symbol": "NewProtocolIIFC04RTUObserver",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04_rtu_observer_test.go",
+      "path": "growatt/growatt_protocol_ii_fc04_rtu_observer_test.go",
       "symbol": "TestGrowattProtocolIIFC04RTUObserverRejectsMissingOrMismatchedApplicability",
       "category": "test"
     },
     {
-      "path": "growatt_protocol_ii_fc04_rtu_observer_test.go",
+      "path": "growatt/growatt_protocol_ii_fc04_rtu_observer_test.go",
       "symbol": "TestGrowattProtocolIIFC04RTUObserverRejectsShortOrFailedRead",
       "category": "test"
     },
     {
-      "path": "growatt_protocol_ii_fc04_rtu_observer_test.go",
+      "path": "growatt/growatt_protocol_ii_fc04_rtu_observer_test.go",
       "symbol": "TestGrowattProtocolIIFC04RTUObserverUsesOneExactInputRead",
       "category": "test"
     },
     {
-      "path": "growatt_protocol_ii_fc04_rtu_observer_test.go",
+      "path": "growatt/growatt_protocol_ii_fc04_rtu_observer_test.go",
       "symbol": "growattProtocolIIFC04Fake",
       "category": "identifier"
     },
     {
-      "path": "growatt_protocol_ii_fc04_test.go",
+      "path": "growatt/growatt_protocol_ii_fc04_test.go",
       "symbol": "TestDecodeGrowattProtocolIIFC04TelemetryFailsClosed",
       "category": "test"
     },
     {
-      "path": "growatt_protocol_ii_fc04_test.go",
+      "path": "growatt/growatt_protocol_ii_fc04_test.go",
       "symbol": "TestDecodeGrowattProtocolIIFC04TelemetryKeepsRawAndProducesBoundedFacts",
       "category": "test"
     },
     {
-      "path": "growatt_protocol_ii_fc04_test.go",
+      "path": "growatt/growatt_protocol_ii_fc04_test.go",
       "symbol": "TestGrowattProtocolIIFC04TelemetryRequiresSeparateExactApplicability",
       "category": "test"
     },
     {
-      "path": "growatt_protocol_ii_fc04_test.go",
+      "path": "growatt/growatt_protocol_ii_fc04_test.go",
       "symbol": "syntheticGrowattProtocolIIFC04FixtureAdmission",
       "category": "identifier"
     },

@@ -20,13 +20,13 @@
       "value": 66
     },
     {
-      "path": "growatt_aggregate_offline_provider_test.go",
+      "path": "growatt/growatt_aggregate_offline_provider_test.go",
       "symbol": "$file",
       "metric": "functions_per_file",
       "value": 77
     },
     {
-      "path": "growatt_aggregate_provider_port_test.go",
+      "path": "growatt/growatt_aggregate_provider_port_test.go",
       "symbol": "$file",
       "metric": "functions_per_file",
       "value": 100

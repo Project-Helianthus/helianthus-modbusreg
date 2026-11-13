@@ -27,7 +27,7 @@ candidate ordering nor a matching candidate among conflicting definitions can
 select a winner. Both model words remain separate in FC03 register order 82,
 83. The document edition is metadata, never the reported protocol word at 88.
 
-`GrowattFC04SymbolicSchema` carries the exact source and field-definition
+`FC04SymbolicSchema` carries the exact source and field-definition
 references, document edition and amendment identity, function and extent, and
 symbolic field extents. Every supplied field extent must have positive width
 and fit wholly within the source extent using non-wrapping arithmetic. These
