@@ -15,10 +15,14 @@ type SunSpecQualificationSampleIdentity struct {
 	deadlineIdentity uint64
 }
 
+// PollGeneration returns the poll generation shared by every source view; it
+// is never zero for a constructed observation.
 func (identity SunSpecQualificationSampleIdentity) PollGeneration() uint64 {
 	return identity.pollGeneration
 }
 
+// DeadlineIdentity returns the deadline identity shared by every source view;
+// it is never zero for a constructed observation.
 func (identity SunSpecQualificationSampleIdentity) DeadlineIdentity() uint64 {
 	return identity.deadlineIdentity
 }
@@ -26,14 +30,17 @@ func (identity SunSpecQualificationSampleIdentity) DeadlineIdentity() uint64 {
 // SunSpecQualificationReplay is an immutable detached replay image.
 type SunSpecQualificationReplay struct{ snapshot SunSpecChainSnapshot }
 
+// RawWords returns a copy of the retained raw chain image.
 func (replay SunSpecQualificationReplay) RawWords() []uint16 {
 	return replay.snapshot.RawWords()
 }
 
+// Occurrences returns copies of the retained occurrences in chain order.
 func (replay SunSpecQualificationReplay) Occurrences() []SunSpecOccurrence {
 	return replay.snapshot.Occurrences()
 }
 
+// SourceViews returns copies of the retained source views in admission order.
 func (replay SunSpecQualificationReplay) SourceViews() []LogicalViewSnapshot {
 	return replay.snapshot.SourceViews()
 }
@@ -83,36 +90,49 @@ func NewSunSpecQualificationObservation(registry SunSpecDecoderRegistry, input S
 	}, nil
 }
 
+// Capability returns a copy of the admitted three-phase monitoring decision.
 func (observation SunSpecQualificationObservation) Capability() SunSpecCapabilityDecision {
 	return cloneSunSpecCapabilityDecision(observation.capability)
 }
 
+// Flavor returns a copy of the uniquely matched Fronius flavor decision.
 func (observation SunSpecQualificationObservation) Flavor() SunSpecFroniusFlavorDecision {
 	return cloneSunSpecFroniusFlavorDecision(observation.flavor)
 }
 
+// Chain returns a copy of the terminal-verified wire chain, end marker
+// included.
 func (observation SunSpecQualificationObservation) Chain() []SunSpecWireKey {
 	return append([]SunSpecWireKey(nil), observation.chain...)
 }
 
+// SampleID returns the sample identifier derived from the sample identity, in
+// the form sunspec-<poll generation>-<deadline identity>.
 func (observation SunSpecQualificationObservation) SampleID() string { return observation.sampleID }
 
+// SampleIdentity returns the capture identity shared by the source views.
 func (observation SunSpecQualificationObservation) SampleIdentity() SunSpecQualificationSampleIdentity {
 	return observation.identity
 }
 
+// RawWords returns a copy of the retained raw chain image.
 func (observation SunSpecQualificationObservation) RawWords() []uint16 {
 	return observation.snapshot.RawWords()
 }
 
+// Occurrences returns copies of the retained occurrences in chain order.
 func (observation SunSpecQualificationObservation) Occurrences() []SunSpecOccurrence {
 	return observation.snapshot.Occurrences()
 }
 
+// SourceViews returns copies of the retained source views in admission order.
 func (observation SunSpecQualificationObservation) SourceViews() []LogicalViewSnapshot {
 	return observation.snapshot.SourceViews()
 }
 
+// Replay revalidates the retained snapshot and returns a detached copy of it.
+// It returns an error when the retained snapshot is not a valid qualification
+// capture, as for the zero value.
 func (observation SunSpecQualificationObservation) Replay() (SunSpecQualificationReplay, error) {
 	if _, _, err := validateSunSpecQualificationSnapshot(observation.snapshot); err != nil {
 		return SunSpecQualificationReplay{}, err
@@ -159,6 +179,10 @@ func cloneSunSpecQualificationSnapshot(snapshot SunSpecChainSnapshot) SunSpecCha
 	return cloned
 }
 
+// MarshalJSON revalidates the observation and encodes it as the versioned
+// snake_case JSON evidence record, including raw words, occurrences and the
+// full source-view provenance. It returns an error instead of encoding a zero
+// or internally inconsistent observation.
 func (observation SunSpecQualificationObservation) MarshalJSON() ([]byte, error) {
 	snapshot, identity, err := validateSunSpecQualificationSnapshot(observation.snapshot)
 	if err != nil {

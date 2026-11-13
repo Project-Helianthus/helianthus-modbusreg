@@ -21,6 +21,14 @@ type sunSpecWireSource struct {
 	physicalRequestID uint64
 	responseBytes     []byte
 }
+
+// SunSpecChain walks one SunSpec chain from planned reads to a
+// SunSpecChainSnapshot. The caller performs each request from NextRequests and
+// passes the logical view that answered it to AdmitReplay; the chain does no
+// I/O itself. All views must share one provenance. The walk ends at the end
+// marker or at the first structural failure, after which nothing is accepted.
+// Methods are safe for concurrent use. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/sunspec/read-only-core-v1.md.
 type SunSpecChain struct {
 	mu         sync.Mutex
 	plan       SunSpecChainPlan
@@ -40,6 +48,9 @@ type SunSpecChain struct {
 	failed     bool
 }
 
+// NewSunSpecChain starts a walk of plan p under a process-unique instance
+// number. If instance numbers are exhausted it returns a chain that rejects
+// every view.
 func NewSunSpecChain(p SunSpecChainPlan) *SunSpecChain {
 	instance := nextSunSpecChainInstance()
 	if instance == 0 {
@@ -71,6 +82,10 @@ func nextSunSpecChainInstance() uint64 {
 		}
 	}
 }
+
+// NextRequests returns the outstanding requests in issue order: all signature
+// probes first, then one header or payload request at a time. It returns none
+// once the walk is complete or failed, and nil for a nil chain.
 func (c *SunSpecChain) NextRequests() []SunSpecReadRequest {
 	if c == nil {
 		return nil
@@ -79,6 +94,15 @@ func (c *SunSpecChain) NextRequests() []SunSpecReadRequest {
 	defer c.mu.Unlock()
 	return sortedRequests(c.pending)
 }
+
+// AdmitReplay admits the logical view v that answered request r and advances
+// the walk. It returns a snapshot with raw words only when v completes the
+// chain at the end marker; a zero snapshot with a nil error means more
+// requests are pending. A request or view that does not belong to this walk
+// (another chain's, replayed, unplanned, a duplicated view, a mismatched range
+// or mixed provenance) is rejected and leaves the walk unchanged. An invalid
+// chain (ambiguous or absent signature, bad header, exceeded limit, address
+// overflow or contradictory source identity) fails the walk for good.
 func (c *SunSpecChain) AdmitReplay(r SunSpecReadRequest, v LogicalViewSnapshot) (SunSpecChainSnapshot, error) {
 	if c == nil {
 		return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec chain is unavailable")

@@ -2,13 +2,21 @@ package modbusreg
 
 import "fmt"
 
+// Supported schema revisions. Each pins one exact model-definition set: V1 the
+// read-only core catalog, V2 the offline DER catalog. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/sunspec/read-only-core-v1.md
+// and
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/sunspec/read-only-core-v2.md.
 const (
 	SunSpecModelsRevisionV1 SunSpecSchemaRevision = "sunspec.models@7abdf898-v1"
 	SunSpecModelsRevisionV2 SunSpecSchemaRevision = "sunspec.models@90b4a331-v2"
 )
 
+// SunSpecTopology is the AC phase topology a catalog model declares.
 type SunSpecTopology string
 
+// Topologies. SunSpecTopologyNone applies to every model that is not an
+// inverter model.
 const (
 	SunSpecTopologyNone        SunSpecTopology = "none"
 	SunSpecTopologySinglePhase SunSpecTopology = "single_phase"

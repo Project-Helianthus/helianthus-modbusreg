@@ -9,6 +9,11 @@ type SunSpecVendorDecoderNamespace struct {
 	registry SunSpecDecoderRegistry
 }
 
+// Decode decodes one complete vendor occurrence, header words included. The
+// model identifier and length in words[0] and words[1] must name a definition
+// of this namespace under its revision; otherwise Decode returns an error.
+// Facts without a field identifier are dropped. The input is copied and the
+// result carries no source spans.
 func (n SunSpecVendorDecoderNamespace) Decode(words []uint16) (SunSpecDecodedModel, error) {
 	if len(words) < 2 {
 		return SunSpecDecodedModel{}, fmt.Errorf("vendor SunSpec occurrence is incomplete")

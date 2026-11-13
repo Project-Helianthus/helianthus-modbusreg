@@ -2,14 +2,24 @@ package modbusreg
 
 import "slices"
 
+// Fronius observed flavor identifiers, one per immutable flavor version. Each
+// version pins one Common identity, one exact firmware string and one exact
+// model chain; a different firmware or chain needs a new version. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/fronius/sunspec-float-v1.md.
 const (
 	SunSpecFroniusObservedFlavorID    = "sunspec.flavor.fronius.gen24.float.observed@1.0.0"
 	SunSpecFroniusObservedFlavorV11ID = "sunspec.flavor.fronius.gen24.float.observed@1.1.0"
 	SunSpecFroniusObservedFlavorV12ID = "sunspec.flavor.fronius.gen24.float.observed@1.2.0"
 )
 
+// SunSpecFroniusFlavorReason is the stable reason code of a
+// SunSpecFroniusFlavorDecision.
 type SunSpecFroniusFlavorReason string
 
+// Fronius flavor reasons, checked in this order: AmbiguousSource (the
+// capability found more than one source), CapabilityNotAdmitted,
+// CommonIdentityMismatch, FirmwareMismatch and ChainMismatch. Matched means
+// every check held.
 const (
 	SunSpecFroniusFlavorReasonCapabilityNotAdmitted  SunSpecFroniusFlavorReason = "CAPABILITY_NOT_ADMITTED"
 	SunSpecFroniusFlavorReasonCommonIdentityMismatch SunSpecFroniusFlavorReason = "COMMON_IDENTITY_MISMATCH"
@@ -19,6 +29,10 @@ const (
 	SunSpecFroniusFlavorReasonMatched                SunSpecFroniusFlavorReason = "MATCHED"
 )
 
+// SunSpecFroniusFlavorDecision is the immutable result of evaluating one
+// Fronius flavor version. It always carries the capability decision it was
+// based on; the chain and source views are present only when matched. A match
+// is structural evidence for one exact flavor, not a live qualification.
 type SunSpecFroniusFlavorDecision struct {
 	flavorID   string
 	matched    bool
@@ -28,20 +42,35 @@ type SunSpecFroniusFlavorDecision struct {
 	views      []LogicalViewSnapshot
 }
 
-func (d SunSpecFroniusFlavorDecision) Matched() bool                      { return d.matched }
+// Matched reports whether every check of the flavor held.
+func (d SunSpecFroniusFlavorDecision) Matched() bool { return d.matched }
+
+// Reason returns the first failed check, or the matched reason.
 func (d SunSpecFroniusFlavorDecision) Reason() SunSpecFroniusFlavorReason { return d.reason }
+
+// FlavorID returns the evaluated flavor version; the zero value reports
+// SunSpecFroniusObservedFlavorID.
 func (d SunSpecFroniusFlavorDecision) FlavorID() string {
 	if d.flavorID == "" {
 		return SunSpecFroniusObservedFlavorID
 	}
 	return d.flavorID
 }
+
+// Capability returns a copy of the three-phase monitoring decision the
+// evaluation was based on.
 func (d SunSpecFroniusFlavorDecision) Capability() SunSpecCapabilityDecision {
 	return cloneSunSpecCapabilityDecision(d.capability)
 }
+
+// Chain returns a copy of the matched wire chain, end marker included; it is
+// empty unless matched.
 func (d SunSpecFroniusFlavorDecision) Chain() []SunSpecWireKey {
 	return append([]SunSpecWireKey(nil), d.chain...)
 }
+
+// SourceViews returns copies of the snapshot's source views; it is empty
+// unless matched.
 func (d SunSpecFroniusFlavorDecision) SourceViews() []LogicalViewSnapshot {
 	return cloneSunSpecLogicalViewSnapshots(d.views)
 }
@@ -102,14 +131,22 @@ var (
 	}
 )
 
+// SunSpecFroniusFlavorSelectionReason is the stable reason code of a
+// SunSpecFroniusFlavorSelection.
 type SunSpecFroniusFlavorSelectionReason string
 
+// Selection reasons: NoMatch when no flavor version matched, AmbiguousMatch
+// when more than one did, Matched when exactly one did.
 const (
 	SunSpecFroniusFlavorSelectionReasonNoMatch        SunSpecFroniusFlavorSelectionReason = "NO_MATCH"
 	SunSpecFroniusFlavorSelectionReasonAmbiguousMatch SunSpecFroniusFlavorSelectionReason = "AMBIGUOUS_MATCH"
 	SunSpecFroniusFlavorSelectionReasonMatched        SunSpecFroniusFlavorSelectionReason = "MATCHED"
 )
 
+// SunSpecFroniusFlavorSelection is the result of SelectFroniusObservedFlavor:
+// every per-version evaluation and, when exactly one version matched, that
+// decision. More than one match is ambiguous and selects nothing; version
+// order never breaks a tie.
 type SunSpecFroniusFlavorSelection struct {
 	matched     bool
 	reason      SunSpecFroniusFlavorSelectionReason
@@ -117,32 +154,53 @@ type SunSpecFroniusFlavorSelection struct {
 	evaluations []SunSpecFroniusFlavorDecision
 }
 
+// Matched reports whether exactly one flavor version matched.
 func (s SunSpecFroniusFlavorSelection) Matched() bool { return s.matched }
+
+// Reason returns the selection reason.
 func (s SunSpecFroniusFlavorSelection) Reason() SunSpecFroniusFlavorSelectionReason {
 	return s.reason
 }
+
+// Decision returns a copy of the selected decision and true only when Matched.
 func (s SunSpecFroniusFlavorSelection) Decision() (SunSpecFroniusFlavorDecision, bool) {
 	if s.decision == nil {
 		return SunSpecFroniusFlavorDecision{}, false
 	}
 	return cloneSunSpecFroniusFlavorDecision(*s.decision), true
 }
+
+// Evaluations returns copies of every per-version evaluation, in version
+// order.
 func (s SunSpecFroniusFlavorSelection) Evaluations() []SunSpecFroniusFlavorDecision {
 	return cloneSunSpecFroniusFlavorDecisions(s.evaluations)
 }
 
+// EvaluateFroniusObservedFlavor evaluates flavor version 1.0.0
+// (SunSpecFroniusObservedFlavorID) against snapshot. It requires an admitted
+// three-phase monitoring capability, then the flavor's exact Common
+// manufacturer and model, its exact firmware string and its exact wire chain.
+// It never returns an error; the reason names the first failed check.
 func (r SunSpecDecoderRegistry) EvaluateFroniusObservedFlavor(snapshot SunSpecChainSnapshot) SunSpecFroniusFlavorDecision {
 	return r.evaluateFroniusObservedFlavor(snapshot, froniusObservedFlavorV1)
 }
 
+// EvaluateFroniusObservedFlavorV11 applies the checks of
+// EvaluateFroniusObservedFlavor for flavor version 1.1.0
+// (SunSpecFroniusObservedFlavorV11ID).
 func (r SunSpecDecoderRegistry) EvaluateFroniusObservedFlavorV11(snapshot SunSpecChainSnapshot) SunSpecFroniusFlavorDecision {
 	return r.evaluateFroniusObservedFlavor(snapshot, froniusObservedFlavorV11)
 }
 
+// EvaluateFroniusObservedFlavorV12 applies the checks of
+// EvaluateFroniusObservedFlavor for flavor version 1.2.0
+// (SunSpecFroniusObservedFlavorV12ID).
 func (r SunSpecDecoderRegistry) EvaluateFroniusObservedFlavorV12(snapshot SunSpecChainSnapshot) SunSpecFroniusFlavorDecision {
 	return r.evaluateFroniusObservedFlavor(snapshot, froniusObservedFlavorV12)
 }
 
+// SelectFroniusObservedFlavor evaluates every Fronius flavor version against
+// snapshot and selects one only when exactly one matches.
 func (r SunSpecDecoderRegistry) SelectFroniusObservedFlavor(snapshot SunSpecChainSnapshot) SunSpecFroniusFlavorSelection {
 	return selectSunSpecFroniusFlavor([]SunSpecFroniusFlavorDecision{
 		r.EvaluateFroniusObservedFlavor(snapshot),

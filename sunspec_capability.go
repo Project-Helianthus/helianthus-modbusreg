@@ -5,10 +5,21 @@ import (
 	"strings"
 )
 
+// SunSpecThreePhaseMonitoringCapabilityID identifies the vendor-neutral
+// three-phase inverter monitoring capability that EvaluateThreePhaseMonitoring
+// decides.
 const SunSpecThreePhaseMonitoringCapabilityID = "sunspec.inverter.three_phase.monitoring@1.0.0"
 
+// SunSpecCapabilityReason is the stable reason code of a
+// SunSpecCapabilityDecision.
 type SunSpecCapabilityReason string
 
+// Capability reasons. InvalidChain: the snapshot is not a consistent terminal
+// chain or does not decode. SourceAbsent and AmbiguousSource: no, or more than
+// one, three-phase inverter occurrence. SourceUnsupported: the source is not
+// admitted under the registry revision or is not three-phase.
+// InvalidRequiredFact: a required fact is missing, repeated, has another unit,
+// or is not a valid and fully named value.
 const (
 	SunSpecCapabilityReasonAdmitted            SunSpecCapabilityReason = "ADMITTED"
 	SunSpecCapabilityReasonInvalidChain        SunSpecCapabilityReason = "INVALID_CHAIN"
@@ -18,14 +29,20 @@ const (
 	SunSpecCapabilityReasonInvalidRequiredFact SunSpecCapabilityReason = "INVALID_REQUIRED_FACT"
 )
 
+// SunSpecCanonicalValueKind selects which SunSpecCanonicalValue accessor holds
+// the value.
 type SunSpecCanonicalValueKind string
 
+// Canonical value kinds: an exact decimal number, an enum with its symbol, or
+// a bitfield with its symbols.
 const (
 	SunSpecCanonicalNumber   SunSpecCanonicalValueKind = "number"
 	SunSpecCanonicalEnum     SunSpecCanonicalValueKind = "enum"
 	SunSpecCanonicalBitfield SunSpecCanonicalValueKind = "bitfield"
 )
 
+// SunSpecCanonicalValue is a value in transport-neutral form. Only the
+// accessor that matches Kind reports true.
 type SunSpecCanonicalValue struct {
 	kind       SunSpecCanonicalValueKind
 	number     string
@@ -35,17 +52,29 @@ type SunSpecCanonicalValue struct {
 	bitSymbols []string
 }
 
+// Kind returns which accessor holds the value.
 func (v SunSpecCanonicalValue) Kind() SunSpecCanonicalValueKind { return v.kind }
+
+// Number returns the value as a plain decimal string, without exponent or
+// trailing zeros and with zero as "0", and true for a number.
 func (v SunSpecCanonicalValue) Number() (string, bool) {
 	return v.number, v.kind == SunSpecCanonicalNumber
 }
+
+// Enum returns the enum number, its non-empty symbol and true for an enum.
 func (v SunSpecCanonicalValue) Enum() (uint64, string, bool) {
 	return v.enumNumber, v.enumSymbol, v.kind == SunSpecCanonicalEnum
 }
+
+// Bitfield returns the raw bits, a copy of the set bits' symbols and true for
+// a bitfield. An admitted bitfield has no unknown bits.
 func (v SunSpecCanonicalValue) Bitfield() (uint64, []string, bool) {
 	return v.bits, append([]string(nil), v.bitSymbols...), v.kind == SunSpecCanonicalBitfield
 }
 
+// SunSpecCapabilityFact is one required fact of an admitted capability: field
+// identifier, capability unit, canonical value and the decoded source value it
+// was derived from.
 type SunSpecCapabilityFact struct {
 	fieldID     string
 	unit        string
@@ -53,15 +82,27 @@ type SunSpecCapabilityFact struct {
 	sourceValue SunSpecValue
 }
 
+// FieldID returns the stable field identifier.
 func (f SunSpecCapabilityFact) FieldID() string { return f.fieldID }
-func (f SunSpecCapabilityFact) Unit() string    { return f.unit }
+
+// Unit returns the capability unit, or "none" for enum and bitfield facts.
+func (f SunSpecCapabilityFact) Unit() string { return f.unit }
+
+// Value returns a copy of the canonical value.
 func (f SunSpecCapabilityFact) Value() SunSpecCanonicalValue {
 	return cloneSunSpecCanonicalValue(f.value)
 }
+
+// SourceValue returns a copy of the decoded source value, raw words included.
 func (f SunSpecCapabilityFact) SourceValue() SunSpecValue {
 	return cloneSunSpecValue(f.sourceValue)
 }
 
+// SunSpecCapabilityDecision is the immutable result of
+// EvaluateThreePhaseMonitoring. A rejected decision carries only its reason;
+// an admitted one also carries the source occurrence, the required facts in a
+// fixed order and the source views. Admission is not a product or firmware
+// qualification.
 type SunSpecCapabilityDecision struct {
 	admitted bool
 	reason   SunSpecCapabilityReason
@@ -70,18 +111,33 @@ type SunSpecCapabilityDecision struct {
 	views    []LogicalViewSnapshot
 }
 
-func (d SunSpecCapabilityDecision) Admitted() bool                  { return d.admitted }
+// Admitted reports whether the capability was admitted.
+func (d SunSpecCapabilityDecision) Admitted() bool { return d.admitted }
+
+// Reason returns the admission or rejection reason.
 func (d SunSpecCapabilityDecision) Reason() SunSpecCapabilityReason { return d.reason }
-func (d SunSpecCapabilityDecision) ProfileID() string               { return SunSpecThreePhaseMonitoringCapabilityID }
+
+// ProfileID returns SunSpecThreePhaseMonitoringCapabilityID, also for a
+// rejected decision.
+func (d SunSpecCapabilityDecision) ProfileID() string { return SunSpecThreePhaseMonitoringCapabilityID }
+
+// SourceOccurrence returns a copy of the source occurrence and true when
+// admitted.
 func (d SunSpecCapabilityDecision) SourceOccurrence() (SunSpecOccurrence, bool) {
 	if d.source == nil {
 		return SunSpecOccurrence{}, false
 	}
 	return cloneOccurrence(*d.source), true
 }
+
+// Facts returns copies of the required facts in the capability's fixed order;
+// it is empty when rejected.
 func (d SunSpecCapabilityDecision) Facts() []SunSpecCapabilityFact {
 	return cloneSunSpecCapabilityFacts(d.facts)
 }
+
+// SourceViews returns copies of the snapshot's source views; it is empty when
+// rejected.
 func (d SunSpecCapabilityDecision) SourceViews() []LogicalViewSnapshot {
 	return cloneSunSpecLogicalViewSnapshots(d.views)
 }
@@ -105,6 +161,14 @@ var threePhaseMonitoringFields = []sunSpecCapabilityField{
 	{"inverter.events.2", "", "none"},
 }
 
+// EvaluateThreePhaseMonitoring decides the three-phase monitoring capability
+// from a completed chain snapshot. The snapshot must be a consistent terminal
+// chain that DecodeChain accepts, with a qualifying Common Model and valid
+// geometry throughout; exactly one three-phase inverter occurrence must be
+// present and admitted under this registry's revision; and every required fact
+// must occur once, with its catalog unit and a valid, fully named value. Any
+// failure yields a rejected decision with its reason. It never returns an
+// error and never reads from a device.
 func (r SunSpecDecoderRegistry) EvaluateThreePhaseMonitoring(snapshot SunSpecChainSnapshot) SunSpecCapabilityDecision {
 	rejected := func(reason SunSpecCapabilityReason) SunSpecCapabilityDecision {
 		return SunSpecCapabilityDecision{reason: reason}

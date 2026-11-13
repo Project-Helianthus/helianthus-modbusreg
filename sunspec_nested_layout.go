@@ -15,6 +15,10 @@ type SunSpecFactPathSegment struct {
 // SunSpecFactPath is an immutable ordered hierarchy for a nested SunSpec fact.
 type SunSpecFactPath struct{ segments []SunSpecFactPathSegment }
 
+// NewSunSpecFactPath validates and copies segments. It returns an error for an
+// empty path, a segment without a name, or an unindexed segment with a nonzero
+// index. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/sunspec/nested-layout-contract-v1.md.
 func NewSunSpecFactPath(segments []SunSpecFactPathSegment) (SunSpecFactPath, error) {
 	if len(segments) == 0 {
 		return SunSpecFactPath{}, fmt.Errorf("SunSpec fact path has no segments")
@@ -30,6 +34,7 @@ func NewSunSpecFactPath(segments []SunSpecFactPathSegment) (SunSpecFactPath, err
 	return SunSpecFactPath{segments: append([]SunSpecFactPathSegment(nil), segments...)}, nil
 }
 
+// Segments returns a copy of the path segments, outermost first.
 func (p SunSpecFactPath) Segments() []SunSpecFactPathSegment {
 	return append([]SunSpecFactPathSegment(nil), p.segments...)
 }
@@ -41,6 +46,11 @@ type SunSpecOccurrenceSourceRange struct {
 	spans             []SunSpecSourceSpan
 }
 
+// NewSunSpecOccurrenceSourceRange validates a range of wordCount words at an
+// occurrence-relative offset and the ordered spans that cover it exactly. It
+// returns an error when the range is empty or reaches past 65536 words, when a
+// span has no logical view or no words or runs past the PDU, or when the span
+// counts do not sum to wordCount. Spans are copied, never coalesced.
 func NewSunSpecOccurrenceSourceRange(offset, wordCount uint32, spans []SunSpecSourceSpan) (SunSpecOccurrenceSourceRange, error) {
 	if wordCount == 0 || offset >= maxSunSpecOccurrenceWords || wordCount > maxSunSpecOccurrenceWords-offset {
 		return SunSpecOccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence source range is outside bounds")
@@ -113,8 +123,14 @@ func NewSunSpecOccurrenceSourceRangeFromSpans(offset, wordCount uint32, spans []
 	return NewSunSpecOccurrenceSourceRange(offset, wordCount, selected)
 }
 
+// OccurrenceOffset returns the first word of the range, counted from the
+// occurrence header.
 func (r SunSpecOccurrenceSourceRange) OccurrenceOffset() uint32 { return r.offset }
-func (r SunSpecOccurrenceSourceRange) WordCount() uint32        { return r.wordCount }
+
+// WordCount returns the length of the range in words.
+func (r SunSpecOccurrenceSourceRange) WordCount() uint32 { return r.wordCount }
+
+// SourceSpans returns a copy of the covering spans in word order.
 func (r SunSpecOccurrenceSourceRange) SourceSpans() []SunSpecSourceSpan {
 	return append([]SunSpecSourceSpan(nil), r.spans...)
 }

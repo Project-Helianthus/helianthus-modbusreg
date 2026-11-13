@@ -7,10 +7,13 @@ import (
 )
 
 const (
-	sunSpecPhaseOneProfileID     = "sunspec.phase1"
-	sunSpecSignatureFirst        = 0x5375
-	sunSpecSignatureSecond       = 0x6e53
-	sunSpecEndModel              = 0xffff
+	sunSpecPhaseOneProfileID = "sunspec.phase1"
+	sunSpecSignatureFirst    = 0x5375
+	sunSpecSignatureSecond   = 0x6e53
+	sunSpecEndModel          = 0xffff
+	// MaxSunSpecPhaseOneChainWords bounds a phase-one raw chain image,
+	// signature and end marker included. The Fronius qualification card uses
+	// it as its total word limit.
 	MaxSunSpecPhaseOneChainWords = 512
 )
 
@@ -41,14 +44,25 @@ func NewSunSpecPhaseOneProfile(versions SunSpecPhaseOneVersions) (ProfileDescrip
 // SunSpecDiscoveryRequest declares the protocol's one read-only base request.
 type SunSpecDiscoveryRequest struct{}
 
+// Function returns FunctionReadHoldingRegisters.
 func (SunSpecDiscoveryRequest) Function() FunctionCode { return FunctionReadHoldingRegisters }
-func (SunSpecDiscoveryRequest) Table() LogicalTable    { return HoldingRegisters }
-func (SunSpecDiscoveryRequest) Offset() uint16         { return 40000 }
-func (SunSpecDiscoveryRequest) ReadOnly() bool         { return true }
+
+// Table returns HoldingRegisters.
+func (SunSpecDiscoveryRequest) Table() LogicalTable { return HoldingRegisters }
+
+// Offset returns the zero-based PDU address of the base, 40000 (documentary
+// 40001).
+func (SunSpecDiscoveryRequest) Offset() uint16 { return 40000 }
+
+// ReadOnly always reports true.
+func (SunSpecDiscoveryRequest) ReadOnly() bool { return true }
 
 // SunSpecPhaseOneDecoder validates and decodes the v1 standard family only.
 type SunSpecPhaseOneDecoder struct{ profile ProfileDescriptor }
 
+// NewSunSpecPhaseOneDecoder binds a decoder to profile, which must equal the
+// profile NewSunSpecPhaseOneProfile builds for the current schema and codec
+// versions; any other profile returns an error.
 func NewSunSpecPhaseOneDecoder(profile ProfileDescriptor) (SunSpecPhaseOneDecoder, error) {
 	if profile.ID() != sunSpecPhaseOneProfileID || profile.Kind() != ProfileStandardFamily || profile.Version() != CurrentSchemaVersion() || profile.CodecContractVersion() != CurrentCodecContractVersion() {
 		return SunSpecPhaseOneDecoder{}, fmt.Errorf("unsupported SunSpec phase-one profile")
@@ -62,6 +76,8 @@ func NewSunSpecPhaseOneDecoder(profile ProfileDescriptor) (SunSpecPhaseOneDecode
 	}
 	return SunSpecPhaseOneDecoder{profile: profile}, nil
 }
+
+// DiscoveryRequest returns the single read-only base request.
 func (SunSpecPhaseOneDecoder) DiscoveryRequest() SunSpecDiscoveryRequest {
 	return SunSpecDiscoveryRequest{}
 }
@@ -69,8 +85,14 @@ func (SunSpecPhaseOneDecoder) DiscoveryRequest() SunSpecDiscoveryRequest {
 // SunSpecPhaseOneModel records one structural model extent in the raw chain.
 type SunSpecPhaseOneModel struct{ id, offset, length uint16 }
 
-func (model SunSpecPhaseOneModel) ID() uint16     { return model.id }
+// ID returns the model identifier.
+func (model SunSpecPhaseOneModel) ID() uint16 { return model.id }
+
+// Offset returns the index of the model header in the raw chain image, not a
+// register address.
 func (model SunSpecPhaseOneModel) Offset() uint16 { return model.offset }
+
+// Length returns the declared payload length in words, excluding the header.
 func (model SunSpecPhaseOneModel) Length() uint16 { return model.length }
 
 // SunSpecPhaseOneChain retains semantic and structurally skipped models.
@@ -82,9 +104,14 @@ type SunSpecPhaseOneChain struct {
 	valid           bool
 }
 
+// Models returns a copy of the decoded Common and integer inverter models in
+// chain order.
 func (chain SunSpecPhaseOneChain) Models() []SunSpecPhaseOneModel {
 	return append([]SunSpecPhaseOneModel(nil), chain.models...)
 }
+
+// SkippedModels returns a copy of the models kept only as structural extents,
+// in chain order.
 func (chain SunSpecPhaseOneChain) SkippedModels() []SunSpecPhaseOneModel {
 	return append([]SunSpecPhaseOneModel(nil), chain.skipped...)
 }
@@ -98,11 +125,22 @@ type SunSpecCommonModel struct {
 	deviceAddress                                 uint16
 }
 
-func (model SunSpecCommonModel) Manufacturer() string  { return model.manufacturer }
-func (model SunSpecCommonModel) Model() string         { return model.model }
-func (model SunSpecCommonModel) Options() string       { return model.options }
-func (model SunSpecCommonModel) SerialNumber() string  { return model.serial }
-func (model SunSpecCommonModel) Version() string       { return model.version }
+// Manufacturer returns the manufacturer string, cut at its first NUL.
+func (model SunSpecCommonModel) Manufacturer() string { return model.manufacturer }
+
+// Model returns the model string, cut at its first NUL.
+func (model SunSpecCommonModel) Model() string { return model.model }
+
+// Options returns the options string, cut at its first NUL.
+func (model SunSpecCommonModel) Options() string { return model.options }
+
+// SerialNumber returns the serial number string, cut at its first NUL.
+func (model SunSpecCommonModel) SerialNumber() string { return model.serial }
+
+// Version returns the version string, cut at its first NUL.
+func (model SunSpecCommonModel) Version() string { return model.version }
+
+// DeviceAddress returns the device address word as read.
 func (model SunSpecCommonModel) DeviceAddress() uint16 { return model.deviceAddress }
 
 // SunSpecScaledValue preserves raw integer, scale factor, and scaled value.
@@ -112,21 +150,35 @@ type SunSpecScaledValue struct {
 	value float64
 }
 
-func (value SunSpecScaledValue) Raw() int64         { return value.raw }
+// Raw returns the unscaled integer as read.
+func (value SunSpecScaledValue) Raw() int64 { return value.raw }
+
+// ScaleFactor returns the power-of-ten exponent, from -10 to 10.
 func (value SunSpecScaledValue) ScaleFactor() int16 { return value.scale }
-func (value SunSpecScaledValue) Value() float64     { return value.value }
+
+// Value returns Raw * 10^ScaleFactor as a float64, which may round.
+func (value SunSpecScaledValue) Value() float64 { return value.value }
 
 // SunSpecInverterModel exposes admitted int-plus-scale-factor values.
 type SunSpecInverterModel struct{ power, energy SunSpecScaledValue }
 
-func (model SunSpecInverterModel) Power() SunSpecScaledValue  { return model.power }
+// Power returns the scaled AC active power, in W.
+func (model SunSpecInverterModel) Power() SunSpecScaledValue { return model.power }
+
+// Energy returns the scaled lifetime AC energy accumulator, in Wh.
 func (model SunSpecInverterModel) Energy() SunSpecScaledValue { return model.energy }
+
+// Common returns the Common model and true; it reports false only for a chain
+// that Parse did not produce.
 func (chain SunSpecPhaseOneChain) Common() (SunSpecCommonModel, bool) {
 	if chain.common == nil {
 		return SunSpecCommonModel{}, false
 	}
 	return *chain.common, true
 }
+
+// Inverter returns the integer inverter model with identifier id and true when
+// the chain contains it.
 func (chain SunSpecPhaseOneChain) Inverter(id uint16) (SunSpecInverterModel, bool) {
 	value, ok := chain.inverters[id]
 	return value, ok
@@ -271,10 +323,19 @@ func decimalScale(exponent int16) float64 {
 	}
 	return value
 }
+
+// Int16 reinterprets word as two's complement. It never fails and gives the
+// not-implemented sentinel no special meaning.
 func (SunSpecPhaseOneDecoder) Int16(word uint16) (int16, error) { return int16(word), nil }
+
+// Acc32 joins a high and a low word into an unsigned 32-bit accumulator. It
+// never fails and returns zero as a reading.
 func (SunSpecPhaseOneDecoder) Acc32(high, low uint16) (int64, error) {
 	return int64(uint32(high)<<16 | uint32(low)), nil
 }
+
+// ScaleFactor returns word as a scale-factor exponent. It returns an error for
+// the not-implemented sentinel or a value outside -10 to 10.
 func (SunSpecPhaseOneDecoder) ScaleFactor(word uint16) (int16, error) {
 	value := int16(word)
 	if value == -32768 || value < -10 || value > 10 {
@@ -282,6 +343,10 @@ func (SunSpecPhaseOneDecoder) ScaleFactor(word uint16) (int16, error) {
 	}
 	return value, nil
 }
+
+// String decodes the big-endian bytes of words up to the first NUL. It returns
+// an error for more than MaxRawWords words; bytes after the first NUL are
+// ignored and UTF-8 is not validated.
 func (SunSpecPhaseOneDecoder) String(words []uint16) (string, error) {
 	if len(words) > MaxRawWords {
 		return "", fmt.Errorf("SunSpec string exceeds word bound")
@@ -323,16 +388,29 @@ type SunSpecPhaseOneObservation struct {
 	views       []LogicalViewSnapshot
 }
 
+// Spec returns the admitted observation spec.
 func (observation SunSpecPhaseOneObservation) Spec() ObservationSpec {
 	return observation.observation.Spec()
 }
+
+// RawWords returns a copy of the raw chain image the observation was admitted
+// with.
 func (observation SunSpecPhaseOneObservation) RawWords() []uint16 {
 	return append([]uint16(nil), observation.raw...)
 }
+
+// SourceViews returns copies of the capture's source views in order.
 func (observation SunSpecPhaseOneObservation) SourceViews() []LogicalViewSnapshot {
 	return cloneSunSpecViews(observation.views)
 }
 
+// Activate admits one observation for a chain produced by Parse. The capture's
+// views must be valid and contiguous from the base, share one endpoint, unit,
+// poll generation, transport, connection and authorization scope, and carry
+// consistent physical-request and wire-response identities. Their words must
+// equal the parsed chain, and RawWords when it is set. The observation spec is
+// built against the profile and must bind exactly to the first view. Any
+// failure returns an error and no observation.
 func (decoder SunSpecPhaseOneDecoder) Activate(activation SunSpecPhaseOneActivation) (SunSpecPhaseOneObservation, error) {
 	if !activation.Chain.valid {
 		return SunSpecPhaseOneObservation{}, fmt.Errorf("SunSpec chain was not parsed")
