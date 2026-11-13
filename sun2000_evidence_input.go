@@ -9,42 +9,84 @@ import (
 	"unicode/utf8"
 )
 
+// Sun2000EvidenceInputContract is the exact contract value the input envelope
+// must carry. The input contract is
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/sun2000-detection-input-v1.md.
 const Sun2000EvidenceInputContract = "sun2000-detection-input-v1"
 
 // Sun2000EvidenceInputLimits bounds bytes and all JSON objects, including
 // wrappers, alternatives and typed values. Both limits must be positive.
 type Sun2000EvidenceInputLimits struct{ MaxBytes, MaxRecords int }
 
+// Sun2000EvidenceReference is one validated evidence reference record. Its
+// claim level grades only the referenced claim and confers no admission.
 type Sun2000EvidenceReference struct{ id, source, locator, context, claimLevel string }
 
-func (r Sun2000EvidenceReference) ID() string         { return r.id }
-func (r Sun2000EvidenceReference) Source() string     { return r.source }
-func (r Sun2000EvidenceReference) Locator() string    { return r.locator }
-func (r Sun2000EvidenceReference) Context() string    { return r.context }
+// ID returns the reference identifier, unique within the input.
+func (r Sun2000EvidenceReference) ID() string { return r.id }
+
+// Source returns the evidence source: native_identity, gateway_inventory,
+// map_document or synthetic.
+func (r Sun2000EvidenceReference) Source() string { return r.source }
+
+// Locator returns where the retained evidence is found; it is never the
+// evidence itself.
+func (r Sun2000EvidenceReference) Locator() string { return r.locator }
+
+// Context returns the subject or documentary applicability scope of the
+// evidence.
+func (r Sun2000EvidenceReference) Context() string { return r.context }
+
+// ClaimLevel returns Proven, Hypothesis or Unknown.
 func (r Sun2000EvidenceReference) ClaimLevel() string { return r.claimLevel }
 
+// Sun2000UnitEvidence is the typed unit value of a candidate. Its context
+// always equals the input subject.
 type Sun2000UnitEvidence struct{ context, binding string }
 
+// Context returns the caller-local subject the unit belongs to.
 func (v Sun2000UnitEvidence) Context() string { return v.context }
+
+// Binding returns the locator of the retained native unit-binding evidence.
 func (v Sun2000UnitEvidence) Binding() string { return v.binding }
 
+// Sun2000MapEvidence is the typed map value of a candidate: a document and
+// revision citation and the locator of its applicability. It never means the
+// map is admitted.
 type Sun2000MapEvidence struct{ document, revision, applicability string }
 
-func (v Sun2000MapEvidence) Document() string      { return v.document }
-func (v Sun2000MapEvidence) Revision() string      { return v.revision }
+// Document returns the cited map document.
+func (v Sun2000MapEvidence) Document() string { return v.document }
+
+// Revision returns the cited document revision.
+func (v Sun2000MapEvidence) Revision() string { return v.revision }
+
+// Applicability returns the locator of the family, model, unit and software
+// floor applicability statement.
 func (v Sun2000MapEvidence) Applicability() string { return v.applicability }
 
 type sun2000Value interface {
 	string | Sun2000UnitEvidence | Sun2000MapEvidence
 }
+
+// Sun2000EvidenceAlternative is one conflicting value of a contradictory
+// field, with the references that support it.
 type Sun2000EvidenceAlternative[T sun2000Value] struct {
 	value T
 	refs  []string
 }
 
-func (a Sun2000EvidenceAlternative[T]) Value() T       { return a.value }
+// Value returns the alternative value; for a family it may name another
+// family, retained only as the mismatch.
+func (a Sun2000EvidenceAlternative[T]) Value() T { return a.value }
+
+// Refs returns a copy of the non-empty supporting reference identifiers.
 func (a Sun2000EvidenceAlternative[T]) Refs() []string { return append([]string(nil), a.refs...) }
 
+// Sun2000EvidencePresence is the presence wrapper of one candidate field. The
+// state is missing, unavailable, present or contradictory; only present
+// carries a value, and only contradictory carries alternatives, whose
+// references together equal the wrapper's references.
 type Sun2000EvidencePresence[T sun2000Value] struct {
 	state, detail string
 	value         T
@@ -52,10 +94,22 @@ type Sun2000EvidencePresence[T sun2000Value] struct {
 	alternatives  []Sun2000EvidenceAlternative[T]
 }
 
-func (p Sun2000EvidencePresence[T]) State() string    { return p.state }
-func (p Sun2000EvidencePresence[T]) Detail() string   { return p.detail }
+// State returns missing, unavailable, present or contradictory.
+func (p Sun2000EvidencePresence[T]) State() string { return p.state }
+
+// Detail returns the optional explanation, empty when absent. It never
+// discriminates identity.
+func (p Sun2000EvidencePresence[T]) Detail() string { return p.detail }
+
+// Value returns the field value; the second result is true only when the
+// state is present. Any other state returns the zero value, never a wildcard.
 func (p Sun2000EvidencePresence[T]) Value() (T, bool) { return p.value, p.state == "present" }
-func (p Sun2000EvidencePresence[T]) Refs() []string   { return append([]string(nil), p.refs...) }
+
+// Refs returns a copy of the reference identifiers; empty only for missing.
+func (p Sun2000EvidencePresence[T]) Refs() []string { return append([]string(nil), p.refs...) }
+
+// Alternatives returns deep copies of the conflicting alternatives in input
+// order; empty unless the state is contradictory. Order chooses no winner.
 func (p Sun2000EvidencePresence[T]) Alternatives() []Sun2000EvidenceAlternative[T] {
 	out := append([]Sun2000EvidenceAlternative[T](nil), p.alternatives...)
 	for i := range out {
@@ -64,6 +118,9 @@ func (p Sun2000EvidencePresence[T]) Alternatives() []Sun2000EvidenceAlternative[
 	return out
 }
 
+// Sun2000EvidenceCandidate is one asserted identity tuple. Its five fields are
+// presence wrappers; a candidate is a claim to check, not a detection result.
+// Field accessors return deep copies.
 type Sun2000EvidenceCandidate struct {
 	id                      string
 	family, model, firmware Sun2000EvidencePresence[string]
@@ -71,19 +128,31 @@ type Sun2000EvidenceCandidate struct {
 	mapping                 Sun2000EvidencePresence[Sun2000MapEvidence]
 }
 
+// ID returns the opaque candidate identifier, unique within the input.
 func (c Sun2000EvidenceCandidate) ID() string { return c.id }
+
+// Family returns the family wrapper; a present value is exactly SUN2000.
 func (c Sun2000EvidenceCandidate) Family() Sun2000EvidencePresence[string] {
 	return sun2000ClonePresence(c.family)
 }
+
+// Model returns the model wrapper; a present value is the exact model token.
 func (c Sun2000EvidenceCandidate) Model() Sun2000EvidencePresence[string] {
 	return sun2000ClonePresence(c.model)
 }
+
+// Firmware returns the firmware wrapper; a present value is retained exactly
+// as supplied.
 func (c Sun2000EvidenceCandidate) Firmware() Sun2000EvidencePresence[string] {
 	return sun2000ClonePresence(c.firmware)
 }
+
+// Unit returns the unit wrapper.
 func (c Sun2000EvidenceCandidate) Unit() Sun2000EvidencePresence[Sun2000UnitEvidence] {
 	return sun2000ClonePresence(c.unit)
 }
+
+// Map returns the map wrapper.
 func (c Sun2000EvidenceCandidate) Map() Sun2000EvidencePresence[Sun2000MapEvidence] {
 	return sun2000ClonePresence(c.mapping)
 }
@@ -96,10 +165,16 @@ type Sun2000EvidenceInput struct {
 	candidates []Sun2000EvidenceCandidate
 }
 
+// Subject returns the opaque caller-local endpoint and unit context.
 func (s Sun2000EvidenceInput) Subject() string { return s.subject }
+
+// Evidence returns a copy of the reference records in input order.
 func (s Sun2000EvidenceInput) Evidence() []Sun2000EvidenceReference {
 	return append([]Sun2000EvidenceReference(nil), s.evidence...)
 }
+
+// Candidates returns deep copies of the candidates in input order; order
+// chooses no winner.
 func (s Sun2000EvidenceInput) Candidates() []Sun2000EvidenceCandidate {
 	out := append([]Sun2000EvidenceCandidate(nil), s.candidates...)
 	for i := range out {

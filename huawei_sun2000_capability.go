@@ -11,12 +11,22 @@ import (
 
 // HuaweiSUN2000CapabilityOutcome is the outcome of SUN2000 monitoring profile
 // selection.
+// The selection contract is
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/monitoring-readonly-v1.md.
 type HuaweiSUN2000CapabilityOutcome string
 
+// Capability outcomes. Only HuaweiSUN2000ProfileSelected carries a profile.
 const (
-	HuaweiSUN2000ProfileSelected           HuaweiSUN2000CapabilityOutcome = "PROFILE_SELECTED"
-	HuaweiSUN2000NoAdmissibleProfile       HuaweiSUN2000CapabilityOutcome = "NO_ADMISSIBLE_PROFILE"
-	HuaweiSUN2000InsufficientEvidence      HuaweiSUN2000CapabilityOutcome = "INSUFFICIENT_EVIDENCE"
+	// HuaweiSUN2000ProfileSelected means exactly one profile was selected.
+	HuaweiSUN2000ProfileSelected HuaweiSUN2000CapabilityOutcome = "PROFILE_SELECTED"
+	// HuaweiSUN2000NoAdmissibleProfile means identity was established but no
+	// profile serves the selected catalog row or the catalog selected none.
+	HuaweiSUN2000NoAdmissibleProfile HuaweiSUN2000CapabilityOutcome = "NO_ADMISSIBLE_PROFILE"
+	// HuaweiSUN2000InsufficientEvidence means gateway, routing or identity
+	// evidence was missing or invalid; it is the fail-closed default.
+	HuaweiSUN2000InsufficientEvidence HuaweiSUN2000CapabilityOutcome = "INSUFFICIENT_EVIDENCE"
+	// HuaweiSUN2000AmbiguousMultipleProfiles means more than one profile or
+	// catalog row fit; nothing is chosen.
 	HuaweiSUN2000AmbiguousMultipleProfiles HuaweiSUN2000CapabilityOutcome = "AMBIGUOUS"
 )
 
@@ -25,17 +35,39 @@ const huaweiSUN2000ModelBlockBytes = 2 * huaweiSUN2000ModelQuantity
 // HuaweiSUN2000CapabilityReason names why one profile was or was not selected.
 type HuaweiSUN2000CapabilityReason string
 
+// Capability reasons, in the order a profile evaluation can stop.
 const (
-	HuaweiSUN2000ReasonNoGatewayIdentity        HuaweiSUN2000CapabilityReason = "NO_GATEWAY_IDENTITY"
-	HuaweiSUN2000ReasonGatewayIdentityRejected  HuaweiSUN2000CapabilityReason = "GATEWAY_IDENTITY_NOT_MATCHED"
-	HuaweiSUN2000ReasonUnitNotRouted            HuaweiSUN2000CapabilityReason = "UNIT_NOT_ROUTED"
-	HuaweiSUN2000ReasonModelBlockInvalid        HuaweiSUN2000CapabilityReason = "MODEL_BLOCK_INVALID"
-	HuaweiSUN2000ReasonListingModelConflict     HuaweiSUN2000CapabilityReason = "LISTING_MODEL_CONFLICT"
-	HuaweiSUN2000ReasonIdentityWordsInvalid     HuaweiSUN2000CapabilityReason = "IDENTITY_WORDS_INVALID"
-	HuaweiSUN2000ReasonCatalogNotSelected       HuaweiSUN2000CapabilityReason = "CATALOG_NOT_SELECTED"
-	HuaweiSUN2000ReasonCatalogAmbiguous         HuaweiSUN2000CapabilityReason = "CATALOG_AMBIGUOUS"
-	HuaweiSUN2000ReasonCatalogRowNoProfile      HuaweiSUN2000CapabilityReason = "CATALOG_ROW_WITHOUT_PROFILE"
-	HuaweiSUN2000ReasonMatched                  HuaweiSUN2000CapabilityReason = "MATCHED"
+	// HuaweiSUN2000ReasonNoGatewayIdentity means the input carries no gateway
+	// evidence for the profile's gateway card.
+	HuaweiSUN2000ReasonNoGatewayIdentity HuaweiSUN2000CapabilityReason = "NO_GATEWAY_IDENTITY"
+	// HuaweiSUN2000ReasonGatewayIdentityRejected means the observed gateway
+	// card did not return a test-ready identity match.
+	HuaweiSUN2000ReasonGatewayIdentityRejected HuaweiSUN2000CapabilityReason = "GATEWAY_IDENTITY_NOT_MATCHED"
+	// HuaweiSUN2000ReasonUnitNotRouted means the gateway evidence does not
+	// route to the requested unit.
+	HuaweiSUN2000ReasonUnitNotRouted HuaweiSUN2000CapabilityReason = "UNIT_NOT_ROUTED"
+	// HuaweiSUN2000ReasonModelBlockInvalid means the routed model read does
+	// not have its exact extent and NUL-terminated printable form.
+	HuaweiSUN2000ReasonModelBlockInvalid HuaweiSUN2000CapabilityReason = "MODEL_BLOCK_INVALID"
+	// HuaweiSUN2000ReasonListingModelConflict means the gateway listing names
+	// a model at the unit that differs from the routed model text.
+	HuaweiSUN2000ReasonListingModelConflict HuaweiSUN2000CapabilityReason = "LISTING_MODEL_CONFLICT"
+	// HuaweiSUN2000ReasonIdentityWordsInvalid means a routed identity part
+	// was read but does not have the shape of its read.
+	HuaweiSUN2000ReasonIdentityWordsInvalid HuaweiSUN2000CapabilityReason = "IDENTITY_WORDS_INVALID"
+	// HuaweiSUN2000ReasonCatalogNotSelected means the catalog decision
+	// selected no row.
+	HuaweiSUN2000ReasonCatalogNotSelected HuaweiSUN2000CapabilityReason = "CATALOG_NOT_SELECTED"
+	// HuaweiSUN2000ReasonCatalogAmbiguous means the catalog decision could not
+	// tell rows apart.
+	HuaweiSUN2000ReasonCatalogAmbiguous HuaweiSUN2000CapabilityReason = "CATALOG_AMBIGUOUS"
+	// HuaweiSUN2000ReasonCatalogRowNoProfile means the selected row is not the
+	// model of the evaluated profile.
+	HuaweiSUN2000ReasonCatalogRowNoProfile HuaweiSUN2000CapabilityReason = "CATALOG_ROW_WITHOUT_PROFILE"
+	// HuaweiSUN2000ReasonMatched accompanies a selected profile.
+	HuaweiSUN2000ReasonMatched HuaweiSUN2000CapabilityReason = "MATCHED"
+	// HuaweiSUN2000ReasonMultipleProfilesSelected means more than one profile
+	// evaluation selected its profile.
 	HuaweiSUN2000ReasonMultipleProfilesSelected HuaweiSUN2000CapabilityReason = "MULTIPLE_PROFILES_SELECTED"
 )
 
@@ -84,10 +116,16 @@ type HuaweiSUN2000ProfileEvaluation struct {
 	catalog   *HuaweiSUN2000CatalogDecision
 }
 
+// ProfileID returns the identifier of the evaluated monitoring profile.
 func (e HuaweiSUN2000ProfileEvaluation) ProfileID() string { return e.profileID }
+
+// Outcome returns the outcome of this profile alone, before the selection
+// combines all evaluations.
 func (e HuaweiSUN2000ProfileEvaluation) Outcome() HuaweiSUN2000CapabilityOutcome {
 	return e.outcome
 }
+
+// Reason returns the step at which this profile's evaluation stopped.
 func (e HuaweiSUN2000ProfileEvaluation) Reason() HuaweiSUN2000CapabilityReason { return e.reason }
 
 // Catalog is the catalog decision taken for the profile's path, if the
@@ -120,17 +158,27 @@ func (s HuaweiSUN2000CapabilitySelection) Catalog() (HuaweiSUN2000CatalogDecisio
 	return *s.catalog, true
 }
 
+// Outcome returns the combined outcome over all profile evaluations.
 func (s HuaweiSUN2000CapabilitySelection) Outcome() HuaweiSUN2000CapabilityOutcome {
 	return s.outcome
 }
+
+// Reason returns the reason of the evaluation that decided the outcome.
 func (s HuaweiSUN2000CapabilitySelection) Reason() HuaweiSUN2000CapabilityReason { return s.reason }
-func (s HuaweiSUN2000CapabilitySelection) UnitID() uint8                         { return s.unitID }
+
+// UnitID returns the routed unit of the input, whatever the outcome.
+func (s HuaweiSUN2000CapabilitySelection) UnitID() uint8 { return s.unitID }
+
+// Profile returns the selected profile. The second result is true only for
+// HuaweiSUN2000ProfileSelected.
 func (s HuaweiSUN2000CapabilitySelection) Profile() (HuaweiSUN2000MonitoringProfile, bool) {
 	if s.profile == nil {
 		return HuaweiSUN2000MonitoringProfile{}, false
 	}
 	return *s.profile, true
 }
+
+// Evaluations returns a copy of the per-profile evaluations in profile order.
 func (s HuaweiSUN2000CapabilitySelection) Evaluations() []HuaweiSUN2000ProfileEvaluation {
 	return append([]HuaweiSUN2000ProfileEvaluation(nil), s.evaluations...)
 }
@@ -145,13 +193,26 @@ func (s HuaweiSUN2000CapabilitySelection) Plan() []HuaweiSUN2000ReadStep {
 
 // BatteryProfileSelected is false: no LUNA2000 profile is admitted, whether
 // or not the parent inverter is identified.
-func (HuaweiSUN2000CapabilitySelection) BatteryProfileSelected() bool    { return false }
-func (HuaweiSUN2000CapabilitySelection) CatalogRegistered() bool         { return false }
+func (HuaweiSUN2000CapabilitySelection) BatteryProfileSelected() bool { return false }
+
+// CatalogRegistered is always false: a selection registers nothing.
+func (HuaweiSUN2000CapabilitySelection) CatalogRegistered() bool { return false }
+
+// AutomaticRuntimeAdmission is always false: a selection admits no runtime
+// provider.
 func (HuaweiSUN2000CapabilitySelection) AutomaticRuntimeAdmission() bool { return false }
-func (HuaweiSUN2000CapabilitySelection) LiveQualified() bool             { return false }
-func (HuaweiSUN2000CapabilitySelection) SupportClaim() bool              { return false }
-func (HuaweiSUN2000CapabilitySelection) WriteAuthority() bool            { return false }
-func (HuaweiSUN2000CapabilitySelection) AutomaticRequestCount() int      { return 0 }
+
+// LiveQualified is always false: selection evaluates detached evidence only.
+func (HuaweiSUN2000CapabilitySelection) LiveQualified() bool { return false }
+
+// SupportClaim is always false: a selected profile is not a support claim.
+func (HuaweiSUN2000CapabilitySelection) SupportClaim() bool { return false }
+
+// WriteAuthority is always false: profiles are read-only.
+func (HuaweiSUN2000CapabilitySelection) WriteAuthority() bool { return false }
+
+// AutomaticRequestCount is always zero: selection issues no requests.
+func (HuaweiSUN2000CapabilitySelection) AutomaticRequestCount() int { return 0 }
 
 // SelectHuaweiSUN2000MonitoringProfile evaluates every monitoring profile
 // against the input. The gateway identity comes from the observed gateway card,
@@ -364,6 +425,9 @@ func parseHuaweiSUN2000TextBlock(block []byte, extent int) (string, bool) {
 // HuaweiSUN2000MonitoringSession is an already configured read boundary. It
 // exposes one holding-register read and nothing else.
 type HuaweiSUN2000MonitoringSession interface {
+	// ReadHolding reads holding registers at the given unit. A Modbus
+	// exception is returned as a *modbus.ProtocolError of kind
+	// modbus.ErrorExceptionResponse; any other error fails the group.
 	ReadHolding(context.Context, byte, modbus.ReadRegistersRequest) (modbus.ReadRegistersResponse, error)
 }
 

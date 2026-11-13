@@ -12,11 +12,17 @@ type I13Identity struct {
 	I13Generation                                    uint64
 }
 
+// I13Request is what one cycle asks the supplier for: the provider identity
+// at the time of the call and a receipt number that increases by one per
+// started cycle.
 type I13Request struct {
 	I13Identity I13Identity
 	I13Receipt  uint64
 }
 
+// I13Evidence is the supplier's answer. I13Request must echo the request
+// exactly; I13Bytes is a Sun2000EvidenceInput document that the provider
+// copies before parsing.
 type I13Evidence struct {
 	I13Request I13Request
 	I13Bytes   []byte
@@ -27,6 +33,9 @@ type I13Evidence struct {
 // Returned buffers must remain unchanged until I13Cycle returns.
 type I13Supplier func(context.Context, I13Request) (I13Evidence, error)
 
+// I13Record is one accepted documentary record: its request, the copied raw
+// bytes kept as native evidence, and the parsed input. Records returned by the
+// provider are deep copies.
 type I13Record struct {
 	I13Request I13Request
 	I13Bytes   []byte
@@ -63,6 +72,9 @@ func i13Valid(id I13Identity) bool {
 	return id.I13Subject != "" && id.I13Candidate != "" && id.I13Evidence != "" && id.I13Source != "" && id.I13Generation > 0
 }
 
+// I13NewProvider returns a provider for one documentary stream. It refuses an
+// identity with an empty field or a zero generation, limits without a positive
+// byte and record budget, and a nil supplier.
 func I13NewProvider(id I13Identity, limits Sun2000EvidenceInputLimits, supplier I13Supplier) (*I13Provider, error) {
 	if !i13Valid(id) || limits.MaxBytes <= 0 || limits.MaxRecords <= 0 || supplier == nil {
 		return nil, errors.New("I13 invalid configuration")
@@ -85,6 +97,15 @@ func (p *I13Provider) i13Result(request *I13Request) I13Result {
 	return I13Result{I13Outcome: "NO_ADMISSIBLE_PROFILE", I13Retained: i13Clone(p.i13Last), I13Rejected: request}
 }
 
+// I13Cycle asks the supplier for one record and, when it is valid, makes it
+// the retained record. The outcome is always NO_ADMISSIBLE_PROFILE. A busy,
+// retired, zero-value or receipt-exhausted provider and a cancelled context
+// are refused without calling the supplier. The supplier is called without
+// the lock held. A supplier error, an echoed request that differs, bytes over
+// the budget, a parse failure, or a record whose subject, evidence and
+// candidate do not join the identity returns an error with the request in
+// I13Rejected and the prior record in I13Retained. A result that arrives after
+// cancellation, retirement or replacement is never committed.
 func (p *I13Provider) I13Cycle(ctx context.Context) (I13Result, error) {
 	denied := I13Result{I13Outcome: "NO_ADMISSIBLE_PROFILE"}
 	if p == nil || ctx == nil {
@@ -187,6 +208,8 @@ func (p *I13Provider) I13Replace(id I13Identity) error {
 	return nil
 }
 
+// I13Retire permanently refuses further cycles and replacements and drops the
+// retained record. It is idempotent.
 func (p *I13Provider) I13Retire() {
 	if p == nil {
 		return

@@ -52,12 +52,12 @@ var huaweiSUN2000MCEdition = HuaweiVendorDocumentIdentity{
 type HuaweiEditionBinding string
 
 const (
-	// HuaweiEditionBindingSupportedModelTable: the edition's supported-model
-	// table names the routed model string.
+	// HuaweiEditionBindingSupportedModelTable means the edition's
+	// supported-model table names the routed model string.
 	HuaweiEditionBindingSupportedModelTable HuaweiEditionBinding = "EDITION_SUPPORTED_MODEL_TABLE"
-	// HuaweiEditionBindingLiveCheckedLayout: the edition does not list the
-	// model; the monitoring contract checked the edition's layout against an
-	// independent reading of the observed unit.
+	// HuaweiEditionBindingLiveCheckedLayout means the edition does not list
+	// the model; the monitoring contract checked the edition's layout against
+	// an independent reading of the observed unit.
 	HuaweiEditionBindingLiveCheckedLayout HuaweiEditionBinding = "EDITION_LAYOUT_LIVE_CHECKED"
 )
 
@@ -65,10 +65,18 @@ const (
 // qualification and support.
 type HuaweiEvidenceGrade string
 
+// Evidence grades, from strongest to weakest.
 const (
-	HuaweiGradeProven     HuaweiEvidenceGrade = "PROVEN"
+	// HuaweiGradeProven is a live reading that an independent check confirmed;
+	// it holds for the observed units or builds only. A documentary fact is
+	// never Proven.
+	HuaweiGradeProven HuaweiEvidenceGrade = "PROVEN"
+	// HuaweiGradeHypothesis is a documented, inherited or plausible fact that
+	// no independent live check has confirmed.
 	HuaweiGradeHypothesis HuaweiEvidenceGrade = "HYPOTHESIS"
-	HuaweiGradeUnknown    HuaweiEvidenceGrade = "UNKNOWN"
+	// HuaweiGradeUnknown means neither documents nor observations settle the
+	// statement.
+	HuaweiGradeUnknown HuaweiEvidenceGrade = "UNKNOWN"
 )
 
 // HuaweiSUN2000RefusedGroup is a group that the family answered with an
@@ -151,21 +159,40 @@ type HuaweiSUN2000MonitoringProfile struct {
 	fields        []huaweiSUN2000Field
 }
 
-func (p HuaweiSUN2000MonitoringProfile) ID() string           { return p.id }
-func (p HuaweiSUN2000MonitoringProfile) Family() string       { return p.family }
+// ID returns the versioned profile identifier.
+func (p HuaweiSUN2000MonitoringProfile) ID() string { return p.id }
+
+// Family returns the SUN2000 series name the profile serves.
+func (p HuaweiSUN2000MonitoringProfile) Family() string { return p.family }
+
+// GatewayClass returns the class of the observed gateway the profile sits
+// behind.
 func (p HuaweiSUN2000MonitoringProfile) GatewayClass() string { return p.gatewayClass }
 
 // IdentityCard is the observed gateway qualification card whose exact tuple
 // the profile requires.
 func (p HuaweiSUN2000MonitoringProfile) IdentityCard() string { return p.identityCard }
-func (p HuaweiSUN2000MonitoringProfile) Model() string        { return p.model }
+
+// Model returns the catalog row token that routes to the profile.
+func (p HuaweiSUN2000MonitoringProfile) Model() string { return p.model }
+
+// Document returns the identity of the consulted edition that binds the read
+// plan and the decoder.
 func (p HuaweiSUN2000MonitoringProfile) Document() HuaweiVendorDocumentIdentity {
 	return p.document
 }
+
+// EditionBinding returns how the consulted edition binds the family.
 func (p HuaweiSUN2000MonitoringProfile) EditionBinding() HuaweiEditionBinding { return p.binding }
+
+// ObservedUnits returns a copy of the units an observation checked. A Proven
+// field read at any other unit is downgraded to Hypothesis.
 func (p HuaweiSUN2000MonitoringProfile) ObservedUnits() []uint8 {
 	return append([]uint8(nil), p.observedUnits...)
 }
+
+// RefusedGroups returns a copy of the groups the family answered with an
+// exception; they are kept as evidence and never read.
 func (p HuaweiSUN2000MonitoringProfile) RefusedGroups() []HuaweiSUN2000RefusedGroup {
 	return append([]HuaweiSUN2000RefusedGroup(nil), p.refused...)
 }
@@ -194,11 +221,21 @@ func (p HuaweiSUN2000MonitoringProfile) decoderKey(field huaweiSUN2000Field) str
 	return ""
 }
 
-func (HuaweiSUN2000MonitoringProfile) CatalogRegistered() bool         { return false }
+// CatalogRegistered is always false: the profile registers nothing.
+func (HuaweiSUN2000MonitoringProfile) CatalogRegistered() bool { return false }
+
+// AutomaticRuntimeAdmission is always false: the profile admits no runtime
+// provider.
 func (HuaweiSUN2000MonitoringProfile) AutomaticRuntimeAdmission() bool { return false }
-func (HuaweiSUN2000MonitoringProfile) LiveQualified() bool             { return false }
-func (HuaweiSUN2000MonitoringProfile) SupportClaim() bool              { return false }
-func (HuaweiSUN2000MonitoringProfile) WriteAuthority() bool            { return false }
+
+// LiveQualified is always false: no physical qualification is claimed.
+func (HuaweiSUN2000MonitoringProfile) LiveQualified() bool { return false }
+
+// SupportClaim is always false: the profile is not a support claim.
+func (HuaweiSUN2000MonitoringProfile) SupportClaim() bool { return false }
+
+// WriteAuthority is always false: the plan holds FC03 reads only.
+func (HuaweiSUN2000MonitoringProfile) WriteAuthority() bool { return false }
 
 // BatteryFactsAdmitted is false: the battery groups are present on the MAP0
 // series and answer zero words elsewhere, and no battery fact is admitted.
@@ -306,11 +343,20 @@ func (p HuaweiSUN2000MonitoringProfile) Plan(unit uint8) []HuaweiSUN2000ReadStep
 // HuaweiSUN2000GroupOutcome is the outcome of one group read.
 type HuaweiSUN2000GroupOutcome string
 
+// Group outcomes. Only an answered group carries words.
 const (
-	HuaweiSUN2000GroupAnswered  HuaweiSUN2000GroupOutcome = "ANSWERED"
+	// HuaweiSUN2000GroupAnswered means the reply carried exactly Quantity
+	// words for the requested range.
+	HuaweiSUN2000GroupAnswered HuaweiSUN2000GroupOutcome = "ANSWERED"
+	// HuaweiSUN2000GroupException means the unit replied with a nonzero
+	// Modbus exception code; the next group is still read.
 	HuaweiSUN2000GroupException HuaweiSUN2000GroupOutcome = "EXCEPTION"
-	HuaweiSUN2000GroupFailed    HuaweiSUN2000GroupOutcome = "FAILED"
-	HuaweiSUN2000GroupNotRead   HuaweiSUN2000GroupOutcome = "NOT_READ"
+	// HuaweiSUN2000GroupFailed means a timeout, transport error or mismatched
+	// reply; the remaining groups of the cycle are not read.
+	HuaweiSUN2000GroupFailed HuaweiSUN2000GroupOutcome = "FAILED"
+	// HuaweiSUN2000GroupNotRead marks a planned group that the cycle did not
+	// reach.
+	HuaweiSUN2000GroupNotRead HuaweiSUN2000GroupOutcome = "NOT_READ"
 )
 
 // HuaweiSUN2000GroupReading is the native evidence of one group: every word
@@ -365,8 +411,12 @@ func (d HuaweiDecimal) String() string {
 // HuaweiFactAvailability states whether a fact carries a value.
 type HuaweiFactAvailability string
 
+// Fact availabilities.
 const (
-	HuaweiFactValue   HuaweiFactAvailability = "VALUE"
+	// HuaweiFactValue means the fact carries a decoded value or state.
+	HuaweiFactValue HuaweiFactAvailability = "VALUE"
+	// HuaweiFactUnknown means the group did not answer or the raw value is
+	// outside what the profile decodes; Value and State are empty.
 	HuaweiFactUnknown HuaweiFactAvailability = "UNKNOWN"
 )
 
@@ -394,8 +444,14 @@ type HuaweiSUN2000MonitoringReading struct {
 	facts     []HuaweiSUN2000Fact
 }
 
+// ProfileID returns the identifier of the profile that decoded the reading.
 func (r HuaweiSUN2000MonitoringReading) ProfileID() string { return r.profileID }
-func (r HuaweiSUN2000MonitoringReading) UnitID() uint8     { return r.unitID }
+
+// UnitID returns the unit the reading belongs to.
+func (r HuaweiSUN2000MonitoringReading) UnitID() uint8 { return r.unitID }
+
+// Groups returns deep copies of the native group readings in plan order, one
+// per planned group, retained readings included.
 func (r HuaweiSUN2000MonitoringReading) Groups() []HuaweiSUN2000GroupReading {
 	out := make([]HuaweiSUN2000GroupReading, len(r.groups))
 	for index, group := range r.groups {
@@ -403,6 +459,9 @@ func (r HuaweiSUN2000MonitoringReading) Groups() []HuaweiSUN2000GroupReading {
 	}
 	return out
 }
+
+// Facts returns a copy of every decoded field in profile order, Unknown facts
+// included.
 func (r HuaweiSUN2000MonitoringReading) Facts() []HuaweiSUN2000Fact {
 	return append([]HuaweiSUN2000Fact(nil), r.facts...)
 }
@@ -418,10 +477,17 @@ func (r HuaweiSUN2000MonitoringReading) Fact(key string, index int) (HuaweiSUN20
 	return HuaweiSUN2000Fact{}, false
 }
 
+// BatteryFactsAdmitted is always false: a reading holds no battery fact.
 func (HuaweiSUN2000MonitoringReading) BatteryFactsAdmitted() bool { return false }
-func (HuaweiSUN2000MonitoringReading) MeterFactsAdmitted() bool   { return false }
-func (HuaweiSUN2000MonitoringReading) SupportClaim() bool         { return false }
-func (HuaweiSUN2000MonitoringReading) WriteAuthority() bool       { return false }
+
+// MeterFactsAdmitted is always false: a reading holds no meter fact.
+func (HuaweiSUN2000MonitoringReading) MeterFactsAdmitted() bool { return false }
+
+// SupportClaim is always false: a reading is not a support claim.
+func (HuaweiSUN2000MonitoringReading) SupportClaim() bool { return false }
+
+// WriteAuthority is always false: a reading grants no authority.
+func (HuaweiSUN2000MonitoringReading) WriteAuthority() bool { return false }
 
 var errHuaweiSUN2000ReadingInvalid = errors.New("invalid SUN2000 monitoring reading")
 
