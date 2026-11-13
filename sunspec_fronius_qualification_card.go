@@ -7,6 +7,8 @@ import (
 )
 
 const (
+	// SunSpecFroniusQualificationCardID identifies the read-only Fronius
+	// qualification card.
 	SunSpecFroniusQualificationCardID    = "sunspec.qualification.fronius.gen24.float.readonly@1.0.0"
 	sunSpecFroniusQualificationBase      = uint16(40000)
 	sunSpecFroniusQualificationUnitID    = byte(1)
@@ -20,33 +22,68 @@ const (
 // not carry endpoint authority and cannot represent a live qualification.
 type SunSpecFroniusQualificationCard struct{}
 
+// NewSunSpecFroniusQualificationCard returns the card. It holds no state;
+// every value it reports is fixed. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/fronius/qualification-readiness-v1.md.
 func NewSunSpecFroniusQualificationCard() SunSpecFroniusQualificationCard {
 	return SunSpecFroniusQualificationCard{}
 }
 
+// ID returns SunSpecFroniusQualificationCardID.
 func (SunSpecFroniusQualificationCard) ID() string { return SunSpecFroniusQualificationCardID }
+
+// FlavorID returns the one flavor version the card qualifies,
+// SunSpecFroniusObservedFlavorV11ID.
 func (SunSpecFroniusQualificationCard) FlavorID() string {
 	return SunSpecFroniusObservedFlavorV11ID
 }
+
+// SchemaRevision returns SunSpecModelsRevisionV1; the card accepts only a
+// registry of that revision.
 func (SunSpecFroniusQualificationCard) SchemaRevision() SunSpecSchemaRevision {
 	return SunSpecModelsRevisionV1
 }
+
+// Manufacturer returns the exact Common manufacturer string the card expects.
 func (SunSpecFroniusQualificationCard) Manufacturer() string { return "Fronius" }
-func (SunSpecFroniusQualificationCard) Model() string        { return "Symo GEN24 10.0" }
-func (SunSpecFroniusQualificationCard) Firmware() string     { return "1.41.11-1" }
-func (SunSpecFroniusQualificationCard) UnitID() byte         { return sunSpecFroniusQualificationUnitID }
+
+// Model returns the exact Common model string the card expects.
+func (SunSpecFroniusQualificationCard) Model() string { return "Symo GEN24 10.0" }
+
+// Firmware returns the exact Common version string the card expects.
+func (SunSpecFroniusQualificationCard) Firmware() string { return "1.41.11-1" }
+
+// UnitID returns the Modbus unit identifier every source view must carry.
+func (SunSpecFroniusQualificationCard) UnitID() byte { return sunSpecFroniusQualificationUnitID }
+
+// Function returns FunctionReadHoldingRegisters, the only function the card
+// reads with.
 func (SunSpecFroniusQualificationCard) Function() FunctionCode {
 	return FunctionReadHoldingRegisters
 }
-func (SunSpecFroniusQualificationCard) ReadOnly() bool                  { return true }
-func (SunSpecFroniusQualificationCard) LiveQualified() bool             { return false }
-func (SunSpecFroniusQualificationCard) AutomaticRuntimeAdmission() bool { return false }
-func (SunSpecFroniusQualificationCard) WriteAuthority() bool            { return false }
 
+// ReadOnly always reports true.
+func (SunSpecFroniusQualificationCard) ReadOnly() bool { return true }
+
+// LiveQualified always reports false: an offline replay match is not a live
+// qualification.
+func (SunSpecFroniusQualificationCard) LiveQualified() bool { return false }
+
+// AutomaticRuntimeAdmission always reports false: a match never activates a
+// runtime on its own.
+func (SunSpecFroniusQualificationCard) AutomaticRuntimeAdmission() bool { return false }
+
+// WriteAuthority always reports false: the card grants no write.
+func (SunSpecFroniusQualificationCard) WriteAuthority() bool { return false }
+
+// BaseCandidates returns a new slice holding the single PDU base address
+// 40000.
 func (SunSpecFroniusQualificationCard) BaseCandidates() []uint16 {
 	return []uint16{sunSpecFroniusQualificationBase}
 }
 
+// Limits returns the card's chain bounds: MaxSunSpecPhaseOneChainWords words
+// and 64 occurrences.
 func (SunSpecFroniusQualificationCard) Limits() SunSpecChainLimits {
 	return SunSpecChainLimits{
 		MaxTotalWords:  MaxSunSpecPhaseOneChainWords,
@@ -54,6 +91,8 @@ func (SunSpecFroniusQualificationCard) Limits() SunSpecChainLimits {
 	}
 }
 
+// ExpectedChain returns a copy of the exact wire chain of the qualified
+// flavor, end marker included.
 func (SunSpecFroniusQualificationCard) ExpectedChain() []SunSpecWireKey {
 	return append([]SunSpecWireKey(nil), froniusObservedChainV11...)
 }
@@ -159,10 +198,14 @@ type SunSpecFroniusQualificationExpectedResult struct {
 	card SunSpecFroniusQualificationCard
 }
 
+// ExpectedResult returns the card's static expected-result record.
 func (card SunSpecFroniusQualificationCard) ExpectedResult() SunSpecFroniusQualificationExpectedResult {
 	return SunSpecFroniusQualificationExpectedResult{card: card}
 }
 
+// MarshalJSON encodes the expected result as the versioned snake_case JSON
+// record with status OFFLINE_REPLAY_MATCH. It holds only card constants, never
+// raw words or acquisition provenance.
 func (result SunSpecFroniusQualificationExpectedResult) MarshalJSON() ([]byte, error) {
 	card := result.card
 	return json.Marshal(struct {

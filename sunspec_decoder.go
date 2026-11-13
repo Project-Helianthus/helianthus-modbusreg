@@ -6,6 +6,13 @@ import (
 	"sync"
 )
 
+// SunSpecFact is one decoded catalog point of an occurrence. FieldID is the
+// registry's stable field name, empty for points the registry does not name;
+// PointName is the SunSpec point name and Unit the catalog unit, empty when
+// unitless. Required marks mandatory value points other than the header and
+// scale factors. GroupID, RepeatIndex and Repeated place a point inside a
+// repeating group. Nested-layout identity is optional and is attached only by
+// WithNestedLayout.
 type SunSpecFact struct {
 	FieldID     string
 	PointName   string
@@ -37,6 +44,8 @@ func (f SunSpecFact) WithNestedLayout(path SunSpecFactPath, sourceRange SunSpecO
 	return f, nil
 }
 
+// NestedPath returns a copy of the nested path and true when the fact carries
+// a nested layout.
 func (f SunSpecFact) NestedPath() (SunSpecFactPath, bool) {
 	if !f.hasLayout {
 		return SunSpecFactPath{}, false
@@ -48,6 +57,8 @@ func (f SunSpecFact) NestedPath() (SunSpecFactPath, bool) {
 	return path, true
 }
 
+// OccurrenceSourceRange returns a copy of the occurrence-relative source range
+// and true when the fact carries a nested layout.
 func (f SunSpecFact) OccurrenceSourceRange() (SunSpecOccurrenceSourceRange, bool) {
 	if !f.hasLayout {
 		return SunSpecOccurrenceSourceRange{}, false
@@ -59,6 +70,9 @@ func (f SunSpecFact) OccurrenceSourceRange() (SunSpecOccurrenceSourceRange, bool
 	return rangeValue, true
 }
 
+// SunSpecDecodedModel is the decoded form of one admitted occurrence: decoder
+// key, ordinal, topology, raw words, source spans and facts in catalog order.
+// Accessors return copies.
 type SunSpecDecodedModel struct {
 	key           SunSpecDecoderKey
 	ordinal       uint32
@@ -70,15 +84,34 @@ type SunSpecDecodedModel struct {
 	facts         []SunSpecFact
 }
 
-func (m SunSpecDecodedModel) Key() SunSpecDecoderKey    { return m.key }
-func (m SunSpecDecodedModel) Ordinal() uint32           { return m.ordinal }
+// Key returns the exact decoder key the occurrence was decoded with.
+func (m SunSpecDecodedModel) Key() SunSpecDecoderKey { return m.key }
+
+// Ordinal returns the 1-based chain position of the occurrence.
+func (m SunSpecDecodedModel) Ordinal() uint32 { return m.ordinal }
+
+// Topology returns the catalog phase topology; SunSpecTopologyNone for models
+// that are not inverter models.
 func (m SunSpecDecodedModel) Topology() SunSpecTopology { return m.topology }
-func (m SunSpecDecodedModel) Qualifies() bool           { return m.qualifies }
-func (m SunSpecDecodedModel) GeometryValid() bool       { return m.geometryValid }
-func (m SunSpecDecodedModel) RawWords() []uint16        { return append([]uint16(nil), m.raw...) }
+
+// Qualifies reports whether every mandatory point decoded valid, with a known
+// enum symbol and no unknown bits. It is false when GeometryValid is false.
+func (m SunSpecDecodedModel) Qualifies() bool { return m.qualifies }
+
+// GeometryValid reports whether the count words inside the model agree with
+// its declared length. When it is false, Facts is empty.
+func (m SunSpecDecodedModel) GeometryValid() bool { return m.geometryValid }
+
+// RawWords returns a copy of the occurrence words, header included.
+func (m SunSpecDecodedModel) RawWords() []uint16 { return append([]uint16(nil), m.raw...) }
+
+// SourceSpans returns a copy of the occurrence's source spans.
 func (m SunSpecDecodedModel) SourceSpans() []SunSpecSourceSpan {
 	return append([]SunSpecSourceSpan(nil), m.spans...)
 }
+
+// Facts returns copies of the decoded facts in catalog order. The two header
+// words produce no fact.
 func (m SunSpecDecodedModel) Facts() []SunSpecFact {
 	out := make([]SunSpecFact, len(m.facts))
 	for index, fact := range m.facts {
@@ -86,6 +119,9 @@ func (m SunSpecDecodedModel) Facts() []SunSpecFact {
 	}
 	return out
 }
+
+// Fact returns a copy of the first fact with field identifier fieldID and
+// true, or false when there is none.
 func (m SunSpecDecodedModel) Fact(fieldID string) (SunSpecFact, bool) {
 	for _, fact := range m.facts {
 		if fact.FieldID == fieldID {
@@ -104,8 +140,11 @@ func cloneSunSpecFact(fact SunSpecFact) SunSpecFact {
 	return fact
 }
 
+// SunSpecDecodedChain holds the decoded admitted occurrences of one chain in
+// chain order. Occurrences that were not admitted are skipped, not decoded.
 type SunSpecDecodedChain struct{ models []SunSpecDecodedModel }
 
+// Models returns deep copies of the decoded models in chain order.
 func (c SunSpecDecodedChain) Models() []SunSpecDecodedModel {
 	out := make([]SunSpecDecodedModel, len(c.models))
 	for index, model := range c.models {
@@ -117,6 +156,13 @@ func (c SunSpecDecodedChain) Models() []SunSpecDecodedModel {
 	return out
 }
 
+// SunSpecDecoderRegistry is the immutable standard decoder catalog of one
+// schema revision. It decodes only occurrences whose exact decoder key belongs
+// to its revision and never infers a definition from a model identifier alone.
+// It is safe for concurrent use. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/sunspec/read-only-core-v1.md
+// and
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/sunspec/read-only-core-v2.md.
 type SunSpecDecoderRegistry struct {
 	revision    SunSpecSchemaRevision
 	definitions map[SunSpecDecoderKey]sunSpecModelDefinition
@@ -128,6 +174,9 @@ var standardSunSpecDecoderKeysCache struct {
 	keys map[SunSpecSchemaRevision][]SunSpecDecoderKey
 }
 
+// NewStandardSunSpecDecoderRegistry builds the registry for
+// SunSpecModelsRevisionV1 or SunSpecModelsRevisionV2. Any other revision, or a
+// catalog that fails its own extent or uniqueness checks, returns an error.
 func NewStandardSunSpecDecoderRegistry(revision SunSpecSchemaRevision) (SunSpecDecoderRegistry, error) {
 	definitions, err := standardSunSpecModelDefinitions(revision)
 	if err != nil {
@@ -194,6 +243,10 @@ func standardSunSpecDecoderKeys(revision SunSpecSchemaRevision, definitions []su
 	return append([]SunSpecDecoderKey(nil), keys...)
 }
 
+// DecoderKeys returns a new sorted slice of every exact decoder key the
+// registry admits, ordered by model identifier, length and revision. Models
+// whose length depends on a repeat count contribute one key per admitted
+// count. The result is the usual SunSpecChainPlanSpec.DecoderKeys.
 func (r SunSpecDecoderRegistry) DecoderKeys() []SunSpecDecoderKey {
 	return append([]SunSpecDecoderKey(nil), r.keys...)
 }
@@ -236,6 +289,12 @@ func (r SunSpecDecoderRegistry) definition(key SunSpecDecoderKey) (sunSpecModelD
 	return resolved, err == nil
 }
 
+// DecodeOccurrence decodes one admitted occurrence. It returns an error when
+// the occurrence is not admitted, when its decoder key, wire key and revision
+// disagree with each other or with the registry, when the key is not in the
+// catalog, or when the words contradict the key. A geometry mismatch is not an
+// error: the model is returned with GeometryValid and Qualifies false and no
+// facts. A point that fails to decode becomes a fact with a non-valid state.
 func (r SunSpecDecoderRegistry) DecodeOccurrence(occurrence SunSpecOccurrence) (SunSpecDecodedModel, error) {
 	key, ok := occurrence.DecoderKey()
 	if !ok || occurrence.Disposition != SunSpecChainDispositionAdmitted || key.ModelID != occurrence.WireKey.ModelID || key.ModelLength != occurrence.WireKey.ModelLength || key.SchemaRevision != occurrence.SchemaRevision || key.SchemaRevision != r.revision {
@@ -303,6 +362,10 @@ func mandatorySunSpecValueQualifies(value SunSpecValue) bool {
 	return true
 }
 
+// DecodeChain decodes every admitted occurrence of snapshot in chain order and
+// skips the others. It returns an error when the first occurrence is not the
+// Common Model, the Common Model occurs more than once or is not admitted, or
+// DecodeOccurrence fails for an admitted occurrence.
 func (r SunSpecDecoderRegistry) DecodeChain(snapshot SunSpecChainSnapshot) (SunSpecDecodedChain, error) {
 	return r.decodeOccurrences(snapshot.Occurrences())
 }

@@ -12,17 +12,30 @@ type SunSpecStructuralProjection struct {
 	facts    []SunSpecFact
 }
 
+// WireKey returns the wire key of the projected occurrence.
 func (p SunSpecStructuralProjection) WireKey() SunSpecWireKey { return p.wireKey }
+
+// SchemaRevision returns the schema revision the chain was walked under.
 func (p SunSpecStructuralProjection) SchemaRevision() SunSpecSchemaRevision {
 	return p.revision
 }
+
+// Ordinal returns the 1-based chain position of the occurrence.
 func (p SunSpecStructuralProjection) Ordinal() uint32 { return p.ordinal }
+
+// RawWords returns a copy of the occurrence words, header included.
 func (p SunSpecStructuralProjection) RawWords() []uint16 {
 	return append([]uint16(nil), p.raw...)
 }
+
+// SourceSpans returns a copy of the occurrence's source spans.
 func (p SunSpecStructuralProjection) SourceSpans() []SunSpecSourceSpan {
 	return append([]SunSpecSourceSpan(nil), p.spans...)
 }
+
+// Facts returns copies of the projected facts in layout order. Each carries a
+// nested path and source range; a value that fails to decode keeps its raw
+// words and a non-valid state.
 func (p SunSpecStructuralProjection) Facts() []SunSpecFact {
 	out := make([]SunSpecFact, len(p.facts))
 	for index, fact := range p.facts {

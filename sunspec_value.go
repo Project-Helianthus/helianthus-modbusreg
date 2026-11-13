@@ -6,8 +6,15 @@ import (
 	"unicode/utf8"
 )
 
+// SunSpecPointType is the SunSpec type of a catalog point. It fixes the word
+// width, the not-implemented sentinel and the SunSpecValue accessor that
+// carries the reading. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/sunspec/read-only-core-v1.md.
 type SunSpecPointType string
 
+// SunSpec point types. Integer types carry their bit width; acc32 and acc64
+// are unsigned accumulators, sunssf is a scale-factor exponent and pad is a
+// reserved word.
 const (
 	SunSpecTypeInt16         SunSpecPointType = "int16"
 	SunSpecTypeInt32         SunSpecPointType = "int32"
@@ -26,8 +33,15 @@ const (
 	SunSpecTypePad           SunSpecPointType = "pad"
 )
 
+// SunSpecValueState classifies a decoded point. Every state keeps the raw
+// words, so evidence survives a value that cannot be used.
 type SunSpecValueState string
 
+// Value states. NotImplemented: the point, or the scale factor it depends on,
+// held the not-implemented sentinel of its type. NotAccumulated: an
+// accumulator read zero. InvalidEncoding: the words could not be decoded, for
+// example a wrong width, a scale factor outside -10 to 10, a NaN or infinite
+// float, a malformed string, or a missing or invalid scale factor.
 const (
 	SunSpecValueValid           SunSpecValueState = "valid"
 	SunSpecValueNotImplemented  SunSpecValueState = "not_implemented"
@@ -35,6 +49,9 @@ const (
 	SunSpecValueInvalidEncoding SunSpecValueState = "invalid_encoding"
 )
 
+// SunSpecDecimal is an exact scaled reading, Coefficient * 10^Exponent.
+// Exponent is the point's scale factor (-10 to 10), so no floating-point
+// rounding occurs; the unit is the unit of the fact that holds it.
 type SunSpecDecimal struct {
 	Coefficient int64
 	Exponent    int16
@@ -47,6 +64,10 @@ type SunSpecUnsignedDecimal struct {
 	Exponent    int16
 }
 
+// SunSpecValue is one decoded SunSpec point: its type, state, raw words and
+// the typed readings its type defines. Each accessor's bool reports whether
+// that reading is present; absent readings are zero. A value is immutable and
+// its slice accessors return copies.
 type SunSpecValue struct {
 	pointType          SunSpecPointType
 	state              SunSpecValueState
@@ -72,19 +93,56 @@ type SunSpecValue struct {
 	hasBits            bool
 }
 
-func (v SunSpecValue) PointType() SunSpecPointType     { return v.pointType }
-func (v SunSpecValue) State() SunSpecValueState        { return v.state }
-func (v SunSpecValue) RawWords() []uint16              { return append([]uint16(nil), v.raw...) }
+// PointType returns the catalog point type the words were decoded as.
+func (v SunSpecValue) PointType() SunSpecPointType { return v.pointType }
+
+// State returns the decode state. Check it before using a typed reading: a
+// scaled point whose scale factor is unusable keeps its unscaled integer
+// reading but has no decimal reading.
+func (v SunSpecValue) State() SunSpecValueState { return v.state }
+
+// RawWords returns a copy of the point's words exactly as read, in every
+// state.
+func (v SunSpecValue) RawWords() []uint16 { return append([]uint16(nil), v.raw...) }
+
+// Decimal returns the exact scaled reading of a point with a scale factor and
+// true when the scale factor was valid. Scaled uint64 points use
+// UnsignedDecimal instead.
 func (v SunSpecValue) Decimal() (SunSpecDecimal, bool) { return v.decimal, v.hasDecimal }
+
+// UnsignedDecimal returns the scaled reading of a scaled uint64 point, whose
+// coefficient may exceed the int64 range, and true when present.
 func (v SunSpecValue) UnsignedDecimal() (SunSpecUnsignedDecimal, bool) {
 	return v.unsignedDecimal, v.hasUnsignedDecimal
 }
-func (v SunSpecValue) Float32() (float32, bool)         { return v.float32, v.hasFloat }
-func (v SunSpecValue) Signed() (int64, bool)            { return v.signed, v.hasSigned }
-func (v SunSpecValue) Unsigned() (uint64, bool)         { return v.unsigned, v.hasUnsigned }
-func (v SunSpecValue) Text() (string, bool)             { return v.text, v.hasText }
-func (v SunSpecValue) Enum() (uint64, string, bool)     { return v.enumNumber, v.enumSymbol, v.hasEnum }
+
+// Float32 returns the reading of a float32 point and true. A NaN or infinite
+// word pair never yields a reading.
+func (v SunSpecValue) Float32() (float32, bool) { return v.float32, v.hasFloat }
+
+// Signed returns the unscaled two's-complement reading of an int16, int32 or
+// sunssf point and true.
+func (v SunSpecValue) Signed() (int64, bool) { return v.signed, v.hasSigned }
+
+// Unsigned returns the unscaled reading of a uint16, uint32, uint64, count or
+// accumulator point and true.
+func (v SunSpecValue) Unsigned() (uint64, bool) { return v.unsigned, v.hasUnsigned }
+
+// Text returns the UTF-8 text of a string point without its NUL padding and
+// true. A string that is not valid UTF-8 or has bytes after its padding is
+// invalid.
+func (v SunSpecValue) Text() (string, bool) { return v.text, v.hasText }
+
+// Enum returns the raw enum16 number, its catalog symbol and true. The symbol
+// is empty for a number the catalog does not name; the number is kept.
+func (v SunSpecValue) Enum() (uint64, string, bool) { return v.enumNumber, v.enumSymbol, v.hasEnum }
+
+// Bitfield returns the raw bits, the set bits the catalog does not name, and
+// true for a bitfield point.
 func (v SunSpecValue) Bitfield() (uint64, uint64, bool) { return v.bits, v.unknown, v.hasBits }
+
+// BitfieldSymbols returns the catalog symbols of the set, named bits, from the
+// least significant bit up, as a new slice.
 func (v SunSpecValue) BitfieldSymbols() []string {
 	return append([]string(nil), v.bitSymbols...)
 }
