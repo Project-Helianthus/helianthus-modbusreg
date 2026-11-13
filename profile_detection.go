@@ -215,6 +215,10 @@ func NewProfileDetector(spec ProfileDetectorSpec) (*ProfileDetector, error) {
 // DetectionOutcome is the closed detector decision set.
 type DetectionOutcome string
 
+// Detection outcomes. DetectionMatched names exactly one selected profile.
+// DetectionAmbiguous names none: two or more candidates matched and neither
+// score nor order picks a winner. DetectionNoMatch names none and carries the
+// reason that explains it, including every probe or context failure.
 const (
 	DetectionMatched   DetectionOutcome = "matched"
 	DetectionNoMatch   DetectionOutcome = "no_match"
@@ -224,6 +228,24 @@ const (
 // DetectionReason is the closed decision and candidate evidence reason set.
 type DetectionReason string
 
+// Detection reasons, used both as the decision reason and per candidate.
+//
+// Ranking: Selected marks the single matching candidate; MultipleMatches marks
+// every matching candidate of an ambiguous decision. EqualBest and LowerScore
+// are score-ranking reasons that decision decoding still validates; Detect
+// never emits them.
+//
+// Candidate rejection: IdentityMismatch (manufacturer or model differs),
+// FirmwareMismatch (firmware outside the candidate's half-open range),
+// InvalidIdentity (unparsable or inconsistent identity), FixtureOptInRequired
+// (fixture-only candidate without DetectionOptions.AllowFixtureOnly), and the
+// eligibility reasons CandidateDisabled, ProfileDefaultOff, ProfileRevoked,
+// ProfileSuperseded and ProfileUnqualified.
+//
+// Probe failure, always with DetectionNoMatch: ReadError (the reader returned
+// an error), ProbeException (Modbus exception response), IncompleteProbe
+// (fewer or more words than declared), InvalidProbeResult (result outside the
+// detector limits or a duplicated evidence identity) and ContextCancelled.
 const (
 	DetectionReasonSelected             DetectionReason = "selected"
 	DetectionReasonEqualBest            DetectionReason = "equal_best"

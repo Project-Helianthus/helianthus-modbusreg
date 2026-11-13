@@ -9,6 +9,9 @@ import (
 // ByteOrder declares the byte order inside each 16-bit word.
 type ByteOrder string
 
+// Byte orders. ByteOrderModbus keeps the high byte first inside each word, as
+// the register is transmitted; ByteOrderSwapped declares the low byte first.
+// NewCodec rejects any other value.
 const (
 	ByteOrderModbus  ByteOrder = "modbus"
 	ByteOrderSwapped ByteOrder = "swapped"
@@ -17,6 +20,9 @@ const (
 // Representation declares the raw numeric or string representation.
 type Representation string
 
+// Representations. Integer and IEEE 754 codecs carry a ScaleSpec and no string
+// dimensions; an IEEE 754 codec is exactly 2 or 4 raw words wide. A string
+// codec carries a complete StringSpec and no scale.
 const (
 	RepresentationUnsignedInteger Representation = "unsigned_integer"
 	RepresentationSignedInteger   Representation = "signed_integer"
@@ -27,6 +33,11 @@ const (
 // ScaleSource identifies where scaling comes from.
 type ScaleSource string
 
+// Scale sources. ScaleNotApplicable carries no order, ratio or dependency.
+// ScaleConstant carries Numerator/Denominator with a nonzero Denominator.
+// ScaleDependency names the declaration that supplies the factor in
+// DependencyID and carries no ratio. Both scaled sources need an explicit
+// application order.
 const (
 	ScaleNotApplicable ScaleSource = "not_applicable"
 	ScaleConstant      ScaleSource = "constant"
@@ -36,6 +47,9 @@ const (
 // ScaleApplicationOrder prevents implicit pre/post representation scaling.
 type ScaleApplicationOrder string
 
+// Scale application orders. A constant or dependency scale states whether it
+// applies before or after the representation is decoded;
+// ScaleOrderNotApplicable is valid only with ScaleNotApplicable.
 const (
 	ScaleOrderNotApplicable   ScaleApplicationOrder = "not_applicable"
 	ScaleBeforeRepresentation ScaleApplicationOrder = "before_representation"
@@ -54,6 +68,8 @@ type ScaleSpec struct {
 // SentinelKind classifies an exact raw sentinel without coercion.
 type SentinelKind string
 
+// Sentinel kinds. Each RawSentinel tags one exact raw pattern of the codec's
+// full width, and NewCodec rejects a pattern declared with two kinds.
 const (
 	SentinelInvalid        SentinelKind = "invalid"
 	SentinelNotImplemented SentinelKind = "not_implemented"
@@ -69,6 +85,9 @@ type RawSentinel struct {
 // StringApplicability makes the string dimension explicit for every codec.
 type StringApplicability string
 
+// String applicability. Only RepresentationString codecs are StringApplicable;
+// every other codec is StringNotApplicable and leaves the remaining StringSpec
+// dimensions empty.
 const (
 	StringNotApplicable StringApplicability = "not_applicable"
 	StringApplicable    StringApplicability = "applicable"
@@ -77,6 +96,8 @@ const (
 // StringWordPacking declares byte placement across words.
 type StringWordPacking string
 
+// String word packings: which byte of each 16-bit word holds the earlier
+// character.
 const (
 	StringHighByteFirst StringWordPacking = "high_byte_first"
 	StringLowByteFirst  StringWordPacking = "low_byte_first"
@@ -85,6 +106,9 @@ const (
 // StringTermination declares how a documentary string ends.
 type StringTermination string
 
+// String terminations. StringFixedLength uses the whole retained width;
+// StringNULTerminated ends the text at the first NUL byte. Either way the codec
+// retains all 2*RawWordCount raw bytes.
 const (
 	StringFixedLength   StringTermination = "fixed_length"
 	StringNULTerminated StringTermination = "nul_terminated"
@@ -104,6 +128,10 @@ type StringSpec struct {
 // ValidityBehavior declares the non-coercing disposition of invalid raw data.
 type ValidityBehavior string
 
+// Validity behaviors. ValidityRejectSentinel declares that a raw value matching
+// a declared sentinel is rejected; ValidityPreserveRaw declares that the raw
+// words are kept and marked invalid. The codec declaration itself never
+// coerces a value.
 const (
 	ValidityRejectSentinel ValidityBehavior = "reject_sentinel"
 	ValidityPreserveRaw    ValidityBehavior = "preserve_raw_invalid"

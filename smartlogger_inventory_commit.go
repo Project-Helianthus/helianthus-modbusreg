@@ -6,6 +6,14 @@ import (
 	"time"
 )
 
+// Commit owner errors. ErrSmartloggerInventoryBusy reports a Begin while an
+// attempt is active; ErrSmartloggerInventoryClosed a call after Close; and
+// ErrSmartloggerInventoryContext an invalid context, a Retire that does not
+// raise the connection generation, a deadline that is not after now or is more
+// than 15 seconds ahead, or an exhausted attempt counter. The offline provider
+// also returns ErrSmartloggerInventoryContext for an attempt that did not
+// complete. The lifecycle is described in
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/smartlogger-inventory-commit-implementation.md.
 var (
 	ErrSmartloggerInventoryBusy    = errors.New("SmartLogger inventory attempt busy")
 	ErrSmartloggerInventoryClosed  = errors.New("SmartLogger inventory owner closed")
@@ -23,20 +31,32 @@ type SmartloggerInventoryIdentity struct {
 	Firmware       string
 }
 
+// SmartloggerInventoryContext is the publication fence of one owner. Every
+// field must be set; the identity must name unit 0, the SmartLogger self model
+// and one of the accepted firmware builds. OwnerToken is opaque local
+// correlation.
 type SmartloggerInventoryContext struct {
 	OwnerToken           string
 	ConnectionGeneration uint64
 	Identity             SmartloggerInventoryIdentity
 }
 
+// SmartloggerInventoryPlan is the frozen plan of one attempt: the owner's
+// context at Begin, an AttemptToken unique within the owner, and the deadline.
+// Commit fails unless it receives this exact plan.
 type SmartloggerInventoryPlan struct {
 	Context      SmartloggerInventoryContext
 	AttemptToken uint64
 	Deadline     time.Time
 }
 
+// SmartloggerInventoryOutcome is the terminal outcome of one attempt; the
+// first terminal transition wins.
 type SmartloggerInventoryOutcome string
 
+// Attempt outcomes. Only SmartloggerInventoryComplete publishes a snapshot.
+// Failed covers a validation, plan, context or deadline failure; Cancelled,
+// Closed and Retired record Cancel, Close and Retire of an active attempt.
 const (
 	SmartloggerInventoryComplete  SmartloggerInventoryOutcome = "complete"
 	SmartloggerInventoryFailed    SmartloggerInventoryOutcome = "failed"
@@ -53,6 +73,7 @@ type SmartloggerInventoryResult struct {
 	CompletedAt time.Time
 }
 
+// DefaultDenied is always true: a complete inventory grants no admission.
 func (SmartloggerInventoryResult) DefaultDenied() bool { return true }
 
 // SmartloggerInventorySnapshot preserves native history. Current only identifies
@@ -107,6 +128,9 @@ func validSmartloggerInventoryContext(c SmartloggerInventoryContext) bool {
 		(i.Firmware == "V300R024C10SPC191" || i.Firmware == "V300R024C10SPC210")
 }
 
+// Begin freezes a plan over the current context and makes it the one active
+// attempt. The deadline must be after the owner's clock and at most 15 seconds
+// ahead of it.
 func (o *SmartloggerInventoryCommitOwner) Begin(deadline time.Time) (*SmartloggerInventoryAttempt, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -130,6 +154,7 @@ func (o *SmartloggerInventoryCommitOwner) Begin(deadline time.Time) (*Smartlogge
 	return a, nil
 }
 
+// Plan returns the attempt's frozen plan, which Commit must receive unchanged.
 func (a *SmartloggerInventoryAttempt) Plan() SmartloggerInventoryPlan { return a.plan }
 
 // Commit consumes already-collected pages. The caller must not mutate input
@@ -186,6 +211,9 @@ func (a *SmartloggerInventoryAttempt) finishLocked(outcome SmartloggerInventoryO
 	return a.finishAtLocked(outcome, a.owner.now())
 }
 
+// Cancel ends an unfinished attempt as SmartloggerInventoryCancelled and
+// returns the terminal result; on a finished attempt it returns the existing
+// result unchanged.
 func (a *SmartloggerInventoryAttempt) Cancel() SmartloggerInventoryResult {
 	a.owner.mu.Lock()
 	defer a.owner.mu.Unlock()
@@ -195,6 +223,9 @@ func (a *SmartloggerInventoryAttempt) Cancel() SmartloggerInventoryResult {
 	return a.finishLocked(SmartloggerInventoryCancelled)
 }
 
+// Close is terminal and idempotent: it ends an active attempt as
+// SmartloggerInventoryClosed and refuses later Begin and Retire calls. The last
+// complete snapshot stays readable, no longer marked Current.
 func (o *SmartloggerInventoryCommitOwner) Close() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -222,6 +253,9 @@ func (o *SmartloggerInventoryCommitOwner) Retire(context SmartloggerInventoryCon
 	return nil
 }
 
+// LastComplete returns a detached copy of the last published snapshot and
+// whether one exists. Current is true only while the owner is open and the
+// snapshot's context equals the owner's context.
 func (o *SmartloggerInventoryCommitOwner) LastComplete() (SmartloggerInventorySnapshot, bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()

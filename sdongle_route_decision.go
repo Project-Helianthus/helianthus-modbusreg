@@ -5,15 +5,29 @@ import "time"
 // SDongleRouteOutcome is documentary only; none of its values authorizes I/O.
 type SDongleRouteOutcome string
 
+// Route outcomes. SDonglePlanned marks a documentary request class that the
+// evidence supports; SDongleNoSend marks a known prohibition or a stopped
+// qualification; SDongleWithheld marks incomplete or incoherent evidence. The
+// decision rules are described in
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/sdongle-route-decision-implementation.md.
 const (
 	SDonglePlanned  SDongleRouteOutcome = "planned"
 	SDongleNoSend   SDongleRouteOutcome = "no-send"
 	SDongleWithheld SDongleRouteOutcome = "withheld"
 )
 
+// SDongleRouteRole says whether a route addresses the gateway unit itself or a
+// child unit behind it.
 type SDongleRouteRole string
+
+// SDongleRequestClass is the closed class of request a route describes. A
+// private function is always no-send, and extended identification is no-send
+// at the gateway unit.
 type SDongleRequestClass string
 
+// Route roles and request classes. The allowed scopes are: basic-mei with
+// basic-identity, and gateway-fc03 with protocol-baseline, gateway-status or
+// capacity, at the gateway; extended-mei with extended-inventory at a child.
 const (
 	SDongleGateway         SDongleRouteRole    = "gateway"
 	SDongleChild           SDongleRouteRole    = "child"
@@ -49,6 +63,9 @@ type SDongleChildRoute struct {
 	GuardAfter       uint16
 }
 
+// SDongleRouteKey is the complete association a decision and its evidence
+// must share; a planned decision needs Evidence.Key to equal it. Child is the
+// zero value for a gateway route.
 type SDongleRouteKey struct {
 	Family        string
 	Model         string
@@ -98,6 +115,8 @@ type SDongleRouteBounds struct {
 	MaxBytes     uint32
 }
 
+// SDongleRoutePlan is the complete offline input of DecideSDongleRoute.
+// TimedOut and QualificationStopped force SDongleNoSend.
 type SDongleRoutePlan struct {
 	Key                  SDongleRouteKey
 	Observation          HuaweiSDongleOfflineObservation
@@ -119,6 +138,7 @@ type SDongleRouteDecision struct {
 	EvaluatorReason HuaweiSDongleOfflineReason
 }
 
+// DefaultDenied is always true: even a planned decision authorizes no I/O.
 func (SDongleRouteDecision) DefaultDenied() bool { return true }
 
 // DecideSDongleRoute evaluates a single offline documentary decision. Known

@@ -30,6 +30,9 @@ const huaweiGatewayCatalogDirectory = "profiles/vendors/huawei/catalog/smartlogg
 // A gateway's own identity is read only in its self endpoint.
 type HuaweiGatewayEndpoint string
 
+// HuaweiGatewayEndpointSelf is the gateway's own endpoint, the only endpoint
+// in which the selection decides; the unit must also be the family's self
+// unit from the catalog.
 const HuaweiGatewayEndpointSelf HuaweiGatewayEndpoint = "gateway-self"
 
 // HuaweiGatewayScope is the endpoint class and the unit that the identity
@@ -57,6 +60,10 @@ type HuaweiGatewaySelectionInput struct {
 // HuaweiGatewaySelectionOutcome is the outcome of the gateway selection.
 type HuaweiGatewaySelectionOutcome string
 
+// Selection outcomes. HuaweiGatewaySelected binds exactly one floor.
+// HuaweiGatewayAmbiguous admits the family and binds none: two or more floors
+// admit the text, several floors have no documented relation to it, or no
+// software text was read. HuaweiGatewayNotSelected refuses the identity.
 const (
 	HuaweiGatewaySelected    HuaweiGatewaySelectionOutcome = "SELECTED"
 	HuaweiGatewayNotSelected HuaweiGatewaySelectionOutcome = "NOT_SELECTED"
@@ -66,6 +73,15 @@ const (
 // HuaweiGatewaySelectionReason is the closed reason of a gateway selection.
 type HuaweiGatewaySelectionReason string
 
+// Selection reasons. Admitting: AtOrAboveFloor (exactly one floor admits the
+// text), NoDocumentedRelation (no floor relates to the text's line or branch;
+// grade Hypothesis), MultipleFloors (two or more floors admit it) and
+// SoftwareNotRead (no software text; the family's floors stay candidates).
+// Refusing: FamilyMismatch (an unknown family, a scope other than the self
+// endpoint at the self unit, a model outside the family's rows, or a software
+// label of another component), BelowFloor (the text is below a floor of its
+// own domain and no floor admits it), SoftwareMalformed (the text does not
+// parse as a build) and CatalogInvalid (the embedded catalog failed to load).
 const (
 	// Reasons of an admitting outcome.
 	HuaweiGatewayAtOrAboveFloor       HuaweiGatewaySelectionReason = "at_or_above_floor"
@@ -83,11 +99,11 @@ const (
 type HuaweiGatewayFloorDomain string
 
 const (
-	// HuaweiGatewayFloorLine: the floor is a minimum of its line (V). The
+	// HuaweiGatewayFloorLine means the floor is a minimum of its line (V). The
 	// family documents an order across the releases of that line, so builds
 	// of one line are ordered by release, branch and build number.
 	HuaweiGatewayFloorLine HuaweiGatewayFloorDomain = "LINE"
-	// HuaweiGatewayFloorBranch: the floor is a minimum of its branch (V, R,
+	// HuaweiGatewayFloorBranch means the floor is a minimum of its branch (V, R,
 	// C). Builds of the branch are ordered by build number, and no two
 	// branches are ordered.
 	HuaweiGatewayFloorBranch HuaweiGatewayFloorDomain = "BRANCH"
@@ -96,6 +112,10 @@ const (
 // HuaweiGatewayFloorRelation is how a software text relates to a floor.
 type HuaweiGatewayFloorRelation string
 
+// Floor relations. AtOrAbove and Below compare the build within the floor's
+// domain; NoDocumentedRelation marks a floor of another line or branch, which
+// neither admits nor refuses; NotEvaluated marks a floor that was not
+// compared, for example because no software text was read.
 const (
 	HuaweiGatewayRelationAtOrAbove            HuaweiGatewayFloorRelation = "AT_OR_ABOVE"
 	HuaweiGatewayRelationBelow                HuaweiGatewayFloorRelation = "BELOW"
@@ -174,12 +194,25 @@ type HuaweiGatewaySelection struct {
 	candidates []HuaweiGatewayFloor
 }
 
+// Outcome returns the selection outcome; use Admitted to test for a refusal.
 func (s HuaweiGatewaySelection) Outcome() HuaweiGatewaySelectionOutcome { return s.outcome }
-func (s HuaweiGatewaySelection) Reason() HuaweiGatewaySelectionReason   { return s.reason }
-func (s HuaweiGatewaySelection) Family() string                         { return s.family }
-func (s HuaweiGatewaySelection) Scope() HuaweiGatewayScope              { return s.scope }
-func (s HuaweiGatewaySelection) Model() string                          { return s.model }
-func (s HuaweiGatewaySelection) Software() string                       { return s.software }
+
+// Reason returns the reason that explains Outcome.
+func (s HuaweiGatewaySelection) Reason() HuaweiGatewaySelectionReason { return s.reason }
+
+// Family returns the input family, as given.
+func (s HuaweiGatewaySelection) Family() string { return s.family }
+
+// Scope returns the input scope, as given.
+func (s HuaweiGatewaySelection) Scope() HuaweiGatewayScope { return s.scope }
+
+// Model returns the input model text, as given; empty when no model was
+// compared.
+func (s HuaweiGatewaySelection) Model() string { return s.model }
+
+// Software returns the input software text, as given, including any component
+// label; Build holds the compared version.
+func (s HuaweiGatewaySelection) Software() string { return s.software }
 
 // Build is the version part of the software text that was compared, without
 // a component label.
@@ -278,8 +311,14 @@ func (s HuaweiGatewaySelection) AttributeSixGrammars() []string {
 	return grammars
 }
 
-func (HuaweiGatewaySelection) LiveQualified() bool  { return false }
-func (HuaweiGatewaySelection) SupportClaim() bool   { return false }
+// LiveQualified is always false: a catalog decision is not live
+// qualification.
+func (HuaweiGatewaySelection) LiveQualified() bool { return false }
+
+// SupportClaim is always false.
+func (HuaweiGatewaySelection) SupportClaim() bool { return false }
+
+// WriteAuthority is always false.
 func (HuaweiGatewaySelection) WriteAuthority() bool { return false }
 
 // withObservedBuild grades an admitted selection Proven when its build is the

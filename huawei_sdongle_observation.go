@@ -6,6 +6,11 @@ import "strings"
 // result. A matched observation remains default denied.
 type HuaweiSDongleOfflineReason string
 
+// S-Dongle observation reasons, checked in this order: the unit is not 100,
+// the model is not a listed S-Dongle model, the catalog decision does not
+// admit the firmware text, the protocol main revision is not 5, the search
+// state is not 0, the change sequence differs before and after the reads, or
+// the child count exceeds the capacity.
 const (
 	HuaweiSDongleOfflineMatched          HuaweiSDongleOfflineReason = "matched"
 	HuaweiSDongleOfflineUnitMismatch     HuaweiSDongleOfflineReason = "unit_mismatch"
@@ -17,6 +22,10 @@ const (
 	HuaweiSDongleOfflineCapacityMismatch HuaweiSDongleOfflineReason = "capacity_mismatch"
 )
 
+// S-Dongle family identity. HuaweiSDongleCanonicalClass is the family class a
+// matched decision reports, and HuaweiSDongleReadOnlyProfileID the read-only
+// profile it names. The native identity contract is
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/gateway-readonly-v1.md.
 const (
 	HuaweiSDongleCanonicalClass    = "S-Dongle"
 	HuaweiSDongleReadOnlyProfileID = "huawei.sdongle.readonly.v1"
@@ -46,8 +55,11 @@ type HuaweiSDongleOfflineDecision struct {
 	selection HuaweiGatewaySelection
 }
 
+// Matched reports that every gate of the observation passed.
 func (d HuaweiSDongleOfflineDecision) Matched() bool { return d.matched }
 
+// CanonicalClass returns HuaweiSDongleCanonicalClass for a matched decision
+// and the empty string otherwise.
 func (d HuaweiSDongleOfflineDecision) CanonicalClass() string {
 	if !d.matched {
 		return ""
@@ -55,8 +67,12 @@ func (d HuaweiSDongleOfflineDecision) CanonicalClass() string {
 	return HuaweiSDongleCanonicalClass
 }
 
+// ModelVariant returns the matched wire model with terminal NUL and space
+// padding removed, and the empty string when the decision did not match.
 func (d HuaweiSDongleOfflineDecision) ModelVariant() string { return d.model }
 
+// ProfileID returns HuaweiSDongleReadOnlyProfileID for a matched decision and
+// the empty string otherwise.
 func (d HuaweiSDongleOfflineDecision) ProfileID() string {
 	if !d.matched {
 		return ""
@@ -64,8 +80,10 @@ func (d HuaweiSDongleOfflineDecision) ProfileID() string {
 	return HuaweiSDongleReadOnlyProfileID
 }
 
+// DefaultDenied is always true: a match never admits the device at runtime.
 func (d HuaweiSDongleOfflineDecision) DefaultDenied() bool { return true }
 
+// Reason returns the first gate that failed, or HuaweiSDongleOfflineMatched.
 func (d HuaweiSDongleOfflineDecision) Reason() HuaweiSDongleOfflineReason { return d.reason }
 
 // Selection is the catalog decision over the firmware text, recorded once

@@ -78,10 +78,16 @@ func UnmarshalFMV3M303CompletionRecord(data []byte) (CompletionRecord, error) {
 	return completionRecordFromDTO(dto)
 }
 
+// MarshalJSON implements json.Marshaler through
+// MarshalFMV3M303CompletionRecord, so the record is revalidated and its
+// snake_case encoding is deterministic.
 func (record CompletionRecord) MarshalJSON() ([]byte, error) {
 	return MarshalFMV3M303CompletionRecord(record)
 }
 
+// UnmarshalJSON implements json.Unmarshaler through
+// UnmarshalFMV3M303CompletionRecord. A nil target, an unknown field or a
+// noncanonical record returns an error and leaves the target unchanged.
 func (record *CompletionRecord) UnmarshalJSON(data []byte) error {
 	if record == nil {
 		return errNilCompletionRecordTarget

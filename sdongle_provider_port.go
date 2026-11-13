@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+// Port errors. ErrI21Association reports a refresh key, or a previous record
+// at construction, that differs from the frozen route; ErrI21Retired a call
+// after I21Retire; ErrI21Busy a refresh while another is in flight. A refused
+// call leaves the latest result unchanged.
 var (
 	ErrI21Association = errors.New("i21 sdongle: refresh key differs from frozen route")
 	ErrI21Retired     = errors.New("i21 sdongle: provider retired")

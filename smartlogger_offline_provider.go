@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+// ErrSmartloggerOfflineProviderInput reports a nil provider, reader or
+// context, limits outside the parser ceilings, or reader output over the
+// limits.
 var ErrSmartloggerOfflineProviderInput = errors.New("invalid SmartLogger offline provider bounds or reader")
 
 // SmartloggerOfflineInventoryReader supplies already-read native records for one
@@ -57,6 +60,11 @@ type SmartloggerOfflineProvider struct {
 	reader SmartloggerOfflineInventoryReader
 }
 
+// NewSmartloggerOfflineProvider builds a provider over a new commit owner. A
+// nil reader returns ErrSmartloggerOfflineProviderInput, and an invalid
+// context returns ErrSmartloggerInventoryContext; a nil clock uses time.Now.
+// The cycle is described in
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/smartlogger-offline-provider-cycle.md.
 func NewSmartloggerOfflineProvider(identity SmartloggerInventoryContext, clock func() time.Time, reader SmartloggerOfflineInventoryReader) (*SmartloggerOfflineProvider, error) {
 	if reader == nil {
 		return nil, ErrSmartloggerOfflineProviderInput
@@ -111,12 +119,17 @@ func (p *SmartloggerOfflineProvider) Cycle(ctx context.Context, deadline time.Ti
 	return result, nil
 }
 
+// Close closes the owner; see SmartloggerInventoryCommitOwner.Close. It is
+// safe on a nil or zero provider.
 func (p *SmartloggerOfflineProvider) Close() {
 	if p != nil && p.owner != nil {
 		p.owner.Close()
 	}
 }
 
+// Retire moves the owner to a context with a strictly newer connection
+// generation and ends an active attempt as SmartloggerInventoryRetired; see
+// SmartloggerInventoryCommitOwner.Retire.
 func (p *SmartloggerOfflineProvider) Retire(identity SmartloggerInventoryContext) error {
 	if p == nil || p.owner == nil {
 		return ErrSmartloggerOfflineProviderInput
@@ -124,6 +137,9 @@ func (p *SmartloggerOfflineProvider) Retire(identity SmartloggerInventoryContext
 	return p.owner.Retire(identity)
 }
 
+// LastComplete returns the owner's last complete snapshot; see
+// SmartloggerInventoryCommitOwner.LastComplete. A nil or zero provider has
+// none.
 func (p *SmartloggerOfflineProvider) LastComplete() (SmartloggerInventorySnapshot, bool) {
 	if p == nil || p.owner == nil {
 		return SmartloggerInventorySnapshot{}, false
