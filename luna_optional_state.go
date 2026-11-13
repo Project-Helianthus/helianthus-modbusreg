@@ -1,38 +1,89 @@
 package modbusreg
 
+// LunaOptionalStatus is the observation state of the optional LUNA2000
+// battery group attached to a SUN2000 parent. No status is a qualification;
+// the retention contract is
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/luna2000-optional-group-v1.md.
 type LunaOptionalStatus string
 
+// Optional-group states. The contract's observed-absent and qualified states
+// are not reachable in this revision.
 const (
-	LunaUnknown               LunaOptionalStatus = "unknown"
-	LunaPresentUnqualified    LunaOptionalStatus = "present-unqualified"
+	// LunaUnknown means there is no usable current presence result; it is the
+	// zero-value state.
+	LunaUnknown LunaOptionalStatus = "unknown"
+	// LunaPresentUnqualified means presence evidence exists under a valid
+	// binding but exact qualification is missing.
+	LunaPresentUnqualified LunaOptionalStatus = "present-unqualified"
+	// LunaTemporarilyUnreadable means a previously present group failed to
+	// evaluate; its bounded history survives and failure is never absence.
 	LunaTemporarilyUnreadable LunaOptionalStatus = "temporarily unreadable"
-	LunaIdentityChanged       LunaOptionalStatus = "identity changed"
+	// LunaIdentityChanged fences the former binding after a binding change;
+	// it neither identifies nor qualifies the replacement.
+	LunaIdentityChanged LunaOptionalStatus = "identity changed"
 )
 
+// LunaOptionalEvent is the kind of observation supplied to
+// ReduceLunaOptionalState. An unrecognized event yields LunaUnknown and is not
+// retained.
 type LunaOptionalEvent string
 
+// Optional-group events.
 const (
-	LunaNoObservation       LunaOptionalEvent = "no observation"
-	LunaInventoryOnly       LunaOptionalEvent = "inventory only"
+	// LunaNoObservation carries no presence evidence.
+	LunaNoObservation LunaOptionalEvent = "no observation"
+	// LunaInventoryOnly is a gateway listing without native battery evidence;
+	// it never establishes presence.
+	LunaInventoryOnly LunaOptionalEvent = "inventory only"
+	// LunaDocumentaryPresence is presence evidence; with at least one
+	// evidence record it yields LunaPresentUnqualified.
 	LunaDocumentaryPresence LunaOptionalEvent = "documentary presence"
-	LunaOptionalFailure     LunaOptionalEvent = "optional failure"
-	LunaMalformedEvidence   LunaOptionalEvent = "malformed evidence"
+	// LunaOptionalFailure is a failed optional-group read, such as an
+	// exception or timeout.
+	LunaOptionalFailure LunaOptionalEvent = "optional failure"
+	// LunaMalformedEvidence is partial or malformed group evidence.
+	LunaMalformedEvidence LunaOptionalEvent = "malformed evidence"
 )
 
+// LunaOptionalIdentity is an exact model, firmware and unit identity. It is
+// valid only when all three are non-empty.
 type LunaOptionalIdentity struct{ Model, Firmware, Unit string }
+
+// LunaOptionalBinding binds the battery Group to its SUN2000 Parent through
+// an explicit Attachment, the separate ParentEpoch and GroupEpoch source
+// associations, and the EvidenceRevision. Every field must be non-empty; any
+// change to an established binding fences its history.
 type LunaOptionalBinding struct {
 	Parent, Group                                         LunaOptionalIdentity
 	Attachment, ParentEpoch, GroupEpoch, EvidenceRevision string
 }
+
+// LunaOptionalPolicy is the caller-supplied finite budget of one evaluation;
+// every field must be positive or the evaluation is rejected. MaxRecords and
+// MaxBytes bound the evidence of one input, the bytes counted over the binding
+// and evidence strings plus a fixed allowance per record. Deadline is an
+// absolute tick that Now must precede. FreshnessAge and RetentionAge are ages
+// in ticks; HistoryRecords and HistoryBytes bound the retained history, newest
+// first.
 type LunaOptionalPolicy struct {
 	MaxRecords, MaxBytes                 int
 	Deadline, FreshnessAge, RetentionAge int64
 	HistoryRecords, HistoryBytes         int
 }
+
+// LunaOptionalEvidence is one native evidence record: a non-empty Reference
+// and NativeOutcome, retained as given, and the caller tick it was observed
+// at, which may not be later than the evaluation's Now.
 type LunaOptionalEvidence struct {
 	Reference, NativeOutcome string
 	ObservedAt               int64
 }
+
+// LunaOptionalInput is one evaluation request. The observation epochs must
+// equal the binding's epochs or the input is a retired result: only retention
+// ageing is applied. ParentIdentified and EpochsAssociated must both hold for the
+// binding to be usable. Started and Now are caller ticks on the same basis as
+// the policy.
 type LunaOptionalInput struct {
 	Binding                                       LunaOptionalBinding
 	ParentIdentified, EpochsAssociated            bool
@@ -42,6 +93,11 @@ type LunaOptionalInput struct {
 	Started, Now                                  int64
 	Policy                                        LunaOptionalPolicy
 }
+
+// LunaOptionalHistory is one retained evidence record with the binding and
+// event it arrived under. Applicable is false once its binding no longer
+// matches the current one; Fresh reports whether its age is within the
+// freshness budget at the last evaluation. History is never current evidence.
 type LunaOptionalHistory struct {
 	Binding           LunaOptionalBinding
 	Event             LunaOptionalEvent
@@ -59,22 +115,42 @@ type LunaOptionalState struct {
 	evaluatedAt             int64
 }
 
+// State returns the observation state, LunaUnknown for the zero value.
 func (s LunaOptionalState) State() LunaOptionalStatus {
 	if s.status == "" {
 		return LunaUnknown
 	}
 	return s.status
 }
+
+// ParentIdentified reports whether the latest non-retired input positively
+// identified a valid parent; it grants no battery capability.
 func (s LunaOptionalState) ParentIdentified() bool { return s.parentIdentified }
+
+// History returns a copy of the retained records, oldest first, within the
+// last accepted retention policy.
 func (s LunaOptionalState) History() []LunaOptionalHistory {
 	return append([]LunaOptionalHistory(nil), s.history...)
 }
-func (LunaOptionalState) Outcome() string                 { return "NO_ADMISSIBLE_PROFILE" }
-func (LunaOptionalState) CatalogRegistered() bool         { return false }
+
+// Outcome is always NO_ADMISSIBLE_PROFILE: no LUNA2000 profile exists.
+func (LunaOptionalState) Outcome() string { return "NO_ADMISSIBLE_PROFILE" }
+
+// CatalogRegistered is always false.
+func (LunaOptionalState) CatalogRegistered() bool { return false }
+
+// AutomaticRuntimeAdmission is always false.
 func (LunaOptionalState) AutomaticRuntimeAdmission() bool { return false }
-func (LunaOptionalState) SupportClaim() bool              { return false }
-func (LunaOptionalState) WriteAuthority() bool            { return false }
-func (LunaOptionalState) Qualified() bool                 { return false }
+
+// SupportClaim is always false.
+func (LunaOptionalState) SupportClaim() bool { return false }
+
+// WriteAuthority is always false.
+func (LunaOptionalState) WriteAuthority() bool { return false }
+
+// Qualified is always false: the qualified transition is conditional and
+// unmet.
+func (LunaOptionalState) Qualified() bool { return false }
 
 // ReduceLunaOptionalState interprets supplied documentary observations only.
 // All times are caller-supplied nonnegative ticks on one monotonic time basis.

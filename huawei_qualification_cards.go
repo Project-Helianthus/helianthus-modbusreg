@@ -6,42 +6,86 @@ import (
 	"sort"
 )
 
+// Qualification card identities and the SmartLogger class name. The card
+// contract is
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/huawei/qualification-readiness-v1.md.
 const (
+	// HuaweiSmartLoggerCanonicalClass is the class name the SmartLogger cards
+	// select and the exact self-entry model the documentary card admits.
 	HuaweiSmartLoggerCanonicalClass = "SmartLogger"
 
+	// HuaweiSmartLoggerQualificationCardID identifies the documentary
+	// SmartLogger card; the version suffix changes with its admission rules.
 	HuaweiSmartLoggerQualificationCardID = "huawei.qualification.smartlogger.readonly@1.0.0"
-	HuaweiEMMAQualificationCardID        = "huawei.qualification.emma.readonly@1.0.0"
-	HuaweiSDongleQualificationCardID     = "huawei.qualification.sdongle.evidence-blocked@1.0.0"
+	// HuaweiEMMAQualificationCardID identifies the documentary EMMA card.
+	HuaweiEMMAQualificationCardID = "huawei.qualification.emma.readonly@1.0.0"
+	// HuaweiSDongleQualificationCardID identifies the retained S-Dongle
+	// persistent non-response record, which is evidence-blocked by design.
+	HuaweiSDongleQualificationCardID = "huawei.qualification.sdongle.evidence-blocked@1.0.0"
 
 	huaweiQualificationExpectedResultSchema = "helianthus-huawei-qualification-readiness/v1"
 )
 
+// HuaweiQualificationReadiness is the provider-local status of a qualification
+// result. No value grants hardware readiness, admission or support.
 type HuaweiQualificationReadiness string
 
+// Readiness values. Their wire strings are part of the expected-result JSON.
 const (
+	// HuaweiQualificationInsufficientEvidence is the fail-closed status of any
+	// input the card does not admit; it is also the zero-value status.
 	HuaweiQualificationInsufficientEvidence HuaweiQualificationReadiness = "INSUFFICIENT_EVIDENCE"
-	HuaweiQualificationTestReady            HuaweiQualificationReadiness = "QUALIFICATION_TEST_READY"
-	HuaweiQualificationEvidenceBlocked      HuaweiQualificationReadiness = "QUALIFICATION_EVIDENCE_BLOCKED"
-	HuaweiQualificationAmbiguous            HuaweiQualificationReadiness = "AMBIGUOUS"
+	// HuaweiQualificationTestReady means identity and inventory matched and
+	// the bounded qualification procedure can run; it is not a hardware or
+	// live qualification.
+	HuaweiQualificationTestReady HuaweiQualificationReadiness = "QUALIFICATION_TEST_READY"
+	// HuaweiQualificationEvidenceBlocked means the card stops on named missing
+	// evidence, either after an identity match or by retained record.
+	HuaweiQualificationEvidenceBlocked HuaweiQualificationReadiness = "QUALIFICATION_EVIDENCE_BLOCKED"
+	// HuaweiQualificationAmbiguous is the resolved status when results of more
+	// than one class matched; no class is chosen.
+	HuaweiQualificationAmbiguous HuaweiQualificationReadiness = "AMBIGUOUS"
 )
 
+// HuaweiQualificationReason is the closed reason that accompanies a readiness
+// status.
 type HuaweiQualificationReason string
 
+// Qualification reasons. Their wire strings are stable result evidence.
 const (
-	HuaweiQualificationIdentityInvalid                    HuaweiQualificationReason = "IDENTITY_INVALID"
-	HuaweiQualificationInventoryInvalid                   HuaweiQualificationReason = "INVENTORY_INVALID"
-	HuaweiQualificationMatchedIdentityInventory           HuaweiQualificationReason = "IDENTITY_INVENTORY_MATCHED"
+	// HuaweiQualificationIdentityInvalid covers a wrong unit, a wrong or
+	// partial identity, refused software and the zero-value result.
+	HuaweiQualificationIdentityInvalid HuaweiQualificationReason = "IDENTITY_INVALID"
+	// HuaweiQualificationInventoryInvalid means the inventory failed parsing,
+	// stability or a limit; no partial child list is retained.
+	HuaweiQualificationInventoryInvalid HuaweiQualificationReason = "INVENTORY_INVALID"
+	// HuaweiQualificationMatchedIdentityInventory accompanies a test-ready
+	// result whose identity and complete inventory matched.
+	HuaweiQualificationMatchedIdentityInventory HuaweiQualificationReason = "IDENTITY_INVENTORY_MATCHED"
+	// HuaweiQualificationIdentityMatchedCapabilitiesMissing accompanies an
+	// identity match that still waits for capability fixtures.
 	HuaweiQualificationIdentityMatchedCapabilitiesMissing HuaweiQualificationReason = "IDENTITY_MATCHED_CAPABILITIES_MISSING"
-	HuaweiQualificationPersistentNonResponse              HuaweiQualificationReason = "LIVE_STOPPED_PERSISTENT_NON_RESPONSE"
-	HuaweiQualificationMultipleClasses                    HuaweiQualificationReason = "MULTIPLE_CLASSES"
+	// HuaweiQualificationPersistentNonResponse is the reason of the retained
+	// S-Dongle record of a live run stopped on persistent non-response.
+	HuaweiQualificationPersistentNonResponse HuaweiQualificationReason = "LIVE_STOPPED_PERSISTENT_NON_RESPONSE"
+	// HuaweiQualificationMultipleClasses accompanies an ambiguous resolution.
+	HuaweiQualificationMultipleClasses HuaweiQualificationReason = "MULTIPLE_CLASSES"
 )
 
+// HuaweiQualificationInventoryLimits are the finite bounds a caller applies to
+// the inventory read of a card. Exhausting any of them rejects the whole
+// inventory.
 type HuaweiQualificationInventoryLimits struct {
+	// DeadlineMilliseconds bounds the whole inventory read, in milliseconds.
 	DeadlineMilliseconds uint32
-	MaxPages             uint32
-	MaxObjects           uint32
-	MaxBytes             uint32
-	MaxChildren          uint32
+	// MaxPages bounds the number of inventory responses.
+	MaxPages uint32
+	// MaxObjects bounds the number of inventory objects across all pages.
+	MaxObjects uint32
+	// MaxBytes bounds the aggregate response bytes across all pages.
+	MaxBytes uint32
+	// MaxChildren bounds the number of child entries, the self entry excluded.
+	MaxChildren uint32
 	// MaxResponseBytes is the finite cap on one inventory response. Zero means
 	// the card applies no cap of its own and relies on the classic frame limit.
 	MaxResponseBytes uint32
@@ -56,12 +100,29 @@ type HuaweiQualificationStep struct {
 	objectID         uint8
 }
 
+// Operation names the read, such as an FC03 register read or an FC2B MEI
+// inventory read; it is a label, not a dispatch key.
 func (step HuaweiQualificationStep) Operation() string { return step.operation }
-func (step HuaweiQualificationStep) UnitID() uint8     { return step.unitID }
-func (step HuaweiQualificationStep) Offset() uint16    { return step.offset }
-func (step HuaweiQualificationStep) Quantity() uint16  { return step.quantity }
-func (step HuaweiQualificationStep) ObjectID() uint8   { return step.objectID }
 
+// UnitID returns the Modbus unit the read is addressed to.
+func (step HuaweiQualificationStep) UnitID() uint8 { return step.unitID }
+
+// Offset returns the PDU register offset of a register read; zero for an
+// inventory read.
+func (step HuaweiQualificationStep) Offset() uint16 { return step.offset }
+
+// Quantity returns the register count of a register read; zero for an
+// inventory read.
+func (step HuaweiQualificationStep) Quantity() uint16 { return step.quantity }
+
+// ObjectID returns the start object of an inventory read; zero for a register
+// read.
+func (step HuaweiQualificationStep) ObjectID() uint8 { return step.objectID }
+
+// HuaweiQualificationResult is the immutable outcome of one card evaluation or
+// of ResolveHuaweiQualification. Its zero value reads as insufficient evidence
+// with an invalid identity, and every authority accessor reports false.
+// Slice accessors return copies.
 type HuaweiQualificationResult struct {
 	candidateClass   string
 	selectedClass    string
@@ -93,26 +154,50 @@ type HuaweiQualificationResult struct {
 	childOpaque []HuaweiGatewayOpaqueAttribute
 }
 
+// CandidateClass returns the class of the card that produced the result; it is
+// empty for a resolved ambiguous or empty result.
 func (result HuaweiQualificationResult) CandidateClass() string { return result.candidateClass }
-func (result HuaweiQualificationResult) SelectedClass() string  { return result.selectedClass }
-func (result HuaweiQualificationResult) ModelVariant() string   { return result.modelVariant }
+
+// SelectedClass returns the matched class, or empty when nothing matched.
+func (result HuaweiQualificationResult) SelectedClass() string { return result.selectedClass }
+
+// ModelVariant returns the matched model token when the card distinguishes
+// variants; it is empty otherwise.
+func (result HuaweiQualificationResult) ModelVariant() string { return result.modelVariant }
+
+// Readiness returns the status, defaulting to insufficient evidence for the
+// zero value.
 func (result HuaweiQualificationResult) Readiness() HuaweiQualificationReadiness {
 	if result.readiness == "" {
 		return HuaweiQualificationInsufficientEvidence
 	}
 	return result.readiness
 }
+
+// Reason returns the closed reason, defaulting to an invalid identity for the
+// zero value.
 func (result HuaweiQualificationResult) Reason() HuaweiQualificationReason {
 	if result.reason == "" {
 		return HuaweiQualificationIdentityInvalid
 	}
 	return result.reason
 }
+
+// IdentityMatched reports whether the card matched the identity it checks.
 func (result HuaweiQualificationResult) IdentityMatched() bool { return result.identityMatched }
+
+// PageAnomalies returns the tolerated response-shape counts of an observed
+// dialect inventory; it is zero for cards that tolerate none.
 func (result HuaweiQualificationResult) PageAnomalies() HuaweiInventoryPageAnomalies {
 	return result.pageAnomalies
 }
+
+// BasicCorroborated reports whether a decoded basic identification reply
+// agreed with the extended self entry. False also covers an absent reply.
 func (result HuaweiQualificationResult) BasicCorroborated() bool { return result.basicCorroborated }
+
+// BasicOpaqueObjectCount returns how many extra basic identification objects
+// were retained as opaque evidence.
 func (result HuaweiQualificationResult) BasicOpaqueObjectCount() int {
 	return result.basicOpaqueObjects
 }
@@ -168,25 +253,59 @@ func (result HuaweiQualificationResult) GatewayTypeWord() (uint16, bool) {
 	}
 	return *result.typeWord, true
 }
+
+// QualificationTestReady reports whether Readiness is
+// HuaweiQualificationTestReady.
 func (result HuaweiQualificationResult) QualificationTestReady() bool {
 	return result.Readiness() == HuaweiQualificationTestReady
 }
-func (HuaweiQualificationResult) HardwareTestReady() bool         { return false }
-func (HuaweiQualificationResult) DefaultDenied() bool             { return true }
-func (HuaweiQualificationResult) CatalogRegistered() bool         { return false }
+
+// HardwareTestReady is always false: no card makes a class hardware-test ready.
+func (HuaweiQualificationResult) HardwareTestReady() bool { return false }
+
+// DefaultDenied is always true: a result never lifts the default denial.
+func (HuaweiQualificationResult) DefaultDenied() bool { return true }
+
+// CatalogRegistered is always false: a result registers nothing.
+func (HuaweiQualificationResult) CatalogRegistered() bool { return false }
+
+// AutomaticRuntimeAdmission is always false: a result admits no runtime
+// provider.
 func (HuaweiQualificationResult) AutomaticRuntimeAdmission() bool { return false }
-func (HuaweiQualificationResult) LiveQualified() bool             { return false }
-func (HuaweiQualificationResult) SupportClaim() bool              { return false }
-func (HuaweiQualificationResult) WriteAuthority() bool            { return false }
-func (HuaweiQualificationResult) NativeFactCount() int            { return 0 }
-func (HuaweiQualificationResult) AutomaticRequestCount() int      { return 0 }
-func (HuaweiQualificationResult) FallbackAttempted() bool         { return false }
+
+// LiveQualified is always false: cards evaluate offline evidence only.
+func (HuaweiQualificationResult) LiveQualified() bool { return false }
+
+// SupportClaim is always false: identity is not telemetry support.
+func (HuaweiQualificationResult) SupportClaim() bool { return false }
+
+// WriteAuthority is always false: cards are read-only.
+func (HuaweiQualificationResult) WriteAuthority() bool { return false }
+
+// NativeFactCount is always zero: cards retain no native telemetry facts.
+func (HuaweiQualificationResult) NativeFactCount() int { return 0 }
+
+// AutomaticRequestCount is always zero: cards issue no requests.
+func (HuaweiQualificationResult) AutomaticRequestCount() int { return 0 }
+
+// FallbackAttempted is always false: no card falls back to another class.
+func (HuaweiQualificationResult) FallbackAttempted() bool { return false }
+
+// MissingEvidence returns a copy of the named evidence that still blocks the
+// class, in card order.
 func (result HuaweiQualificationResult) MissingEvidence() []string {
 	return append([]string(nil), result.missingEvidence...)
 }
+
+// CandidateClasses returns a copy of the sorted, distinct matched classes that
+// resolution saw; it is empty on a single card's result.
 func (result HuaweiQualificationResult) CandidateClasses() []string {
 	return append([]string(nil), result.candidateClasses...)
 }
+
+// Inventory returns a copy of the retained inventory of a test-ready
+// inventory card. The second result is false when no inventory was retained,
+// which is always the case after a failure.
 func (result HuaweiQualificationResult) Inventory() (HuaweiGatewayInventory, bool) {
 	if result.inventory == nil {
 		return HuaweiGatewayInventory{}, false
@@ -196,22 +315,39 @@ func (result HuaweiQualificationResult) Inventory() (HuaweiGatewayInventory, boo
 	return inventory, true
 }
 
+// HuaweiSmartLoggerQualificationCard is the stateless, offline documentary
+// card for the SmartLogger family at gateway unit 0. It sends nothing and
+// grants no authority; see Evaluate for its admission rule.
 type HuaweiSmartLoggerQualificationCard struct{}
 
+// HuaweiSmartLoggerQualificationInput is the already-read evidence the
+// documentary SmartLogger card evaluates.
 type HuaweiSmartLoggerQualificationInput struct {
-	UnitID    uint8
+	// UnitID is the unit the counter and inventory reads were addressed to.
+	UnitID uint8
+	// Inventory is the detached extended inventory with its counter bracket.
 	Inventory HuaweiSmartLoggerOfflineInventoryInput
 }
 
+// NewHuaweiSmartLoggerQualificationCard returns the stateless card.
 func NewHuaweiSmartLoggerQualificationCard() HuaweiSmartLoggerQualificationCard {
 	return HuaweiSmartLoggerQualificationCard{}
 }
 
+// ID returns HuaweiSmartLoggerQualificationCardID.
 func (HuaweiSmartLoggerQualificationCard) ID() string { return HuaweiSmartLoggerQualificationCardID }
+
+// CandidateClass returns HuaweiSmartLoggerCanonicalClass.
 func (HuaweiSmartLoggerQualificationCard) CandidateClass() string {
 	return HuaweiSmartLoggerCanonicalClass
 }
+
+// UnitID returns gateway unit 0, the only unit the card applies to.
 func (HuaweiSmartLoggerQualificationCard) UnitID() uint8 { return 0 }
+
+// Steps returns a fresh copy of the caller-run read sequence: the change
+// counter, the extended inventory, and the counter again. The two counter
+// values must be equal for the inventory to be admitted.
 func (HuaweiSmartLoggerQualificationCard) Steps() []HuaweiQualificationStep {
 	return []HuaweiQualificationStep{
 		{operation: "FC03_COUNTER_BEFORE", unitID: 0, offset: 65521, quantity: 1},
@@ -219,6 +355,9 @@ func (HuaweiSmartLoggerQualificationCard) Steps() []HuaweiQualificationStep {
 		{operation: "FC03_COUNTER_AFTER", unitID: 0, offset: 65521, quantity: 1},
 	}
 }
+
+// Limits returns the inventory bounds of the card: a 15-second deadline and
+// the shared page, object, byte and child caps. MaxResponseBytes stays zero.
 func (HuaweiSmartLoggerQualificationCard) Limits() HuaweiQualificationInventoryLimits {
 	return HuaweiQualificationInventoryLimits{
 		DeadlineMilliseconds: 15000,
@@ -228,6 +367,9 @@ func (HuaweiSmartLoggerQualificationCard) Limits() HuaweiQualificationInventoryL
 		MaxChildren:          huaweiSmartLoggerInventoryMaxChildren,
 	}
 }
+
+// EmptyResult returns the card's fail-closed result: insufficient evidence
+// with an invalid identity and nothing retained.
 func (card HuaweiSmartLoggerQualificationCard) EmptyResult() HuaweiQualificationResult {
 	return HuaweiQualificationResult{candidateClass: card.CandidateClass(), readiness: HuaweiQualificationInsufficientEvidence, reason: HuaweiQualificationIdentityInvalid}
 }
@@ -292,27 +434,49 @@ func (card HuaweiSmartLoggerQualificationCard) Evaluate(input HuaweiSmartLoggerQ
 	}
 }
 
+// HuaweiEMMAQualificationCard is the stateless, offline documentary card for
+// the EMMA family at gateway unit 0. A matched identity stays evidence-blocked
+// on its named capability fixtures; the card sends nothing and grants no
+// authority.
 type HuaweiEMMAQualificationCard struct{}
 
+// HuaweiEMMAQualificationInput is the already-read FC03 identity tuple the
+// EMMA card evaluates. The texts are the decoded register strings; terminal
+// padding is removed by the card.
 type HuaweiEMMAQualificationInput struct {
-	UnitID   uint8
+	// UnitID is the unit the three reads were addressed to.
+	UnitID uint8
+	// Offering is the offering text.
 	Offering string
-	Model    string
+	// Model is the model text; admission follows the catalog's EMMA model rows.
+	Model string
+	// Firmware is the software version text, compared with the floor of its
+	// own branch.
 	Firmware string
 }
 
+// NewHuaweiEMMAQualificationCard returns the stateless card.
 func NewHuaweiEMMAQualificationCard() HuaweiEMMAQualificationCard {
 	return HuaweiEMMAQualificationCard{}
 }
-func (HuaweiEMMAQualificationCard) ID() string             { return HuaweiEMMAQualificationCardID }
+
+// ID returns HuaweiEMMAQualificationCardID.
+func (HuaweiEMMAQualificationCard) ID() string { return HuaweiEMMAQualificationCardID }
+
+// CandidateClass returns HuaweiEMMACanonicalClass.
 func (HuaweiEMMAQualificationCard) CandidateClass() string { return HuaweiEMMACanonicalClass }
-func (HuaweiEMMAQualificationCard) UnitID() uint8          { return 0 }
+
+// UnitID returns gateway unit 0, the only unit the card applies to.
+func (HuaweiEMMAQualificationCard) UnitID() uint8 { return 0 }
 
 // ModelVariants are the observed models of the card. Admission follows the
 // catalog's model rows and holds every model token of the EMMA family.
 func (HuaweiEMMAQualificationCard) ModelVariants() []string {
 	return append([]string(nil), huaweiEMMAObservedModels...)
 }
+
+// Steps returns a fresh copy of the caller-run FC03 identity reads at unit 0:
+// offering, model and software version.
 func (HuaweiEMMAQualificationCard) Steps() []HuaweiQualificationStep {
 	return []HuaweiQualificationStep{
 		{operation: "FC03_OFFERING", unitID: 0, offset: 30000, quantity: 15},
@@ -320,12 +484,24 @@ func (HuaweiEMMAQualificationCard) Steps() []HuaweiQualificationStep {
 		{operation: "FC03_FIRMWARE", unitID: 0, offset: 30035, quantity: 15},
 	}
 }
+
+// MissingCapabilityEvidence returns a fresh copy of the named fixtures that
+// keep a matched EMMA identity evidence-blocked.
 func (HuaweiEMMAQualificationCard) MissingCapabilityEvidence() []string {
 	return []string{"sanitized_readonly_capability_fixture", "negative_overlap_with_smartlogger", "model_specific_capability_fixture"}
 }
+
+// EmptyResult returns the card's fail-closed result: insufficient evidence
+// with an invalid identity and nothing retained.
 func (card HuaweiEMMAQualificationCard) EmptyResult() HuaweiQualificationResult {
 	return HuaweiQualificationResult{candidateClass: card.CandidateClass(), readiness: HuaweiQualificationInsufficientEvidence, reason: HuaweiQualificationIdentityInvalid}
 }
+
+// Evaluate matches the identity tuple at unit 0 through
+// EvaluateHuaweiEMMAOfflineIdentity. A match returns evidence-blocked with the
+// capability fixtures as missing evidence and zero native facts; it never
+// creates a capability. A mismatch returns EmptyResult, which keeps the
+// catalog selection only when the software text was refused.
 func (card HuaweiEMMAQualificationCard) Evaluate(input HuaweiEMMAQualificationInput) HuaweiQualificationResult {
 	rejected := card.EmptyResult()
 	if input.UnitID != card.UnitID() {
@@ -357,22 +533,42 @@ func (card HuaweiEMMAQualificationCard) Evaluate(input HuaweiEMMAQualificationIn
 // matched result of the observed S-Dongle card supersede it, and nothing else.
 type HuaweiSDongleQualificationCard struct{}
 
+// NewHuaweiSDongleQualificationCard returns the stateless record.
 func NewHuaweiSDongleQualificationCard() HuaweiSDongleQualificationCard {
 	return HuaweiSDongleQualificationCard{}
 }
-func (HuaweiSDongleQualificationCard) ID() string             { return HuaweiSDongleQualificationCardID }
+
+// ID returns HuaweiSDongleQualificationCardID.
+func (HuaweiSDongleQualificationCard) ID() string { return HuaweiSDongleQualificationCardID }
+
+// CandidateClass returns HuaweiSDongleCanonicalClass.
 func (HuaweiSDongleQualificationCard) CandidateClass() string { return HuaweiSDongleCanonicalClass }
-func (HuaweiSDongleQualificationCard) UnitID() uint8          { return 100 }
-func (HuaweiSDongleQualificationCard) HardStop() bool         { return true }
+
+// UnitID returns unit 100, the unit of the recorded stopped run.
+func (HuaweiSDongleQualificationCard) UnitID() uint8 { return 100 }
+
+// HardStop is always true: further I/O stays stopped until the missing
+// evidence and action-time operator approval exist.
+func (HuaweiSDongleQualificationCard) HardStop() bool { return true }
+
+// Steps returns nil: the record defines no read sequence.
 func (HuaweiSDongleQualificationCard) Steps() []HuaweiQualificationStep {
 	return nil
 }
+
+// Status is always HuaweiQualificationEvidenceBlocked.
 func (HuaweiSDongleQualificationCard) Status() HuaweiQualificationReadiness {
 	return HuaweiQualificationEvidenceBlocked
 }
+
+// RequiredConnectionContext returns a fresh copy of the connection facts a
+// future attempt must confirm before any read.
 func (HuaweiSDongleQualificationCard) RequiredConnectionContext() []string {
 	return []string{"endpoint", "port", "unit_id_100", "gateway_child_topology"}
 }
+
+// Result returns the fixed evidence-blocked, persistent non-response result
+// with its named missing evidence. It never matches an identity.
 func (card HuaweiSDongleQualificationCard) Result() HuaweiQualificationResult {
 	return HuaweiQualificationResult{
 		candidateClass: card.CandidateClass(),
@@ -389,6 +585,12 @@ func (card HuaweiSDongleQualificationCard) Result() HuaweiQualificationResult {
 	}
 }
 
+// ResolveHuaweiQualification combines card results without choosing a winner.
+// It first drops non-matches of a class that matched elsewhere and
+// evidence-blocked matches superseded by a test-ready match of the same class.
+// A remaining persistent non-response record wins; one match from a single
+// remaining result is returned with its class list; several matches resolve to
+// HuaweiQualificationAmbiguous; anything else is insufficient evidence.
 func ResolveHuaweiQualification(results ...HuaweiQualificationResult) HuaweiQualificationResult {
 	results = withoutHuaweiSiblingNonMatches(results)
 	results = withoutHuaweiSupersededMatches(results)
@@ -488,15 +690,26 @@ func withoutHuaweiSupersededMatches(results []HuaweiQualificationResult) []Huawe
 	return kept
 }
 
+// HuaweiQualificationPackage is the stateless entry point to the published
+// expected outcome of every Huawei qualification card.
 type HuaweiQualificationPackage struct{}
 
+// NewHuaweiQualificationPackage returns the stateless package.
 func NewHuaweiQualificationPackage() HuaweiQualificationPackage { return HuaweiQualificationPackage{} }
+
+// ExpectedResult returns the expected-result document of the package.
 func (HuaweiQualificationPackage) ExpectedResult() HuaweiQualificationExpectedResult {
 	return HuaweiQualificationExpectedResult{}
 }
 
+// HuaweiQualificationExpectedResult is the expected status, card identity and
+// missing evidence of each class card, documentary and observed. The values
+// are read from the cards where a card exposes them.
 type HuaweiQualificationExpectedResult struct{}
 
+// MarshalJSON encodes the expected result under the
+// helianthus-huawei-qualification-readiness/v1 schema, with every
+// default-denied and authority field fixed at its denied value.
 func (HuaweiQualificationExpectedResult) MarshalJSON() ([]byte, error) {
 	smartLogger := NewHuaweiSmartLoggerQualificationCard()
 	observed := NewHuaweiSmartLoggerObservedQualificationCard()

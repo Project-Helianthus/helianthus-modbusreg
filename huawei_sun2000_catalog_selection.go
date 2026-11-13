@@ -43,10 +43,17 @@ const (
 // HuaweiSUN2000CatalogOutcome is the outcome of the catalog decision.
 type HuaweiSUN2000CatalogOutcome string
 
+// Catalog outcomes. Only HuaweiSUN2000CatalogSelected carries a row.
 const (
-	HuaweiSUN2000CatalogSelected    HuaweiSUN2000CatalogOutcome = "SELECTED"
+	// HuaweiSUN2000CatalogSelected means exactly one candidate row admitted
+	// the software text and the identifier was read.
+	HuaweiSUN2000CatalogSelected HuaweiSUN2000CatalogOutcome = "SELECTED"
+	// HuaweiSUN2000CatalogNotSelected is the fail-closed outcome of every
+	// decision that neither selected nor found two rows.
 	HuaweiSUN2000CatalogNotSelected HuaweiSUN2000CatalogOutcome = "NOT_SELECTED"
-	HuaweiSUN2000CatalogAmbiguous   HuaweiSUN2000CatalogOutcome = "AMBIGUOUS"
+	// HuaweiSUN2000CatalogAmbiguous means two or more candidate rows
+	// remained; none is chosen.
+	HuaweiSUN2000CatalogAmbiguous HuaweiSUN2000CatalogOutcome = "AMBIGUOUS"
 )
 
 // HuaweiSUN2000CatalogReason is the closed reason of a catalog decision.
@@ -54,21 +61,52 @@ type HuaweiSUN2000CatalogReason string
 
 const (
 	// HuaweiSUN2000CatalogAtOrAboveFloor indicates software at or above the selected row floor.
-	HuaweiSUN2000CatalogAtOrAboveFloor         HuaweiSUN2000CatalogReason = "at_or_above_floor"
-	HuaweiSUN2000CatalogEqualOnCarriedParts    HuaweiSUN2000CatalogReason = "equal_on_carried_parts"
-	HuaweiSUN2000CatalogNoDocumentedRelation   HuaweiSUN2000CatalogReason = "no_documented_branch_relation"
+	HuaweiSUN2000CatalogAtOrAboveFloor HuaweiSUN2000CatalogReason = "at_or_above_floor"
+	// HuaweiSUN2000CatalogEqualOnCarriedParts selects a row whose floor
+	// carries more parts than the software text and agrees on the parts both
+	// carry.
+	HuaweiSUN2000CatalogEqualOnCarriedParts HuaweiSUN2000CatalogReason = "equal_on_carried_parts"
+	// HuaweiSUN2000CatalogNoDocumentedRelation selects a row whose floor is of
+	// another product, line, release or branch; an unrelated build is never
+	// refused.
+	HuaweiSUN2000CatalogNoDocumentedRelation HuaweiSUN2000CatalogReason = "no_documented_branch_relation"
+	// HuaweiSUN2000CatalogFloorOutsideBranchForm selects a row whose floor
+	// text cannot be parsed in the branch form and so was not compared.
 	HuaweiSUN2000CatalogFloorOutsideBranchForm HuaweiSUN2000CatalogReason = "floor_outside_branch_form"
-	HuaweiSUN2000CatalogModelTextInvalid       HuaweiSUN2000CatalogReason = "model_text_invalid"
-	HuaweiSUN2000CatalogScopeInvalid           HuaweiSUN2000CatalogReason = "scope_invalid"
-	HuaweiSUN2000CatalogSoftwareMalformed      HuaweiSUN2000CatalogReason = "software_malformed"
-	HuaweiSUN2000CatalogNoCatalogRow           HuaweiSUN2000CatalogReason = "no_catalog_row"
-	HuaweiSUN2000CatalogIdentifierMismatch     HuaweiSUN2000CatalogReason = "identifier_mismatch"
-	HuaweiSUN2000CatalogScopeMismatch          HuaweiSUN2000CatalogReason = "scope_mismatch"
-	HuaweiSUN2000CatalogSoftwareAbsent         HuaweiSUN2000CatalogReason = "software_absent"
-	HuaweiSUN2000CatalogIdentifierAbsent       HuaweiSUN2000CatalogReason = "identifier_absent"
-	HuaweiSUN2000CatalogBelowFloor             HuaweiSUN2000CatalogReason = "below_floor"
-	HuaweiSUN2000CatalogInvalid                HuaweiSUN2000CatalogReason = "catalog_invalid"
-	HuaweiSUN2000CatalogMultipleCandidateRows  HuaweiSUN2000CatalogReason = "multiple_candidate_rows"
+	// HuaweiSUN2000CatalogModelTextInvalid means the model text is empty,
+	// longer than the model read or not printable ASCII.
+	HuaweiSUN2000CatalogModelTextInvalid HuaweiSUN2000CatalogReason = "model_text_invalid"
+	// HuaweiSUN2000CatalogScopeInvalid means the input scope is not one of the
+	// declared endpoint scopes.
+	HuaweiSUN2000CatalogScopeInvalid HuaweiSUN2000CatalogReason = "scope_invalid"
+	// HuaweiSUN2000CatalogSoftwareMalformed means a software or firmware text
+	// was read but is not in the branch form.
+	HuaweiSUN2000CatalogSoftwareMalformed HuaweiSUN2000CatalogReason = "software_malformed"
+	// HuaweiSUN2000CatalogNoCatalogRow means no row's token or scoped wire
+	// alias equals the model text.
+	HuaweiSUN2000CatalogNoCatalogRow HuaweiSUN2000CatalogReason = "no_catalog_row"
+	// HuaweiSUN2000CatalogIdentifierMismatch means rows matched the model text
+	// but none carries the identifier read; the matched rows are the
+	// candidates.
+	HuaweiSUN2000CatalogIdentifierMismatch HuaweiSUN2000CatalogReason = "identifier_mismatch"
+	// HuaweiSUN2000CatalogScopeMismatch means no remaining row belongs to the
+	// map of the input scope.
+	HuaweiSUN2000CatalogScopeMismatch HuaweiSUN2000CatalogReason = "scope_mismatch"
+	// HuaweiSUN2000CatalogSoftwareAbsent means the identifier was read but
+	// neither software nor firmware text was.
+	HuaweiSUN2000CatalogSoftwareAbsent HuaweiSUN2000CatalogReason = "software_absent"
+	// HuaweiSUN2000CatalogIdentifierAbsent means a single row remained but no
+	// identifier was read; the token alone never selects.
+	HuaweiSUN2000CatalogIdentifierAbsent HuaweiSUN2000CatalogReason = "identifier_absent"
+	// HuaweiSUN2000CatalogBelowFloor means the software text is below the
+	// floor of every remaining row within its branch.
+	HuaweiSUN2000CatalogBelowFloor HuaweiSUN2000CatalogReason = "below_floor"
+	// HuaweiSUN2000CatalogInvalid means the embedded catalog failed to load
+	// or holds no row; nothing can be selected.
+	HuaweiSUN2000CatalogInvalid HuaweiSUN2000CatalogReason = "catalog_invalid"
+	// HuaweiSUN2000CatalogMultipleCandidateRows accompanies an ambiguous
+	// decision.
+	HuaweiSUN2000CatalogMultipleCandidateRows HuaweiSUN2000CatalogReason = "multiple_candidate_rows"
 )
 
 const (
@@ -94,22 +132,42 @@ const (
 // two branches are ordered.
 type HuaweiSUN2000FloorRelation string
 
+// Floor relations. Only HuaweiSUN2000FloorBelow removes a candidate row.
 const (
-	HuaweiSUN2000FloorAtOrAbove            HuaweiSUN2000FloorRelation = "AT_OR_ABOVE"
-	HuaweiSUN2000FloorEqualOnCarriedParts  HuaweiSUN2000FloorRelation = "EQUAL_ON_CARRIED_PARTS"
+	// HuaweiSUN2000FloorAtOrAbove means the build is at or above the floor
+	// within the same branch, or the floor stops at a release or branch that
+	// the build shares.
+	HuaweiSUN2000FloorAtOrAbove HuaweiSUN2000FloorRelation = "AT_OR_ABOVE"
+	// HuaweiSUN2000FloorEqualOnCarriedParts means the build carries fewer
+	// parts than the floor and agrees on those it carries.
+	HuaweiSUN2000FloorEqualOnCarriedParts HuaweiSUN2000FloorRelation = "EQUAL_ON_CARRIED_PARTS"
+	// HuaweiSUN2000FloorNoDocumentedRelation means the build and the floor
+	// differ in product, line, release or branch, which are never ordered.
 	HuaweiSUN2000FloorNoDocumentedRelation HuaweiSUN2000FloorRelation = "NO_DOCUMENTED_RELATION"
-	HuaweiSUN2000FloorOutsideBranchForm    HuaweiSUN2000FloorRelation = "FLOOR_OUTSIDE_BRANCH_FORM"
-	HuaweiSUN2000FloorBelow                HuaweiSUN2000FloorRelation = "BELOW"
-	HuaweiSUN2000FloorNotEvaluated         HuaweiSUN2000FloorRelation = "NOT_EVALUATED"
+	// HuaweiSUN2000FloorOutsideBranchForm means the floor text is not in the
+	// branch form and cannot be compared.
+	HuaweiSUN2000FloorOutsideBranchForm HuaweiSUN2000FloorRelation = "FLOOR_OUTSIDE_BRANCH_FORM"
+	// HuaweiSUN2000FloorBelow means the build has a lower SPC number than the
+	// floor within the same branch.
+	HuaweiSUN2000FloorBelow HuaweiSUN2000FloorRelation = "BELOW"
+	// HuaweiSUN2000FloorNotEvaluated marks a row that matched the model text
+	// but was not compared with a build.
+	HuaweiSUN2000FloorNotEvaluated HuaweiSUN2000FloorRelation = "NOT_EVALUATED"
 )
 
 // HuaweiSUN2000BuildSource names the identity word that supplied the software
 // text compared with the floor.
 type HuaweiSUN2000BuildSource string
 
+// Build sources. The software text wins over the firmware text when both were
+// read.
 const (
-	HuaweiSUN2000BuildNone         HuaweiSUN2000BuildSource = ""
+	// HuaweiSUN2000BuildNone means no software or firmware text was read.
+	HuaweiSUN2000BuildNone HuaweiSUN2000BuildSource = ""
+	// HuaweiSUN2000BuildSoftwareText is the software text read at 30050.
 	HuaweiSUN2000BuildSoftwareText HuaweiSUN2000BuildSource = "SOFTWARE_TEXT_30050"
+	// HuaweiSUN2000BuildFirmwareText is the firmware text read at 30035, used
+	// only when no software text was read.
 	HuaweiSUN2000BuildFirmwareText HuaweiSUN2000BuildSource = "FIRMWARE_TEXT_30035"
 )
 
@@ -195,10 +253,18 @@ type HuaweiSUN2000CatalogDecision struct {
 	candidates     []HuaweiSUN2000CatalogRow
 }
 
+// Outcome returns the decision outcome.
 func (d HuaweiSUN2000CatalogDecision) Outcome() HuaweiSUN2000CatalogOutcome { return d.outcome }
-func (d HuaweiSUN2000CatalogDecision) Reason() HuaweiSUN2000CatalogReason   { return d.reason }
-func (d HuaweiSUN2000CatalogDecision) Scope() HuaweiSUN2000EndpointScope    { return d.scope }
-func (d HuaweiSUN2000CatalogDecision) ModelText() string                    { return d.modelText }
+
+// Reason returns the closed reason: the floor relation of a selected row, or
+// the stage at which nothing was selected.
+func (d HuaweiSUN2000CatalogDecision) Reason() HuaweiSUN2000CatalogReason { return d.reason }
+
+// Scope returns the input scope as given, valid or not.
+func (d HuaweiSUN2000CatalogDecision) Scope() HuaweiSUN2000EndpointScope { return d.scope }
+
+// ModelText returns the input model text as given, valid or not.
+func (d HuaweiSUN2000CatalogDecision) ModelText() string { return d.modelText }
 
 // Identifier is the model identifier that was read, if one was.
 func (d HuaweiSUN2000CatalogDecision) Identifier() (uint16, bool) {
@@ -210,7 +276,13 @@ func (d HuaweiSUN2000CatalogDecision) Identifier() (uint16, bool) {
 func (d HuaweiSUN2000CatalogDecision) Build() (string, HuaweiSUN2000BuildSource) {
 	return d.build, d.buildSource
 }
+
+// FirmwareText returns the firmware text as read, recorded even when the
+// software text was the one compared.
 func (d HuaweiSUN2000CatalogDecision) FirmwareText() string { return d.firmwareText }
+
+// ProtocolWords returns a copy of the protocol words as read; they are
+// recorded and never compared.
 func (d HuaweiSUN2000CatalogDecision) ProtocolWords() []uint16 {
 	return append([]uint16(nil), d.protocolWords...)
 }
@@ -243,8 +315,13 @@ func (d HuaweiSUN2000CatalogDecision) Candidates() []HuaweiSUN2000CatalogRow {
 	return out
 }
 
-func (HuaweiSUN2000CatalogDecision) LiveQualified() bool  { return false }
-func (HuaweiSUN2000CatalogDecision) SupportClaim() bool   { return false }
+// LiveQualified is always false: a catalog row is documentary evidence.
+func (HuaweiSUN2000CatalogDecision) LiveQualified() bool { return false }
+
+// SupportClaim is always false: a selected row is not a support claim.
+func (HuaweiSUN2000CatalogDecision) SupportClaim() bool { return false }
+
+// WriteAuthority is always false: the decision grants no authority.
 func (HuaweiSUN2000CatalogDecision) WriteAuthority() bool { return false }
 
 // huaweiSUN2000CatalogEntry is one model row of a card edition.
