@@ -6,14 +6,28 @@ import (
 	"sync"
 )
 
+// I15LunaSupplier is the caller-owned evidence callback of one cycle. It
+// receives a copy of the plan with Started and Now set to the cycle start and
+// returns the observed input; it must honor cancellation and return bounded
+// data. The result must keep the plan's binding, policy and Started, and pass
+// the same validation as the plan, or the cycle is refused.
 type I15LunaSupplier func(context.Context, LunaOptionalInput) (LunaOptionalInput, error)
 
+// I15LunaProviderPort is the provider surface for the optional LUNA2000
+// group: run one supplied cycle, read the latest view, and retire. It opens no
+// connection and grants no admission.
 type I15LunaProviderPort interface {
+	// I15Cycle runs one supplied cycle that starts at the given tick.
 	I15Cycle(context.Context, int64) error
+	// I15Latest returns a detached copy of the current view.
 	I15Latest() I15LunaView
+	// I15Retire permanently stops further cycles.
 	I15Retire()
 }
 
+// I15LunaView is a detached snapshot of a provider: its generation, the
+// reduced state and the last accepted input. Until a cycle is accepted,
+// I15HasReceipt is false and I15Receipt is the zero input.
 type I15LunaView struct {
 	I15Generation string
 	I15State      LunaOptionalState
@@ -21,6 +35,10 @@ type I15LunaView struct {
 	I15HasReceipt bool
 }
 
+// I15LunaProvider runs supplied cycles for one generation and binding and
+// reduces them into a LunaOptionalState. It is safe for concurrent use; at
+// most one cycle runs at a time, and the supplier is called without the lock
+// held. Create it with I15NewLunaProvider.
 type I15LunaProvider struct {
 	i15Mu                              sync.Mutex
 	i15Generation                      string
@@ -33,6 +51,10 @@ type I15LunaProvider struct {
 
 var errI15Refused = errors.New("I15 supplied cycle refused")
 
+// I15NewLunaProvider validates the plan and returns a provider for the
+// generation. A refused plan, empty generation or nil supplier returns an
+// error. The plan's evidence is validated and then dropped, and its event is
+// reset to LunaNoObservation, so construction never establishes presence.
 func I15NewLunaProvider(i15Generation string, i15Plan LunaOptionalInput, i15Supplier I15LunaSupplier) (*I15LunaProvider, error) {
 	if i15Generation == "" || i15Supplier == nil || !i15ValidInput(i15Plan) {
 		return nil, errI15Refused
@@ -66,6 +88,14 @@ func i15ValidInput(i15In LunaOptionalInput) bool {
 	return true
 }
 
+// I15Cycle calls the supplier exactly once and reduces its result into the
+// state. It refuses, without calling the supplier, a nil context, a cancelled
+// context, a retired or busy provider, and a start tick that is negative,
+// earlier than the last evaluation or not before the policy deadline. A
+// supplier error is returned unchanged and leaves the state as it was; a
+// result that arrives after retirement or cancellation, or that fails
+// validation, is refused and not committed. No goroutine, retry or timer is
+// started.
 func (i15P *I15LunaProvider) I15Cycle(i15Ctx context.Context, i15Started int64) error {
 	if i15P == nil || i15Ctx == nil {
 		return errI15Refused
@@ -99,6 +129,8 @@ func (i15P *I15LunaProvider) I15Cycle(i15Ctx context.Context, i15Started int64) 
 	return nil
 }
 
+// I15Latest returns a detached copy of the current view; a nil provider
+// returns the zero view.
 func (i15P *I15LunaProvider) I15Latest() I15LunaView {
 	if i15P == nil {
 		return I15LunaView{}
@@ -110,6 +142,8 @@ func (i15P *I15LunaProvider) I15Latest() I15LunaView {
 	return I15LunaView{I15Generation: i15P.i15Generation, I15State: i15State, I15Receipt: i15CopyInput(i15P.i15Receipt), I15HasReceipt: i15P.i15HasReceipt}
 }
 
+// I15Retire marks the provider retired. Later cycles are refused, a cycle in
+// flight cannot commit, and the last view stays readable. It is idempotent.
 func (i15P *I15LunaProvider) I15Retire() {
 	if i15P == nil {
 		return
