@@ -206,7 +206,7 @@ func TestSunSpecFroniusAuditClosesAgainstPinnedRegistry(t *testing.T) {
 
 	registry := mustStandardSunSpecRegistry(t)
 	snapshot := froniusObservedSnapshotV11(t, registry, fixture.Manufacturer, fixture.Model, fixture.Firmware)
-	selection := registry.SelectFroniusObservedFlavor(snapshot)
+	selection := FroniusSelectObservedFlavor(registry, snapshot)
 	decision, ok := selection.Decision()
 	if !ok || !selection.Matched() || decision.FlavorID() != disposition.Fronius.FlavorID ||
 		!reflect.DeepEqual(decision.Chain(), disposition.Fronius.Chain) {

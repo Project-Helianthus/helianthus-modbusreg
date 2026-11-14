@@ -126,7 +126,7 @@ func (c *SunSpecChain) admitReplay(r SunSpecReadRequest, v LogicalViewSnapshot) 
 	if x.RequestedFunction != FunctionReadHoldingRegisters || x.ReceivedFunction != FunctionReadHoldingRegisters || x.LogicalOffset != r.address || x.LogicalWordCount != r.words || len(x.Words) != int(r.words) {
 		return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec view does not match request")
 	}
-	if c.provenance != nil && !sameSunSpecProvenance(*c.provenance, x) {
+	if c.provenance != nil && !SunSpecSameProvenance(*c.provenance, x) {
 		return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec views have mixed provenance")
 	}
 	if err := c.validateSourceIdentity(x); err != nil {
@@ -219,7 +219,7 @@ func (c *SunSpecChain) signature(r SunSpecReadRequest, x LogicalViewRecord) (Sun
 }
 func (c *SunSpecChain) header(r SunSpecReadRequest, x LogicalViewRecord) (SunSpecChainSnapshot, error) {
 	id, n := x.Words[0], x.Words[1]
-	if id == sunSpecEndModel {
+	if id == SunSpecEndModelID {
 		if n != 0 {
 			return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec end marker nonzero")
 		}
@@ -320,7 +320,12 @@ func (c *SunSpecChain) queue(address uint32, n uint16, p SunSpecReadPurpose) err
 	c.pending[c.next] = SunSpecReadRequest{uint16(address), n, p, c.plan.nonce, c.instance, c.next}
 	return nil
 }
-func sameSunSpecProvenance(a, b LogicalViewRecord) bool {
+
+// SunSpecSameProvenance reports whether two logical view records carry the
+// same acquisition provenance: endpoint, unit, connection, transport and its
+// generation, poll generation, deadline identity and authorization scope. Every
+// source view of one SunSpec chain must share it.
+func SunSpecSameProvenance(a, b LogicalViewRecord) bool {
 	return a.Endpoint == b.Endpoint && a.UnitID == b.UnitID && a.ConnectionID == b.ConnectionID && a.Transport == b.Transport && a.TransportGeneration == b.TransportGeneration && a.PollGeneration == b.PollGeneration && a.DeadlineIdentity == b.DeadlineIdentity && a.AuthorizationScope == b.AuthorizationScope
 }
 func (c *SunSpecChain) snapshot() SunSpecChainSnapshot {

@@ -1,5 +1,23 @@
 # Changelog
 
+## SunSpec surface for the Fronius and OutBack overlays (#377)
+
+The Fronius and OutBack overlays no longer reach unexported SunSpec declarations or fields; they read SunSpec state only through exported, documented names, and no SunSpec declaration refers to a Fronius one. Nothing moves between packages. Wire values, JSON keys, serialized records and behavior are unchanged, and no field becomes exported or writable. The four Fronius flavor methods on `SunSpecDecoderRegistry` become functions that take the registry; no method, alias or forwarding declaration remains. Consumers replace each previous call with the current one:
+
+| Previous call | Current call |
+| --- | --- |
+| `registry.EvaluateFroniusObservedFlavor(snapshot)` | `modbusreg.FroniusEvaluateObservedFlavor(registry, snapshot)` |
+| `registry.EvaluateFroniusObservedFlavorV11(snapshot)` | `modbusreg.FroniusEvaluateObservedFlavorV11(registry, snapshot)` |
+| `registry.EvaluateFroniusObservedFlavorV12(snapshot)` | `modbusreg.FroniusEvaluateObservedFlavorV12(registry, snapshot)` |
+| `registry.SelectFroniusObservedFlavor(snapshot)` | `modbusreg.FroniusSelectObservedFlavor(registry, snapshot)` |
+
+New exported SunSpec names, each previously an unexported helper, field read or constant used by the overlays:
+
+- `NewSunSpecChainSnapshot` assembles a snapshot from copies of its raw words, occurrences and source views; it revalidates each source view and checks nothing else, and `SunSpecChainSnapshot.WireChain` reports whether the result is a consistent terminal chain.
+- `SunSpecChainSnapshot.Clone`, `RawWordCount`, `OccurrenceCount`, `SourceViewCount` and `WireChain`.
+- `SunSpecDecoderRegistry.SchemaRevision`, `DefinitionCount` and `Clone`; `SunSpecDecodedModel.TextFact`; `SunSpecCapabilityDecision.Clone`.
+- `SunSpecThreePhaseMonitoringFieldIDs`, `SunSpecSameProvenance`, `SunSpecCloneSourceViews` (a copy is valid only when its source view is) and the end-marker model identifier `SunSpecEndModelID`.
+
 ## Huawei package (#377)
 
 The Huawei profiles (SUN2000, LUNA2000, SmartLogger, S-Dongle and EMMA) move from the module root to package `github.com/Project-Helianthus/helianthus-modbusreg/huawei`. Exported names that began with `Huawei` lose that prefix and constructors follow their types; other exported names change only their qualifier; methods, fields, wire values and behavior are unchanged. No alias or forwarding declaration remains in the root package. The two read-only parts of the generated Huawei catalog are embedded by the new data package `github.com/Project-Helianthus/helianthus-modbusreg/profiles` (`profiles.HuaweiInverterCatalog` and `profiles.HuaweiGatewayCatalog`), because Go embed cannot reach a parent directory; the embedded files are unchanged and only the two catalog selections read them. Consumers replace each previous name with the current one:

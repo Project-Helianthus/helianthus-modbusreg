@@ -32,7 +32,7 @@ func TestFroniusObservedFlavorV12AdmitsTheCurrentExactTuple(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
 	snapshot := froniusObservedSnapshotV12(t, registry, froniusTestManufacturer, froniusTestModel, froniusTestFirmwareV12)
 
-	decision := registry.EvaluateFroniusObservedFlavorV12(snapshot)
+	decision := FroniusEvaluateObservedFlavorV12(registry, snapshot)
 	if !decision.Matched() || decision.Reason() != SunSpecFroniusFlavorReasonMatched || decision.FlavorID() != SunSpecFroniusObservedFlavorV12ID {
 		t.Fatalf("V1.2 matched=%t reason=%q id=%q", decision.Matched(), decision.Reason(), decision.FlavorID())
 	}
@@ -40,7 +40,7 @@ func TestFroniusObservedFlavorV12AdmitsTheCurrentExactTuple(t *testing.T) {
 		t.Fatalf("V1.2 capability=%t chain=%v views=%d", decision.Capability().Admitted(), decision.Chain(), len(decision.SourceViews()))
 	}
 
-	selection := registry.SelectFroniusObservedFlavor(snapshot)
+	selection := FroniusSelectObservedFlavor(registry, snapshot)
 	selected, ok := selection.Decision()
 	if !selection.Matched() || selection.Reason() != SunSpecFroniusFlavorSelectionReasonMatched || !ok || selected.FlavorID() != SunSpecFroniusObservedFlavorV12ID {
 		t.Fatalf("selection matched=%t reason=%q decision=%q ok=%t", selection.Matched(), selection.Reason(), selected.FlavorID(), ok)
@@ -64,12 +64,12 @@ func TestFroniusObservedFlavorFirmwareIsExactPerDefinition(t *testing.T) {
 		name     string
 		firmware string
 		snapshot func(*testing.T, SunSpecDecoderRegistry, string, string, string) SunSpecChainSnapshot
-		evaluate func(SunSpecChainSnapshot) SunSpecFroniusFlavorDecision
+		evaluate func(SunSpecDecoderRegistry, SunSpecChainSnapshot) SunSpecFroniusFlavorDecision
 		id       string
 	}{
-		{"v1.0.0", froniusTestFirmwareV1, froniusObservedSnapshot, registry.EvaluateFroniusObservedFlavor, SunSpecFroniusObservedFlavorID},
-		{"v1.1.0", froniusTestFirmwareV1, froniusObservedSnapshotV11, registry.EvaluateFroniusObservedFlavorV11, SunSpecFroniusObservedFlavorV11ID},
-		{"v1.2.0", froniusTestFirmwareV12, froniusObservedSnapshotV12, registry.EvaluateFroniusObservedFlavorV12, SunSpecFroniusObservedFlavorV12ID},
+		{"v1.0.0", froniusTestFirmwareV1, froniusObservedSnapshot, FroniusEvaluateObservedFlavor, SunSpecFroniusObservedFlavorID},
+		{"v1.1.0", froniusTestFirmwareV1, froniusObservedSnapshotV11, FroniusEvaluateObservedFlavorV11, SunSpecFroniusObservedFlavorV11ID},
+		{"v1.2.0", froniusTestFirmwareV12, froniusObservedSnapshotV12, FroniusEvaluateObservedFlavorV12, SunSpecFroniusObservedFlavorV12ID},
 	}
 	candidates := []string{
 		froniusTestFirmwareV1, froniusTestFirmwareV12,
@@ -78,7 +78,7 @@ func TestFroniusObservedFlavorFirmwareIsExactPerDefinition(t *testing.T) {
 	}
 	for _, flavor := range flavors {
 		t.Run(flavor.name+"/own firmware", func(t *testing.T) {
-			decision := flavor.evaluate(flavor.snapshot(t, registry, froniusTestManufacturer, froniusTestModel, flavor.firmware))
+			decision := flavor.evaluate(registry, flavor.snapshot(t, registry, froniusTestManufacturer, froniusTestModel, flavor.firmware))
 			if !decision.Matched() || decision.Reason() != SunSpecFroniusFlavorReasonMatched || decision.FlavorID() != flavor.id {
 				t.Fatalf("matched=%t reason=%q id=%q", decision.Matched(), decision.Reason(), decision.FlavorID())
 			}
@@ -88,7 +88,7 @@ func TestFroniusObservedFlavorFirmwareIsExactPerDefinition(t *testing.T) {
 				continue
 			}
 			t.Run(flavor.name+"/"+firmware, func(t *testing.T) {
-				decision := flavor.evaluate(flavor.snapshot(t, registry, froniusTestManufacturer, froniusTestModel, firmware))
+				decision := flavor.evaluate(registry, flavor.snapshot(t, registry, froniusTestManufacturer, froniusTestModel, firmware))
 				if decision.Matched() || decision.Reason() != SunSpecFroniusFlavorReasonFirmwareMismatch || decision.FlavorID() != flavor.id {
 					t.Fatalf("firmware %q matched=%t reason=%q id=%q", firmware, decision.Matched(), decision.Reason(), decision.FlavorID())
 				}
@@ -103,7 +103,7 @@ func TestFroniusObservedFlavorFirmwareIsExactPerDefinition(t *testing.T) {
 				snapshot := froniusSnapshotForChain(t, registry, froniusChainForFlavor(flavor.id), map[string][]uint16{
 					"Mn": stringWords(froniusTestManufacturer, 16), "Md": stringWords(froniusTestModel, 16), "Vr": version, "SN": stringWords("sanitized", 16),
 				})
-				decision := flavor.evaluate(snapshot)
+				decision := flavor.evaluate(registry, snapshot)
 				if decision.Matched() || decision.Reason() != SunSpecFroniusFlavorReasonFirmwareMismatch {
 					t.Fatalf("matched=%t reason=%q", decision.Matched(), decision.Reason())
 				}
@@ -116,7 +116,7 @@ func TestFroniusObservedFlavorFirmwareIsExactPerDefinition(t *testing.T) {
 	// and the selector must report NO_MATCH with that common reason.
 	for _, firmware := range []string{froniusTestFirmwareV1 + "x", "1.42.9-2", "1.43.0-1"} {
 		t.Run("selection/"+firmware, func(t *testing.T) {
-			selection := registry.SelectFroniusObservedFlavor(froniusObservedSnapshotV12(t, registry, froniusTestManufacturer, froniusTestModel, firmware))
+			selection := FroniusSelectObservedFlavor(registry, froniusObservedSnapshotV12(t, registry, froniusTestManufacturer, froniusTestModel, firmware))
 			if selection.Matched() || selection.Reason() != SunSpecFroniusFlavorSelectionReasonNoMatch {
 				t.Fatalf("selection matched=%t reason=%q", selection.Matched(), selection.Reason())
 			}
@@ -165,11 +165,11 @@ func TestFroniusObservedFlavorV12VariesEveryIdentityField(t *testing.T) {
 			if !registry.EvaluateThreePhaseMonitoring(tc.snapshot).Admitted() {
 				t.Fatal("identity variation must keep the generic capability admitted")
 			}
-			decision := registry.EvaluateFroniusObservedFlavorV12(tc.snapshot)
+			decision := FroniusEvaluateObservedFlavorV12(registry, tc.snapshot)
 			if decision.Matched() || decision.Reason() != tc.reason || decision.FlavorID() != SunSpecFroniusObservedFlavorV12ID {
 				t.Fatalf("matched=%t reason=%q want=%q id=%q", decision.Matched(), decision.Reason(), tc.reason, decision.FlavorID())
 			}
-			selection := registry.SelectFroniusObservedFlavor(tc.snapshot)
+			selection := FroniusSelectObservedFlavor(registry, tc.snapshot)
 			selected, ok := selection.Decision()
 			if want := otherSelection[tc.name]; want != "" {
 				if !selection.Matched() || !ok || selected.FlavorID() != want {
@@ -197,7 +197,7 @@ func TestFroniusObservedFlavorV12IgnoresOptionsSerialAndDeviceAddress(t *testing
 			for point, words := range override {
 				values[point] = words
 			}
-			selection := registry.SelectFroniusObservedFlavor(froniusSnapshotForChain(t, registry, froniusObservedChainV12, values))
+			selection := FroniusSelectObservedFlavor(registry, froniusSnapshotForChain(t, registry, froniusObservedChainV12, values))
 			decision, ok := selection.Decision()
 			if !selection.Matched() || !ok || decision.FlavorID() != SunSpecFroniusObservedFlavorV12ID {
 				t.Fatalf("selection matched=%t reason=%q decision=%q", selection.Matched(), selection.Reason(), decision.FlavorID())
@@ -235,7 +235,7 @@ func TestFroniusObservedFlavorDefinitionsCarryTheirOwnExactTuple(t *testing.T) {
 	snapshot := froniusSnapshotForChain(t, registry, froniusObservedChainV12, emptyVersion)
 	unpinned := froniusObservedFlavorV12
 	unpinned.firmware = ""
-	if decision := registry.evaluateFroniusObservedFlavor(snapshot, unpinned); decision.Matched() || decision.Reason() != SunSpecFroniusFlavorReasonFirmwareMismatch {
+	if decision := evaluateFroniusObservedFlavor(registry, snapshot, unpinned); decision.Matched() || decision.Reason() != SunSpecFroniusFlavorReasonFirmwareMismatch {
 		t.Fatalf("definition without firmware matched=%t reason=%q", decision.Matched(), decision.Reason())
 	}
 
@@ -258,7 +258,7 @@ func TestFroniusObservedFlavorV12FixtureIsExactAndNonActionable(t *testing.T) {
 
 	registry := mustStandardSunSpecRegistry(t)
 	snapshot := froniusSnapshotForChain(t, registry, fixture.Chain, froniusCommonValues(fixture.Manufacturer, fixture.Model, fixture.Firmware))
-	selection := registry.SelectFroniusObservedFlavor(snapshot)
+	selection := FroniusSelectObservedFlavor(registry, snapshot)
 	decision, ok := selection.Decision()
 	if !selection.Matched() || !ok || decision.FlavorID() != fixture.FlavorID || !reflect.DeepEqual(decision.Chain(), fixture.Chain) {
 		t.Fatalf("classifier does not substantiate fixture: matched=%t reason=%q decision=%q", selection.Matched(), selection.Reason(), decision.FlavorID())
@@ -293,7 +293,7 @@ func TestSunSpecQualificationObservationAdmitsAndSerializesV12(t *testing.T) {
 		t.Fatal("observation with an unregistered flavor id serialized")
 	}
 
-	for _, evaluation := range registry.SelectFroniusObservedFlavor(qualificationSnapshotWithOccurrences(t, registry, occurrences)).Evaluations() {
+	for _, evaluation := range FroniusSelectObservedFlavor(registry, qualificationSnapshotWithOccurrences(t, registry, occurrences)).Evaluations() {
 		if !supportedSunSpecQualificationFlavorID(evaluation.FlavorID()) {
 			t.Fatalf("selector flavor %q is not a supported qualification flavor", evaluation.FlavorID())
 		}
@@ -349,7 +349,7 @@ func froniusChainForFlavor(id string) []SunSpecWireKey {
 // is exactly chain. The terminal marker must be the last key.
 func froniusSnapshotForChain(t *testing.T, registry SunSpecDecoderRegistry, chain []SunSpecWireKey, common map[string][]uint16) SunSpecChainSnapshot {
 	t.Helper()
-	if len(chain) == 0 || chain[len(chain)-1] != (SunSpecWireKey{ModelID: sunSpecEndModel}) {
+	if len(chain) == 0 || chain[len(chain)-1] != (SunSpecWireKey{ModelID: SunSpecEndModelID}) {
 		t.Fatalf("chain %v does not end in the terminal marker", chain)
 	}
 	occurrences := make([]SunSpecOccurrence, 0, len(chain)-1)

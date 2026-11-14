@@ -870,17 +870,7 @@
     },
     {
       "path": "fronius_provider_port.go",
-      "symbol": "i25Copy",
-      "category": "identifier"
-    },
-    {
-      "path": "fronius_provider_port.go",
       "symbol": "i25Ctx",
-      "category": "identifier"
-    },
-    {
-      "path": "fronius_provider_port.go",
-      "symbol": "i25Definition",
       "category": "identifier"
     },
     {
@@ -896,16 +886,6 @@
     {
       "path": "fronius_provider_port.go",
       "symbol": "i25Identity",
-      "category": "identifier"
-    },
-    {
-      "path": "fronius_provider_port.go",
-      "symbol": "i25Index",
-      "category": "identifier"
-    },
-    {
-      "path": "fronius_provider_port.go",
-      "symbol": "i25Key",
       "category": "identifier"
     },
     {
@@ -971,11 +951,6 @@
     {
       "path": "fronius_provider_port.go",
       "symbol": "i25Retired",
-      "category": "identifier"
-    },
-    {
-      "path": "fronius_provider_port.go",
-      "symbol": "i25Scale",
       "category": "identifier"
     },
     {
@@ -8045,12 +8020,12 @@
     },
     {
       "path": "sunspec_fronius.go",
-      "symbol": "EvaluateFroniusObservedFlavorV11",
+      "symbol": "FroniusEvaluateObservedFlavorV11",
       "category": "identifier"
     },
     {
       "path": "sunspec_fronius.go",
-      "symbol": "EvaluateFroniusObservedFlavorV12",
+      "symbol": "FroniusEvaluateObservedFlavorV12",
       "category": "identifier"
     },
     {

@@ -149,7 +149,7 @@ func rawWordsForOccurrences(occurrences []SunSpecOccurrence) []uint16 {
 	for _, occurrence := range occurrences {
 		raw = append(raw, occurrence.Words()...)
 	}
-	return append(raw, sunSpecEndModel, 0)
+	return append(raw, SunSpecEndModelID, 0)
 }
 
 func float32Words(value float32) []uint16 {

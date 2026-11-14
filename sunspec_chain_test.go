@@ -107,7 +107,7 @@ func runV2StructuralCandidateChain(t *testing.T, candidateIDs []uint16) (SunSpec
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := admit([]uint16{sunSpecEndModel, 0})
+	snapshot, err := admit([]uint16{SunSpecEndModelID, 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -579,5 +579,98 @@ func TestSunSpecChainRejectsUnrepresentableSuccessorRequests(t *testing.T) {
 	}
 	if _, err := admitNext(t, c, &id, []uint16{9}); err == nil {
 		t.Fatal("payload ending at 65536 scheduled an unrepresentable terminal header")
+	}
+}
+
+func TestSunSpecChainSnapshotReadSurfaceMatchesRetainedEvidence(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	snapshot := completedChainSnapshot(t, registry,
+		commonOccurrence(t, registry, "Maker", "Model", "1.0", 1),
+		inverterOccurrence(t, registry, 113, nil, 2),
+	)
+	if snapshot.RawWordCount() != len(snapshot.raw) || snapshot.OccurrenceCount() != len(snapshot.occurrences) || snapshot.SourceViewCount() != len(snapshot.sources) {
+		t.Fatalf("counts=%d/%d/%d want %d/%d/%d", snapshot.RawWordCount(), snapshot.OccurrenceCount(), snapshot.SourceViewCount(), len(snapshot.raw), len(snapshot.occurrences), len(snapshot.sources))
+	}
+	if snapshot.RawWordCount() == 0 || snapshot.OccurrenceCount() != 2 || snapshot.SourceViewCount() == 0 {
+		t.Fatalf("completed snapshot counts=%d/%d/%d", snapshot.RawWordCount(), snapshot.OccurrenceCount(), snapshot.SourceViewCount())
+	}
+	var zero SunSpecChainSnapshot
+	if zero.RawWordCount() != 0 || zero.OccurrenceCount() != 0 || zero.SourceViewCount() != 0 {
+		t.Fatal("zero snapshot reports retained evidence")
+	}
+
+	chain, ok := snapshot.WireChain()
+	want := []SunSpecWireKey{{ModelID: 1, ModelLength: 65}, {ModelID: 113, ModelLength: 60}, {ModelID: SunSpecEndModelID, ModelLength: 0}}
+	if !ok || !reflect.DeepEqual(chain, want) || SunSpecEndModelID != 0xffff {
+		t.Fatalf("wire chain=%v ok=%t want %v", chain, ok, want)
+	}
+	truncated := snapshot.Clone()
+	truncated.raw = truncated.raw[:len(truncated.raw)-2]
+	if chain, ok := truncated.WireChain(); ok || chain != nil {
+		t.Fatalf("non-terminal snapshot wire chain=%v ok=%t", chain, ok)
+	}
+	if chain, ok := zero.WireChain(); ok || chain != nil {
+		t.Fatalf("zero snapshot wire chain=%v ok=%t", chain, ok)
+	}
+}
+
+func TestSunSpecChainSnapshotCloneSharesNoStorage(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	snapshot := completedChainSnapshot(t, registry,
+		commonOccurrence(t, registry, "Maker", "Model", "1.0", 1),
+		inverterOccurrence(t, registry, 113, nil, 2),
+	)
+	clone := snapshot.Clone()
+	if !reflect.DeepEqual(clone, snapshot) {
+		t.Fatal("clone differs from its original")
+	}
+	snapshot.raw[0]++
+	snapshot.occurrences[0].words[0]++
+	snapshot.occurrences[0].spans[0].WordCount++
+	snapshot.sources[0].Words[0]++
+	snapshot.sources[0].WireResponseBytes[0]++
+	if clone.raw[0] == snapshot.raw[0] || clone.occurrences[0].words[0] == snapshot.occurrences[0].words[0] ||
+		clone.occurrences[0].spans[0].WordCount == snapshot.occurrences[0].spans[0].WordCount ||
+		clone.sources[0].Words[0] == snapshot.sources[0].Words[0] || clone.sources[0].WireResponseBytes[0] == snapshot.sources[0].WireResponseBytes[0] {
+		t.Fatal("clone shares storage with its original")
+	}
+	if _, ok := clone.WireChain(); !ok {
+		t.Fatal("clone of a terminal snapshot is not terminal")
+	}
+	var zero SunSpecChainSnapshot
+	if got := zero.Clone(); got.raw != nil || got.occurrences == nil || len(got.occurrences) != 0 || got.sources != nil {
+		t.Fatalf("zero clone=%#v", got)
+	}
+}
+
+func TestNewSunSpecChainSnapshotCopiesPartsAndRevalidatesSourceViews(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	snapshot := completedChainSnapshot(t, registry,
+		commonOccurrence(t, registry, "Maker", "Model", "1.0", 1),
+		inverterOccurrence(t, registry, 113, nil, 2),
+	)
+	raw, occurrences, views := snapshot.RawWords(), snapshot.Occurrences(), snapshot.SourceViews()
+	assembled, err := NewSunSpecChainSnapshot(raw, occurrences, views)
+	if err != nil || !reflect.DeepEqual(assembled, snapshot) {
+		t.Fatalf("assembled=%#v err=%v", assembled, err)
+	}
+	raw[0]++
+	occurrences[0].words[0]++
+	views[0].record.Words[0]++
+	if !reflect.DeepEqual(assembled, snapshot) {
+		t.Fatal("assembled snapshot shares storage with its inputs")
+	}
+
+	invalid := append([]LogicalViewSnapshot(nil), snapshot.SourceViews()...)
+	invalid[1] = LogicalViewSnapshot{}
+	if got, err := NewSunSpecChainSnapshot(snapshot.RawWords(), snapshot.Occurrences(), invalid); err == nil || !strings.Contains(err.Error(), "source view 1") || !reflect.DeepEqual(got, SunSpecChainSnapshot{}) {
+		t.Fatalf("invalid source view snapshot=%#v err=%v", got, err)
+	}
+	empty, err := NewSunSpecChainSnapshot(nil, nil, nil)
+	if err != nil || empty.RawWordCount() != 0 || empty.OccurrenceCount() != 0 || empty.SourceViewCount() != 0 {
+		t.Fatalf("empty parts snapshot=%#v err=%v", empty, err)
+	}
+	if _, ok := empty.WireChain(); ok {
+		t.Fatal("assembly of empty parts is a terminal chain")
 	}
 }

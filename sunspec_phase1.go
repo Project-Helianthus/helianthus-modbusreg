@@ -10,7 +10,9 @@ const (
 	sunSpecPhaseOneProfileID = "sunspec.phase1"
 	sunSpecSignatureFirst    = 0x5375
 	sunSpecSignatureSecond   = 0x6e53
-	sunSpecEndModel          = 0xffff
+	// SunSpecEndModelID is the model identifier of the end marker that
+	// terminates a chain; the marker's declared length is zero.
+	SunSpecEndModelID = 0xffff
 	// MaxSunSpecPhaseOneChainWords bounds a phase-one raw chain image,
 	// signature and end marker included. The Fronius qualification card uses
 	// it as its total word limit.
@@ -195,7 +197,7 @@ func (SunSpecPhaseOneDecoder) Parse(words []uint16) (SunSpecPhaseOneChain, error
 			return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec chain is missing end marker")
 		}
 		id, length := words[offset], words[offset+1]
-		if id == sunSpecEndModel {
+		if id == SunSpecEndModelID {
 			if length != 0 {
 				return SunSpecPhaseOneChain{}, fmt.Errorf("SunSpec end marker has nonzero length")
 			}

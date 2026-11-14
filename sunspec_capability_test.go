@@ -247,3 +247,69 @@ func capabilityFactByID(facts []SunSpecCapabilityFact, fieldID string) (SunSpecC
 	}
 	return SunSpecCapabilityFact{}, false
 }
+
+func TestSunSpecCapabilityDecisionCloneSharesNoEvidence(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	decision := registry.EvaluateThreePhaseMonitoring(capabilitySnapshot(t, registry, 113, nil))
+	if !decision.Admitted() {
+		t.Fatalf("decision reason=%q", decision.Reason())
+	}
+	clone := decision.Clone()
+	if !reflect.DeepEqual(clone, decision) {
+		t.Fatal("clone differs from its original")
+	}
+	clone.source.words[0]++
+	clone.facts[0].sourceValue.raw[0]++
+	clone.facts[11].value.enumSymbol = "changed-clone"
+	clone.views[0].record.Words[0]++
+	source, _ := decision.SourceOccurrence()
+	if source.Words()[0] != 113 || decision.facts[0].sourceValue.raw[0] == clone.facts[0].sourceValue.raw[0] ||
+		decision.facts[11].value.enumSymbol == "changed-clone" || decision.views[0].record.Words[0] == clone.views[0].record.Words[0] {
+		t.Fatal("clone shares evidence with its original")
+	}
+	rejected := registry.EvaluateThreePhaseMonitoring(SunSpecChainSnapshot{})
+	if got := rejected.Clone(); got.Admitted() || got.Reason() != SunSpecCapabilityReasonInvalidChain || got.source != nil || got.facts == nil || len(got.facts) != 0 || got.views == nil || len(got.views) != 0 {
+		t.Fatalf("rejected clone=%#v", got)
+	}
+}
+
+func TestSunSpecThreePhaseMonitoringFieldIDsFollowTheCapabilityOrder(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	decision := registry.EvaluateThreePhaseMonitoring(capabilitySnapshot(t, registry, 113, nil))
+	want := make([]string, 0, len(decision.Facts()))
+	for _, fact := range decision.Facts() {
+		want = append(want, fact.FieldID())
+	}
+	got := SunSpecThreePhaseMonitoringFieldIDs()
+	if len(want) != 14 || !reflect.DeepEqual(got, want) {
+		t.Fatalf("field IDs=%v want %v", got, want)
+	}
+	got[0] = "changed-caller"
+	if SunSpecThreePhaseMonitoringFieldIDs()[0] != want[0] {
+		t.Fatal("field IDs share storage between calls")
+	}
+}
+
+func TestSunSpecCloneSourceViewsSharesNoStorage(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	snapshot := completedChainSnapshot(t, registry,
+		commonOccurrence(t, registry, "Maker", "Model", "1.0", 1),
+		inverterOccurrence(t, registry, 113, nil, 2),
+	)
+	views := snapshot.SourceViews()
+	clone := SunSpecCloneSourceViews(views)
+	if !reflect.DeepEqual(clone, views) {
+		t.Fatal("cloned views differ")
+	}
+	views[0].record.Words[0]++
+	views[0].record.WireResponseBytes[0]++
+	if clone[0].record.Words[0] == views[0].record.Words[0] || clone[0].record.WireResponseBytes[0] == views[0].record.WireResponseBytes[0] {
+		t.Fatal("cloned views share storage")
+	}
+	if got := SunSpecCloneSourceViews(nil); got == nil || len(got) != 0 {
+		t.Fatalf("nil views clone=%#v", got)
+	}
+	if got := SunSpecCloneSourceViews([]LogicalViewSnapshot{{}, views[1]}); got[0].valid || !reflect.DeepEqual(got[0], LogicalViewSnapshot{}) || !got[1].valid {
+		t.Fatalf("clone changed view validity: %#v", got)
+	}
+}

@@ -25,7 +25,7 @@ func TestSunSpecQualificationObservationDerivesAndRetainsExactV11Evidence(t *tes
 	if !observation.Flavor().Matched() || observation.Flavor().FlavorID() != SunSpecFroniusObservedFlavorV11ID {
 		t.Fatalf("flavor=%#v", observation.Flavor())
 	}
-	wantChain := []SunSpecWireKey{{1, 65}, {113, 60}, {120, 26}, {121, 30}, {122, 44}, {123, 24}, {160, 88}, {124, 24}, {sunSpecEndModel, 0}}
+	wantChain := []SunSpecWireKey{{1, 65}, {113, 60}, {120, 26}, {121, 30}, {122, 44}, {123, 24}, {160, 88}, {124, 24}, {SunSpecEndModelID, 0}}
 	if got := observation.Chain(); !reflect.DeepEqual(got, wantChain) {
 		t.Fatalf("chain=%#v want=%#v", got, wantChain)
 	}
@@ -292,7 +292,7 @@ func TestSunSpecQualificationObservationFailsClosed(t *testing.T) {
 
 	ambiguous := cloneSnapshotForTest(valid)
 	// The selector itself must remain fail-closed if future registry definitions overlap.
-	if selected := selectSunSpecFroniusFlavor([]SunSpecFroniusFlavorDecision{registry.EvaluateFroniusObservedFlavorV11(valid), registry.EvaluateFroniusObservedFlavorV11(valid)}); selected.Matched() || selected.Reason() != SunSpecFroniusFlavorSelectionReasonAmbiguousMatch {
+	if selected := selectSunSpecFroniusFlavor([]SunSpecFroniusFlavorDecision{FroniusEvaluateObservedFlavorV11(registry, valid), FroniusEvaluateObservedFlavorV11(registry, valid)}); selected.Matched() || selected.Reason() != SunSpecFroniusFlavorSelectionReasonAmbiguousMatch {
 		t.Fatalf("ambiguous flavor selection=%#v", selected)
 	}
 	ambiguous.sources[1].DeadlineIdentity++

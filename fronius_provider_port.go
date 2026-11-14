@@ -45,21 +45,10 @@ type I25FroniusAdapter struct {
 // exact-card acceptance; these ceilings confer no acquisition authority.
 func I25NewFroniusAdapter(i25Registry SunSpecDecoderRegistry, i25MaxWords, i25MaxOccurrences, i25MaxSourceViews uint32, i25Reader FroniusOfflineReader) (*I25FroniusAdapter, error) {
 	i25Card := NewSunSpecFroniusQualificationCard()
-	if i25Reader == nil || i25Registry.revision != i25Card.SchemaRevision() || len(i25Registry.definitions) == 0 || i25MaxWords == 0 || i25MaxWords > i25Card.Limits().MaxTotalWords || i25MaxOccurrences == 0 || i25MaxOccurrences > i25Card.Limits().MaxOccurrences || i25MaxSourceViews == 0 || i25MaxSourceViews > MaxSunSpecPhaseOneChainWords {
+	if i25Reader == nil || i25Registry.SchemaRevision() != i25Card.SchemaRevision() || i25Registry.DefinitionCount() == 0 || i25MaxWords == 0 || i25MaxWords > i25Card.Limits().MaxTotalWords || i25MaxOccurrences == 0 || i25MaxOccurrences > i25Card.Limits().MaxOccurrences || i25MaxSourceViews == 0 || i25MaxSourceViews > MaxSunSpecPhaseOneChainWords {
 		return nil, fmt.Errorf("invalid I25 registry, reader or finite bounds")
 	}
-	i25Copy := SunSpecDecoderRegistry{revision: i25Registry.revision, keys: append([]SunSpecDecoderKey(nil), i25Registry.keys...), definitions: make(map[SunSpecDecoderKey]sunSpecModelDefinition, len(i25Registry.definitions))}
-	for i25Key, i25Definition := range i25Registry.definitions {
-		i25Definition.points = cloneSunSpecPointDefinitions(i25Definition.points)
-		for i25Index := range i25Definition.points {
-			if i25Definition.points[i25Index].fixedScale != nil {
-				i25Scale := *i25Definition.points[i25Index].fixedScale
-				i25Definition.points[i25Index].fixedScale = &i25Scale
-			}
-		}
-		i25Copy.definitions[i25Key] = i25Definition
-	}
-	return &I25FroniusAdapter{i25Lifetime: I25FroniusLifetime{&i25FroniusIdentity{true}}, i25Registry: i25Copy, i25MaxWords: i25MaxWords, i25MaxOccurrences: i25MaxOccurrences, i25MaxSourceViews: i25MaxSourceViews, i25Reader: i25Reader}, nil
+	return &I25FroniusAdapter{i25Lifetime: I25FroniusLifetime{&i25FroniusIdentity{true}}, i25Registry: i25Registry.Clone(), i25MaxWords: i25MaxWords, i25MaxOccurrences: i25MaxOccurrences, i25MaxSourceViews: i25MaxSourceViews, i25Reader: i25Reader}, nil
 }
 
 func (i25P *I25FroniusAdapter) i25Check(i25Lifetime I25FroniusLifetime) error {
