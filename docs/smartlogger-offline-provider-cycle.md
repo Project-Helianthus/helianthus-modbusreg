@@ -16,7 +16,7 @@ clocks retain the commit owner's monotonic, nonblocking contract. Do not copy
 providers or owner handles. The zero provider refuses work.
 
 `SmartloggerOfflineInventoryReader` has signature
-`func(SmartloggerInventoryPlan) (HuaweiSmartLoggerOfflineInventoryInput, error)`.
+`func(SmartloggerInventoryPlan) (SmartLoggerOfflineInventoryInput, error)`.
 It receives a value copy of the frozen plan and returns one already-read native
 counter/page bracket, or an error. It cannot return replacement correlation or
 change the owner's plan. It must use only bounded offline work, finish within

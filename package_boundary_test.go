@@ -19,12 +19,15 @@ import (
 // root owns the contracts and imports no module package; a vendor package
 // imports only the root and never another vendor package; a vendor overlay
 // may also import the standard family it extends, and a standard family never
-// imports a vendor package. Test-support packages under internal/ import no
-// module package.
+// imports a vendor package. The data package profiles imports no module
+// package; a vendor package may import it for the committed data it embeds.
+// Test-support packages under internal/ import no module package.
 var packageImportRules = map[string][]string{
 	".":                              {},
 	"growatt":                        {"."},
+	"huawei":                         {".", "profiles"},
 	"internal/qualifiedfunctiontest": {},
+	"profiles":                       {},
 	"tesla":                          {"."},
 }
 
@@ -38,24 +41,26 @@ func TestPackageImportDirections(t *testing.T) {
 // synthetic module at a time: a vendor importing a vendor, the root importing
 // a vendor, a standard family importing a vendor or its overlay, a vendor or
 // an overlay importing outside its row, a test-support package importing the
-// root, a top-level or nested package without a row and a row without a
-// package. The unchanged module keeps an overlay importing its standard
-// family, and test files, testdata and tools importing a vendor, which the
+// root, a data package importing the root or a vendor, a top-level or nested
+// package without a row and a row without a package. The unchanged module
+// keeps an overlay importing its standard family, a vendor importing the data
+// package, and test files, testdata and tools importing a vendor, which the
 // production import rules do not cover.
 func TestPackageImportDirectionsRejectEachViolation(t *testing.T) {
 	rules := map[string][]string{
-		".": {}, "alpha": {"."}, "beta": {"."}, "standard": {"."},
-		"overlay": {".", "standard"}, "internal/support": {},
+		".": {}, "alpha": {".", "data"}, "beta": {"."}, "standard": {"."},
+		"overlay": {".", "standard"}, "internal/support": {}, "data": {},
 	}
 	base := map[string]string{
 		"go.mod":                "module example.com/synthetic\n",
 		"root.go":               "package synthetic\n",
-		"alpha/a.go":            "package alpha\n\nimport _ \"example.com/synthetic\"\n",
+		"alpha/a.go":            "package alpha\n\nimport (\n\t_ \"example.com/synthetic\"\n\t_ \"example.com/synthetic/data\"\n)\n",
 		"beta/b.go":             "package beta\n\nimport _ \"example.com/synthetic\"\n",
 		"beta/b_test.go":        "package beta\n\nimport _ \"example.com/synthetic/alpha\"\n",
 		"standard/s.go":         "package standard\n\nimport _ \"example.com/synthetic\"\n",
 		"overlay/o.go":          "package overlay\n\nimport (\n\t_ \"example.com/synthetic\"\n\t_ \"example.com/synthetic/standard\"\n)\n",
 		"internal/support/s.go": "package support\n",
+		"data/d.go":             "package data\n",
 		"testdata/t.go":         "package t\n\nimport _ \"example.com/synthetic/alpha\"\n",
 		"tools/x/x.go":          "package main\n\nimport _ \"example.com/synthetic/alpha\"\n",
 		"alpha/data/x.txt":      "not a package\n",
@@ -81,6 +86,9 @@ func TestPackageImportDirectionsRejectEachViolation(t *testing.T) {
 		"vendor imports standard":            {file: "alpha/s.go", text: "package alpha\n\nimport _ \"example.com/synthetic/standard\"\n", want: []string{"alpha imports standard"}},
 		"overlay imports vendor":             {file: "overlay/v.go", text: "package overlay\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"overlay imports alpha"}},
 		"test support imports root":          {file: "internal/support/r.go", text: "package support\n\nimport _ \"example.com/synthetic\"\n", want: []string{"internal/support imports ."}},
+		"data imports root":                  {file: "data/r.go", text: "package data\n\nimport _ \"example.com/synthetic\"\n", want: []string{"data imports ."}},
+		"data imports vendor":                {file: "data/v.go", text: "package data\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"data imports alpha"}},
+		"vendor without data row":            {rules: withRow("alpha", "."), want: []string{"alpha imports data"}},
 		"package without row":                {file: "gamma/g.go", text: "package gamma\n", want: []string{"gamma has no import row"}},
 		"row without package":                {rules: withRow("delta", "."), want: []string{"delta has no package"}},
 		"nested package without row":         {file: "alpha/inner/i.go", text: "package inner\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"alpha/inner has no import row"}},

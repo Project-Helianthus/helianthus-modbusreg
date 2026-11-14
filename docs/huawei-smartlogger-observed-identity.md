@@ -24,7 +24,7 @@ the finite response cap, and the entry padding, unit and ASCII rules.
 
 ## The card
 
-`HuaweiSmartLoggerObservedQualificationCard`
+`SmartLoggerObservedQualificationCard`
 (`huawei.qualification.smartlogger.observed-readonly@1.0.0`) is separate from
 the documentary SmartLogger card. The documentary card keeps its identity and
 its model `SmartLogger`; its software rule is the

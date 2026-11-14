@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -331,59 +332,84 @@ func TestReadExtentsKeepValuesWhole(t *testing.T) {
 	}
 }
 
-// TestCatalogIsReadOnlyByTheSelection keeps two product files the readers
-// of the catalog: the SUN2000 selection (helianthus-modbusreg issue 362),
-// kept to the inverter editions, the model rows and the register files, and
-// the gateway selection (helianthus-modbusreg issue 366), kept to the
-// SmartLogger, S-Dongle and EMMA editions and services. No dictionary or
-// quarantine file reaches product code, and neither selection reads the other
-// part of the catalog.
+// TestCatalogIsReadOnlyByTheSelection keeps the readers of the catalog
+// fixed across every package of the module. The data package profiles embeds
+// it in one product file as two file systems: the inverter part, kept to the
+// inverter editions, the model rows and the register files, and the gateway
+// part, kept to the SmartLogger, S-Dongle and EMMA editions and services.
+// Only the two selections import that package: the SUN2000 selection
+// (helianthus-modbusreg issue 362) reads the inverter part and the gateway
+// selection (helianthus-modbusreg issue 366) the gateway part. No dictionary
+// or quarantine file reaches product code, and neither selection reads the
+// other part of the catalog.
 func TestCatalogIsReadOnlyByTheSelection(t *testing.T) {
-	files, err := filepath.Glob("../../*.go")
-	if err != nil {
-		t.Fatal(err)
-	}
+	const profilesImport = `"github.com/Project-Helianthus/helianthus-modbusreg/profiles"`
 	allowed := map[string]func(data []byte) error{
-		"huawei_sun2000_catalog_selection.go": func(data []byte) error {
-			if bytes.Contains(data, []byte("smartlogger-sdongle-emma")) {
-				return fmt.Errorf("reads the gateway part")
+		"profiles/huawei_catalog.go": func(data []byte) error {
+			embeds := catalogEmbeds(data)
+			if len(embeds) != 2 {
+				return fmt.Errorf("embeds %d file systems: %v", len(embeds), embeds)
+			}
+			for name, patterns := range embeds {
+				for _, pattern := range patterns {
+					dir, base := filepath.Dir(pattern), filepath.Base(pattern)
+					switch name {
+					case "huaweiInverterCatalog":
+						if dir != "vendors/huawei/catalog" || (base != "editions.json" && base != "models.json" && base != "registers-*.json") {
+							return fmt.Errorf("the inverter part embeds %s", pattern)
+						}
+					case "huaweiGatewayCatalog":
+						if dir != "vendors/huawei/catalog/smartlogger-sdongle-emma" || (base != "editions.json" && base != "services.json") {
+							return fmt.Errorf("the gateway part embeds %s", pattern)
+						}
+					default:
+						return fmt.Errorf("embeds the unknown file system %s", name)
+					}
+				}
 			}
 			return nil
 		},
-		"huawei_smartlogger_sdongle_emma_selection.go": func(data []byte) error {
-			if bytes.Contains(data, []byte("registers-")) || bytes.Contains(data, []byte("models.json")) {
+		"huawei/huawei_sun2000_catalog_selection.go": func(data []byte) error {
+			if bytes.Contains(data, []byte("smartlogger-sdongle-emma")) || bytes.Contains(data, []byte("HuaweiGatewayCatalog")) {
+				return fmt.Errorf("reads the gateway part")
+			}
+			if !bytes.Contains(data, []byte("profiles.HuaweiInverterCatalog()")) || bytes.Contains(data, []byte("//go:embed")) {
+				return fmt.Errorf("does not read the inverter part through package profiles")
+			}
+			return nil
+		},
+		"huawei/huawei_smartlogger_sdongle_emma_selection.go": func(data []byte) error {
+			if bytes.Contains(data, []byte("registers-")) || bytes.Contains(data, []byte("models.json")) || bytes.Contains(data, []byte("HuaweiInverterCatalog")) {
 				return fmt.Errorf("reads a register or model file")
 			}
 			for _, line := range strings.Split(string(data), "\n") {
 				if strings.Contains(line, "huawei/catalog") && !strings.Contains(line, "huawei/catalog/smartlogger-sdongle-emma") {
 					return fmt.Errorf("reads outside the gateway part: %s", line)
 				}
-				if strings.HasPrefix(line, "//go:embed ") {
-					for _, name := range strings.Fields(strings.TrimPrefix(line, "//go:embed ")) {
-						if base := filepath.Base(name); base != "editions.json" && base != "services.json" {
-							return fmt.Errorf("embeds %s", name)
-						}
-					}
-				}
+			}
+			if !bytes.Contains(data, []byte("profiles.HuaweiGatewayCatalog()")) || bytes.Contains(data, []byte("//go:embed")) {
+				return fmt.Errorf("does not read the gateway part through package profiles")
 			}
 			return nil
 		},
 	}
 	readers := map[string]bool{}
-	for _, file := range files {
-		if strings.HasSuffix(file, "_test.go") {
-			continue
-		}
-		data, err := os.ReadFile(file)
+	importers := map[string]bool{}
+	for _, file := range moduleProductFiles(t) {
+		data, err := os.ReadFile(filepath.Join("../..", filepath.FromSlash(file)))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Contains(data, []byte("huawei/catalog")) && !bytes.Contains(data, []byte("registers-")) {
+		imports := bytes.Contains(data, []byte(profilesImport))
+		if imports {
+			importers[file] = true
+		}
+		if !imports && !bytes.Contains(data, []byte("huawei/catalog")) && !bytes.Contains(data, []byte("registers-")) {
 			continue
 		}
-		check, ok := allowed[filepath.Base(file)]
+		check, ok := allowed[file]
 		if !ok {
-			t.Fatalf("%s reads the catalog; only the two selections do", file)
+			t.Fatalf("%s reads the catalog; only package profiles and the two selections do", file)
 		}
 		if err := check(data); err != nil {
 			t.Fatalf("%s %v", file, err)
@@ -393,11 +419,71 @@ func TestCatalogIsReadOnlyByTheSelection(t *testing.T) {
 				t.Fatalf("%s reads the %s", file, name)
 			}
 		}
-		readers[filepath.Base(file)] = true
+		readers[file] = true
 	}
 	if len(readers) != len(allowed) {
 		t.Fatalf("%d product files read the catalog: %v", len(readers), readers)
 	}
+	if !reflect.DeepEqual(importers, map[string]bool{
+		"huawei/huawei_sun2000_catalog_selection.go":          true,
+		"huawei/huawei_smartlogger_sdongle_emma_selection.go": true,
+	}) {
+		t.Fatalf("package profiles is imported by %v; only the two selections import it", importers)
+	}
+}
+
+// catalogEmbeds returns the patterns of each go:embed directive in data, keyed
+// by the variable the directive embeds into.
+func catalogEmbeds(data []byte) map[string][]string {
+	embeds := map[string][]string{}
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "//go:embed ") {
+			continue
+		}
+		name := "?"
+		if i+1 < len(lines) {
+			if fields := strings.Fields(lines[i+1]); len(fields) >= 2 && fields[0] == "var" {
+				name = fields[1]
+			}
+		}
+		embeds[name] = append(embeds[name], strings.Fields(strings.TrimPrefix(line, "//go:embed "))...)
+	}
+	return embeds
+}
+
+// moduleProductFiles lists the repository-relative production Go files of
+// every package of the module, skipping hidden, underscore and testdata
+// directories and the top-level tools directory.
+func moduleProductFiles(t *testing.T) []string {
+	t.Helper()
+	root := filepath.Join("..", "..")
+	var files []string
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		name := entry.Name()
+		if entry.IsDir() {
+			if rel != "." && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "testdata" || rel == "tools") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go") {
+			files = append(files, rel)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return files
 }
 
 func TestCommittedCatalogTextPassesThePublicationRules(t *testing.T) {

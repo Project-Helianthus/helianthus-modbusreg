@@ -173,8 +173,8 @@ stays Unknown.
 
 ## Observer and retention
 
-`HuaweiSUN2000MonitoringSession` exposes one holding-register read and nothing
-else. `NewHuaweiSUN2000MonitoringObserver` accepts only a selection with one
+`SUN2000MonitoringSession` exposes one holding-register read and nothing
+else. `NewSUN2000MonitoringObserver` accepts only a selection with one
 profile. `Observe` reads the plan once, in order: an exception reply is recorded
 with its code and the next group is read; a timeout, a transport error or a
 reply that does not match the request fails the group and ends the unit's cycle.

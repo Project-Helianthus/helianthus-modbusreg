@@ -18,7 +18,7 @@ none. Nothing here is stable before Helianthus 1.0.
 ## One provider per admitted gateway path
 
 `EvaluateHuaweiProviderEnablement` reads the part of a path's disposition that
-matters for acquisition, as `HuaweiRecordedProviderDisposition` records it. A
+matters for acquisition, as `RecordedProviderDisposition` records it. A
 test keeps the recorded values equal to the disposition files. A path is
 admitted only when all of the following hold, and refused otherwise:
 
@@ -34,8 +34,8 @@ admitted only when all of the following hold, and refused otherwise:
 
 | Path | Gateway identity | Child profile | Decision | Provider |
 | --- | --- | --- | --- | --- |
-| SmartLogger | observed card admitted | SUN2000 M3 series admitted | admitted | `HuaweiSmartLoggerReadOnlyProvider` |
-| S-Dongle | observed card admitted; recorded stop superseded for that identity | SUN2000 M1 series admitted | admitted | `HuaweiSDongleReadOnlyProvider` |
+| SmartLogger | observed card admitted | SUN2000 M3 series admitted | admitted | `SmartLoggerReadOnlyProvider` |
+| S-Dongle | observed card admitted; recorded stop superseded for that identity | SUN2000 M1 series admitted | admitted | `SDongleReadOnlyProvider` |
 | EMMA | observed card admitted | SUN2000 MAP0 series `NO_ADMISSIBLE_PROFILE`, reason `catalogue_card_without_monitoring_profile` | refused, `NO_ADMITTED_CHILD_PROFILE` | none |
 
 The SmartLogger and S-Dongle profile outcomes of the gateways themselves stay
@@ -67,12 +67,12 @@ and are not reused.
 
 ## Session and lifecycle
 
-The caller supplies a `HuaweiProviderSession` per connection generation: an FC03
+The caller supplies a `ProviderSession` per connection generation: an FC03
 holding-register read, an FC2B / MEI 0x0e Read Device Identification read that
 returns one decoded page with its response length, declared-object field and
 continuation fields, and the close of its own connection. The provider opens
 nothing, starts no goroutine and owns no socket. The caller also supplies the
-clock and `HuaweiProviderWait`, its cadence.
+clock and `ProviderWait`, its cadence.
 
 | Call | Effect |
 | --- | --- |
@@ -217,7 +217,7 @@ generation.
 
 ## Output
 
-`HuaweiProviderCycle` carries the provider identifier and version, the path,
+`ProviderCycle` carries the provider identifier and version, the path,
 the caller's opaque source label, the cycle number and connection generation,
 the start and completion times, the outcome (`COMPLETE`, `INCOMPLETE` or
 `INSUFFICIENT_EVIDENCE`) and its reason, the native gateway identity (card,
