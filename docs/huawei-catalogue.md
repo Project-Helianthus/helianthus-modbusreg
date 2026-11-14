@@ -20,8 +20,10 @@ Applicability: `evidence.json` lists the consulted source as `huawei-pv-inverter
 Applicability (gateway catalogue): `evidence.json` names the second consulted source in one applicability line: the Huawei gateway Modbus reference at baseline 2026-10-26.1 of 2026-10-26, dedicated under CC0-1.0, cited by title, baseline and date, with source pages carried per row and no digest. It has no entry under `public_sources`, because that list admits only a publicly addressable locator and the reference has none.
 
 The SUN2000 selection (helianthus-modbusreg issue 362) is the one consumer: it
-embeds `editions.json`, `models.json` and the register files, and reads the
-card editions, their model rows and the identity rows of each card to decide a
+reads `editions.json`, `models.json` and the register files from the inverter
+part of the catalogue, which the data package `profiles` embeds
+(`profiles/huawei_catalog.go`) because Go embed cannot reach a parent of the
+`huawei` package directory, and reads the card editions, their model rows and the identity rows of each card to decide a
 model row from the model text or a recorded wire alias, the model identifier,
 the map scope and the row floor (see
 [SUN2000 monitoring profiles](huawei-sun2000-monitoring-profiles.md#capability-detection)).
@@ -201,9 +203,12 @@ canonical encoder, validator and publication guard as the inverter part; a
 byte-for-byte round-trip test checks it. The directory is named after the
 three families because the registry boundary policy refuses ownership
 directories named after gateways. One product file reads it: the
-[gateway selection](#gateway-selection) embeds `editions.json` and
-`services.json` and nothing else (the SUN2000 selection embeds only the
-inverter files), and a catalogue test keeps both selections the only readers.
+[gateway selection](#gateway-selection) reads `editions.json` and
+`services.json` and nothing else from the gateway part that package `profiles`
+embeds (the SUN2000 selection reads only the inverter part), and a catalogue
+test keeps `profiles/huawei_catalog.go` the only file that embeds the
+catalogue, each part kept to its files, and the two selections the only
+readers and the only importers of package `profiles`.
 
 ### Gateway inputs
 
@@ -341,7 +346,7 @@ of each protocol section.
 
 ### Gateway selection
 
-`huawei_smartlogger_sdongle_emma_selection.go` (helianthus-modbusreg issue 366)
+`huawei/huawei_smartlogger_sdongle_emma_selection.go` (helianthus-modbusreg issue 366)
 decides which documented floor of a family a gateway's own software text falls
 under. Its inputs are the family of the card that asks, the endpoint class and
 unit the identity was read at, an optional model text and the software text
@@ -410,9 +415,11 @@ Removing the gateway directory, the `logger_*` files of
 applicability line of `evidence.json`, and reverting the gateway changes to the
 shared generator files (`main.go`, `model.go`, `prose.go`, `registers.go`,
 `validate.go`), restores the inverter part alone, once the gateway selection
-that embeds the gateway part is reverted.
+that reads the gateway part and its file system in `profiles/huawei_catalog.go`
+are reverted.
 Removing the catalogue directory, `tools/huaweicatalog`, this page, the
 README paragraph and the catalogue source and applicability line of
 `evidence.json`, and restoring the vendor directory listing in
-`huawei_inverter_battery_disposition_test.go`, restores the registry as it was,
-once the SUN2000 selection that embeds the catalogue is reverted.
+`huawei/huawei_inverter_battery_disposition_test.go`, restores the registry as
+it was, once the SUN2000 selection that reads the catalogue and the inverter
+file system in `profiles/huawei_catalog.go` are reverted.

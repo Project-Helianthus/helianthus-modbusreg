@@ -8,7 +8,7 @@ Merge remains held for the independently authored A23 [public cycle companion](h
 
 ## Local API and ownership
 
-[Implementation](../emma_offline_provider.go) composes `NewEmmaIdentityAttempt` and `Commit` from the [existing transaction](../emma_identity_transaction.go).
+[Implementation](../huawei/emma_offline_provider.go) composes `NewEmmaIdentityAttempt` and `Commit` from the [existing transaction](../huawei/emma_identity_transaction.go).
 
 - `NewEmmaOfflineProvider(current EmmaIdentityContext) *EmmaOfflineProvider` creates one local publication owner, retaining one identity and the latest published attempt. It is not the future gateway Provider registry M02 or a global provider API.
 - `SetContext(current EmmaIdentityContext)` serializes context replacement against publication. Caller-owned opaque parent source, revision, connection generation, attempt, deadline and cancellation identify local work, not native identity. The owner must use new generations/attempt tokens for replacement and reconnect, and must not restore an earlier context to make old work eligible. A parent change clears this provider's history; same-parent revision/connection changes keep history separately labelled.

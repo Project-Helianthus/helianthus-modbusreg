@@ -429,116 +429,116 @@
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
+      "path": "huawei/huawei_readonly_provider.go",
       "symbol": "ErrHuaweiProviderConfig",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderCycle.AutomaticRuntimeAdmission",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderCycle.AutomaticRuntimeAdmission",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderCycle.CatalogRegistered",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderCycle.CatalogRegistered",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderCycle.LiveQualified",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderCycle.LiveQualified",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderCycle.SupportClaim",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderCycle.SupportClaim",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderCycle.WriteAuthority",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderCycle.WriteAuthority",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderCycleComplete",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderCycleComplete",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderCycleIncomplete",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderCycleIncomplete",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderCycleInsufficient",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderCycleInsufficient",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderEnabled",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderEnabled",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderEvidenceCurrent",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderEvidenceCurrent",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderEvidenceStale",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderEvidenceStale",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderEvidenceWithheld",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderEvidenceWithheld",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderExchangeAnswered",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderExchangeAnswered",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderGatewayNotIdentified",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderGatewayNotIdentified",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderLossPlannedGroup",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderLossPlannedGroup",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderPathSmartLogger",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderPathSmartLogger",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderReasonIdentified",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderReasonIdentified",
       "rule": "revive/exported",
       "count": 1
     },
     {
-      "path": "huawei_readonly_provider.go",
-      "symbol": "HuaweiProviderWithinPromptBound",
+      "path": "huawei/huawei_readonly_provider.go",
+      "symbol": "ProviderWithinPromptBound",
       "rule": "revive/exported",
       "count": 1
     },

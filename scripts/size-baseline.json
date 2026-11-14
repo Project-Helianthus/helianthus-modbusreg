@@ -32,61 +32,61 @@
       "value": 100
     },
     {
-      "path": "huawei_emma_identity_fixture_test.go",
+      "path": "huawei/huawei_emma_identity_fixture_test.go",
       "symbol": "$file",
       "metric": "functions_per_file",
       "value": 72
     },
     {
-      "path": "huawei_emma_observed_test.go",
+      "path": "huawei/huawei_emma_observed_test.go",
       "symbol": "$file",
       "metric": "file_lines",
       "value": 1605
     },
     {
-      "path": "huawei_emma_observed_test.go",
+      "path": "huawei/huawei_emma_observed_test.go",
       "symbol": "$file",
       "metric": "functions_per_file",
       "value": 97
     },
     {
-      "path": "huawei_emma_observed_test.go",
+      "path": "huawei/huawei_emma_observed_test.go",
       "symbol": "h18Mutations",
       "metric": "function_lines",
       "value": 465
     },
     {
-      "path": "huawei_qualification_cards.go",
+      "path": "huawei/huawei_qualification_cards.go",
       "symbol": "$file",
       "metric": "functions_per_file",
       "value": 68
     },
     {
-      "path": "huawei_readonly_provider.go",
+      "path": "huawei/huawei_readonly_provider.go",
       "symbol": "$file",
       "metric": "file_lines",
       "value": 1619
     },
     {
-      "path": "huawei_readonly_provider.go",
+      "path": "huawei/huawei_readonly_provider.go",
       "symbol": "$file",
       "metric": "functions_per_file",
       "value": 62
     },
     {
-      "path": "huawei_sdongle_observed_test.go",
+      "path": "huawei/huawei_sdongle_observed_test.go",
       "symbol": "$file",
       "metric": "functions_per_file",
       "value": 89
     },
     {
-      "path": "huawei_sdongle_observed_test.go",
+      "path": "huawei/huawei_sdongle_observed_test.go",
       "symbol": "h15Mutations",
       "metric": "function_lines",
       "value": 314
     },
     {
-      "path": "huawei_sun2000_monitoring_test.go",
+      "path": "huawei/huawei_sun2000_monitoring_test.go",
       "symbol": "$file",
       "metric": "functions_per_file",
       "value": 85
@@ -146,7 +146,7 @@
       "value": 88
     },
     {
-      "path": "sdongle_route_decision_test.go",
+      "path": "huawei/sdongle_route_decision_test.go",
       "symbol": "$file",
       "metric": "functions_per_file",
       "value": 77

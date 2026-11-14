@@ -36,7 +36,7 @@ in both runs and the retry answered.
 
 ## The card
 
-`HuaweiSDongleObservedQualificationCard`
+`SDongleObservedQualificationCard`
 (`huawei.qualification.sdongle.observed-readonly@1.0.0`) is separate from the
 retained evidence-blocked S-Dongle card, which keeps its identity, its
 hard-stop result and its six missing-evidence names. The new card evaluates

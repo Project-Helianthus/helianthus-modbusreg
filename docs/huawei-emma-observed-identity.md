@@ -43,7 +43,7 @@ Four runs before this observation received no Modbus response; why is unknown.
 
 ## The card
 
-`HuaweiEMMAObservedQualificationCard`
+`EMMAObservedQualificationCard`
 (`huawei.qualification.emma.observed-readonly@1.0.0`) is separate from the
 documentary EMMA card, which keeps its identity, its steps and its missing
 capability evidence. The card evaluates already-read evidence and returns
