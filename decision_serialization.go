@@ -88,7 +88,7 @@ func validateDetectionEvidence(
 	evidence DetectionCandidateEvidence,
 	limits DetectionLimits,
 ) error {
-	if !validIdentity(evidence.ProfileID) ||
+	if !ValidIdentity(evidence.ProfileID) ||
 		!evidence.ProfileVersion.valid() ||
 		evidence.Score == 0 ||
 		!validDetectionReason(evidence.Reason) ||
@@ -192,7 +192,7 @@ func validateDetectionDecision(
 	switch decision.outcome {
 	case DetectionMatched:
 		if decision.reason != DetectionReasonSelected ||
-			!validIdentity(decision.selectedProfileID) ||
+			!ValidIdentity(decision.selectedProfileID) ||
 			!decision.selectedProfileVersion.valid() ||
 			selectedCount != 1 || equalBestCount != 0 || multipleMatchCount != 0 {
 			return fmt.Errorf("matched detection decision is inconsistent")

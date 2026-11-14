@@ -327,7 +327,7 @@ func buildObservation(
 		spec.NormalizationVersion != profile.NormalizationVersion() ||
 		spec.CoherenceVersion != profile.CoherenceVersion() ||
 		spec.QualificationVersion != profile.QualificationVersion() ||
-		(spec.SampleID != "" && !validIdentity(spec.SampleID)) ||
+		(spec.SampleID != "" && !ValidIdentity(spec.SampleID)) ||
 		spec.PollGenerationID == 0 ||
 		spec.DependencySetID != profile.Dependencies().ID() ||
 		spec.DependencySetVersion != profile.Dependencies().Version() ||

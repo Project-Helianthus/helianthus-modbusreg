@@ -681,8 +681,8 @@
       "count": 1
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadLifecycleStopped",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadLifecycleStopped",
       "rule": "revive/exported",
       "count": 1
     }

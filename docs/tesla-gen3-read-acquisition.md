@@ -1,6 +1,6 @@
 # Tesla Gen3 read-path acquisition lifecycle
 
-`TeslaGen3ReadAcquisition` is the driver-owned acquisition lifecycle for the
+`Gen3ReadAcquisition` is the driver-owned acquisition lifecycle for the
 Wall Connector Gen3 HSC read path (registry issue #208, part of #200). It
 acquires only the five retained observation operations: `common.system_info`
 (4:2 → 3), `wc.get_vitals` (6:1 → 2), `wc.get_lifetime_stats` (6:3 → 4),
@@ -94,7 +94,7 @@ qualification claim, and it creates no control authority.
 ## Activation boundary
 
 The lifecycle compares the bytes reported by a configured
-`TeslaGen3HSCActivationWitness` with the documented sequence and fails closed
+`Gen3HSCActivationWitness` with the documented sequence and fails closed
 without one. A report returned at or after the `ActivationTimeout` deadline (measured
 on the lifecycle clock), or after cancellation, is rejected even when its
 bytes match; cancellation is checked again inside the readiness commit.

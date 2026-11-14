@@ -109,7 +109,7 @@ func validNormalizationSourceLocator(locator string) bool {
 	const evidencePrefix = "urn:helianthus:evidence:"
 	if strings.HasPrefix(locator, evidencePrefix) {
 		suffix := strings.TrimPrefix(locator, evidencePrefix)
-		return suffix != "" && validIdentity(suffix)
+		return suffix != "" && ValidIdentity(suffix)
 	}
 	parsed, err := url.Parse(locator)
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" ||
@@ -183,11 +183,11 @@ func NewDependency(spec DependencySpec) (Dependency, error) {
 	if err != nil {
 		return Dependency{}, err
 	}
-	if !validIdentity(spec.ID) || !spec.Version.valid() ||
+	if !ValidIdentity(spec.ID) || !spec.Version.valid() ||
 		(spec.Table != HoldingRegisters && spec.Table != InputRegisters) ||
 		spec.WordCount == 0 || spec.WordCount > modbus.MaxReadRegisters ||
-		!validIdentity(spec.CodecID) ||
-		!spec.CodecVersion.valid() || !validIdentity(spec.CoherenceGroup) ||
+		!ValidIdentity(spec.CodecID) ||
+		!spec.CodecVersion.valid() || !ValidIdentity(spec.CoherenceGroup) ||
 		!stringsComplete(spec.EvidenceReferences) ||
 		!stringsComplete(spec.ApplicabilityRefs) {
 		return Dependency{}, fmt.Errorf("dependency declaration is incomplete")
@@ -315,7 +315,7 @@ func NewDependencySet(
 	copies := make([]Dependency, len(dependencies))
 	seen := make(map[string]struct{}, len(dependencies))
 	for index, dependency := range dependencies {
-		if !validIdentity(dependency.ID()) || !dependency.Version().valid() {
+		if !ValidIdentity(dependency.ID()) || !dependency.Version().valid() {
 			return DependencySet{}, fmt.Errorf("dependency set contains an invalid entry")
 		}
 		if _, exists := seen[dependency.ID()]; exists {
@@ -551,7 +551,7 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 		return ProfileDescriptor{}, err
 	}
 	spec = cloneProfileSpec(spec)
-	if spec.SchemaVersion != schemaVersionV1 || !validIdentity(spec.ID) ||
+	if spec.SchemaVersion != schemaVersionV1 || !ValidIdentity(spec.ID) ||
 		!spec.Version.valid() ||
 		spec.RuntimeContractVersion != runtimeContractVersionV1 ||
 		!spec.DetectorVersion.valid() ||
@@ -582,7 +582,7 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 		}
 	case ProfileVendorOverlay:
 		if !stringsComplete(spec.VendorApplicability) ||
-			!validIdentity(spec.RefinesProfileID) ||
+			!ValidIdentity(spec.RefinesProfileID) ||
 			!spec.RefinesProfileVersion.valid() ||
 			len(spec.StandardApplicability) != 0 ||
 			len(spec.ModelApplicability) != 0 ||
@@ -598,7 +598,7 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 	}
 	codecs := make(map[string]Codec, len(spec.Codecs))
 	for _, codec := range spec.Codecs {
-		if !validIdentity(codec.ID()) || !codec.Version().valid() {
+		if !ValidIdentity(codec.ID()) || !codec.Version().valid() {
 			return ProfileDescriptor{}, fmt.Errorf("profile contains invalid codec")
 		}
 		if _, exists := codecs[codec.ID()]; exists {
@@ -608,7 +608,7 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 	}
 	evidenceIDs := make(map[string]struct{}, len(spec.Evidence))
 	for _, evidence := range spec.Evidence {
-		if !validIdentity(evidence.ID) ||
+		if !ValidIdentity(evidence.ID) ||
 			(evidence.PublicationDisposition != PublicationPublished &&
 				evidence.PublicationDisposition != PublicationMetadataOnly) {
 			return ProfileDescriptor{}, fmt.Errorf("evidence reference is incomplete")
@@ -684,7 +684,7 @@ func NewProfileDescriptor(spec ProfileDescriptorSpec) (ProfileDescriptor, error)
 			)
 		}
 	case ProfileSuperseded:
-		if !validIdentity(spec.SupersededByID) ||
+		if !ValidIdentity(spec.SupersededByID) ||
 			!spec.SupersededByVersion.valid() {
 			return ProfileDescriptor{}, fmt.Errorf("superseded profile lacks replacement")
 		}
@@ -820,7 +820,7 @@ func validateOverlayDeltas(
 	seen := make(map[string]struct{}, len(deltas))
 	seenTargets := make(map[string]struct{}, len(deltas))
 	for _, delta := range deltas {
-		if !validIdentity(delta.ID) || !delta.Version.valid() {
+		if !ValidIdentity(delta.ID) || !delta.Version.valid() {
 			return fmt.Errorf("overlay delta identity is incomplete")
 		}
 		if _, exists := seen[delta.ID]; exists {
@@ -852,7 +852,7 @@ func validateOverlayDeltas(
 		case OverlayDeltaCodec:
 			if (delta.Operation != OverlayDeltaAdd &&
 				delta.Operation != OverlayDeltaReplace) ||
-				!validIdentity(delta.TargetID) ||
+				!ValidIdentity(delta.TargetID) ||
 				delta.ApplicabilityValue != "" || delta.Codec == nil ||
 				delta.Dependency != nil || delta.Coherence != nil {
 				return fmt.Errorf("overlay codec delta is malformed")
@@ -867,7 +867,7 @@ func validateOverlayDeltas(
 				return fmt.Errorf("overlay codec delta is invalid")
 			}
 		case OverlayDeltaDependency:
-			if !validIdentity(delta.TargetID) ||
+			if !ValidIdentity(delta.TargetID) ||
 				delta.ApplicabilityValue != "" || delta.Codec != nil ||
 				delta.Coherence != nil {
 				return fmt.Errorf("overlay dependency delta is malformed")
@@ -1107,7 +1107,7 @@ func NewCatalog(profiles ...ProfileDescriptor) (Catalog, error) {
 	seen := make(map[string]struct{}, len(profiles))
 	result := make([]ProfileDescriptor, len(profiles))
 	for index, profile := range profiles {
-		if !validIdentity(profile.ID()) || !profile.Version().valid() {
+		if !ValidIdentity(profile.ID()) || !profile.Version().valid() {
 			return Catalog{}, fmt.Errorf("catalog contains invalid profile")
 		}
 		if _, exists := seen[profile.ID()]; exists {

@@ -1,0 +1,71 @@
+package tesla
+
+import (
+	"bytes"
+	"testing"
+)
+
+func TestTeslaTEDAPIRegistryRetainsNativeOpaqueObservations(t *testing.T) {
+	profile, err := NewHSCProfile(HSCProfileConfig{
+		Enabled:              true,
+		Node:                 0x10,
+		PassiveCompatible:    true,
+		CompatibilityVersion: HSCCompatibilityV1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := NewTEDAPISemanticRegistry()
+	if err := registry.Retain(TEDAPIObservationSpec{
+		ID:        "sample-1",
+		Profile:   profile,
+		Direction: TEDAPIResponse,
+		Function:  teslaHSCFunction100,
+		Payload:   []byte{2, 0xaa, 0xbb},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	record, ok := registry.Lookup("sample-1")
+	if !ok {
+		t.Fatal("retained observation missing")
+	}
+	if record.State != TEDAPIOpaqueQualified ||
+		record.OperationAdmission != TEDAPIAdmissionBlockedNoAdmissibleOperation ||
+		!bytes.Equal(record.Payload(), []byte{0xaa, 0xbb}) || record.OutboundAllowed {
+		t.Fatalf("record = %#v", record)
+	}
+	payload := record.Payload()
+	payload[0] = 0
+	if !bytes.Equal(record.Payload(), []byte{0xaa, 0xbb}) {
+		t.Fatalf("record payload was not copied: %x", record.Payload())
+	}
+}
+
+func TestTeslaTEDAPIRegistryFailsClosedForUnqualifiedOrMalformedInput(t *testing.T) {
+	registry := NewTEDAPISemanticRegistry()
+	profile, err := NewHSCProfile(HSCProfileConfig{
+		Enabled:              true,
+		Node:                 0x10,
+		PassiveCompatible:    true,
+		CompatibilityVersion: "unknown",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Retain(TEDAPIObservationSpec{
+		ID: "sample-2", Profile: profile, Direction: TEDAPIRequest, Function: teslaHSCFunction101, Payload: []byte{0},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	record, _ := registry.Lookup("sample-2")
+	if record.State != TEDAPIFramingOnly ||
+		record.OperationAdmission != TEDAPIAdmissionBlockedProfile ||
+		record.OutboundAllowed {
+		t.Fatalf("unqualified record = %#v", record)
+	}
+	if err := registry.Retain(TEDAPIObservationSpec{
+		ID: "bad", Profile: profile, Direction: TEDAPIRequest, Function: teslaHSCFunction102, Payload: []byte{1},
+	}); err == nil {
+		t.Fatal("malformed payload accepted")
+	}
+}

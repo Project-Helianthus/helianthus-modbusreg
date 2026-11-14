@@ -164,7 +164,7 @@ func NewCodec(spec CodecSpec) (Codec, error) {
 		return Codec{}, err
 	}
 	spec = cloneCodecSpec(spec)
-	if !validIdentity(spec.ID) || !spec.Version.valid() ||
+	if !ValidIdentity(spec.ID) || !spec.Version.valid() ||
 		spec.RawWordCount == 0 ||
 		spec.RawWordCount > modbus.MaxReadRegisters ||
 		len(spec.WordPermutation) != int(spec.RawWordCount) ||
@@ -296,7 +296,7 @@ func validateScale(scale ScaleSpec) error {
 			scale.ApplicationOrder != ScaleAfterRepresentation {
 			return fmt.Errorf("dependency scale order is not declared")
 		}
-		if !validIdentity(scale.DependencyID) ||
+		if !ValidIdentity(scale.DependencyID) ||
 			scale.Numerator != 0 || scale.Denominator != 0 {
 			return fmt.Errorf("dependency scale is incomplete")
 		}
