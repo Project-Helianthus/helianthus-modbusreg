@@ -57,7 +57,7 @@ func NewDetectionCandidate(
 	if err := validateDetectionLimits(limits); err != nil {
 		return DetectionCandidate{}, err
 	}
-	if !validIdentity(spec.ProfileID) || !spec.ProfileVersion.valid() ||
+	if !ValidIdentity(spec.ProfileID) || !spec.ProfileVersion.valid() ||
 		spec.Score == 0 ||
 		!validExpectedIdentity(spec.Manufacturer.Expected, limits.MaxIdentityBytes) ||
 		!validExpectedIdentity(spec.Model.Expected, limits.MaxIdentityBytes) ||

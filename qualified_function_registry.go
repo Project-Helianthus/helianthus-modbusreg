@@ -77,8 +77,8 @@ func NewQualifiedFunctionRegistry(profiles []QualifiedFunctionProfile) (*Qualifi
 	}
 	copyProfiles := make([]QualifiedFunctionProfile, len(profiles))
 	for index, profile := range profiles {
-		if !validIdentity(profile.Endpoint) || profile.UnitID == 0 || profile.UnitID > 247 ||
-			!validIdentity(profile.VendorProfile) || profile.Codec == nil {
+		if !ValidIdentity(profile.Endpoint) || profile.UnitID == 0 || profile.UnitID > 247 ||
+			!ValidIdentity(profile.VendorProfile) || profile.Codec == nil {
 			return nil, fmt.Errorf("qualified function profile is invalid")
 		}
 		copyProfiles[index] = profile
@@ -95,8 +95,8 @@ func (registry *QualifiedFunctionRegistry) Dispatch(
 	selector QualifiedFunctionSelector,
 ) ([]QualifiedFunctionResult, error) {
 	if registry == nil || ctx == nil || exchanger == nil ||
-		!validIdentity(selector.Endpoint) || selector.UnitID == 0 || selector.UnitID > 247 ||
-		!validIdentity(selector.VendorProfile) || !validIdentity(selector.Operation) {
+		!ValidIdentity(selector.Endpoint) || selector.UnitID == 0 || selector.UnitID > 247 ||
+		!ValidIdentity(selector.VendorProfile) || !ValidIdentity(selector.Operation) {
 		return nil, ErrQualifiedFunctionNoSend
 	}
 	var selected QualifiedFunctionProfile

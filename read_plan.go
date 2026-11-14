@@ -149,7 +149,7 @@ func NewProbePlan(spec ProbePlanSpec, limits DetectionLimits) (ProbePlan, error)
 	seenFields := make(map[ProbeIdentityField]struct{}, len(spec.Declarations))
 	totalWords := 0
 	for _, declaration := range spec.Declarations {
-		if !validIdentity(declaration.ID) ||
+		if !ValidIdentity(declaration.ID) ||
 			!validProbeFunction(declaration.Function) ||
 			!validProbeIdentityField(declaration.IdentityField) ||
 			declaration.Encoding != ProbeIdentityASCII ||
@@ -255,7 +255,7 @@ type ProbeReadResult struct {
 }
 
 func validProbeEvidenceID(value string, maximum int) bool {
-	return value != "" && len(value) <= maximum && validIdentity(value)
+	return value != "" && len(value) <= maximum && ValidIdentity(value)
 }
 
 // NewProbeReadResult validates against the absolute default result bounds.

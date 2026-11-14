@@ -489,7 +489,7 @@ func validateSampleLedgerState(
 	initialAttemptState := state.LastCommittedAttempt == (AttemptIdentity{})
 	if state.SchemaVersion != schemaVersionV1 ||
 		!validIssuerDomain(state.IssuerDomain) ||
-		!validIdentity(state.ProfileID) ||
+		!ValidIdentity(state.ProfileID) ||
 		!state.ProfileVersion.valid() ||
 		!validDependencySetID(state.DependencySetID) ||
 		state.Revision != state.HighWater ||
@@ -506,7 +506,7 @@ func validateSampleLedgerState(
 }
 
 func validIssuerDomain(value string) bool {
-	if len(value) > MaxSampleIssuerDomainBytes || !validIdentity(value) {
+	if len(value) > MaxSampleIssuerDomainBytes || !ValidIdentity(value) {
 		return false
 	}
 	for _, character := range value {

@@ -103,7 +103,11 @@ func cloneStrings(values []string) []string {
 	return append([]string{}, values...)
 }
 
-func validIdentity(value string) bool {
+// ValidIdentity reports whether value is a contract identity: a non-empty
+// string of at most MaxContractStringBytes bytes made only of ASCII letters,
+// digits and the characters '.', '-', '_' and ':'. Profile names, versions,
+// sources and other identity fields of the registry contracts follow this rule.
+func ValidIdentity(value string) bool {
 	if value == "" || len(value) > MaxContractStringBytes {
 		return false
 	}

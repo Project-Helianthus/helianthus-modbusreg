@@ -8544,1507 +8544,1507 @@
       "category": "test"
     },
     {
-      "path": "tesla_fc100_common_system_info.go",
+      "path": "tesla/tesla_fc100_common_system_info.go",
       "symbol": "DecodeTeslaFC100CommonSystemInfoReplay",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_common_system_info.go",
-      "symbol": "TeslaFC100CommonSystemInfoIntermediate",
+      "path": "tesla/tesla_fc100_common_system_info.go",
+      "symbol": "FC100CommonSystemInfoIntermediate",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_common_system_info.go",
-      "symbol": "TeslaFC100CommonSystemInfoReplay",
+      "path": "tesla/tesla_fc100_common_system_info.go",
+      "symbol": "FC100CommonSystemInfoReplay",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_common_system_info.go",
-      "symbol": "TeslaFC100CommonSystemInfoReplayKind",
+      "path": "tesla/tesla_fc100_common_system_info.go",
+      "symbol": "FC100CommonSystemInfoReplayKind",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_common_system_info.go",
-      "symbol": "TeslaFC100CommonSystemInfoTerminal",
+      "path": "tesla/tesla_fc100_common_system_info.go",
+      "symbol": "FC100CommonSystemInfoTerminal",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_common_system_info.go",
-      "symbol": "TeslaTEDAPIOperationCommonSystemInfoV1",
+      "path": "tesla/tesla_fc100_common_system_info.go",
+      "symbol": "TEDAPIOperationCommonSystemInfoV1",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_common_system_info.go",
+      "path": "tesla/tesla_fc100_common_system_info.go",
       "symbol": "teslaFC100CommonSystemInfoRequestPDU",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_common_system_info.go",
+      "path": "tesla/tesla_fc100_common_system_info.go",
       "symbol": "tesla_fc100_common_system_info.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_common_system_info_test.go",
+      "path": "tesla/tesla_fc100_common_system_info_test.go",
       "symbol": "TestTeslaFC100CommonSystemInfoClassifiesExactEchoAndRejectsMalformedTerminal",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_common_system_info_test.go",
+      "path": "tesla/tesla_fc100_common_system_info_test.go",
       "symbol": "TestTeslaFC100CommonSystemInfoIsExplicitlyVersionQualified",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_common_system_info_test.go",
+      "path": "tesla/tesla_fc100_common_system_info_test.go",
       "symbol": "TestTeslaFC100CommonSystemInfoRetainsTerminalOnlyAsRedactedReplay",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_common_system_info_test.go",
+      "path": "tesla/tesla_fc100_common_system_info_test.go",
       "symbol": "tesla_fc100_common_system_info_test.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_operation.go",
+      "path": "tesla/tesla_fc100_operation.go",
       "symbol": "BuildTeslaFC100OperationRequest",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
+      "path": "tesla/tesla_fc100_operation.go",
       "symbol": "DecodeTeslaFC100OperationSequence",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100Operation",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100Operation",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationApplicationError",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationApplicationError",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationCommonSystemInfo",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationCommonSystemInfo",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationIntermediate",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationIntermediate",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationNames",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationNames",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationResult",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationResult",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationResultKind",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationResultKind",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationTerminal",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationTerminal",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationWCConfigureSettings",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationWCConfigureSettings",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationWCGetLifetimeStats",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationWCGetLifetimeStats",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationWCGetLoadSharingState",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationWCGetLoadSharingState",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationWCGetProvisional",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationWCGetProvisional",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationWCGetSystemInfo",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationWCGetSystemInfo",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationWCGetVitals",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationWCGetVitals",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100OperationWCSetProvisional",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100OperationWCSetProvisional",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaFC100RecoveredNames",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "FC100RecoveredNames",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
-      "symbol": "TeslaHSCFC100OperationCompatibilityV1",
+      "path": "tesla/tesla_fc100_operation.go",
+      "symbol": "HSCFC100OperationCompatibilityV1",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
+      "path": "tesla/tesla_fc100_operation.go",
       "symbol": "appendTeslaFC100Varint",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
+      "path": "tesla/tesla_fc100_operation.go",
       "symbol": "decodeTeslaFC100ApplicationError",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
+      "path": "tesla/tesla_fc100_operation.go",
       "symbol": "teslaFC100OperationNames",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
+      "path": "tesla/tesla_fc100_operation.go",
       "symbol": "teslaFC100OperationSpec",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
+      "path": "tesla/tesla_fc100_operation.go",
       "symbol": "teslaFC100OperationSpecs",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_operation.go",
+      "path": "tesla/tesla_fc100_operation.go",
       "symbol": "tesla_fc100_operation.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_operation_foundation_test.go",
+      "path": "tesla/tesla_fc100_operation_foundation_test.go",
       "symbol": "TestTeslaFC100OperationFoundationBuildsFixedAndOpaqueRequests",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_operation_foundation_test.go",
+      "path": "tesla/tesla_fc100_operation_foundation_test.go",
       "symbol": "TestTeslaFC100OperationFoundationRejectsInvalidTerminalSequences",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_operation_foundation_test.go",
+      "path": "tesla/tesla_fc100_operation_foundation_test.go",
       "symbol": "TestTeslaFC100OperationFoundationRetainsTerminalAndApplicationError",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_operation_foundation_test.go",
+      "path": "tesla/tesla_fc100_operation_foundation_test.go",
       "symbol": "TestTeslaFC100RecoveredNamesCoverEveryAcceptedOperation",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_operation_foundation_test.go",
+      "path": "tesla/tesla_fc100_operation_foundation_test.go",
       "symbol": "tesla_fc100_operation_foundation_test.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_request_matrix.go",
-      "symbol": "TeslaFC100RequestMatrix",
+      "path": "tesla/tesla_fc100_request_matrix.go",
+      "symbol": "FC100RequestMatrix",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_request_matrix.go",
+      "path": "tesla/tesla_fc100_request_matrix.go",
       "symbol": "ValidateTeslaFC100RequestMatrix",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_request_matrix.go",
+      "path": "tesla/tesla_fc100_request_matrix.go",
       "symbol": "decodeTeslaFC100RequestField",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_request_matrix.go",
+      "path": "tesla/tesla_fc100_request_matrix.go",
       "symbol": "skipTeslaFC100RequestGroup",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_request_matrix.go",
+      "path": "tesla/tesla_fc100_request_matrix.go",
       "symbol": "teslaFC100EmptyRequestOperations",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_request_matrix.go",
+      "path": "tesla/tesla_fc100_request_matrix.go",
       "symbol": "teslaFC100RequestField",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_request_matrix.go",
+      "path": "tesla/tesla_fc100_request_matrix.go",
       "symbol": "tesla_fc100_request_matrix.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_request_matrix_test.go",
+      "path": "tesla/tesla_fc100_request_matrix_test.go",
       "symbol": "TestTeslaFC100RequestMatrixRecognizesRetainedEmptyRequests",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_request_matrix_test.go",
+      "path": "tesla/tesla_fc100_request_matrix_test.go",
       "symbol": "TestTeslaFC100RequestMatrixRejectsUnknownVersion",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_request_matrix_test.go",
+      "path": "tesla/tesla_fc100_request_matrix_test.go",
       "symbol": "TestTeslaFC100RequestMatrixValidatesRetainedStructuredBodies",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_request_matrix_test.go",
+      "path": "tesla/tesla_fc100_request_matrix_test.go",
       "symbol": "tesla_fc100_request_matrix_test.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_scope_test.go",
+      "path": "tesla/tesla_fc100_scope_test.go",
       "symbol": "TestTeslaFC100CatalogStaysWithinEVSEScope",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_scope_test.go",
+      "path": "tesla/tesla_fc100_scope_test.go",
       "symbol": "TestTeslaFC100RejectsOperationsOutsideEVSEScope",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_scope_test.go",
+      "path": "tesla/tesla_fc100_scope_test.go",
       "symbol": "TestTeslaFC100SourceScopeGuardRejectsMutationEscapes",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_scope_test.go",
+      "path": "tesla/tesla_fc100_scope_test.go",
       "symbol": "teslaFC100SourceScopeFindings",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_scope_test.go",
+      "path": "tesla/tesla_fc100_scope_test.go",
       "symbol": "tesla_fc100_scope_test.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_tedapi.go",
+      "path": "tesla/tesla_fc100_tedapi.go",
       "symbol": "DecodeTeslaFC100TEDAPI",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_tedapi.go",
-      "symbol": "TeslaFC100TEDAPI",
+      "path": "tesla/tesla_fc100_tedapi.go",
+      "symbol": "FC100TEDAPI",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_tedapi.go",
-      "symbol": "TeslaFC100WireEntry",
+      "path": "tesla/tesla_fc100_tedapi.go",
+      "symbol": "FC100WireEntry",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_tedapi.go",
+      "path": "tesla/tesla_fc100_tedapi.go",
       "symbol": "decodeTeslaFC100TEDAPIWireEntries",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_tedapi.go",
+      "path": "tesla/tesla_fc100_tedapi.go",
       "symbol": "maxTeslaFC100TEDAPIWireEntries",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_tedapi.go",
+      "path": "tesla/tesla_fc100_tedapi.go",
       "symbol": "tesla_fc100_tedapi.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_tedapi_test.go",
+      "path": "tesla/tesla_fc100_tedapi_test.go",
       "symbol": "TestTeslaFC100TEDAPIParsesBoundedFirstVarintAndRedactsReplay",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_tedapi_test.go",
+      "path": "tesla/tesla_fc100_tedapi_test.go",
       "symbol": "TestTeslaFC100TEDAPIRejectsMalformedOrOverBoundedFirstVarint",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_tedapi_test.go",
+      "path": "tesla/tesla_fc100_tedapi_test.go",
       "symbol": "TestTeslaFC100TEDAPIRejectsMalformedOrOverCountedWireSummary",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_tedapi_test.go",
+      "path": "tesla/tesla_fc100_tedapi_test.go",
       "symbol": "TestTeslaFC100TEDAPISummarizesOrderedBoundedWireEntries",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_tedapi_test.go",
+      "path": "tesla/tesla_fc100_tedapi_test.go",
       "symbol": "tesla_fc100_tedapi_test.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_wc_lifetime.go",
+      "path": "tesla/tesla_fc100_wc_lifetime.go",
       "symbol": "DecodeTeslaFC100WCLifetimeReplay",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_lifetime.go",
+      "path": "tesla/tesla_fc100_wc_lifetime.go",
       "symbol": "DecodeTeslaFC100WCLifetimeReplaySequence",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_lifetime.go",
-      "symbol": "TeslaFC100WCLifetimeIntermediate",
+      "path": "tesla/tesla_fc100_wc_lifetime.go",
+      "symbol": "FC100WCLifetimeIntermediate",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_lifetime.go",
-      "symbol": "TeslaFC100WCLifetimeReplay",
+      "path": "tesla/tesla_fc100_wc_lifetime.go",
+      "symbol": "FC100WCLifetimeReplay",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_lifetime.go",
-      "symbol": "TeslaFC100WCLifetimeReplayKind",
+      "path": "tesla/tesla_fc100_wc_lifetime.go",
+      "symbol": "FC100WCLifetimeReplayKind",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_lifetime.go",
-      "symbol": "TeslaFC100WCLifetimeTerminal",
+      "path": "tesla/tesla_fc100_wc_lifetime.go",
+      "symbol": "FC100WCLifetimeTerminal",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_lifetime.go",
-      "symbol": "TeslaTEDAPIOperationWCLifetimeV1",
+      "path": "tesla/tesla_fc100_wc_lifetime.go",
+      "symbol": "TEDAPIOperationWCLifetimeV1",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_lifetime.go",
+      "path": "tesla/tesla_fc100_wc_lifetime.go",
       "symbol": "teslaFC100WCLifetimeRequestPDU",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_lifetime.go",
+      "path": "tesla/tesla_fc100_wc_lifetime.go",
       "symbol": "tesla_fc100_wc_lifetime.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_wc_lifetime_test.go",
+      "path": "tesla/tesla_fc100_wc_lifetime_test.go",
       "symbol": "TestTeslaFC100WCLifetimeDispatchRejectsInvalidCompleteSequence",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_lifetime_test.go",
+      "path": "tesla/tesla_fc100_wc_lifetime_test.go",
       "symbol": "TestTeslaFC100WCLifetimeIsVersionQualifiedAndNoSendWhenUngated",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_lifetime_test.go",
+      "path": "tesla/tesla_fc100_wc_lifetime_test.go",
       "symbol": "TestTeslaFC100WCLifetimeReplaySequenceIsBoundedAndOpaque",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_lifetime_test.go",
+      "path": "tesla/tesla_fc100_wc_lifetime_test.go",
       "symbol": "tesla_fc100_wc_lifetime_test.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_wc_load_sharing_state.go",
+      "path": "tesla/tesla_fc100_wc_load_sharing_state.go",
       "symbol": "DecodeTeslaFC100WCLoadSharingStateReplay",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_load_sharing_state.go",
+      "path": "tesla/tesla_fc100_wc_load_sharing_state.go",
       "symbol": "DecodeTeslaFC100WCLoadSharingStateReplaySequence",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_load_sharing_state.go",
-      "symbol": "TeslaFC100WCLoadSharingStateIntermediate",
+      "path": "tesla/tesla_fc100_wc_load_sharing_state.go",
+      "symbol": "FC100WCLoadSharingStateIntermediate",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_load_sharing_state.go",
-      "symbol": "TeslaFC100WCLoadSharingStateReplay",
+      "path": "tesla/tesla_fc100_wc_load_sharing_state.go",
+      "symbol": "FC100WCLoadSharingStateReplay",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_load_sharing_state.go",
-      "symbol": "TeslaFC100WCLoadSharingStateReplayKind",
+      "path": "tesla/tesla_fc100_wc_load_sharing_state.go",
+      "symbol": "FC100WCLoadSharingStateReplayKind",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_load_sharing_state.go",
-      "symbol": "TeslaFC100WCLoadSharingStateTerminal",
+      "path": "tesla/tesla_fc100_wc_load_sharing_state.go",
+      "symbol": "FC100WCLoadSharingStateTerminal",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_load_sharing_state.go",
-      "symbol": "TeslaTEDAPIOperationWCLoadSharingStateV1",
+      "path": "tesla/tesla_fc100_wc_load_sharing_state.go",
+      "symbol": "TEDAPIOperationWCLoadSharingStateV1",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_load_sharing_state.go",
+      "path": "tesla/tesla_fc100_wc_load_sharing_state.go",
       "symbol": "decodeTeslaFC100WCLoadSharingStateSequence",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_load_sharing_state.go",
+      "path": "tesla/tesla_fc100_wc_load_sharing_state.go",
       "symbol": "teslaFC100WCLoadSharingStateRequestPDU",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_load_sharing_state.go",
+      "path": "tesla/tesla_fc100_wc_load_sharing_state.go",
       "symbol": "tesla_fc100_wc_load_sharing_state.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_wc_load_sharing_state_test.go",
+      "path": "tesla/tesla_fc100_wc_load_sharing_state_test.go",
       "symbol": "TestTeslaFC100WCLoadSharingStateIsVersionQualifiedAndAtomic",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_load_sharing_state_test.go",
+      "path": "tesla/tesla_fc100_wc_load_sharing_state_test.go",
       "symbol": "tesla_fc100_wc_load_sharing_state_test.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_wc_system_info.go",
+      "path": "tesla/tesla_fc100_wc_system_info.go",
       "symbol": "DecodeTeslaFC100WCSystemInfoReplay",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_system_info.go",
+      "path": "tesla/tesla_fc100_wc_system_info.go",
       "symbol": "DecodeTeslaFC100WCSystemInfoReplaySequence",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_system_info.go",
-      "symbol": "TeslaFC100WCSystemInfoIntermediate",
+      "path": "tesla/tesla_fc100_wc_system_info.go",
+      "symbol": "FC100WCSystemInfoIntermediate",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_system_info.go",
-      "symbol": "TeslaFC100WCSystemInfoReplay",
+      "path": "tesla/tesla_fc100_wc_system_info.go",
+      "symbol": "FC100WCSystemInfoReplay",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_system_info.go",
-      "symbol": "TeslaFC100WCSystemInfoReplayKind",
+      "path": "tesla/tesla_fc100_wc_system_info.go",
+      "symbol": "FC100WCSystemInfoReplayKind",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_system_info.go",
-      "symbol": "TeslaFC100WCSystemInfoTerminal",
+      "path": "tesla/tesla_fc100_wc_system_info.go",
+      "symbol": "FC100WCSystemInfoTerminal",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_system_info.go",
-      "symbol": "TeslaTEDAPIOperationWCSystemInfoV1",
+      "path": "tesla/tesla_fc100_wc_system_info.go",
+      "symbol": "TEDAPIOperationWCSystemInfoV1",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_system_info.go",
+      "path": "tesla/tesla_fc100_wc_system_info.go",
       "symbol": "decodeTeslaFC100WCSystemInfoSequence",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_system_info.go",
+      "path": "tesla/tesla_fc100_wc_system_info.go",
       "symbol": "teslaFC100WCSystemInfoRequestPDU",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_system_info.go",
+      "path": "tesla/tesla_fc100_wc_system_info.go",
       "symbol": "tesla_fc100_wc_system_info.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_wc_system_info_test.go",
+      "path": "tesla/tesla_fc100_wc_system_info_test.go",
       "symbol": "TestTeslaFC100WCSystemInfoDispatchIsGatedAndAtomic",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_system_info_test.go",
+      "path": "tesla/tesla_fc100_wc_system_info_test.go",
       "symbol": "TestTeslaFC100WCSystemInfoIsVersionQualifiedAndSequenceBounded",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_system_info_test.go",
+      "path": "tesla/tesla_fc100_wc_system_info_test.go",
       "symbol": "tesla_fc100_wc_system_info_test.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_wc_vitals.go",
+      "path": "tesla/tesla_fc100_wc_vitals.go",
       "symbol": "DecodeTeslaFC100WCVitalsReplay",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals.go",
-      "symbol": "TeslaFC100WCVitalsIntermediate",
+      "path": "tesla/tesla_fc100_wc_vitals.go",
+      "symbol": "FC100WCVitalsIntermediate",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals.go",
-      "symbol": "TeslaFC100WCVitalsReplay",
+      "path": "tesla/tesla_fc100_wc_vitals.go",
+      "symbol": "FC100WCVitalsReplay",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals.go",
-      "symbol": "TeslaFC100WCVitalsReplayKind",
+      "path": "tesla/tesla_fc100_wc_vitals.go",
+      "symbol": "FC100WCVitalsReplayKind",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals.go",
-      "symbol": "TeslaFC100WCVitalsTerminal",
+      "path": "tesla/tesla_fc100_wc_vitals.go",
+      "symbol": "FC100WCVitalsTerminal",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals.go",
-      "symbol": "TeslaTEDAPIOperationWCVitalsV1",
+      "path": "tesla/tesla_fc100_wc_vitals.go",
+      "symbol": "TEDAPIOperationWCVitalsV1",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals.go",
+      "path": "tesla/tesla_fc100_wc_vitals.go",
       "symbol": "decodeTeslaFC100Varint",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals.go",
+      "path": "tesla/tesla_fc100_wc_vitals.go",
       "symbol": "teslaFC100WCVitalsRequestPDU",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals.go",
+      "path": "tesla/tesla_fc100_wc_vitals.go",
       "symbol": "tesla_fc100_wc_vitals.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_wc_vitals_executor.go",
-      "symbol": "NewTeslaFC100WCVitalsExecutor",
+      "path": "tesla/tesla_fc100_wc_vitals_executor.go",
+      "symbol": "NewFC100WCVitalsExecutor",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals_executor.go",
-      "symbol": "TeslaFC100WCVitalsExecutor",
+      "path": "tesla/tesla_fc100_wc_vitals_executor.go",
+      "symbol": "FC100WCVitalsExecutor",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals_executor.go",
+      "path": "tesla/tesla_fc100_wc_vitals_executor.go",
       "symbol": "tesla_fc100_wc_vitals_executor.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_wc_vitals_executor_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_executor_test.go",
       "symbol": "TestTeslaFC100WCVitalsExecutorFailsClosedBeforeOrAfterInjectedExchange",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_vitals_executor_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_executor_test.go",
       "symbol": "TestTeslaFC100WCVitalsExecutorUsesOneQualifiedInjectedExchange",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_vitals_executor_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_executor_test.go",
       "symbol": "tesla_fc100_wc_vitals_executor_test.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_wc_vitals_executor_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_executor_test.go",
       "symbol": "testTeslaFC100WCVitalsQualifiedProfile",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals_rtu_session.go",
-      "symbol": "NewTeslaFC100WCVitalsRTUSessionAdapter",
+      "path": "tesla/tesla_fc100_wc_vitals_rtu_session.go",
+      "symbol": "NewFC100WCVitalsRTUSessionAdapter",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals_rtu_session.go",
-      "symbol": "TeslaFC100WCVitalsRTUSession",
+      "path": "tesla/tesla_fc100_wc_vitals_rtu_session.go",
+      "symbol": "FC100WCVitalsRTUSession",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals_rtu_session.go",
-      "symbol": "TeslaFC100WCVitalsRTUSessionAdapter",
+      "path": "tesla/tesla_fc100_wc_vitals_rtu_session.go",
+      "symbol": "FC100WCVitalsRTUSessionAdapter",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals_rtu_session.go",
+      "path": "tesla/tesla_fc100_wc_vitals_rtu_session.go",
       "symbol": "teslaFC100WCVitalsSessionExchanger",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals_rtu_session.go",
+      "path": "tesla/tesla_fc100_wc_vitals_rtu_session.go",
       "symbol": "tesla_fc100_wc_vitals_rtu_session.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_wc_vitals_rtu_session_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_rtu_session_test.go",
       "symbol": "TestTeslaFC100WCVitalsRTUSessionAdapterPropagatesCorrelatedException",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_vitals_rtu_session_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_rtu_session_test.go",
       "symbol": "TestTeslaFC100WCVitalsRTUSessionAdapterUsesCorrelatedSession",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_vitals_rtu_session_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_rtu_session_test.go",
       "symbol": "teslaFC100WCVitalsSessionFake",
       "category": "identifier"
     },
     {
-      "path": "tesla_fc100_wc_vitals_rtu_session_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_rtu_session_test.go",
       "symbol": "tesla_fc100_wc_vitals_rtu_session_test.go",
       "category": "filename"
     },
     {
-      "path": "tesla_fc100_wc_vitals_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_test.go",
       "symbol": "TestTeslaFC100WCVitalsDispatchRetainsTerminalOnlyAsRedactedReplay",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_vitals_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_test.go",
       "symbol": "TestTeslaFC100WCVitalsOperationIsExplicitlyVersionQualified",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_vitals_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_test.go",
       "symbol": "TestTeslaFC100WCVitalsReplayClassifiesEchoAndBoundedTerminal",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_vitals_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_test.go",
       "symbol": "TestTeslaFC100WCVitalsReplayRetainsCompleteOpaqueTerminalBody",
       "category": "test"
     },
     {
-      "path": "tesla_fc100_wc_vitals_test.go",
+      "path": "tesla/tesla_fc100_wc_vitals_test.go",
       "symbol": "tesla_fc100_wc_vitals_test.go",
       "category": "filename"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
-      "symbol": "NewTeslaGen3InteroperableCurrentLimit",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
+      "symbol": "NewGen3InteroperableCurrentLimit",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
-      "symbol": "NewTeslaGen3PersistentCurrentLimit",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
+      "symbol": "NewGen3PersistentCurrentLimit",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
-      "symbol": "NewTeslaGen3ProvisionalCurrentLimit",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
+      "symbol": "NewGen3ProvisionalCurrentLimit",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
-      "symbol": "TeslaGen3CurrentLimitOperationVersion24443",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
+      "symbol": "Gen3CurrentLimitOperationVersion24443",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
-      "symbol": "TeslaGen3InteroperableCurrentLimit",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
+      "symbol": "Gen3InteroperableCurrentLimit",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
-      "symbol": "TeslaGen3PersistentCurrentLimit",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
+      "symbol": "Gen3PersistentCurrentLimit",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
-      "symbol": "TeslaGen3PersistentCurrentLimitSpec",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
+      "symbol": "Gen3PersistentCurrentLimitSpec",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
-      "symbol": "TeslaGen3ProvisionalCurrentLimit",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
+      "symbol": "Gen3ProvisionalCurrentLimit",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
-      "symbol": "TeslaGen3ProvisionalCurrentLimitSpec",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
+      "symbol": "Gen3ProvisionalCurrentLimitSpec",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
       "symbol": "decodeTeslaGen3CurrentLimitFields",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
       "symbol": "decodeTeslaGen3PersistentCurrentLimitBody",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
       "symbol": "decodeTeslaGen3ProvisionalCurrentLimitBody",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
       "symbol": "requiredTeslaGen3CurrentLimitField",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
       "symbol": "teslaGen3CurrentLimitWireField",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
       "symbol": "teslaGen3ExactFC100RequestBody",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
       "symbol": "teslaGen3MaxTimeoutS",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
       "symbol": "teslaGen3MinCurrentAmps",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit.go",
+      "path": "tesla/tesla_gen3_evse_current_limit.go",
       "symbol": "teslaGen3ProvisionalCurrentLimitWire",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_evse_current_limit_test.go",
+      "path": "tesla/tesla_gen3_evse_current_limit_test.go",
       "symbol": "TestTeslaGen3CurrentLimitRejectsForgedTypedValuesAndMalformedBodies",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_evse_current_limit_test.go",
+      "path": "tesla/tesla_gen3_evse_current_limit_test.go",
       "symbol": "TestTeslaGen3CurrentLimitRetainsUnknownWireMembersAsRawEvidence",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_evse_current_limit_test.go",
+      "path": "tesla/tesla_gen3_evse_current_limit_test.go",
       "symbol": "TestTeslaGen3EVSECurrentLimitInteroperableProjectionIsBounded",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_evse_current_limit_test.go",
+      "path": "tesla/tesla_gen3_evse_current_limit_test.go",
       "symbol": "TestTeslaGen3EVSECurrentLimitRetainsPersistentAndProvisionalRecords",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_evse_current_limit_test.go",
+      "path": "tesla/tesla_gen3_evse_current_limit_test.go",
       "symbol": "TestTeslaGen3PersistentCurrentLimitRejectsMismatchedRequestOperations",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_evse_current_limit_test.go",
+      "path": "tesla/tesla_gen3_evse_current_limit_test.go",
       "symbol": "TestTeslaGen3ProvisionalCurrentLimitRejectsMismatchedRequestOperations",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_hsc_native_operation_record.go",
-      "symbol": "NewTeslaGen3HSCNativeOperationRecord",
+      "path": "tesla/tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "NewGen3HSCNativeOperationRecord",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_native_operation_record.go",
-      "symbol": "TeslaGen3HSCExceptionOutcome",
+      "path": "tesla/tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "Gen3HSCExceptionOutcome",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_native_operation_record.go",
-      "symbol": "TeslaGen3HSCNativeOperationDirection",
+      "path": "tesla/tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "Gen3HSCNativeOperationDirection",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_native_operation_record.go",
-      "symbol": "TeslaGen3HSCNativeOperationOutcome",
+      "path": "tesla/tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "Gen3HSCNativeOperationOutcome",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_native_operation_record.go",
-      "symbol": "TeslaGen3HSCNativeOperationRecord",
+      "path": "tesla/tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "Gen3HSCNativeOperationRecord",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_native_operation_record.go",
-      "symbol": "TeslaGen3HSCNativeOperationRecordConfig",
+      "path": "tesla/tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "Gen3HSCNativeOperationRecordConfig",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_native_operation_record.go",
-      "symbol": "TeslaGen3HSCNormalOutcome",
+      "path": "tesla/tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "Gen3HSCNormalOutcome",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_native_operation_record.go",
-      "symbol": "TeslaGen3HSCRequestDirection",
+      "path": "tesla/tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "Gen3HSCRequestDirection",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_native_operation_record.go",
-      "symbol": "TeslaGen3HSCResponseDirection",
+      "path": "tesla/tesla_gen3_hsc_native_operation_record.go",
+      "symbol": "Gen3HSCResponseDirection",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_native_operation_record_test.go",
+      "path": "tesla/tesla_gen3_hsc_native_operation_record_test.go",
       "symbol": "TestTeslaGen3HSCNativeOperationRecordAllowsOpaqueFC101AndFC102",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_hsc_native_operation_record_test.go",
+      "path": "tesla/tesla_gen3_hsc_native_operation_record_test.go",
       "symbol": "TestTeslaGen3HSCNativeOperationRecordRejectsInvalidPayloadAndContext",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_hsc_native_operation_record_test.go",
+      "path": "tesla/tesla_gen3_hsc_native_operation_record_test.go",
       "symbol": "TestTeslaGen3HSCNativeOperationRecordRetainsFC100TerminalContext",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_hsc_profile.go",
-      "symbol": "NewTeslaGen3HSCProfile",
+      "path": "tesla/tesla_gen3_hsc_profile.go",
+      "symbol": "NewGen3HSCProfile",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_profile.go",
-      "symbol": "TeslaGen3HSCProfile",
+      "path": "tesla/tesla_gen3_hsc_profile.go",
+      "symbol": "Gen3HSCProfile",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_profile.go",
-      "symbol": "TeslaGen3HSCProfileConfig",
+      "path": "tesla/tesla_gen3_hsc_profile.go",
+      "symbol": "Gen3HSCProfileConfig",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_profile.go",
-      "symbol": "TeslaGen3HSCVersionCompatibleCandidate",
+      "path": "tesla/tesla_gen3_hsc_profile.go",
+      "symbol": "Gen3HSCVersionCompatibleCandidate",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_profile.go",
-      "symbol": "TeslaGen3HSCVersionDisposition",
+      "path": "tesla/tesla_gen3_hsc_profile.go",
+      "symbol": "Gen3HSCVersionDisposition",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_profile.go",
-      "symbol": "TeslaGen3HSCVersionKnownObservation",
+      "path": "tesla/tesla_gen3_hsc_profile.go",
+      "symbol": "Gen3HSCVersionKnownObservation",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_profile.go",
-      "symbol": "TeslaGen3HSCVersionUnknown",
+      "path": "tesla/tesla_gen3_hsc_profile.go",
+      "symbol": "Gen3HSCVersionUnknown",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_profile.go",
+      "path": "tesla/tesla_gen3_hsc_profile.go",
       "symbol": "maxTeslaGen3HSCVersionEvidence",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_hsc_profile_test.go",
+      "path": "tesla/tesla_gen3_hsc_profile_test.go",
       "symbol": "TestTeslaGen3HSCProfileRequiresEveryCapability",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_hsc_profile_test.go",
+      "path": "tesla/tesla_gen3_hsc_profile_test.go",
       "symbol": "TestTeslaGen3HSCProfileRetainsBoundedVersionEvidence",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_hsc_profile_test.go",
+      "path": "tesla/tesla_gen3_hsc_profile_test.go",
       "symbol": "TestTeslaGen3HSCProfileSeparatesKnownCandidateAndUnknownVersions",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "ErrTeslaGen3HSCActivationFailed",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "ErrTeslaGen3ReadAcquisitionBusy",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "ErrTeslaGen3ReadAcquisitionClosed",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "ErrTeslaGen3ReadAcquisitionUnavailable",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "Gen3",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "Gen3Version",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "Gen3VersionDisposition",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "NewTeslaGen3ReadAcquisition",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "NewGen3ReadAcquisition",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "ObserveTeslaGen3HSCActivation",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "OpenTeslaGen3ReadProductionEndpoint",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3HSCActivationRequest",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3HSCActivationRequest",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3HSCActivationWitness",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3HSCActivationWitness",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadAcquisition",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadAcquisition",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadAcquisitionConfig",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadAcquisitionConfig",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadEndpoint",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadEndpoint",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadEndpointOpener",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadEndpointOpener",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadEvidenceAck",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadEvidenceAck",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadEvidenceIndeterminate",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadEvidenceIndeterminate",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadEvidenceNoSend",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadEvidenceNoSend",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadEvidenceRejected",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadEvidenceRejected",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadEvidenceState",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadEvidenceState",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadEvidenceTimeout",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadEvidenceTimeout",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadLifecycleActivating",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadLifecycleActivating",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadLifecycleClosed",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadLifecycleClosed",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadLifecycleReady",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadLifecycleReady",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadLifecycleRecovering",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadLifecycleRecovering",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadLifecycleState",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadLifecycleState",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadLifecycleStopped",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadLifecycleStopped",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadLifecycleUnavailable",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadLifecycleUnavailable",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadRecord",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadRecord",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadRetained",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadRetained",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadSourceRTUPrivateFunction",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadSourceRTUPrivateFunction",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
-      "symbol": "TeslaGen3ReadWindow",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
+      "symbol": "Gen3ReadWindow",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "cloneTeslaGen3Bytes",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "maxTeslaGen3ReadActivationWindow",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "maxTeslaGen3ReadAttempts",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "maxTeslaGen3ReadDeadline",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "maxTeslaGen3ReadResponseTimeout",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "maxTeslaGen3ReadResponses",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "maxTeslaGen3ReadRetention",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "teslaGen3HSCActivationSequence",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "teslaGen3HSCBaud",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "teslaGen3ReadAdmission",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "teslaGen3ReadClassifier",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "teslaGen3ReadDenyRegisterReads",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "teslaGen3ReadFollowUp",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "teslaGen3ReadFollowUpNone",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "teslaGen3ReadFollowUpRecover",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "teslaGen3ReadFollowUpRetire",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "teslaGen3ReadPlan",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "teslaGen3ReadQualifiedOperation",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "teslaGen3ReadRetention",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition.go",
+      "path": "tesla/tesla_gen3_read_acquisition.go",
       "symbol": "validateTeslaGen3ReadAcquisitionConfig",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "ObserveTeslaGen3HSCActivation",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionAcquiresEachObservationOperation",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionAdmissionBindsPlannedCandidate",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionBindsGen3VersionToOperationContract",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionCloseBeforePromotionPublishesNoValue",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionCloseDuringCompletionPublishesNoValue",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionConcurrentCallersUnderRace",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionFreshnessAndRetentionWindows",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionOwnsProductionEndpointConfiguration",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionReconnectRequiresRecoveryAndActivation",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionRecoveryStaysWithinAcquisitionBudget",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionRejectsActivationAtOrAfterDeadline",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionRejectsExpiredActivation",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionRejectsMutationAndUnqualifiedConfiguration",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionRequiresDocumentedActivation",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionRestartStartsSuccessorEndpoint",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionRetriesAreBounded",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionRunPollsUntilCancelled",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionSingleFlightFailsFast",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "TestTeslaGen3ReadAcquisitionTimeoutLeavesValueIndeterminate",
       "category": "test"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "errTeslaGen3FakeState",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "mustTeslaGen3Profile",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "newTeslaGen3ReadHarness",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "teslaGen3FakeClock",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "teslaGen3FakeEndpoint",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "teslaGen3FakeStep",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "teslaGen3FakeWitness",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "teslaGen3ReadHarness",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "teslaGen3ReadProfileConfig",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "teslaGen3ReadTerminal",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "teslaGen3ReadTestConfig",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "teslaGen3ReadTestOperations",
       "category": "identifier"
     },
     {
-      "path": "tesla_gen3_read_acquisition_test.go",
+      "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "teslaGen3WitnessStep",
       "category": "identifier"
     },
     {
-      "path": "tesla_hsc.go",
-      "symbol": "TeslaHSCCompatibilityV1",
+      "path": "tesla/tesla_hsc.go",
+      "symbol": "HSCCompatibilityV1",
       "category": "identifier"
     },
     {
-      "path": "tesla_hsc.go",
-      "symbol": "TeslaHSCSystemInfoCompatibilityV1",
+      "path": "tesla/tesla_hsc.go",
+      "symbol": "HSCSystemInfoCompatibilityV1",
       "category": "identifier"
     },
     {
-      "path": "tesla_hsc.go",
-      "symbol": "TeslaHSCWCLifetimeCompatibilityV1",
+      "path": "tesla/tesla_hsc.go",
+      "symbol": "HSCWCLifetimeCompatibilityV1",
       "category": "identifier"
     },
     {
-      "path": "tesla_hsc.go",
-      "symbol": "TeslaHSCWCLoadSharingStateCompatibilityV1",
+      "path": "tesla/tesla_hsc.go",
+      "symbol": "HSCWCLoadSharingStateCompatibilityV1",
       "category": "identifier"
     },
     {
-      "path": "tesla_hsc.go",
-      "symbol": "TeslaHSCWCSystemInfoCompatibilityV1",
+      "path": "tesla/tesla_hsc.go",
+      "symbol": "HSCWCSystemInfoCompatibilityV1",
       "category": "identifier"
     },
     {
-      "path": "tesla_hsc.go",
-      "symbol": "TeslaHSCWCVitalsCompatibilityV1",
+      "path": "tesla/tesla_hsc.go",
+      "symbol": "HSCWCVitalsCompatibilityV1",
       "category": "identifier"
     },
     {
-      "path": "tesla_hsc_direction_test.go",
+      "path": "tesla/tesla_hsc_direction_test.go",
       "symbol": "TestTeslaHSCQualifiedFunctionKeepsFC101And102NormalResponsesRaw",
       "category": "test"
     },
     {
-      "path": "tesla_hsc_direction_test.go",
+      "path": "tesla/tesla_hsc_direction_test.go",
       "symbol": "TestTeslaHSCResponseDecodingKeepsFC101And102Raw",
       "category": "test"
     },
     {
-      "path": "tesla_hsc_native_test.go",
+      "path": "tesla/tesla_hsc_native_test.go",
       "symbol": "TestTeslaHSCNativeRecordsRetainFC101AndFC102Payloads",
       "category": "test"
     },
     {
-      "path": "tesla_hsc_opaque_terminal_provenance_test.go",
+      "path": "tesla/tesla_hsc_opaque_terminal_provenance_test.go",
       "symbol": "TestTeslaHSCOpaqueTerminalProvenanceRetainsOnlySelectedFC101AndFC102ResponseMetadata",
       "category": "test"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0.go",
-      "symbol": "NewTeslaLegacyFBE0Observation",
+      "path": "tesla/tesla_legacy_fbe0_fde0.go",
+      "symbol": "NewLegacyFBE0Observation",
       "category": "identifier"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0.go",
-      "symbol": "NewTeslaLegacyFDE0Observation",
+      "path": "tesla/tesla_legacy_fbe0_fde0.go",
+      "symbol": "NewLegacyFDE0Observation",
       "category": "identifier"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0.go",
-      "symbol": "TeslaLegacyFBE0Observation",
+      "path": "tesla/tesla_legacy_fbe0_fde0.go",
+      "symbol": "LegacyFBE0Observation",
       "category": "identifier"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0.go",
-      "symbol": "TeslaLegacyFBE0ObservationSpec",
+      "path": "tesla/tesla_legacy_fbe0_fde0.go",
+      "symbol": "LegacyFBE0ObservationSpec",
       "category": "identifier"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0.go",
-      "symbol": "TeslaLegacyFDE0Observation",
+      "path": "tesla/tesla_legacy_fbe0_fde0.go",
+      "symbol": "LegacyFDE0Observation",
       "category": "identifier"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0.go",
-      "symbol": "TeslaLegacyFDE0ObservationSpec",
+      "path": "tesla/tesla_legacy_fbe0_fde0.go",
+      "symbol": "LegacyFDE0ObservationSpec",
       "category": "identifier"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0.go",
-      "symbol": "TeslaLegacyFDE0State",
+      "path": "tesla/tesla_legacy_fbe0_fde0.go",
+      "symbol": "LegacyFDE0State",
       "category": "identifier"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0.go",
-      "symbol": "TeslaLegacyFDE0StateCharging",
+      "path": "tesla/tesla_legacy_fbe0_fde0.go",
+      "symbol": "LegacyFDE0StateCharging",
       "category": "identifier"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0.go",
-      "symbol": "TeslaLegacyFDE0StatePreCharge",
+      "path": "tesla/tesla_legacy_fbe0_fde0.go",
+      "symbol": "LegacyFDE0StatePreCharge",
       "category": "identifier"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0_test.go",
+      "path": "tesla/tesla_legacy_fbe0_fde0_test.go",
       "symbol": "TestTeslaLegacyFBE0RejectsPostCommandTruncationAtomically",
       "category": "test"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0_test.go",
+      "path": "tesla/tesla_legacy_fbe0_fde0_test.go",
       "symbol": "TestTeslaLegacyFDE0ObservationRejectsCallerSuppliedRawMismatch",
       "category": "test"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0_test.go",
+      "path": "tesla/tesla_legacy_fbe0_fde0_test.go",
       "symbol": "teslaLegacyFBE0Payload",
       "category": "identifier"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0_test.go",
+      "path": "tesla/tesla_legacy_fbe0_fde0_test.go",
       "symbol": "teslaLegacyFDE0Payload",
       "category": "identifier"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0_test.go",
+      "path": "tesla/tesla_legacy_fbe0_fde0_test.go",
       "symbol": "validFBE0",
       "category": "identifier"
     },
     {
-      "path": "tesla_legacy_fbe0_fde0_test.go",
+      "path": "tesla/tesla_legacy_fbe0_fde0_test.go",
       "symbol": "validFDE0",
       "category": "identifier"
     },
     {
-      "path": "tesla_retained_attempt_isolation_test.go",
+      "path": "tesla/tesla_retained_attempt_isolation_test.go",
       "symbol": "TestK22PartialSuccessorKeepsAgedLastGoodWithoutBorrowing",
       "category": "test"
     },
     {
-      "path": "tesla_retained_attempt_isolation_test.go",
+      "path": "tesla/tesla_retained_attempt_isolation_test.go",
       "symbol": "TestK22RetiredEvidenceCannotRefreshSuccessor",
       "category": "test"
     },
     {
-      "path": "tesla_retained_attempt_isolation_test.go",
+      "path": "tesla/tesla_retained_attempt_isolation_test.go",
       "symbol": "k22NoIOEndpoint",
       "category": "identifier"
     },
     {
-      "path": "tesla_retained_attempt_isolation_test.go",
+      "path": "tesla/tesla_retained_attempt_isolation_test.go",
       "symbol": "k22Retained",
       "category": "identifier"
     },
     {
-      "path": "tesla_retained_attempt_isolation_test.go",
+      "path": "tesla/tesla_retained_attempt_isolation_test.go",
       "symbol": "k22RetentionFixture",
       "category": "identifier"
     },
     {
-      "path": "tesla_retained_attempt_isolation_test.go",
+      "path": "tesla/tesla_retained_attempt_isolation_test.go",
       "symbol": "k22SyntheticACK",
       "category": "identifier"
     },

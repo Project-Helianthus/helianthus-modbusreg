@@ -204,7 +204,7 @@ func cloneWordSets(values [][]uint16) [][]uint16 {
 }
 
 func validFixtureIdentity(value string) bool {
-	return validIdentity(value) && (strings.HasPrefix(value, "fixture-") || strings.HasPrefix(value, "fixture:"))
+	return ValidIdentity(value) && (strings.HasPrefix(value, "fixture-") || strings.HasPrefix(value, "fixture:"))
 }
 
 func validateSanitizedMetadata(metadata SanitizedFixtureMetadata) error {
@@ -213,7 +213,7 @@ func validateSanitizedMetadata(metadata SanitizedFixtureMetadata) error {
 		validateBoundedString("fixture provenance", metadata.Provenance, true) != nil {
 		return fixtureMutationError{FixtureMutationReasonOversized}
 	}
-	if !validIdentity(metadata.CorpusID) || metadata.LicenseExpression != "CC0-1.0" || metadata.Provenance != "public synthetic fixture" {
+	if !ValidIdentity(metadata.CorpusID) || metadata.LicenseExpression != "CC0-1.0" || metadata.Provenance != "public synthetic fixture" {
 		return fixtureMutationError{FixtureMutationReasonUnsanitized}
 	}
 	return nil
@@ -267,7 +267,7 @@ func NewFixtureConformanceCorpusWithLimits(spec FixtureConformanceCorpusSpec, li
 		profiles[profile.ID()] = profile
 	}
 	for _, record := range copy.Records {
-		if !validIdentity(record.RecordID) || !validIdentity(record.ProfileID) || !record.ProfileVersion.valid() {
+		if !ValidIdentity(record.RecordID) || !ValidIdentity(record.ProfileID) || !record.ProfileVersion.valid() {
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
 		if _, ok := seen[strings.ToLower(record.RecordID)]; ok {

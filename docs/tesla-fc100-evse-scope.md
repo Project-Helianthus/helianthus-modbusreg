@@ -3,7 +3,7 @@
 The public Gen3 FC100 catalog is limited to EVSE interoperability for HEMS and
 SmartHome consumers, including Matter and eeBUS EVSE profiles. The native owner
 is `helianthus-modbusreg`; this catalog does not define universal semantics or
-consumer bindings. `TeslaHSCFC100OperationCompatibilityV1` remains
+consumer bindings. `HSCFC100OperationCompatibilityV1` remains
 `wc3_24_44_3`. An operation name or decoded body does not qualify a live device,
 admit an exchange, or authorize a control.
 
