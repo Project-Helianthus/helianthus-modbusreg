@@ -64,7 +64,7 @@ func NewSunSpecQualificationObservation(registry SunSpecDecoderRegistry, input S
 	if err != nil {
 		return SunSpecQualificationObservation{}, err
 	}
-	chain, valid := sunSpecSnapshotWireChain(snapshot)
+	chain, valid := snapshot.WireChain()
 	if !valid {
 		return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification chain is not terminal verified")
 	}
@@ -72,7 +72,7 @@ func NewSunSpecQualificationObservation(registry SunSpecDecoderRegistry, input S
 	if !capability.Admitted() || capability.Reason() != SunSpecCapabilityReasonAdmitted {
 		return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification capability is not admitted")
 	}
-	selection := registry.SelectFroniusObservedFlavor(snapshot)
+	selection := FroniusSelectObservedFlavor(registry, snapshot)
 	if !selection.Matched() || selection.Reason() != SunSpecFroniusFlavorSelectionReasonMatched {
 		return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification flavor is not uniquely matched")
 	}
@@ -81,7 +81,7 @@ func NewSunSpecQualificationObservation(registry SunSpecDecoderRegistry, input S
 		return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification flavor decision is invalid")
 	}
 	return SunSpecQualificationObservation{
-		capability: cloneSunSpecCapabilityDecision(capability),
+		capability: capability.Clone(),
 		flavor:     cloneSunSpecFroniusFlavorDecision(flavor),
 		chain:      append([]SunSpecWireKey(nil), chain...),
 		sampleID:   fmt.Sprintf("sunspec-%d-%d", identity.pollGeneration, identity.deadlineIdentity),
@@ -92,7 +92,7 @@ func NewSunSpecQualificationObservation(registry SunSpecDecoderRegistry, input S
 
 // Capability returns a copy of the admitted three-phase monitoring decision.
 func (observation SunSpecQualificationObservation) Capability() SunSpecCapabilityDecision {
-	return cloneSunSpecCapabilityDecision(observation.capability)
+	return observation.capability.Clone()
 }
 
 // Flavor returns a copy of the uniquely matched Fronius flavor decision.
@@ -141,42 +141,38 @@ func (observation SunSpecQualificationObservation) Replay() (SunSpecQualificatio
 }
 
 func validateSunSpecQualificationSnapshot(input SunSpecChainSnapshot) (SunSpecChainSnapshot, SunSpecQualificationSampleIdentity, error) {
-	if len(input.raw) < 4 || len(input.raw) > MaxSunSpecPhaseOneChainWords || len(input.occurrences) == 0 || len(input.occurrences) > MaxSunSpecPhaseOneChainWords/2 || len(input.sources) == 0 || len(input.sources) > MaxSunSpecPhaseOneChainWords {
+	if input.RawWordCount() < 4 || input.RawWordCount() > MaxSunSpecPhaseOneChainWords || input.OccurrenceCount() == 0 || input.OccurrenceCount() > MaxSunSpecPhaseOneChainWords/2 || input.SourceViewCount() == 0 || input.SourceViewCount() > MaxSunSpecPhaseOneChainWords {
 		return SunSpecChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification bounds are invalid")
 	}
-	sources := make([]LogicalViewRecord, len(input.sources))
-	first := input.sources[0]
+	inputViews := input.SourceViews()
+	sources := make([]LogicalViewSnapshot, len(inputViews))
+	first := inputViews[0].Record()
 	if first.PollGeneration == 0 || first.DeadlineIdentity == 0 {
 		return SunSpecChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification sample identity is invalid")
 	}
-	for index, source := range input.sources {
-		validated, err := NewLogicalViewSnapshot(source)
+	for index, view := range inputViews {
+		validated, err := NewLogicalViewSnapshot(view.Record())
 		if err != nil {
 			return SunSpecChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification source view %d: %w", index, err)
 		}
 		record := validated.Record()
-		if !sameSunSpecProvenance(first, record) || record.PollGeneration == 0 || record.DeadlineIdentity == 0 {
+		if !SunSpecSameProvenance(first, record) || record.PollGeneration == 0 || record.DeadlineIdentity == 0 {
 			return SunSpecChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification source provenance is mixed")
 		}
-		sources[index] = record
+		sources[index] = validated
 	}
-	snapshot := SunSpecChainSnapshot{
-		raw:         append([]uint16(nil), input.raw...),
-		occurrences: input.Occurrences(),
-		sources:     sources,
+	snapshot, err := NewSunSpecChainSnapshot(input.RawWords(), input.Occurrences(), sources)
+	if err != nil {
+		return SunSpecChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification retained chain is invalid")
 	}
-	if _, valid := sunSpecSnapshotWireChain(snapshot); !valid {
+	if _, valid := snapshot.WireChain(); !valid {
 		return SunSpecChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification retained chain is invalid")
 	}
 	return snapshot, SunSpecQualificationSampleIdentity{pollGeneration: first.PollGeneration, deadlineIdentity: first.DeadlineIdentity}, nil
 }
 
 func cloneSunSpecQualificationSnapshot(snapshot SunSpecChainSnapshot) SunSpecChainSnapshot {
-	cloned := SunSpecChainSnapshot{raw: snapshot.RawWords(), occurrences: snapshot.Occurrences()}
-	for _, source := range snapshot.SourceViews() {
-		cloned.sources = append(cloned.sources, source.Record())
-	}
-	return cloned
+	return snapshot.Clone()
 }
 
 // MarshalJSON revalidates the observation and encodes it as the versioned
@@ -188,7 +184,7 @@ func (observation SunSpecQualificationObservation) MarshalJSON() ([]byte, error)
 	if err != nil {
 		return nil, fmt.Errorf("SunSpec qualification observation cannot serialize invalid retained snapshot: %w", err)
 	}
-	chain, terminal := sunSpecSnapshotWireChain(snapshot)
+	chain, terminal := snapshot.WireChain()
 	if !terminal || !reflect.DeepEqual(observation.chain, chain) {
 		return nil, fmt.Errorf("SunSpec qualification observation cannot serialize inconsistent chain")
 	}

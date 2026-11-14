@@ -117,7 +117,7 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := admitNext(t, chain, &logicalViewID, []uint16{sunSpecEndModel, 0})
+	snapshot, err := admitNext(t, chain, &logicalViewID, []uint16{SunSpecEndModelID, 0})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -53,10 +53,10 @@ func TestSunspecProvenanceAxes(t *testing.T) {
 				if err == nil || err.Error() != "RTU logical view contradicts runtime shape" {
 					t.Fatalf("expected isolated transport to fail upstream validation, got %v", err)
 				}
-				if !sameSunSpecProvenance(view.Record(), original.Record()) {
+				if !SunSpecSameProvenance(view.Record(), original.Record()) {
 					t.Fatal("equal provenance rejected by comparator")
 				}
-				if sameSunSpecProvenance(original.Record(), changed) {
+				if SunSpecSameProvenance(original.Record(), changed) {
 					t.Fatal("comparator accepted isolated Transport mismatch")
 				}
 			} else {
@@ -96,4 +96,39 @@ func provenanceAxesView(t *testing.T, request SunSpecReadRequest, id uint64, wor
 		t.Fatal(err)
 	}
 	return view
+}
+
+// TestSunSpecSameProvenanceComparesEveryAxis varies each compared field of a
+// valid record once and one field outside the comparison: the comparator must
+// reject each provenance change and ignore the rest.
+func TestSunSpecSameProvenanceComparesEveryAxis(t *testing.T) {
+	base := LogicalViewRecord{
+		LogicalViewID: 1, WireResponseID: 2, PhysicalRequestID: 3, Endpoint: "fixture-endpoint", ConnectionID: 4,
+		Transport: TransportTCP, TransportGeneration: 5, UnitID: 1, AuthorizationScope: "fixture-read-only",
+		PollGeneration: 6, DeadlineIdentity: 7, Words: []uint16{1}, WireResponseBytes: []byte{1},
+	}
+	if !SunSpecSameProvenance(base, base) {
+		t.Fatal("identical provenance rejected")
+	}
+	for name, change := range map[string]func(*LogicalViewRecord){
+		"Endpoint":            func(r *LogicalViewRecord) { r.Endpoint = "other-fixture" },
+		"UnitID":              func(r *LogicalViewRecord) { r.UnitID++ },
+		"ConnectionID":        func(r *LogicalViewRecord) { r.ConnectionID++ },
+		"Transport":           func(r *LogicalViewRecord) { r.Transport = TransportRTU },
+		"TransportGeneration": func(r *LogicalViewRecord) { r.TransportGeneration++ },
+		"PollGeneration":      func(r *LogicalViewRecord) { r.PollGeneration++ },
+		"DeadlineIdentity":    func(r *LogicalViewRecord) { r.DeadlineIdentity++ },
+		"AuthorizationScope":  func(r *LogicalViewRecord) { r.AuthorizationScope = "other-opaque-scope" },
+	} {
+		changed := base
+		change(&changed)
+		if SunSpecSameProvenance(base, changed) || SunSpecSameProvenance(changed, base) {
+			t.Fatalf("comparator accepted a %s change", name)
+		}
+	}
+	other := base
+	other.LogicalViewID, other.WireResponseID, other.PhysicalRequestID, other.Words = 9, 9, 9, []uint16{9}
+	if !SunSpecSameProvenance(base, other) {
+		t.Fatal("comparator rejected a change outside the provenance axes")
+	}
 }

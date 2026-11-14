@@ -10,7 +10,7 @@ import (
 func TestFroniusObservedFlavorMatchesOnlyExactEvidenceTuple(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
 	snapshot := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
-	decision := registry.EvaluateFroniusObservedFlavor(snapshot)
+	decision := FroniusEvaluateObservedFlavor(registry, snapshot)
 	if !decision.Matched() || decision.Reason() != SunSpecFroniusFlavorReasonMatched || decision.FlavorID() != SunSpecFroniusObservedFlavorID {
 		t.Fatalf("matched=%t reason=%q flavor=%q", decision.Matched(), decision.Reason(), decision.FlavorID())
 	}
@@ -35,7 +35,7 @@ func TestFroniusObservedFlavorAcceptsCompletedPublicChainSnapshot(t *testing.T) 
 	registry := mustStandardSunSpecRegistry(t)
 	fixture := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
 	snapshot := completedChainSnapshot(t, registry, fixture.Occurrences()...)
-	decision := registry.EvaluateFroniusObservedFlavor(snapshot)
+	decision := FroniusEvaluateObservedFlavor(registry, snapshot)
 	if !decision.Matched() || !decision.Capability().Admitted() {
 		t.Fatalf("matched=%t flavor_reason=%q capability_reason=%q", decision.Matched(), decision.Reason(), decision.Capability().Reason())
 	}
@@ -62,7 +62,7 @@ func TestCapabilityAndFlavorRejectInvalidCommonAndAdmittedGeometry(t *testing.T)
 			if capability.Admitted() || capability.Reason() != SunSpecCapabilityReasonInvalidChain {
 				t.Fatalf("capability admitted=%t reason=%q", capability.Admitted(), capability.Reason())
 			}
-			flavor := registry.EvaluateFroniusObservedFlavor(snapshot)
+			flavor := FroniusEvaluateObservedFlavor(registry, snapshot)
 			if flavor.Matched() || flavor.Reason() != SunSpecFroniusFlavorReasonCapabilityNotAdmitted {
 				t.Fatalf("flavor matched=%t reason=%q", flavor.Matched(), flavor.Reason())
 			}
@@ -90,7 +90,7 @@ func TestCapabilityAndFlavorRejectRetainedUnadmittedModel160Geometry(t *testing.
 	if capability.Admitted() || capability.Reason() != SunSpecCapabilityReasonInvalidChain {
 		t.Fatalf("capability admitted=%t reason=%q", capability.Admitted(), capability.Reason())
 	}
-	flavor := registry.EvaluateFroniusObservedFlavor(snapshot)
+	flavor := FroniusEvaluateObservedFlavor(registry, snapshot)
 	if flavor.Matched() || flavor.Reason() != SunSpecFroniusFlavorReasonCapabilityNotAdmitted {
 		t.Fatalf("flavor matched=%t reason=%q", flavor.Matched(), flavor.Reason())
 	}
@@ -129,7 +129,7 @@ func TestFroniusObservedFlavorReasonsAreClosedAndFailClosed(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			decision := registry.EvaluateFroniusObservedFlavor(tc.snapshot)
+			decision := FroniusEvaluateObservedFlavor(registry, tc.snapshot)
 			if decision.Matched() || decision.Reason() != tc.reason {
 				t.Fatalf("matched=%t reason=%q want=%q", decision.Matched(), decision.Reason(), tc.reason)
 			}
@@ -150,7 +150,7 @@ func TestFroniusObservedFlavorMapsMalformedSnapshotToCapabilityFailure(t *testin
 		"trailing words":   trailing,
 	} {
 		t.Run(name, func(t *testing.T) {
-			decision := registry.EvaluateFroniusObservedFlavor(snapshot)
+			decision := FroniusEvaluateObservedFlavor(registry, snapshot)
 			if decision.Matched() || decision.Reason() != SunSpecFroniusFlavorReasonCapabilityNotAdmitted {
 				t.Fatalf("matched=%t reason=%q", decision.Matched(), decision.Reason())
 			}
@@ -194,15 +194,15 @@ func TestFroniusObservedFlavorV11MatchesOnlyTheModel123Chain(t *testing.T) {
 	v1Snapshot := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
 	v11Snapshot := froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
 
-	v1 := registry.EvaluateFroniusObservedFlavor(v11Snapshot)
+	v1 := FroniusEvaluateObservedFlavor(registry, v11Snapshot)
 	if v1.Matched() || v1.Reason() != SunSpecFroniusFlavorReasonChainMismatch || v1.FlavorID() != SunSpecFroniusObservedFlavorID {
 		t.Fatalf("V1 on V1.1 chain matched=%t reason=%q id=%q", v1.Matched(), v1.Reason(), v1.FlavorID())
 	}
-	v11OnV1 := registry.EvaluateFroniusObservedFlavorV11(v1Snapshot)
+	v11OnV1 := FroniusEvaluateObservedFlavorV11(registry, v1Snapshot)
 	if v11OnV1.Matched() || v11OnV1.Reason() != SunSpecFroniusFlavorReasonChainMismatch || v11OnV1.FlavorID() != SunSpecFroniusObservedFlavorV11ID {
 		t.Fatalf("V1.1 on V1 chain matched=%t reason=%q id=%q", v11OnV1.Matched(), v11OnV1.Reason(), v11OnV1.FlavorID())
 	}
-	v11 := registry.EvaluateFroniusObservedFlavorV11(v11Snapshot)
+	v11 := FroniusEvaluateObservedFlavorV11(registry, v11Snapshot)
 	if !v11.Matched() || v11.Reason() != SunSpecFroniusFlavorReasonMatched || v11.FlavorID() != SunSpecFroniusObservedFlavorV11ID {
 		t.Fatalf("V1.1 matched=%t reason=%q id=%q", v11.Matched(), v11.Reason(), v11.FlavorID())
 	}
@@ -218,7 +218,7 @@ func TestFroniusObservedFlavorSelectorRequiresExactlyOneMatch(t *testing.T) {
 		"v1.1": froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1"),
 	} {
 		t.Run(name, func(t *testing.T) {
-			selection := registry.SelectFroniusObservedFlavor(snapshot)
+			selection := FroniusSelectObservedFlavor(registry, snapshot)
 			if !selection.Matched() || selection.Reason() != SunSpecFroniusFlavorSelectionReasonMatched {
 				t.Fatalf("selection matched=%t reason=%q", selection.Matched(), selection.Reason())
 			}
@@ -236,7 +236,7 @@ func TestFroniusObservedFlavorSelectorRequiresExactlyOneMatch(t *testing.T) {
 		})
 	}
 
-	noMatch := registry.SelectFroniusObservedFlavor(froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-2"))
+	noMatch := FroniusSelectObservedFlavor(registry, froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-2"))
 	if noMatch.Matched() || noMatch.Reason() != SunSpecFroniusFlavorSelectionReasonNoMatch {
 		t.Fatalf("no-match matched=%t reason=%q", noMatch.Matched(), noMatch.Reason())
 	}
@@ -244,7 +244,7 @@ func TestFroniusObservedFlavorSelectorRequiresExactlyOneMatch(t *testing.T) {
 		t.Fatal("no-match selection exposed a decision")
 	}
 
-	matched := registry.EvaluateFroniusObservedFlavor(froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1"))
+	matched := FroniusEvaluateObservedFlavor(registry, froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1"))
 	ambiguous := selectSunSpecFroniusFlavor([]SunSpecFroniusFlavorDecision{matched, matched})
 	if ambiguous.Matched() || ambiguous.Reason() != SunSpecFroniusFlavorSelectionReasonAmbiguousMatch {
 		t.Fatalf("ambiguous matched=%t reason=%q", ambiguous.Matched(), ambiguous.Reason())

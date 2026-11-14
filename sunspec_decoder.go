@@ -130,6 +130,18 @@ func (m SunSpecDecodedModel) Fact(fieldID string) (SunSpecFact, bool) {
 	}
 	return SunSpecFact{}, false
 }
+
+// TextFact returns the text of the first fact with field identifier fieldID
+// and true when that fact decoded valid as text. It returns "" and false when
+// the fact is absent, not valid or not text.
+func (m SunSpecDecodedModel) TextFact(fieldID string) (string, bool) {
+	fact, ok := m.Fact(fieldID)
+	if !ok || fact.Value.State() != SunSpecValueValid {
+		return "", false
+	}
+	return fact.Value.Text()
+}
+
 func cloneSunSpecFact(fact SunSpecFact) SunSpecFact {
 	fact.Value.raw = append([]uint16(nil), fact.Value.raw...)
 	fact.Value.bitSymbols = append([]string(nil), fact.Value.bitSymbols...)
@@ -249,6 +261,33 @@ func standardSunSpecDecoderKeys(revision SunSpecSchemaRevision, definitions []su
 // count. The result is the usual SunSpecChainPlanSpec.DecoderKeys.
 func (r SunSpecDecoderRegistry) DecoderKeys() []SunSpecDecoderKey {
 	return append([]SunSpecDecoderKey(nil), r.keys...)
+}
+
+// SchemaRevision returns the schema revision the registry decodes; it is
+// empty for the zero value.
+func (r SunSpecDecoderRegistry) SchemaRevision() SunSpecSchemaRevision { return r.revision }
+
+// DefinitionCount returns the number of fixed-length model definitions the
+// registry holds. Definitions whose length follows a repeat count are resolved
+// on demand and are not counted. It is zero for the zero value.
+func (r SunSpecDecoderRegistry) DefinitionCount() int { return len(r.definitions) }
+
+// Clone returns a copy of the registry that shares no catalog storage with it:
+// the decoder keys, the definitions and their points, enum symbols and fixed
+// scales are copied.
+func (r SunSpecDecoderRegistry) Clone() SunSpecDecoderRegistry {
+	cloned := SunSpecDecoderRegistry{revision: r.revision, keys: append([]SunSpecDecoderKey(nil), r.keys...), definitions: make(map[SunSpecDecoderKey]sunSpecModelDefinition, len(r.definitions))}
+	for key, definition := range r.definitions {
+		definition.points = cloneSunSpecPointDefinitions(definition.points)
+		for index := range definition.points {
+			if definition.points[index].fixedScale != nil {
+				scale := *definition.points[index].fixedScale
+				definition.points[index].fixedScale = &scale
+			}
+		}
+		cloned.definitions[key] = definition
+	}
+	return cloned
 }
 func (r SunSpecDecoderRegistry) definition(key SunSpecDecoderKey) (sunSpecModelDefinition, bool) {
 	definition, ok := r.definitions[key]

@@ -343,3 +343,125 @@ func stringWords(value string, words int) []uint16 {
 	}
 	return out
 }
+
+func TestSunSpecDecoderRegistryReadAccessorsReportCatalogState(t *testing.T) {
+	for _, revision := range []SunSpecSchemaRevision{SunSpecModelsRevisionV1, SunSpecModelsRevisionV2} {
+		registry, err := NewStandardSunSpecDecoderRegistry(revision)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if registry.SchemaRevision() != revision || registry.SchemaRevision() != registry.revision {
+			t.Fatalf("schema revision=%q want %q", registry.SchemaRevision(), revision)
+		}
+		if registry.DefinitionCount() == 0 || registry.DefinitionCount() != len(registry.definitions) {
+			t.Fatalf("%s definition count=%d want %d", revision, registry.DefinitionCount(), len(registry.definitions))
+		}
+	}
+	var zero SunSpecDecoderRegistry
+	if zero.SchemaRevision() != "" || zero.DefinitionCount() != 0 {
+		t.Fatalf("zero registry revision=%q count=%d", zero.SchemaRevision(), zero.DefinitionCount())
+	}
+}
+
+func TestSunSpecDecoderRegistryCloneSharesNoCatalogStorage(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	key := SunSpecDecoderKey{ModelID: 113, ModelLength: 60, SchemaRevision: testSunSpecModelsRevision}
+	definition := registry.definitions[key]
+	scale := int16(-2)
+	definition.points = cloneSunSpecPointDefinitions(definition.points)
+	definition.points[2].fixedScale = &scale
+	registry.definitions[key] = definition
+
+	clone := registry.Clone()
+	if clone.revision != registry.revision || !reflect.DeepEqual(clone.keys, registry.keys) || len(clone.definitions) != len(registry.definitions) {
+		t.Fatalf("clone revision=%q keys=%d definitions=%d", clone.revision, len(clone.keys), len(clone.definitions))
+	}
+	for candidate, original := range registry.definitions {
+		copied, ok := clone.definitions[candidate]
+		if !ok || copied.key != original.key || copied.topology != original.topology || copied.compatibility != original.compatibility || len(copied.points) != len(original.points) || (copied.geometry == nil) != (original.geometry == nil) {
+			t.Fatalf("definition %v not copied", candidate)
+		}
+		for index := range original.points {
+			want, got := original.points[index], copied.points[index]
+			if (want.fixedScale == nil) != (got.fixedScale == nil) || want.fixedScale != nil && (*want.fixedScale != *got.fixedScale || want.fixedScale == got.fixedScale) {
+				t.Fatalf("definition %v point %d fixed scale not deep copied", candidate, index)
+			}
+			want.fixedScale, got.fixedScale = nil, nil
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("definition %v point %d differs", candidate, index)
+			}
+		}
+	}
+
+	clone.keys[0].ModelLength++
+	copied := clone.definitions[key]
+	*copied.points[2].fixedScale = 7
+	copied.points[0].fieldID = "changed-clone"
+	enum := -1
+	for index, point := range copied.points {
+		if len(point.symbols) > 0 {
+			enum = index
+			break
+		}
+	}
+	if enum < 0 {
+		t.Fatal("model 113 has no enum point")
+	}
+	for value := range copied.points[enum].symbols {
+		copied.points[enum].symbols[value] = "changed-clone"
+	}
+	delete(clone.definitions, SunSpecDecoderKey{ModelID: 1, ModelLength: 65, SchemaRevision: testSunSpecModelsRevision})
+	original := registry.definitions[key]
+	if registry.keys[0] == clone.keys[0] || *original.points[2].fixedScale != -2 || original.points[0].fieldID == "changed-clone" || len(registry.definitions) == len(clone.definitions) {
+		t.Fatal("clone shares catalog storage with its original")
+	}
+	for _, symbol := range original.points[enum].symbols {
+		if symbol == "changed-clone" {
+			t.Fatal("clone shares enum symbols with its original")
+		}
+	}
+	var zero SunSpecDecoderRegistry
+	if got := zero.Clone(); got.revision != "" || got.keys != nil || got.definitions == nil || len(got.definitions) != 0 {
+		t.Fatalf("zero clone=%#v", got)
+	}
+}
+
+func TestSunSpecDecodedModelTextFactReadsOnlyValidText(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	model, err := registry.DecodeOccurrence(commonOccurrence(t, registry, "Maker", "Model", "1.0", 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for field, want := range map[string]string{"device.manufacturer": "Maker", "device.model": "Model", "device.version": "1.0"} {
+		if got, ok := model.TextFact(field); !ok || got != want {
+			t.Fatalf("%s=%q ok=%t want %q", field, got, ok, want)
+		}
+	}
+	if got, ok := model.TextFact("device.absent"); ok || got != "" {
+		t.Fatalf("absent field=%q ok=%t", got, ok)
+	}
+	unset, err := registry.DecodeOccurrence(commonOccurrence(t, registry, "Maker", "Model", "", 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fact, ok := unset.Fact("device.version"); !ok || fact.Value.State() == SunSpecValueValid {
+		t.Fatalf("unset version fact=%#v ok=%t", fact, ok)
+	}
+	if got, ok := unset.TextFact("device.version"); ok || got != "" {
+		t.Fatalf("non-valid text=%q ok=%t", got, ok)
+	}
+	inverter, err := registry.DecodeOccurrence(inverterOccurrence(t, registry, 113, nil, 2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fact, ok := inverter.Fact("inverter.ac.frequency"); !ok || fact.Value.State() != SunSpecValueValid {
+		t.Fatalf("numeric fact=%#v ok=%t", fact, ok)
+	}
+	if got, ok := inverter.TextFact("inverter.ac.frequency"); ok || got != "" {
+		t.Fatalf("numeric fact as text=%q ok=%t", got, ok)
+	}
+	guarded := SunSpecDecodedModel{facts: []SunSpecFact{{FieldID: "device.version", Value: SunSpecValue{pointType: SunSpecTypeString, state: SunSpecValueInvalidEncoding, text: "1.0", hasText: true}}}}
+	if got, ok := guarded.TextFact("device.version"); ok || got != "" {
+		t.Fatalf("text of a non-valid fact=%q ok=%t", got, ok)
+	}
+}

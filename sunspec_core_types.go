@@ -1,6 +1,9 @@
 package modbusreg
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // SunSpecSchemaRevision names one pinned SunSpec model-definition revision,
 // such as SunSpecModelsRevisionV1. Plans, decoder keys and registries compare
@@ -118,10 +121,123 @@ type SunSpecModelOccurrence = SunSpecOccurrence
 // raw chain image, the complete occurrences in chain order and the logical
 // views that delivered them. The zero value, which SunSpecChain.AdmitReplay
 // returns while the walk continues, has no raw words. Accessors return copies.
+// A snapshot assembled by NewSunSpecChainSnapshot is checked only for valid
+// source views; WireChain reports whether it is a consistent terminal chain.
 type SunSpecChainSnapshot struct {
 	occurrences []SunSpecOccurrence
 	raw         []uint16
 	sources     []LogicalViewRecord
+}
+
+// NewSunSpecChainSnapshot assembles a snapshot from copies of a raw chain
+// image, occurrences in chain order and the source views that delivered them.
+// Each source view is revalidated; an invalid one, such as the zero value,
+// returns an error naming its index. The raw words and occurrences are not
+// checked against each other or against the views: WireChain and every
+// evaluation of the snapshot do that, and assembly grants no admission.
+func NewSunSpecChainSnapshot(raw []uint16, occurrences []SunSpecOccurrence, sources []LogicalViewSnapshot) (SunSpecChainSnapshot, error) {
+	snapshot := SunSpecChainSnapshot{raw: append([]uint16(nil), raw...), occurrences: make([]SunSpecOccurrence, len(occurrences))}
+	for index, occurrence := range occurrences {
+		snapshot.occurrences[index] = cloneOccurrence(occurrence)
+	}
+	for index, source := range sources {
+		validated, err := NewLogicalViewSnapshot(source.Record())
+		if err != nil {
+			return SunSpecChainSnapshot{}, fmt.Errorf("SunSpec chain snapshot source view %d: %w", index, err)
+		}
+		snapshot.sources = append(snapshot.sources, validated.Record())
+	}
+	return snapshot, nil
+}
+
+// Clone returns a copy of the snapshot that shares no storage with it.
+func (s SunSpecChainSnapshot) Clone() SunSpecChainSnapshot {
+	cloned := SunSpecChainSnapshot{raw: s.RawWords(), occurrences: s.Occurrences()}
+	for _, source := range s.SourceViews() {
+		cloned.sources = append(cloned.sources, source.Record())
+	}
+	return cloned
+}
+
+// RawWordCount returns the number of raw chain words without copying them.
+func (s SunSpecChainSnapshot) RawWordCount() int { return len(s.raw) }
+
+// OccurrenceCount returns the number of complete occurrences without copying
+// them.
+func (s SunSpecChainSnapshot) OccurrenceCount() int { return len(s.occurrences) }
+
+// SourceViewCount returns the number of retained source views without copying
+// them.
+func (s SunSpecChainSnapshot) SourceViewCount() int { return len(s.sources) }
+
+// WireChain returns the wire key of every occurrence in chain order followed by
+// the end marker, and true, only when the snapshot is a consistent terminal
+// chain: the raw image starts with the SunSpec signature, holds each
+// occurrence's words at contiguous header offsets and ends with the end
+// marker; every occurrence's source spans cover its words exactly from
+// distinct retained views. Otherwise it returns nil and false.
+func (s SunSpecChainSnapshot) WireChain() ([]SunSpecWireKey, bool) {
+	raw := s.RawWords()
+	if len(raw) < 4 || raw[0] != sunSpecSignatureFirst || raw[1] != sunSpecSignatureSecond {
+		return nil, false
+	}
+	occurrences := s.Occurrences()
+	views := s.SourceViews()
+	viewByID := make(map[uint64]LogicalViewRecord, len(views))
+	for _, view := range views {
+		record := view.Record()
+		if record.LogicalViewID == 0 {
+			return nil, false
+		}
+		if _, duplicate := viewByID[record.LogicalViewID]; duplicate {
+			return nil, false
+		}
+		viewByID[record.LogicalViewID] = record
+	}
+	keys := make([]SunSpecWireKey, 0, len(occurrences)+1)
+	offset := 2
+	var nextHeader uint32
+	for index, occurrence := range occurrences {
+		if occurrence.Ordinal != uint32(index+1) || offset+2 > len(raw) {
+			return nil, false
+		}
+		key := SunSpecWireKey{ModelID: raw[offset], ModelLength: raw[offset+1]}
+		end := offset + 2 + int(key.ModelLength)
+		if key.ModelID == SunSpecEndModelID || key.ModelLength == 0 || end > len(raw) || key != occurrence.WireKey || !slices.Equal(raw[offset:end], occurrence.Words()) {
+			return nil, false
+		}
+		if index == 0 {
+			if occurrence.HeaderOffset < 2 {
+				return nil, false
+			}
+			nextHeader = uint32(occurrence.HeaderOffset)
+		}
+		if uint32(occurrence.HeaderOffset) != nextHeader || uint32(occurrence.PayloadOffset) != nextHeader+2 {
+			return nil, false
+		}
+		wordCursor := 0
+		for _, span := range occurrence.SourceSpans() {
+			record, ok := viewByID[span.LogicalViewID]
+			spanEnd := wordCursor + int(span.WordCount)
+			if !ok || span.WordCount == 0 || spanEnd > len(occurrence.words) || span.PDUOffset != record.SliceOffset || span.WordCount != record.SliceWordCount || len(record.Words) != int(span.WordCount) || !slices.Equal(record.Words, occurrence.words[wordCursor:spanEnd]) {
+				return nil, false
+			}
+			wordCursor = spanEnd
+		}
+		if wordCursor != len(occurrence.words) {
+			return nil, false
+		}
+		keys = append(keys, key)
+		offset = end
+		nextHeader += uint32(len(occurrence.words))
+		if nextHeader > 65535 {
+			return nil, false
+		}
+	}
+	if offset+2 != len(raw) || raw[offset] != SunSpecEndModelID || raw[offset+1] != 0 {
+		return nil, false
+	}
+	return append(keys, SunSpecWireKey{ModelID: SunSpecEndModelID, ModelLength: 0}), true
 }
 
 func cloneOccurrence(o SunSpecOccurrence) SunSpecOccurrence {

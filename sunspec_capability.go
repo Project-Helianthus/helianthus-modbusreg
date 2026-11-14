@@ -139,7 +139,21 @@ func (d SunSpecCapabilityDecision) Facts() []SunSpecCapabilityFact {
 // SourceViews returns copies of the snapshot's source views; it is empty when
 // rejected.
 func (d SunSpecCapabilityDecision) SourceViews() []LogicalViewSnapshot {
-	return cloneSunSpecLogicalViewSnapshots(d.views)
+	return SunSpecCloneSourceViews(d.views)
+}
+
+// Clone returns a copy of the decision that shares no evidence with it: the
+// source occurrence, the facts and the source views are copied. A rejected
+// decision's clone carries empty, non-nil facts and source views.
+func (d SunSpecCapabilityDecision) Clone() SunSpecCapabilityDecision {
+	out := d
+	if d.source != nil {
+		source := cloneOccurrence(*d.source)
+		out.source = &source
+	}
+	out.facts = cloneSunSpecCapabilityFacts(d.facts)
+	out.views = SunSpecCloneSourceViews(d.views)
+	return out
 }
 
 type sunSpecCapabilityField struct{ id, sourceUnit, unit string }
@@ -161,6 +175,17 @@ var threePhaseMonitoringFields = []sunSpecCapabilityField{
 	{"inverter.events.2", "", "none"},
 }
 
+// SunSpecThreePhaseMonitoringFieldIDs returns a new slice of the field
+// identifiers a SunSpecThreePhaseMonitoringCapabilityID decision requires, in
+// the fixed order of SunSpecCapabilityDecision.Facts.
+func SunSpecThreePhaseMonitoringFieldIDs() []string {
+	fields := make([]string, len(threePhaseMonitoringFields))
+	for index, field := range threePhaseMonitoringFields {
+		fields[index] = field.id
+	}
+	return fields
+}
+
 // EvaluateThreePhaseMonitoring decides the three-phase monitoring capability
 // from a completed chain snapshot. The snapshot must be a consistent terminal
 // chain that DecodeChain accepts, with a qualifying Common Model and valid
@@ -173,7 +198,7 @@ func (r SunSpecDecoderRegistry) EvaluateThreePhaseMonitoring(snapshot SunSpecCha
 	rejected := func(reason SunSpecCapabilityReason) SunSpecCapabilityDecision {
 		return SunSpecCapabilityDecision{reason: reason}
 	}
-	if _, ok := sunSpecSnapshotWireChain(snapshot); !ok {
+	if _, ok := snapshot.WireChain(); !ok {
 		return rejected(SunSpecCapabilityReasonInvalidChain)
 	}
 	exactSources := make([]SunSpecOccurrence, 0, 2)
@@ -343,11 +368,15 @@ func cloneSunSpecValue(value SunSpecValue) SunSpecValue {
 	return value
 }
 
-func cloneSunSpecLogicalViewSnapshots(views []LogicalViewSnapshot) []LogicalViewSnapshot {
+// SunSpecCloneSourceViews returns copies of source views that share no
+// storage with them; the result is empty and non-nil for no views. A copy is
+// valid only when its view is: an invalid view, such as the zero value, stays
+// invalid.
+func SunSpecCloneSourceViews(views []LogicalViewSnapshot) []LogicalViewSnapshot {
 	out := make([]LogicalViewSnapshot, len(views))
 	for index, view := range views {
 		record := view.Record()
-		out[index] = LogicalViewSnapshot{record: cloneSunSpecLogicalViewRecord(record), valid: true}
+		out[index] = LogicalViewSnapshot{record: cloneSunSpecLogicalViewRecord(record), valid: view.valid}
 	}
 	return out
 }

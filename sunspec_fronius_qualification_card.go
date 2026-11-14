@@ -101,17 +101,13 @@ func (SunSpecFroniusQualificationCard) ExpectedChain() []SunSpecWireKey {
 // considered by a later semantic owner. It is not a promotion or publication
 // decision and does not expose facts from any other model in the retained chain.
 func (SunSpecFroniusQualificationCard) SemanticCandidateFieldIDs() []string {
-	fields := make([]string, len(threePhaseMonitoringFields))
-	for index, field := range threePhaseMonitoringFields {
-		fields[index] = field.id
-	}
-	return fields
+	return SunSpecThreePhaseMonitoringFieldIDs()
 }
 
 // NewReplayChain returns a fresh stateful acquisition adapter for one replay.
 // Every request is FC03 and remains subject to the card's finite bounds.
 func (card SunSpecFroniusQualificationCard) NewReplayChain(registry SunSpecDecoderRegistry) (*SunSpecChain, error) {
-	if registry.revision != card.SchemaRevision() {
+	if registry.SchemaRevision() != card.SchemaRevision() {
 		return nil, fmt.Errorf("qualification requires the pinned SunSpec V1 registry")
 	}
 	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
@@ -129,7 +125,7 @@ func (card SunSpecFroniusQualificationCard) NewReplayChain(registry SunSpecDecod
 // Qualify derives the existing immutable qualification observation only after
 // the complete replay also matches the card's exact observed unit and flavor.
 func (card SunSpecFroniusQualificationCard) Qualify(registry SunSpecDecoderRegistry, snapshot SunSpecChainSnapshot) (SunSpecQualificationObservation, error) {
-	if registry.revision != card.SchemaRevision() {
+	if registry.SchemaRevision() != card.SchemaRevision() {
 		return SunSpecQualificationObservation{}, fmt.Errorf("qualification requires the pinned SunSpec V1 registry")
 	}
 	snapshot, err := card.replayExactAcquisition(registry, snapshot)

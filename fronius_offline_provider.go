@@ -61,7 +61,7 @@ func (p *FroniusOfflineProvider) Run(ctx context.Context, registry SunSpecDecode
 	if reader == nil || request.MaxWords == 0 || request.MaxWords > card.Limits().MaxTotalWords ||
 		request.MaxOccurrences == 0 || request.MaxOccurrences > card.Limits().MaxOccurrences ||
 		request.MaxSourceViews == 0 || request.MaxSourceViews > MaxSunSpecPhaseOneChainWords ||
-		k.CardID != card.ID() || k.Schema != card.SchemaRevision() || registry.revision != card.SchemaRevision() || len(registry.definitions) == 0 ||
+		k.CardID != card.ID() || k.Schema != card.SchemaRevision() || registry.SchemaRevision() != card.SchemaRevision() || registry.DefinitionCount() == 0 ||
 		k.RequestedFunction != card.Function() || k.ReceivedFunction != card.Function() || k.Table != HoldingRegisters || k.UnitID != card.UnitID() ||
 		(k.Transport != TransportTCP && k.Transport != TransportRTU) {
 		return fail(fmt.Errorf("invalid offline reader, bounds or native card input"))
@@ -83,7 +83,7 @@ func (p *FroniusOfflineProvider) Run(ctx context.Context, registry SunSpecDecode
 	// Check the supplied sizes before replay/cloning. The retained owner applies
 	// native validation and rechecks token/context at the publication boundary.
 	o := result.Observation
-	if len(o.snapshot.raw) > int(request.MaxWords) || len(o.snapshot.occurrences) > int(request.MaxOccurrences) || len(o.snapshot.sources) > int(request.MaxSourceViews) {
+	if o.snapshot.RawWordCount() > int(request.MaxWords) || o.snapshot.OccurrenceCount() > int(request.MaxOccurrences) || o.snapshot.SourceViewCount() > int(request.MaxSourceViews) {
 		return fail(fmt.Errorf("offline result exceeds caller bounds"))
 	}
 	return p.retained.Commit(token, registry, o)
