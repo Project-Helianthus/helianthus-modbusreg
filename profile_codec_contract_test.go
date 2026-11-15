@@ -250,11 +250,11 @@ func newFactory(
 	state reg.SampleLedgerState,
 ) (*fixtureValidationFactory, *reg.SampleLedger) {
 	t.Helper()
-	ledger, err := reg.NewSampleLedger(state, 0)
+	sampleLedger, err := reg.NewSampleLedger(state, 0)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
-	return newFixtureValidationFactory(t, profile), ledger
+	return newFixtureValidationFactory(t, profile), sampleLedger
 }
 
 func emptyLedgerState(
@@ -923,7 +923,7 @@ func TestSourceTimeStateIsExplicit(t *testing.T) {
 
 func TestFixtureReplayDoesNotIssueProductionSampleIDs(t *testing.T) {
 	profile := profileFixture(t)
-	factory, ledger := newFactory(t, profile, emptyLedgerState(t, profile))
+	factory, sampleLedger := newFactory(t, profile, emptyLedgerState(t, profile))
 	spec := successfulObservationSpec(t, profile)
 	first, err := replayWithFactory(factory, spec)
 	if err != nil {
@@ -943,7 +943,7 @@ func TestFixtureReplayDoesNotIssueProductionSampleIDs(t *testing.T) {
 	if first.FixtureID() == second.FixtureID() {
 		t.Fatal("different fixture payloads reused a fixture identity")
 	}
-	if ledger.ExportState().HighWater != 0 {
+	if sampleLedger.ExportState().HighWater != 0 {
 		t.Fatal("fixture replay advanced the production ledger")
 	}
 }

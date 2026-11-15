@@ -58,6 +58,35 @@ func internalDigestSet(t *testing.T, dependencies []Dependency) DependencySet {
 	return set
 }
 
+// internalDigestProfile builds a validated synthetic single-wire profile over
+// set, whose dependencies use the two-word u32-energy codec and cite evidence.
+func internalDigestProfile(t *testing.T, set DependencySet, evidence string) ProfileDescriptor {
+	t.Helper()
+	v := MustParseVersion("1.0.0")
+	codec, err := NewCodec(CodecSpec{
+		ID: "u32-energy", Version: v, RawWordCount: 2, WordPermutation: []uint16{1, 0},
+		IntraWordByteOrder: ByteOrderModbus, Representation: RepresentationUnsignedInteger,
+		Scale:  ScaleSpec{Source: ScaleConstant, ApplicationOrder: ScaleAfterRepresentation, Numerator: 1, Denominator: 10},
+		String: StringSpec{Applicability: StringNotApplicable}, OutputProfileType: "decimal", ValidityBehavior: ValidityRejectSentinel,
+	})
+	if err != nil {
+		t.Fatalf("NewCodec: %v", err)
+	}
+	profile, err := NewProfileDescriptor(ProfileDescriptorSpec{
+		SchemaVersion: v, ID: "synthetic.standard.ledger", Version: v, Kind: ProfileStandardFamily,
+		StandardApplicability: []string{"applicability-v1"}, ModelApplicability: []string{}, KnownExclusions: []string{},
+		RuntimeContractVersion: v, DetectorVersion: v, CodecContractVersion: v, NormalizationVersion: v, CoherenceVersion: v, QualificationVersion: v,
+		Codecs: []Codec{codec}, Dependencies: set,
+		Coherence: CoherencePolicySpec{Version: v, Mode: CoherenceSingleWireResponse, AcquisitionOrder: AcquisitionOrderNotApplicable, RetrySetBehavior: RetrySetNotApplicable},
+		Evidence:  []EvidenceReference{{ID: evidence, PublicationDisposition: PublicationMetadataOnly}},
+		Maturity:  MaturityExperimental, State: ProfileActive,
+	})
+	if err != nil {
+		t.Fatalf("NewProfileDescriptor: %v", err)
+	}
+	return profile
+}
+
 func TestRuntimeDependencySetDigestCanonicalGoldenVector(t *testing.T) {
 	first := internalDigestDependency(t, "energy-a", "1.0.0", 101, "evidence-a")
 	second := internalDigestDependency(t, "energy-b", "2.3.4", 102, "evidence-b")
@@ -283,12 +312,9 @@ func TestConcurrentCancellationRetriesJoinTerminalPersistence(t *testing.T) {
 		retryRelease: make(chan struct{}),
 	}
 	factory := &ObservationFactory{
-		profile: ProfileDescriptor{spec: ProfileDescriptorSpec{
-			Coherence: CoherencePolicySpec{Mode: CoherenceSingleWireResponse},
-			Dependencies: internalDigestSet(t, []Dependency{
-				internalDigestDependency(t, "reuse", "1.0.0", 101, "reuse-evidence"),
-			}),
-		}},
+		profile: internalDigestProfile(t, internalDigestSet(t, []Dependency{
+			internalDigestDependency(t, "reuse", "1.0.0", 101, "reuse-evidence"),
+		}), "reuse-evidence"),
 		ledger:                ledger,
 		committer:             committer,
 		terminalCommitTimeout: DefaultTerminalCommitTimeout,

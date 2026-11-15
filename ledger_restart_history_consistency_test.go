@@ -49,17 +49,17 @@ func TestQ28RestartHistoryConsistency(t *testing.T) {
 	check := func(t *testing.T, state reg.LedgerRestartState, wantValid bool) {
 		t.Helper()
 		t.Run("restore", func(t *testing.T) {
-			ledger, err := reg.NewSampleLedgerFromRestart(initial, 0, limits, state)
+			sampleLedger, err := reg.NewSampleLedgerFromRestart(initial, 0, limits, state)
 			if !wantValid {
-				if err == nil || ledger != nil {
+				if err == nil || sampleLedger != nil {
 					t.Fatal("invalid history was restored")
 				}
 				return
 			}
-			if err != nil || ledger == nil {
+			if err != nil || sampleLedger == nil {
 				t.Fatalf("valid history was rejected: %v", err)
 			}
-			got, err := ledger.ExportRestartState()
+			got, err := sampleLedger.ExportRestartState()
 			if err != nil || !reflect.DeepEqual(got, state) {
 				t.Fatalf("restart round trip = %+v, %v; want %+v", got, err, state)
 			}
@@ -92,8 +92,8 @@ func TestQ28RestartHistoryConsistency(t *testing.T) {
 			if err != nil || !reflect.DeepEqual(decoded, state) {
 				t.Fatalf("JSON round trip = %+v, %v; want %+v", decoded, err, state)
 			}
-			ledger, err := reg.NewSampleLedgerFromRestart(initial, 0, limits, decoded)
-			if err != nil || ledger == nil {
+			sampleLedger, err := reg.NewSampleLedgerFromRestart(initial, 0, limits, decoded)
+			if err != nil || sampleLedger == nil {
 				t.Fatalf("decoded valid history was rejected: %v", err)
 			}
 		})

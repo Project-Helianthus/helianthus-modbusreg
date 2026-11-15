@@ -49,6 +49,11 @@ const (
 	// issuer-domain/high-water state, not an arbitrary sample-ID collection.
 	MaxSampleLedgerRecords = 0
 
+	// MaxLedgerRestartAuditTombstones bounds the audit tombstones one
+	// serialized ledger restart state carries: one per 64 bytes of the
+	// serialized-contract byte budget.
+	MaxLedgerRestartAuditTombstones = MaxSerializedContractBytes / 64
+
 	// MaxDeclaredCoherenceSkew bounds source/receipt collection windows without
 	// defining downstream freshness or availability policy.
 	MaxDeclaredCoherenceSkew = 24 * time.Hour
@@ -86,7 +91,10 @@ func DefaultLedgerLimits() LedgerLimits {
 	}
 }
 
-func validateLedgerLimits(limits LedgerLimits) error {
+// ValidateLedgerLimits checks that every ledger bound is positive, within its
+// contract maximum, and that the retained claim-entry bound lies between the
+// per-attempt bound and its product with the retained-attempt bound.
+func ValidateLedgerLimits(limits LedgerLimits) error {
 	positive := []int{
 		limits.MaxRetainedAttempts,
 		limits.MaxClaimEntriesPerAttempt,
@@ -126,13 +134,22 @@ func validateLedgerLimits(limits LedgerLimits) error {
 	return nil
 }
 
-func validateBoundedString(field, value string, required bool) error {
+// ValidateBoundedString checks the contract string rule: valid UTF-8 of at
+// most MaxContractStringBytes bytes, and non-empty when required. The error
+// names field.
+func ValidateBoundedString(field, value string, required bool) error {
 	if (required && value == "") ||
 		len(value) > MaxContractStringBytes ||
 		!utf8.ValidString(value) {
 		return fmt.Errorf("%s exceeds the contract string boundary", field)
 	}
 	return nil
+}
+
+// validateBoundedString is ValidateBoundedString for the root contract files
+// that call the unexported name.
+func validateBoundedString(field, value string, required bool) error {
+	return ValidateBoundedString(field, value, required)
 }
 
 func validateBoundedStrings(
@@ -145,7 +162,7 @@ func validateBoundedStrings(
 		return fmt.Errorf("%s exceeds the contract collection boundary", field)
 	}
 	for _, value := range values {
-		if err := validateBoundedString(field, value, true); err != nil {
+		if err := ValidateBoundedString(field, value, true); err != nil {
 			return err
 		}
 	}
@@ -167,7 +184,12 @@ func (budget *aggregateBudget) consume(amount uint64) error {
 var timeValueType = reflect.TypeOf(time.Time{})
 var dependencyResultValueType = reflect.TypeOf(DependencyResult{})
 
-func preflightAggregate(values ...any) error {
+// PreflightAggregate checks that values together fit the cumulative contract
+// budget of MaxSerializedContractBytes, counted by a fixed per-kind estimate
+// of their encoded size, and nest at most MaxContractJSONDepth levels deep.
+// Only strings, booleans, integers, slices, arrays, structs, pointers,
+// interfaces and time.Time values are accepted.
+func PreflightAggregate(values ...any) error {
 	budget := aggregateBudget{remaining: MaxSerializedContractBytes}
 	for _, value := range values {
 		if err := consumeAggregateValue(
@@ -180,6 +202,10 @@ func preflightAggregate(values ...any) error {
 	}
 	return nil
 }
+
+// preflightAggregate is PreflightAggregate for the root contract files that
+// call the unexported name.
+func preflightAggregate(values ...any) error { return PreflightAggregate(values...) }
 
 func consumeAggregateValue(
 	budget *aggregateBudget,

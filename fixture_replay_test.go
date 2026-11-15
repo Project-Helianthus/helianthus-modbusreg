@@ -122,7 +122,7 @@ func TestPersistedAttemptMustMatchProfileMode(t *testing.T) {
 			state.Revision = 1
 			state.HighWater = 1
 			state.LastCommittedAttempt = test.attempt
-			ledger, err := reg.NewSampleLedgerFromRestart(
+			sampleLedger, err := reg.NewSampleLedgerFromRestart(
 				state,
 				1,
 				reg.DefaultLedgerLimits(),
@@ -137,7 +137,7 @@ func TestPersistedAttemptMustMatchProfileMode(t *testing.T) {
 			}
 			if _, err := reg.NewObservationFactory(
 				test.profile,
-				ledger,
+				sampleLedger,
 				&memoryPublicationCommitter{},
 			); err == nil {
 				t.Fatal("factory accepted mode-incompatible persisted attempt")

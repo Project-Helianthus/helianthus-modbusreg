@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"time"
 	"unicode/utf8"
 
@@ -59,7 +60,7 @@ type profileDTO struct {
 }
 
 func versionPointer(version Version) *string {
-	if !version.valid() {
+	if !version.Valid() {
 		return nil
 	}
 	value := version.String()
@@ -172,7 +173,10 @@ func cloneOverlayDeltas(
 	return result
 }
 
-func parseRequiredVersion(field, value string) (Version, error) {
+// ParseRequiredVersion parses a required serialized contract version with
+// ParseVersion; an empty value fails like any malformed one. A parse error is
+// prefixed with the name of field.
+func ParseRequiredVersion(field, value string) (Version, error) {
 	version, err := ParseVersion(value)
 	if err != nil {
 		return Version{}, fmt.Errorf("%s: %w", field, err)
@@ -184,54 +188,54 @@ func parseOptionalVersion(field string, value *string) (Version, error) {
 	if value == nil {
 		return Version{}, nil
 	}
-	return parseRequiredVersion(field, *value)
+	return ParseRequiredVersion(field, *value)
 }
 
 func profileFromDTO(record profileDTO) (ProfileDescriptor, error) {
-	schema, err := parseRequiredVersion("schema_version", record.SchemaVersion)
+	schema, err := ParseRequiredVersion("schema_version", record.SchemaVersion)
 	if err != nil || schema != schemaVersionV1 {
 		return ProfileDescriptor{}, fmt.Errorf("profile schema is incompatible")
 	}
-	profileVersion, err := parseRequiredVersion("profile_version", record.Version)
+	profileVersion, err := ParseRequiredVersion("profile_version", record.Version)
 	if err != nil {
 		return ProfileDescriptor{}, err
 	}
-	runtimeVersion, err := parseRequiredVersion(
+	runtimeVersion, err := ParseRequiredVersion(
 		"runtime_contract_version",
 		record.RuntimeContractVersion,
 	)
 	if err != nil {
 		return ProfileDescriptor{}, err
 	}
-	detectorVersion, err := parseRequiredVersion(
+	detectorVersion, err := ParseRequiredVersion(
 		"detector_version",
 		record.DetectorVersion,
 	)
 	if err != nil {
 		return ProfileDescriptor{}, err
 	}
-	codecContractVersion, err := parseRequiredVersion(
+	codecContractVersion, err := ParseRequiredVersion(
 		"codec_contract_version",
 		record.CodecContractVersion,
 	)
 	if err != nil {
 		return ProfileDescriptor{}, err
 	}
-	normalizationVersion, err := parseRequiredVersion(
+	normalizationVersion, err := ParseRequiredVersion(
 		"normalization_version",
 		record.NormalizationVersion,
 	)
 	if err != nil {
 		return ProfileDescriptor{}, err
 	}
-	coherenceVersion, err := parseRequiredVersion(
+	coherenceVersion, err := ParseRequiredVersion(
 		"coherence_version",
 		record.CoherenceVersion,
 	)
 	if err != nil {
 		return ProfileDescriptor{}, err
 	}
-	qualificationVersion, err := parseRequiredVersion(
+	qualificationVersion, err := ParseRequiredVersion(
 		"qualification_version",
 		record.QualificationVersion,
 	)
@@ -246,14 +250,14 @@ func profileFromDTO(record profileDTO) (ProfileDescriptor, error) {
 		dependencySetVersion = Version{}
 		coherencePolicyVersion = Version{}
 	} else {
-		dependencySetVersion, err = parseRequiredVersion(
+		dependencySetVersion, err = ParseRequiredVersion(
 			"dependency_set.version",
 			record.DependencySet.Version,
 		)
 		if err != nil {
 			return ProfileDescriptor{}, err
 		}
-		coherencePolicyVersion, err = parseRequiredVersion(
+		coherencePolicyVersion, err = ParseRequiredVersion(
 			"coherence.version",
 			record.Coherence.Version,
 		)
@@ -311,10 +315,10 @@ func profileFromDTO(record profileDTO) (ProfileDescriptor, error) {
 		ID:                     record.ID,
 		Version:                profileVersion,
 		Kind:                   record.Kind,
-		StandardApplicability:  cloneStrings(record.StandardApplicability),
-		ModelApplicability:     cloneStrings(record.ModelApplicability),
-		VendorApplicability:    cloneStrings(record.VendorApplicability),
-		KnownExclusions:        cloneStrings(record.KnownExclusions),
+		StandardApplicability:  slices.Clone(record.StandardApplicability),
+		ModelApplicability:     slices.Clone(record.ModelApplicability),
+		VendorApplicability:    slices.Clone(record.VendorApplicability),
+		KnownExclusions:        slices.Clone(record.KnownExclusions),
 		RuntimeContractVersion: runtimeVersion,
 		DetectorVersion:        detectorVersion,
 		CodecContractVersion:   codecContractVersion,
@@ -345,7 +349,12 @@ func profileFromDTO(record profileDTO) (ProfileDescriptor, error) {
 	})
 }
 
-func decodeStrict(data []byte, target any) error {
+// DecodeStrict decodes exactly one JSON value of data into target, a non-nil
+// pointer. data first passes the bounded input preflight of the contract:
+// at most MaxSerializedContractBytes of valid UTF-8 without lone surrogates,
+// at most MaxContractJSONDepth levels of nesting, bounded arrays and no
+// duplicate or unknown object keys for the target's record type.
+func DecodeStrict(data []byte, target any) error {
 	if err := preflightJSON(data, target); err != nil {
 		return err
 	}
@@ -374,8 +383,11 @@ func (buffer *boundedBuffer) Write(data []byte) (int, error) {
 	return buffer.Buffer.Write(data)
 }
 
-func marshalBounded(value any) ([]byte, error) {
-	if err := preflightAggregate(value); err != nil {
+// MarshalBounded encodes value as compact JSON without a trailing newline.
+// value first passes PreflightAggregate, and the encoding fails when it would
+// exceed MaxSerializedContractBytes.
+func MarshalBounded(value any) ([]byte, error) {
+	if err := PreflightAggregate(value); err != nil {
 		return nil, err
 	}
 	var buffer boundedBuffer
@@ -396,13 +408,13 @@ func MarshalProfileDescriptor(profile ProfileDescriptor) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return marshalBounded(record)
+	return MarshalBounded(record)
 }
 
 // UnmarshalProfileDescriptor rejects unknown fields and incompatible schemas.
 func UnmarshalProfileDescriptor(data []byte) (ProfileDescriptor, error) {
 	var record profileDTO
-	if err := decodeStrict(data, &record); err != nil {
+	if err := DecodeStrict(data, &record); err != nil {
 		return ProfileDescriptor{}, err
 	}
 	return profileFromDTO(record)
@@ -492,7 +504,7 @@ type durableObservationDTO struct {
 }
 
 func sourceTimeToDTO(source SourceTimeSpec) (sourceTimeDTO, error) {
-	if err := validateSourceTime(source); err != nil {
+	if err := ValidateSourceTime(source); err != nil {
 		return sourceTimeDTO{}, err
 	}
 	record := sourceTimeDTO{State: source.State}
@@ -528,7 +540,7 @@ func sourceTimeFromDTO(record sourceTimeDTO) (SourceTimeSpec, error) {
 }
 
 func formatRequiredTime(value time.Time, present bool) (string, error) {
-	canonical, err := canonicalRequiredTime(value, present)
+	canonical, err := CanonicalRequiredTime(value, present)
 	if err != nil {
 		return "", err
 	}
@@ -554,7 +566,7 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 	if err := preflightObservationSpec(spec); err != nil {
 		return observationDTO{}, err
 	}
-	spec = cloneObservationSpec(spec)
+	spec = CloneObservationSpec(spec)
 	if err := canonicalizeObservationTimes(&spec); err != nil {
 		return observationDTO{}, err
 	}
@@ -579,11 +591,11 @@ func observationSpecToDTO(spec ObservationSpec) (observationDTO, error) {
 			return observationDTO{}, fmt.Errorf("dependency %d source time: %w", index, err)
 		}
 		localReceipt := ""
-		if hasLocalReceiptTime(
+		if HasLocalReceiptTime(
 			result.LocalReceiptTime,
 			result.localReceiptTimePresent,
 		) {
-			canonicalReceipt, err := canonicalRequiredTime(
+			canonicalReceipt, err := CanonicalRequiredTime(
 				result.LocalReceiptTime,
 				result.localReceiptTimePresent,
 			)
@@ -639,11 +651,11 @@ func observationSpecFromDTO(record observationDTO) (ObservationSpec, error) {
 	if record.SchemaVersion != schemaVersionV1.String() {
 		return ObservationSpec{}, fmt.Errorf("observation schema is incompatible")
 	}
-	if !validDependencySetID(record.DependencySetID) {
+	if !ValidDependencySetID(record.DependencySetID) {
 		return ObservationSpec{}, fmt.Errorf("observation dependency-set ID is malformed")
 	}
 	parse := func(field, value string) (Version, error) {
-		return parseRequiredVersion(field, value)
+		return ParseRequiredVersion(field, value)
 	}
 	schema, err := parse("schema_version", record.SchemaVersion)
 	if err != nil {
@@ -787,7 +799,7 @@ func (spec ObservationSpec) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return marshalBounded(record)
+	return MarshalBounded(record)
 }
 
 // MarshalFixtureSpec emits deterministic synthetic fixture bytes. Such bytes
@@ -800,13 +812,13 @@ func MarshalFixtureSpec(spec ObservationSpec) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return marshalBounded(record)
+	return MarshalBounded(record)
 }
 
 // UnmarshalJSON reconstructs validated logical-view snapshots.
 func (spec *ObservationSpec) UnmarshalJSON(data []byte) error {
 	var record observationDTO
-	if err := decodeStrict(data, &record); err != nil {
+	if err := DecodeStrict(data, &record); err != nil {
 		return err
 	}
 	decoded, err := observationSpecFromDTO(record)
@@ -842,23 +854,11 @@ func MarshalObservation(observation Observation) ([]byte, error) {
 		}
 		normalizations[index] = append([]byte(nil), encoded...)
 	}
-	return marshalBounded(durableObservationDTO{
+	return MarshalBounded(durableObservationDTO{
 		SchemaVersion:         1,
 		Observation:           record,
 		RuntimeNormalizations: normalizations,
 	})
-}
-
-func validateDurableObservationEnvelope(
-	observation Observation,
-	sampleID string,
-) error {
-	candidate := observation
-	candidate.spec.SampleID = sampleID
-	if _, err := MarshalObservation(candidate); err != nil {
-		return fmt.Errorf("durable observation envelope: %w", err)
-	}
-	return nil
 }
 
 // UnmarshalObservation strictly reconstructs one production observation from
@@ -873,7 +873,7 @@ func UnmarshalObservation(
 		return Observation{}, fmt.Errorf("observation profile: %w", err)
 	}
 	var record durableObservationDTO
-	if err := decodeStrict(data, &record); err != nil {
+	if err := DecodeStrict(data, &record); err != nil {
 		return Observation{}, err
 	}
 	if record.SchemaVersion != 1 || record.Observation.SampleID == "" ||
@@ -884,7 +884,7 @@ func UnmarshalObservation(
 	if err != nil {
 		return Observation{}, err
 	}
-	observation, err := buildObservation(validatedProfile, spec)
+	observation, err := NewObservation(validatedProfile, spec)
 	if err != nil {
 		return Observation{}, err
 	}
@@ -900,19 +900,13 @@ func UnmarshalObservation(
 		if err != nil {
 			return Observation{}, fmt.Errorf("durable runtime normalization %d: %w", index, err)
 		}
-		if err := matchRuntimeNormalization(declarations[index], fields); err != nil {
+		if err := MatchRuntimeNormalization(declarations[index], fields); err != nil {
 			return Observation{}, fmt.Errorf("durable runtime normalization %d: %w", index, err)
 		}
 		observation.replayed[index].runtimeNormalizationBytes = append([]byte(nil), encoded...)
 		observation.replayed[index].runtimeNormalizationFields = fields
 	}
-	if err := validateDurableObservationEnvelope(
-		observation,
-		observation.SampleID(),
-	); err != nil {
-		return Observation{}, err
-	}
-	return observation, nil
+	return observation.WithSampleID(observation.SampleID())
 }
 
 var durableRuntimeNormalizationFields = map[string]struct{}{
@@ -1018,78 +1012,84 @@ func decodeDurableRuntimeNormalization(
 	return fields, nil
 }
 
+// MatchRuntimeNormalization checks that producer-parsed runtime normalization
+// fields agree with the declared dependency: schema version 1, a runtime
+// acquisition source whose evidence identity is the declaration's source
+// locator, the declared documentary notation, address and base, the function
+// code and logical table of the declared table, and the resolved offset and
+// word count.
+func MatchRuntimeNormalization(
+	declaration Dependency,
+	fields modbus.RuntimeNormalizationFields,
+) error {
+	normalization := declaration.Normalization().Spec()
+	expectedFunction := modbus.FunctionReadHoldingRegisters
+	if declaration.Table() == InputRegisters {
+		expectedFunction = modbus.FunctionReadInputRegisters
+	}
+	if fields.SchemaVersion != 1 ||
+		fields.SourceKind != modbus.RuntimeAcquisitionSourceRuntime ||
+		fields.SourceEvidenceID != normalization.SourceLocator ||
+		fields.DocumentaryNotation != normalization.DocumentaryNotation ||
+		fields.DocumentaryAddress != normalization.DocumentaryAddress ||
+		fields.DocumentaryAddressBase != string(normalization.DocumentaryBase) ||
+		fields.FunctionCode != expectedFunction ||
+		fields.LogicalTable != declaration.Table() ||
+		fields.NormalizedZeroBasedPDUOffset != normalization.ResolvedPDUOffset ||
+		fields.WordCount != declaration.WordCount() {
+		return fmt.Errorf("producer fields disagree with the declared dependency")
+	}
+	return nil
+}
+
+// NewRuntimeObservation validates spec like NewObservation and attaches one
+// producer-admitted runtime normalization record per dependency, in
+// declaration order: its exact encoded bytes and its parsed fields. Every
+// record is non-empty, at most MaxSerializedContractBytes long, and its fields
+// match the declared dependency (MatchRuntimeNormalization).
+func NewRuntimeObservation(
+	profile ProfileDescriptor,
+	spec ObservationSpec,
+	encoded [][]byte,
+	fields []modbus.RuntimeNormalizationFields,
+) (Observation, error) {
+	observation, err := NewObservation(profile, spec)
+	if err != nil {
+		return Observation{}, err
+	}
+	if len(encoded) != len(observation.replayed) || len(fields) != len(observation.replayed) {
+		return Observation{}, fmt.Errorf("runtime normalization records are incomplete")
+	}
+	declarations := profile.Dependencies().Dependencies()
+	for index := range observation.replayed {
+		if len(encoded[index]) == 0 || len(encoded[index]) > MaxSerializedContractBytes {
+			return Observation{}, fmt.Errorf("runtime normalization %d exceeds byte bound", index)
+		}
+		if err := MatchRuntimeNormalization(declarations[index], fields[index]); err != nil {
+			return Observation{}, fmt.Errorf("runtime normalization %d: %w", index, err)
+		}
+		observation.replayed[index].runtimeNormalizationBytes = append([]byte(nil), encoded[index]...)
+		observation.replayed[index].runtimeNormalizationFields = fields[index]
+	}
+	return observation, nil
+}
+
+// WithSampleID returns a copy of observation identified by sampleID. sampleID
+// must be a contract identity (ValidIdentity), observation must come from a
+// validated constructor, and the copy must fit the bounded durable envelope
+// that MarshalObservation emits.
+func (observation Observation) WithSampleID(sampleID string) (Observation, error) {
+	if observation.spec.ProfileID == "" || !ValidIdentity(sampleID) {
+		return Observation{}, fmt.Errorf("observation sample identity is invalid")
+	}
+	observation.spec.SampleID = sampleID
+	if _, err := MarshalObservation(observation); err != nil {
+		return Observation{}, fmt.Errorf("durable observation envelope: %w", err)
+	}
+	return observation, nil
+}
+
 // MarshalJSON serializes an immutable admitted observation.
 func (observation Observation) MarshalJSON() ([]byte, error) {
 	return MarshalObservation(observation)
-}
-
-type attemptIdentityDTO struct {
-	PollGenerationID uint64 `json:"poll_generation_id"`
-	RetryOrdinal     uint32 `json:"retry_ordinal"`
-}
-
-type sampleLedgerDTO struct {
-	SchemaVersion        string             `json:"schema_version"`
-	IssuerDomain         string             `json:"issuer_domain"`
-	ProfileID            string             `json:"profile_id"`
-	ProfileVersion       string             `json:"profile_version"`
-	DependencySetID      string             `json:"dependency_set_id"`
-	Revision             uint64             `json:"revision"`
-	HighWater            uint64             `json:"high_water"`
-	LastCommittedAttempt attemptIdentityDTO `json:"last_committed_attempt"`
-}
-
-// MarshalSampleLedgerState emits deterministic explicit restart state.
-func MarshalSampleLedgerState(state SampleLedgerState) ([]byte, error) {
-	if err := validateSampleLedgerState(state, 0); err != nil {
-		return nil, err
-	}
-	return marshalBounded(sampleLedgerDTO{
-		SchemaVersion:   state.SchemaVersion.String(),
-		IssuerDomain:    state.IssuerDomain,
-		ProfileID:       state.ProfileID,
-		ProfileVersion:  state.ProfileVersion.String(),
-		DependencySetID: state.DependencySetID,
-		Revision:        state.Revision,
-		HighWater:       state.HighWater,
-		LastCommittedAttempt: attemptIdentityDTO{
-			PollGenerationID: state.LastCommittedAttempt.PollGenerationID,
-			RetryOrdinal:     state.LastCommittedAttempt.RetryOrdinal,
-		},
-	})
-}
-
-// UnmarshalSampleLedgerState validates persisted restart state.
-func UnmarshalSampleLedgerState(data []byte) (SampleLedgerState, error) {
-	var record sampleLedgerDTO
-	if err := decodeStrict(data, &record); err != nil {
-		return SampleLedgerState{}, err
-	}
-	if record.SchemaVersion != schemaVersionV1.String() {
-		return SampleLedgerState{}, fmt.Errorf("sample ledger schema is incompatible")
-	}
-	profileVersion, err := parseRequiredVersion(
-		"profile_version",
-		record.ProfileVersion,
-	)
-	if err != nil {
-		return SampleLedgerState{}, err
-	}
-	state := SampleLedgerState{
-		SchemaVersion:   schemaVersionV1,
-		IssuerDomain:    record.IssuerDomain,
-		ProfileID:       record.ProfileID,
-		ProfileVersion:  profileVersion,
-		DependencySetID: record.DependencySetID,
-		Revision:        record.Revision,
-		HighWater:       record.HighWater,
-		LastCommittedAttempt: AttemptIdentity{
-			PollGenerationID: record.LastCommittedAttempt.PollGenerationID,
-			RetryOrdinal:     record.LastCommittedAttempt.RetryOrdinal,
-		},
-	}
-	if err := validateSampleLedgerState(state, 0); err != nil {
-		return SampleLedgerState{}, err
-	}
-	return state, nil
 }

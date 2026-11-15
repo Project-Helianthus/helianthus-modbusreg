@@ -30,11 +30,11 @@ func fixtureFactoryFromState(
 	state reg.SampleLedgerState,
 ) *fixtureValidationFactory {
 	t.Helper()
-	ledger, err := reg.NewSampleLedger(state, state.Revision)
+	sampleLedger, err := reg.NewSampleLedger(state, state.Revision)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
-	_ = ledger
+	_ = sampleLedger
 	return newFixtureValidationFactory(t, profile)
 }
 

@@ -13,25 +13,25 @@ func TestLedgerLimitsRejectZeroAndAcceptFiniteConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EmptySampleLedgerState: %v", err)
 	}
-	if ledger, err := reg.NewSampleLedger(state, 0, reg.LedgerLimits{}); err == nil || ledger != nil {
+	if sampleLedger, err := reg.NewSampleLedger(state, 0, reg.LedgerLimits{}); err == nil || sampleLedger != nil {
 		t.Fatal("zero ledger limits were accepted")
 	}
 	limits := reg.DefaultLedgerLimits()
-	ledger, err := reg.NewSampleLedger(state, 0, limits)
+	sampleLedger, err := reg.NewSampleLedger(state, 0, limits)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
-	if got := ledger.Limits(); got != limits {
+	if got := sampleLedger.Limits(); got != limits {
 		t.Fatalf("ledger limits changed: got %+v want %+v", got, limits)
 	}
 	limits.AuditTombstoneMaxEncodedBytes = 1
-	if ledger, err := reg.NewSampleLedger(state, 0, limits); err == nil || ledger != nil {
+	if sampleLedger, err := reg.NewSampleLedger(state, 0, limits); err == nil || sampleLedger != nil {
 		t.Fatal("an unusable audit tombstone byte bound was accepted")
 	}
 	limits = reg.DefaultLedgerLimits()
 	limits.AuditTombstoneLimit = 20000
 	limits.AuditTombstoneMaxEncodedBytes = 256
-	if ledger, err := reg.NewSampleLedger(state, 0, limits); err == nil || ledger != nil {
+	if sampleLedger, err := reg.NewSampleLedger(state, 0, limits); err == nil || sampleLedger != nil {
 		t.Fatal("audit limits exceeding the aggregate serialization bound were accepted")
 	}
 	limits = reg.DefaultLedgerLimits()

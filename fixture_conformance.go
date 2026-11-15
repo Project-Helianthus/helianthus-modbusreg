@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -179,7 +180,7 @@ func cloneFixtureCorpusSpec(spec FixtureConformanceCorpusSpec) FixtureConformanc
 }
 
 func cloneFixtureRecordSpec(record FixtureConformanceRecordSpec) FixtureConformanceRecordSpec {
-	record.Observation = cloneObservationSpec(record.Observation)
+	record.Observation = CloneObservationSpec(record.Observation)
 	record.Detection.Declaration.Plan = cloneProbePlanSpec(record.Detection.Declaration.Plan)
 	record.Detection.Declaration.Candidates = append([]DetectionCandidateSpec(nil), record.Detection.Declaration.Candidates...)
 	record.Detection.Input.Probes = append([]FixtureProbeInput(nil), record.Detection.Input.Probes...)
@@ -189,7 +190,7 @@ func cloneFixtureRecordSpec(record FixtureConformanceRecordSpec) FixtureConforma
 	record.Detection.Expected.Evidence = append([]FixtureDetectionEvidenceExpectation(nil), record.Detection.Expected.Evidence...)
 	for i := range record.Detection.Expected.Evidence {
 		record.Detection.Expected.Evidence[i].MatchedGates = append([]ProbeIdentityField(nil), record.Detection.Expected.Evidence[i].MatchedGates...)
-		record.Detection.Expected.Evidence[i].ProbeEvidenceIDs = cloneStrings(record.Detection.Expected.Evidence[i].ProbeEvidenceIDs)
+		record.Detection.Expected.Evidence[i].ProbeEvidenceIDs = slices.Clone(record.Detection.Expected.Evidence[i].ProbeEvidenceIDs)
 	}
 	record.ExpectedReplay.ExpectedRawWords = cloneWordSets(record.ExpectedReplay.ExpectedRawWords)
 	return record
@@ -208,9 +209,9 @@ func validFixtureIdentity(value string) bool {
 }
 
 func validateSanitizedMetadata(metadata SanitizedFixtureMetadata) error {
-	if validateBoundedString("fixture corpus ID", metadata.CorpusID, true) != nil ||
-		validateBoundedString("fixture license expression", metadata.LicenseExpression, true) != nil ||
-		validateBoundedString("fixture provenance", metadata.Provenance, true) != nil {
+	if ValidateBoundedString("fixture corpus ID", metadata.CorpusID, true) != nil ||
+		ValidateBoundedString("fixture license expression", metadata.LicenseExpression, true) != nil ||
+		ValidateBoundedString("fixture provenance", metadata.Provenance, true) != nil {
 		return fixtureMutationError{FixtureMutationReasonOversized}
 	}
 	if !ValidIdentity(metadata.CorpusID) || metadata.LicenseExpression != "CC0-1.0" || metadata.Provenance != "public synthetic fixture" {
@@ -227,8 +228,7 @@ func validateFixtureSanitization(record FixtureConformanceRecordSpec) error {
 		if !validFixtureIdentity(dependency.View.Record().Endpoint) {
 			return fixtureMutationError{FixtureMutationReasonUnsanitized}
 		}
-		if dependency.View.Record().Endpoint != record.Observation.Endpoint &&
-			(record.ExpectedReplay.Outcome != FixtureReplayRejected || record.ExpectedReplay.Reason != FixtureReplayReasonSourceMismatch) {
+		if dependency.View.Record().Endpoint != record.Observation.Endpoint && (record.ExpectedReplay.Outcome != FixtureReplayRejected || record.ExpectedReplay.Reason != FixtureReplayReasonSourceMismatch) {
 			return fixtureMutationError{FixtureMutationReasonUnsanitized}
 		}
 	}
@@ -244,13 +244,13 @@ func NewFixtureConformanceCorpusWithLimits(spec FixtureConformanceCorpusSpec, li
 	if err := validateFixtureConformanceLimits(limits); err != nil {
 		return nil, err
 	}
-	if err := preflightAggregate(spec); err != nil {
+	if err := PreflightAggregate(spec); err != nil {
 		return nil, fixtureMutationError{FixtureMutationReasonOversized}
 	}
 	if len(spec.Profiles) > limits.MaxRecords || len(spec.Records) > limits.MaxRecords {
 		return nil, fixtureMutationError{FixtureMutationReasonOversized}
 	}
-	if spec.SchemaVersion != schemaVersionV1 || len(spec.Profiles) == 0 || len(spec.Records) == 0 {
+	if spec.SchemaVersion != CurrentSchemaVersion() || len(spec.Profiles) == 0 || len(spec.Records) == 0 {
 		return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 	}
 	if err := validateSanitizedMetadata(spec.Metadata); err != nil {
@@ -267,7 +267,7 @@ func NewFixtureConformanceCorpusWithLimits(spec FixtureConformanceCorpusSpec, li
 		profiles[profile.ID()] = profile
 	}
 	for _, record := range copy.Records {
-		if !ValidIdentity(record.RecordID) || !ValidIdentity(record.ProfileID) || !record.ProfileVersion.valid() {
+		if !ValidIdentity(record.RecordID) || !ValidIdentity(record.ProfileID) || !record.ProfileVersion.Valid() {
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
 		if _, ok := seen[strings.ToLower(record.RecordID)]; ok {
@@ -835,7 +835,7 @@ func MarshalFixtureConformanceCorpusSpec(spec FixtureConformanceCorpusSpec) ([]b
 		}
 		dto.Records[i] = recordBytes
 	}
-	return marshalBounded(dto)
+	return MarshalBounded(dto)
 }
 
 func preflightFixtureCorpusJSON(data []byte) error {
@@ -965,7 +965,7 @@ func UnmarshalFixtureConformanceCorpus(data []byte) (*FixtureConformanceCorpus, 
 	if err := json.Unmarshal(data, &dto); err != nil {
 		return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 	}
-	if err := preflightAggregate(dto); err != nil {
+	if err := PreflightAggregate(dto); err != nil {
 		return nil, fixtureMutationError{FixtureMutationReasonOversized}
 	}
 	var metadata SanitizedFixtureMetadata
@@ -975,7 +975,7 @@ func UnmarshalFixtureConformanceCorpus(data []byte) (*FixtureConformanceCorpus, 
 	if len(metadata.CorpusID) > MaxContractStringBytes || len(metadata.LicenseExpression) > MaxContractStringBytes || len(metadata.Provenance) > MaxContractStringBytes {
 		return nil, fixtureMutationError{FixtureMutationReasonOversized}
 	}
-	if err := decodeStrict(dto.Metadata, &metadata); err != nil {
+	if err := DecodeStrict(dto.Metadata, &metadata); err != nil {
 		return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 	}
 	spec := FixtureConformanceCorpusSpec{SchemaVersion: dto.SchemaVersion, Metadata: metadata, Profiles: make([]ProfileDescriptor, len(dto.Profiles)), Records: make([]FixtureConformanceRecordSpec, len(dto.Records))}
@@ -999,15 +999,15 @@ func UnmarshalFixtureConformanceCorpus(data []byte) (*FixtureConformanceCorpus, 
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
 		var detection FixtureDetectionCaseSpec
-		if err := decodeStrict(record.Detection, &detection); err != nil {
+		if err := DecodeStrict(record.Detection, &detection); err != nil {
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
 		var qualification FixtureQualificationExpectation
-		if err := decodeStrict(record.Qualification, &qualification); err != nil {
+		if err := DecodeStrict(record.Qualification, &qualification); err != nil {
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
 		var expected FixtureReplayExpectation
-		if err := decodeStrict(record.ExpectedReplay, &expected); err != nil {
+		if err := DecodeStrict(record.ExpectedReplay, &expected); err != nil {
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
 		spec.Records[i] = FixtureConformanceRecordSpec{RecordID: record.RecordID, ProfileID: record.ProfileID, ProfileVersion: record.ProfileVersion, Observation: observation, Detection: detection, Qualification: qualification, ExpectedReplay: expected}
@@ -1123,7 +1123,7 @@ func (corpus *FixtureConformanceCorpus) MarshalBoundedReport() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	dto := fixtureReportDTO{SchemaVersion: schemaVersionV1, Metadata: report.metadata, Records: make([]fixtureReportRecordDTO, len(report.records))}
+	dto := fixtureReportDTO{SchemaVersion: CurrentSchemaVersion(), Metadata: report.metadata, Records: make([]fixtureReportRecordDTO, len(report.records))}
 	for i, record := range report.records {
 		slices := make([][]uint16, len(record.slices))
 		for index, slice := range record.slices {
@@ -1136,7 +1136,7 @@ func (corpus *FixtureConformanceCorpus) MarshalBoundedReport() ([]byte, error) {
 		}
 		dto.Records[i] = fixtureReportRecordDTO{RecordID: record.recordID, ProfileID: record.profileID, ProfileVersion: record.profileVersion, Outcome: record.replay.actual.outcome, Reason: record.replay.actual.reason, Function: record.function, Table: record.table, UnitID: record.unit, Normalized: record.normalized, RawWords: cloneWordSets(record.replay.actual.rawWords), LogicalSlices: slices, Dependencies: dependencies, Wire: record.wire, Logical: record.logical, Sample: record.sample, Source: record.source, Qualification: record.qualification, Detection: decision}
 	}
-	encoded, err := marshalBounded(dto)
+	encoded, err := MarshalBounded(dto)
 	if err != nil {
 		return nil, err
 	}

@@ -135,8 +135,8 @@ func TestM203FixtureCorpusBindsSanitizedTransportNeutralEvidence(t *testing.T) {
 	if result.WireProvenance().WireResponseID == 0 || result.LogicalProvenance().LogicalViewID == 0 || result.SampleProvenance().PollGenerationID == 0 || result.SourceTime().State != reg.SourceTimeObservedState {
 		t.Fatalf("incomplete provenance: %#v", result)
 	}
-	detection := result.Detection()
-	if detection.Actual.Outcome() != reg.DetectionMatched || detection.Actual.Reason() != reg.DetectionReasonSelected || detection.Actual.SelectedProfileID() != result.ProfileID() || detection.Actual.SelectedProfileVersion() != result.ProfileVersion() || !detection.MatchesExpected() || result.Qualification() != reg.FixtureQualificationDispositionQualified {
+	fixtureDetection := result.Detection()
+	if fixtureDetection.Actual.Outcome() != reg.DetectionMatched || fixtureDetection.Actual.Reason() != reg.DetectionReasonSelected || fixtureDetection.Actual.SelectedProfileID() != result.ProfileID() || fixtureDetection.Actual.SelectedProfileVersion() != result.ProfileVersion() || !fixtureDetection.MatchesExpected() || result.Qualification() != reg.FixtureQualificationDispositionQualified {
 		t.Fatalf("detector/qualification result = %#v", result)
 	}
 }

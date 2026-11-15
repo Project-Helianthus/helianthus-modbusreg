@@ -1,5 +1,7 @@
 package modbusreg
 
+import "fmt"
+
 type completionRecordDTO struct {
 	SchemaID                      string                `json:"schema_id"`
 	SchemaVersion                 uint16                `json:"schema_version"`
@@ -65,14 +67,14 @@ func MarshalFMV3M303CompletionRecord(record CompletionRecord) ([]byte, error) {
 	if _, err := NewFMV3M303CompletionRecord(record.Spec()); err != nil {
 		return nil, err
 	}
-	return marshalBounded(completionRecordToDTO(record))
+	return MarshalBounded(completionRecordToDTO(record))
 }
 
 // UnmarshalFMV3M303CompletionRecord rejects unknown fields and incompatible
 // schemas before constructing an immutable record.
 func UnmarshalFMV3M303CompletionRecord(data []byte) (CompletionRecord, error) {
 	var dto completionRecordDTO
-	if err := decodeStrict(data, &dto); err != nil {
+	if err := DecodeStrict(data, &dto); err != nil {
 		return CompletionRecord{}, err
 	}
 	return completionRecordFromDTO(dto)
@@ -105,3 +107,74 @@ var errNilCompletionRecordTarget = completionRecordError("completion record targ
 type completionRecordError string
 
 func (errorValue completionRecordError) Error() string { return string(errorValue) }
+
+type attemptIdentityDTO struct {
+	PollGenerationID uint64 `json:"poll_generation_id"`
+	RetryOrdinal     uint32 `json:"retry_ordinal"`
+}
+
+type sampleLedgerDTO struct {
+	SchemaVersion        string             `json:"schema_version"`
+	IssuerDomain         string             `json:"issuer_domain"`
+	ProfileID            string             `json:"profile_id"`
+	ProfileVersion       string             `json:"profile_version"`
+	DependencySetID      string             `json:"dependency_set_id"`
+	Revision             uint64             `json:"revision"`
+	HighWater            uint64             `json:"high_water"`
+	LastCommittedAttempt attemptIdentityDTO `json:"last_committed_attempt"`
+}
+
+// MarshalSampleLedgerState emits deterministic explicit restart state.
+func MarshalSampleLedgerState(state SampleLedgerState) ([]byte, error) {
+	if err := validateSampleLedgerState(state, 0); err != nil {
+		return nil, err
+	}
+	return MarshalBounded(sampleLedgerDTO{
+		SchemaVersion:   state.SchemaVersion.String(),
+		IssuerDomain:    state.IssuerDomain,
+		ProfileID:       state.ProfileID,
+		ProfileVersion:  state.ProfileVersion.String(),
+		DependencySetID: state.DependencySetID,
+		Revision:        state.Revision,
+		HighWater:       state.HighWater,
+		LastCommittedAttempt: attemptIdentityDTO{
+			PollGenerationID: state.LastCommittedAttempt.PollGenerationID,
+			RetryOrdinal:     state.LastCommittedAttempt.RetryOrdinal,
+		},
+	})
+}
+
+// UnmarshalSampleLedgerState validates persisted restart state.
+func UnmarshalSampleLedgerState(data []byte) (SampleLedgerState, error) {
+	var record sampleLedgerDTO
+	if err := DecodeStrict(data, &record); err != nil {
+		return SampleLedgerState{}, err
+	}
+	if record.SchemaVersion != CurrentSchemaVersion().String() {
+		return SampleLedgerState{}, fmt.Errorf("sample ledger schema is incompatible")
+	}
+	profileVersion, err := ParseRequiredVersion(
+		"profile_version",
+		record.ProfileVersion,
+	)
+	if err != nil {
+		return SampleLedgerState{}, err
+	}
+	state := SampleLedgerState{
+		SchemaVersion:   CurrentSchemaVersion(),
+		IssuerDomain:    record.IssuerDomain,
+		ProfileID:       record.ProfileID,
+		ProfileVersion:  profileVersion,
+		DependencySetID: record.DependencySetID,
+		Revision:        record.Revision,
+		HighWater:       record.HighWater,
+		LastCommittedAttempt: AttemptIdentity{
+			PollGenerationID: record.LastCommittedAttempt.PollGenerationID,
+			RetryOrdinal:     record.LastCommittedAttempt.RetryOrdinal,
+		},
+	}
+	if err := validateSampleLedgerState(state, 0); err != nil {
+		return SampleLedgerState{}, err
+	}
+	return state, nil
+}

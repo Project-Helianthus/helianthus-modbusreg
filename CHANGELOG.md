@@ -1,5 +1,33 @@
 # Changelog
 
+## Contract surface for detection and the ledger (#377)
+
+The root package exports the contract rules and constructors that profile detection and the sample ledger use, so both can leave the root package without reaching unexported state. No name is removed or renamed; behavior, wire output and every serialized value are unchanged. The new names are:
+
+| Name | What it exposes |
+| --- | --- |
+| `Version.Valid` | the strict major.minor.patch version rule |
+| `CompareVersions` | numeric version order; invalid versions order first |
+| `ValidDependencySetID` | the dependency-set identity rule |
+| `ValidateBoundedString` | the contract string rule |
+| `PreflightAggregate` | the cumulative contract byte budget for values |
+| `DecodeStrict` | strict bounded decoding of one JSON value |
+| `MarshalBounded` | bounded compact JSON encoding |
+| `ParseRequiredVersion` | required version parsing with the field in the error |
+| `ValidateLedgerLimits` | the ledger limit rule |
+| `MaxLedgerRestartAuditTombstones` | the audit tombstone bound of one ledger restart state |
+| `MatchRuntimeNormalization` | agreement of producer normalization fields with a declared dependency |
+| `ValidateSourceTime`, `HasLocalReceiptTime`, `CanonicalRequiredTime` | the source-time and receipt-time rules |
+| `ObservationSpec.WithLocalReceiptTime`, `DependencyResult.WithLocalReceiptTime` | a local receipt time, including an observed zero time |
+| `CloneObservationSpec` | an independent copy of an observation spec |
+| `NewObservation` | the validated observation constructor |
+| `NewRuntimeObservation` | the validated observation constructor with producer normalization records |
+| `Observation.WithSampleID` | a copy with a sample identity, checked against the durable envelope |
+| `LogicalViewSnapshot.Valid` | whether a snapshot passed validation |
+| `ProfileDescriptor.Coherence`, `.Maturity`, `.DefaultEnabled`, `.State` | read access to the profile's coherence policy, maturity, default activation and lifecycle state |
+
+`SampleLedgerState`, `EmptySampleLedgerState`, `MarshalSampleLedgerState` and `UnmarshalSampleLedgerState` keep their names and now live beside the ledger code.
+
 ## Fronius and OutBack packages (#377)
 
 The Fronius and OutBack overlays of the SunSpec standard family move from the module root to packages `github.com/Project-Helianthus/helianthus-modbusreg/fronius` and `github.com/Project-Helianthus/helianthus-modbusreg/outback`. Exported names that began with `Fronius` or `OutBack` lose that prefix and constructors follow their types; other exported names, such as the `SunSpecFronius` flavor and qualification names, change only their qualifier; methods, fields, wire values, JSON keys and behavior are unchanged. No alias or forwarding declaration remains in the root package. Both overlays read SunSpec state only through the exported SunSpec names of the root package, and neither imports the other. Consumers replace each previous name with the current one:

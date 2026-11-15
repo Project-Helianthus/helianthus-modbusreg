@@ -18,7 +18,7 @@ func NewFixtureReplayer(profile ProfileDescriptor) (*FixtureReplayer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fixture replay profile: %w", err)
 	}
-	if copy.spec.Kind != ProfileStandardFamily {
+	if copy.Kind() != ProfileStandardFamily {
 		return nil, fmt.Errorf("vendor overlay requires M3 resolution")
 	}
 	return &FixtureReplayer{profile: copy}, nil
@@ -37,18 +37,14 @@ func (replayer *FixtureReplayer) Replay(data []byte) (FixtureReplay, error) {
 	if replayer == nil || replayer.profile.ID() == "" {
 		return FixtureReplay{}, fmt.Errorf("fixture replayer is invalid")
 	}
-	var record observationDTO
-	if err := decodeStrict(data, &record); err != nil {
-		return FixtureReplay{}, err
-	}
-	spec, err := observationSpecFromDTO(record)
-	if err != nil {
+	var spec ObservationSpec
+	if err := spec.UnmarshalJSON(data); err != nil {
 		return FixtureReplay{}, err
 	}
 	if spec.SampleID != "" {
 		return FixtureReplay{}, fmt.Errorf("fixture cannot contain a production sample ID")
 	}
-	validated, err := buildObservation(replayer.profile, spec)
+	validated, err := NewObservation(replayer.profile, spec)
 	if err != nil {
 		return FixtureReplay{}, err
 	}
@@ -70,7 +66,7 @@ func (replay FixtureReplay) FixtureID() string {
 
 // Spec returns an independent fixture envelope with no production sample ID.
 func (replay FixtureReplay) Spec() ObservationSpec {
-	return cloneObservationSpec(replay.spec)
+	return CloneObservationSpec(replay.spec)
 }
 
 // Replay returns independent validated fixture dependencies.

@@ -170,7 +170,7 @@ func scanJSONValue(
 				return fmt.Errorf("serialized binary field is not canonical base64")
 			}
 		} else {
-			if err := validateBoundedString("serialized string", value, false); err != nil {
+			if err := ValidateBoundedString("serialized string", value, false); err != nil {
 				return err
 			}
 		}
@@ -212,7 +212,7 @@ func scanJSONObject(
 		if !ok {
 			return fmt.Errorf("serialized object key is not a string")
 		}
-		if err := validateBoundedString("serialized object key", key, true); err != nil {
+		if err := ValidateBoundedString("serialized object key", key, true); err != nil {
 			return err
 		}
 		canonical := strings.ToLower(key)
@@ -347,7 +347,7 @@ func jsonArrayLimit(key string) int {
 	case "samples":
 		return MaxSampleLedgerRecords
 	case "audit_tombstones":
-		return maxLedgerRestartAuditTombstones
+		return MaxLedgerRestartAuditTombstones
 	default:
 		return MaxProfileDependencies
 	}
