@@ -34,72 +34,72 @@
       "category": "test"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "FMV3M303CompletionSchemaID",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "FMV3M303CompletionSchemaVersion",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "M302MergeSHA",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "NewCurrentFMV3M303CompletionRecord",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "NewFMV3M303CompletionRecord",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "fmv3M303CanonicalApplicability",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "fmv3M303CanonicalInvalidationRollback",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "fmv3M303CanonicalLimitations",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "fmv3M303DocsEvidenceSHA",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "fmv3M303M302MergeSHA",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "fmv3M303OfficialModelsSHA",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "fmv3M303StandardProfileID",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "fmv3M303StandardProfileVersion",
       "category": "identifier"
     },
     {
-      "path": "completion_record.go",
+      "path": "ledger/completion_record.go",
       "symbol": "validateFMV3M303CompletionRecord",
       "category": "identifier"
     },
@@ -144,17 +144,17 @@
       "category": "filename"
     },
     {
-      "path": "completion_record_serialization.go",
+      "path": "ledger/completion_record_serialization.go",
       "symbol": "M302MergeSHA",
       "category": "identifier"
     },
     {
-      "path": "completion_record_serialization.go",
+      "path": "ledger/completion_record_serialization.go",
       "symbol": "MarshalFMV3M303CompletionRecord",
       "category": "identifier"
     },
     {
-      "path": "completion_record_serialization.go",
+      "path": "ledger/completion_record_serialization.go",
       "symbol": "UnmarshalFMV3M303CompletionRecord",
       "category": "identifier"
     },
@@ -169,27 +169,27 @@
       "category": "test"
     },
     {
-      "path": "detection_json_unicode_test.go",
+      "path": "detection/detection_json_unicode_test.go",
       "symbol": "TestQ26DecisionASCIIControl",
       "category": "test"
     },
     {
-      "path": "detection_json_unicode_test.go",
+      "path": "detection/detection_json_unicode_test.go",
       "symbol": "TestQ26DecisionRejectsUnicodeBeforeNormalization",
       "category": "test"
     },
     {
-      "path": "detection_json_unicode_test.go",
+      "path": "detection/detection_json_unicode_test.go",
       "symbol": "TestQ26DecisionUnicodeLexicalControls",
       "category": "test"
     },
     {
-      "path": "detection_json_unicode_test.go",
+      "path": "detection/detection_json_unicode_test.go",
       "symbol": "q26ASCIIDecision",
       "category": "identifier"
     },
     {
-      "path": "detection_json_unicode_test.go",
+      "path": "detection/detection_json_unicode_test.go",
       "symbol": "q26DecisionWithProfile",
       "category": "identifier"
     },
@@ -6404,17 +6404,17 @@
       "category": "identifier"
     },
     {
-      "path": "probe_ascii_byte_boundaries_test.go",
+      "path": "detection/probe_ascii_byte_boundaries_test.go",
       "symbol": "TestS28ProbeASCIIBoundaryVectors",
       "category": "test"
     },
     {
-      "path": "probe_ascii_byte_boundaries_test.go",
+      "path": "detection/probe_ascii_byte_boundaries_test.go",
       "symbol": "TestS28ProbeASCIIDecodedLength",
       "category": "test"
     },
     {
-      "path": "probe_ascii_byte_boundaries_test.go",
+      "path": "detection/probe_ascii_byte_boundaries_test.go",
       "symbol": "TestS28ProbeASCIIInteriorByteSweep",
       "category": "test"
     },
@@ -6459,27 +6459,27 @@
       "category": "test"
     },
     {
-      "path": "probe_local_limit_revalidation_test.go",
+      "path": "detection/probe_local_limit_revalidation_test.go",
       "symbol": "TestU25DetectRevalidatesEvidenceID",
       "category": "test"
     },
     {
-      "path": "probe_local_limit_revalidation_test.go",
+      "path": "detection/probe_local_limit_revalidation_test.go",
       "symbol": "TestU25ResultLocalBoundaries",
       "category": "test"
     },
     {
-      "path": "probe_local_limit_revalidation_test.go",
+      "path": "detection/probe_local_limit_revalidation_test.go",
       "symbol": "u25Detector",
       "category": "identifier"
     },
     {
-      "path": "probe_local_limit_revalidation_test.go",
+      "path": "detection/probe_local_limit_revalidation_test.go",
       "symbol": "u25Reader",
       "category": "identifier"
     },
     {
-      "path": "probe_local_limit_revalidation_test.go",
+      "path": "detection/probe_local_limit_revalidation_test.go",
       "symbol": "u25Result",
       "category": "identifier"
     },
@@ -6664,7 +6664,7 @@
       "category": "test"
     },
     {
-      "path": "runtime_ledger.go",
+      "path": "ledger/runtime_ledger.go",
       "symbol": "PublishedAttemptV1",
       "category": "identifier"
     },

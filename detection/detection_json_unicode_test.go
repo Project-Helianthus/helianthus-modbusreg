@@ -1,9 +1,11 @@
-package modbusreg
+package detection
 
 import (
 	"bytes"
 	"encoding/json"
 	"testing"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
 // Decision strings are identities, versions, or enums, so Unicode controls
@@ -28,7 +30,7 @@ func TestQ26DecisionASCIIControl(t *testing.T) {
 		t.Fatalf("legal ASCII decision: %v", err)
 	}
 	evidence := decision.Evidence()
-	if decision.Outcome() != DetectionNoMatch || decision.Reason() != DetectionReasonInvalidIdentity ||
+	if decision.Outcome() != NoMatch || decision.Reason() != ReasonInvalidIdentity ||
 		decision.SelectedProfileID() != "" || len(evidence) != 1 ||
 		evidence[0].ProfileID != "example.standard.unicode" || evidence[0].Score != 1 {
 		t.Fatalf("unexpected ASCII decision: %+v, evidence: %+v", decision, evidence)
@@ -88,7 +90,7 @@ func TestQ26DecisionUnicodeLexicalControls(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			data := q26DecisionWithProfile(t, []byte(test.value))
 			var record detectionDecisionDTO
-			if err := DecodeStrict(data, &record); err != nil {
+			if err := modbusreg.DecodeStrict(data, &record); err != nil {
 				t.Fatalf("lexically valid production DTO rejected: %v", err)
 			}
 			if len(record.Evidence) != 1 || record.Evidence[0].ProfileID != test.want {

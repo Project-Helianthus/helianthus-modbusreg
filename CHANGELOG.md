@@ -1,5 +1,48 @@
 # Changelog
 
+## Detection and ledger packages (#377)
+
+Profile detection moves from the module root to package `github.com/Project-Helianthus/helianthus-modbusreg/detection`, and the attempt ledger and completion records move to package `github.com/Project-Helianthus/helianthus-modbusreg/ledger`. Exported names that began with `Detection` or `Ledger` lose that prefix and constructors follow their types; other exported names, such as `NewProfileDetector`, `NewProbePlan`, `MarshalDetectionDecision`, `DefaultDetectionLimits`, `NewFixtureReplayer`, `NewSampleLedger`, `NewObservationFactory` and `NewFMV3M303CompletionRecord`, change only their qualifier; methods, fields, wire values, JSON keys, serialized records and behavior are unchanged. No alias or forwarding declaration remains in the root package. Both packages depend only on the contracts of the root package and import neither each other nor a vendor package; the import-direction test pins the final package graph. The root package keeps the shared contracts and imports no other package of the module. The one-off move tool is removed with this last move. Consumers replace each previous name with the current one:
+
+| Previous name | Current name |
+| --- | --- |
+| `modbusreg.DetectionAmbiguous` | `detection.Ambiguous` |
+| `modbusreg.DetectionCandidate` | `detection.Candidate` |
+| `modbusreg.DetectionCandidateEvidence` | `detection.CandidateEvidence` |
+| `modbusreg.DetectionCandidateSpec` | `detection.CandidateSpec` |
+| `modbusreg.DetectionDecision` | `detection.Decision` |
+| `modbusreg.DetectionLimits` | `detection.Limits` |
+| `modbusreg.DetectionMatched` | `detection.Matched` |
+| `modbusreg.DetectionNoMatch` | `detection.NoMatch` |
+| `modbusreg.DetectionOptions` | `detection.Options` |
+| `modbusreg.DetectionOutcome` | `detection.Outcome` |
+| `modbusreg.DetectionReason` | `detection.Reason` |
+| `modbusreg.DetectionReasonCandidateDisabled` | `detection.ReasonCandidateDisabled` |
+| `modbusreg.DetectionReasonContextCancelled` | `detection.ReasonContextCancelled` |
+| `modbusreg.DetectionReasonEqualBest` | `detection.ReasonEqualBest` |
+| `modbusreg.DetectionReasonFirmwareMismatch` | `detection.ReasonFirmwareMismatch` |
+| `modbusreg.DetectionReasonFixtureOptInRequired` | `detection.ReasonFixtureOptInRequired` |
+| `modbusreg.DetectionReasonIdentityMismatch` | `detection.ReasonIdentityMismatch` |
+| `modbusreg.DetectionReasonIncompleteProbe` | `detection.ReasonIncompleteProbe` |
+| `modbusreg.DetectionReasonInvalidIdentity` | `detection.ReasonInvalidIdentity` |
+| `modbusreg.DetectionReasonInvalidProbeResult` | `detection.ReasonInvalidProbeResult` |
+| `modbusreg.DetectionReasonLowerScore` | `detection.ReasonLowerScore` |
+| `modbusreg.DetectionReasonMultipleMatches` | `detection.ReasonMultipleMatches` |
+| `modbusreg.DetectionReasonProbeException` | `detection.ReasonProbeException` |
+| `modbusreg.DetectionReasonProfileDefaultOff` | `detection.ReasonProfileDefaultOff` |
+| `modbusreg.DetectionReasonProfileRevoked` | `detection.ReasonProfileRevoked` |
+| `modbusreg.DetectionReasonProfileSuperseded` | `detection.ReasonProfileSuperseded` |
+| `modbusreg.DetectionReasonProfileUnqualified` | `detection.ReasonProfileUnqualified` |
+| `modbusreg.DetectionReasonReadError` | `detection.ReasonReadError` |
+| `modbusreg.DetectionReasonSelected` | `detection.ReasonSelected` |
+| `modbusreg.LedgerAuditAttempt` | `ledger.AuditAttempt` |
+| `modbusreg.LedgerAuditClaim` | `ledger.AuditClaim` |
+| `modbusreg.LedgerAuditObjectKind` | `ledger.AuditObjectKind` |
+| `modbusreg.LedgerAuditTombstone` | `ledger.AuditTombstone` |
+| `modbusreg.LedgerRestartState` | `ledger.RestartState` |
+| `modbusreg.LedgerSnapshot` | `ledger.Snapshot` |
+| `modbusreg.NewDetectionCandidate` | `detection.NewCandidate` |
+
 ## SunSpec package (#377)
 
 The SunSpec standard family moves from the module root to package `github.com/Project-Helianthus/helianthus-modbusreg/sunspec`. Exported names that began with `SunSpec` lose that prefix and constructors follow their types; other exported names, such as `NewStandardSunSpecDecoderRegistry`, `NewSunSpecPhaseOneProfile` and `MaxSunSpecPhaseOneChainWords`, change only their qualifier; methods, fields, wire values, JSON keys, serialized records and behavior are unchanged. No alias or forwarding declaration remains in the root package. The package depends only on the contracts of the root package; the Fronius and OutBack overlays import it and no other vendor package. Consumers replace each previous name with the current one:

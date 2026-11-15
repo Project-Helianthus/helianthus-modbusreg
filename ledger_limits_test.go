@@ -5,19 +5,21 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
+	"github.com/Project-Helianthus/helianthus-modbusreg/ledger"
 )
 
 func TestLedgerLimitsRejectZeroAndAcceptFiniteConfiguration(t *testing.T) {
 	profile := profileFixture(t)
-	state, err := reg.EmptySampleLedgerState("bounded-ledger", profile)
+	state, err := ledger.EmptySampleLedgerState("bounded-ledger", profile)
 	if err != nil {
 		t.Fatalf("EmptySampleLedgerState: %v", err)
 	}
-	if sampleLedger, err := reg.NewSampleLedger(state, 0, reg.LedgerLimits{}); err == nil || sampleLedger != nil {
+	if sampleLedger, err := ledger.NewSampleLedger(state, 0, reg.LedgerLimits{}); err == nil || sampleLedger != nil {
 		t.Fatal("zero ledger limits were accepted")
 	}
 	limits := reg.DefaultLedgerLimits()
-	sampleLedger, err := reg.NewSampleLedger(state, 0, limits)
+	sampleLedger, err := ledger.NewSampleLedger(state, 0, limits)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
@@ -25,22 +27,22 @@ func TestLedgerLimitsRejectZeroAndAcceptFiniteConfiguration(t *testing.T) {
 		t.Fatalf("ledger limits changed: got %+v want %+v", got, limits)
 	}
 	limits.AuditTombstoneMaxEncodedBytes = 1
-	if sampleLedger, err := reg.NewSampleLedger(state, 0, limits); err == nil || sampleLedger != nil {
+	if sampleLedger, err := ledger.NewSampleLedger(state, 0, limits); err == nil || sampleLedger != nil {
 		t.Fatal("an unusable audit tombstone byte bound was accepted")
 	}
 	limits = reg.DefaultLedgerLimits()
 	limits.AuditTombstoneLimit = 20000
 	limits.AuditTombstoneMaxEncodedBytes = 256
-	if sampleLedger, err := reg.NewSampleLedger(state, 0, limits); err == nil || sampleLedger != nil {
+	if sampleLedger, err := ledger.NewSampleLedger(state, 0, limits); err == nil || sampleLedger != nil {
 		t.Fatal("audit limits exceeding the aggregate serialization bound were accepted")
 	}
 	limits = reg.DefaultLedgerLimits()
 	limits.MaxDependencySetEncodedBytes = 1
-	boundedLedger, err := reg.NewSampleLedger(state, 0, limits)
+	boundedLedger, err := ledger.NewSampleLedger(state, 0, limits)
 	if err != nil {
 		t.Fatalf("NewSampleLedger(dependency bound): %v", err)
 	}
-	if factory, err := reg.NewObservationFactory(
+	if factory, err := ledger.NewObservationFactory(
 		profile,
 		boundedLedger,
 		&memoryPublicationCommitter{state: state},
@@ -56,7 +58,7 @@ func TestFixtureReplayIsEvidenceOnlyAndHasNoProductionSurface(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarshalFixtureSpec: %v", err)
 	}
-	replayer, err := reg.NewFixtureReplayer(profile)
+	replayer, err := detection.NewFixtureReplayer(profile)
 	if err != nil {
 		t.Fatalf("NewFixtureReplayer: %v", err)
 	}

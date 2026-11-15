@@ -18,6 +18,7 @@ import (
 
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/ledger"
 )
 
 type runtimeIntegrationTimer struct {
@@ -370,7 +371,7 @@ func overflowingRuntimeNormalizations(
 func issueRuntimeDependencies(
 	t *testing.T,
 	source *modbus.RuntimeAcquisitionSource,
-	attempt *reg.ObservationAttempt,
+	attempt *ledger.ObservationAttempt,
 	views []modbus.LogicalReadView,
 ) [][]byte {
 	t.Helper()
@@ -414,18 +415,18 @@ func runtimeAttemptRequestForTest(
 	key string,
 	pollGeneration uint64,
 	dependencyCount int,
-) reg.RuntimeAttemptRequest {
+) ledger.RuntimeAttemptRequest {
 	dependencies := make([]reg.RuntimeDependencyFacts, dependencyCount)
 	for index := range dependencies {
 		dependencies[index].SourceTime = reg.SourceTimeUnavailable()
 	}
-	return reg.RuntimeAttemptRequest{
+	return ledger.RuntimeAttemptRequest{
 		Source:     source,
 		AttemptKey: key,
 		Identity: reg.AttemptIdentity{
 			PollGenerationID: pollGeneration,
 		},
-		Observation: reg.RuntimeObservationFacts{
+		Observation: ledger.RuntimeObservationFacts{
 			SourceValidity:          reg.SourceValid,
 			SourceTime:              reg.SourceTimeUnavailable(),
 			LocalReceiptTime:        time.Unix(1_700_000_000, 0).UTC(),
@@ -439,13 +440,13 @@ func runtimeLedgerForTest(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	limits reg.LedgerLimits,
-) (reg.SampleLedgerState, *reg.SampleLedger) {
+) (ledger.SampleLedgerState, *ledger.SampleLedger) {
 	t.Helper()
-	initial, err := reg.EmptySampleLedgerState("runtime-ledger", profile)
+	initial, err := ledger.EmptySampleLedgerState("runtime-ledger", profile)
 	if err != nil {
 		t.Fatalf("EmptySampleLedgerState: %v", err)
 	}
-	sampleLedger, err := reg.NewSampleLedger(initial, 0, limits)
+	sampleLedger, err := ledger.NewSampleLedger(initial, 0, limits)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
@@ -454,12 +455,12 @@ func runtimeLedgerForTest(
 
 func beginAdmittedRuntimeAttempt(
 	t *testing.T,
-	factory *reg.ObservationFactory,
+	factory *ledger.ObservationFactory,
 	source *modbus.RuntimeAcquisitionSource,
 	views []modbus.LogicalReadView,
 	key string,
 	pollGeneration uint64,
-) *reg.ObservationAttempt {
+) *ledger.ObservationAttempt {
 	t.Helper()
 	attempt, err := factory.BeginRuntimeAttempt(runtimeAttemptRequestForTest(
 		source,
@@ -479,12 +480,12 @@ func beginAdmittedRuntimeAttempt(
 
 type memoryPublicationCommitter struct {
 	mu            sync.Mutex
-	state         reg.SampleLedgerState
-	effects       []reg.PublishedAttemptV1
-	requests      []reg.PublicationCommitRequest
+	state         ledger.SampleLedgerState
+	effects       []ledger.PublishedAttemptV1
+	requests      []ledger.PublicationCommitRequest
 	terminalCalls int
-	restart       reg.LedgerRestartState
-	terminal      []reg.TerminalStateCommitRequest
+	restart       ledger.RestartState
+	terminal      []ledger.TerminalStateCommitRequest
 }
 
 type retryTerminalCommitter struct {
@@ -503,7 +504,7 @@ type blockingTerminalCommitter struct {
 
 func (committer *blockingTerminalCommitter) CommitTerminalState(
 	ctx context.Context,
-	request reg.TerminalStateCommitRequest,
+	request ledger.TerminalStateCommitRequest,
 ) error {
 	committer.once.Do(func() { close(committer.entered) })
 	select {
@@ -521,7 +522,7 @@ type contextDeadlineCommitter struct {
 
 func (committer *contextDeadlineCommitter) CommitTerminalState(
 	ctx context.Context,
-	request reg.TerminalStateCommitRequest,
+	request ledger.TerminalStateCommitRequest,
 ) error {
 	if _, ok := ctx.Deadline(); !ok {
 		return fmt.Errorf("terminal commit context has no deadline")
@@ -537,14 +538,14 @@ type failedPublicationCommitter struct {
 
 func (committer *failedPublicationCommitter) CommitPublication(
 	context.Context,
-	reg.PublicationCommitRequest,
-) (reg.PublicationCommitDecision, error) {
+	ledger.PublicationCommitRequest,
+) (ledger.PublicationCommitDecision, error) {
 	return "", fmt.Errorf("forced publication failure")
 }
 
 func (committer *retryTerminalCommitter) CommitTerminalState(
 	ctx context.Context,
-	request reg.TerminalStateCommitRequest,
+	request ledger.TerminalStateCommitRequest,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -568,16 +569,16 @@ func (committer *retryTerminalCommitter) callCount() int {
 
 type arbitrationPublicationCommitter struct {
 	mu        sync.Mutex
-	state     reg.SampleLedgerState
+	state     ledger.SampleLedgerState
 	entered   chan struct{}
 	release   chan struct{}
 	enterOnce sync.Once
 	effects   int
-	restart   reg.LedgerRestartState
+	restart   ledger.RestartState
 }
 
 func newArbitrationPublicationCommitter(
-	state reg.SampleLedgerState,
+	state ledger.SampleLedgerState,
 ) *arbitrationPublicationCommitter {
 	return &arbitrationPublicationCommitter{
 		state:   state,
@@ -588,12 +589,12 @@ func newArbitrationPublicationCommitter(
 
 func (committer *arbitrationPublicationCommitter) CommitPublication(
 	ctx context.Context,
-	request reg.PublicationCommitRequest,
-) (reg.PublicationCommitDecision, error) {
+	request ledger.PublicationCommitRequest,
+) (ledger.PublicationCommitDecision, error) {
 	committer.enterOnce.Do(func() { close(committer.entered) })
 	select {
 	case <-ctx.Done():
-		return reg.PublicationCommitCancelled, nil
+		return ledger.PublicationCommitCancelled, nil
 	case <-committer.release:
 		committer.mu.Lock()
 		defer committer.mu.Unlock()
@@ -612,7 +613,7 @@ func (committer *arbitrationPublicationCommitter) CommitPublication(
 			committer.restart = request.PublishedRestartState
 		}
 		committer.effects++
-		return reg.PublicationCommitCommitted, nil
+		return ledger.PublicationCommitCommitted, nil
 	}
 }
 
@@ -624,7 +625,7 @@ func (committer *arbitrationPublicationCommitter) effectCount() int {
 
 func (committer *arbitrationPublicationCommitter) CommitTerminalState(
 	ctx context.Context,
-	request reg.TerminalStateCommitRequest,
+	request ledger.TerminalStateCommitRequest,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -646,10 +647,10 @@ func (committer *arbitrationPublicationCommitter) CommitTerminalState(
 
 func (committer *memoryPublicationCommitter) CommitPublication(
 	ctx context.Context,
-	request reg.PublicationCommitRequest,
-) (reg.PublicationCommitDecision, error) {
+	request ledger.PublicationCommitRequest,
+) (ledger.PublicationCommitDecision, error) {
 	if err := ctx.Err(); err != nil {
-		return reg.PublicationCommitCancelled, nil
+		return ledger.PublicationCommitCancelled, nil
 	}
 	committer.mu.Lock()
 	defer committer.mu.Unlock()
@@ -664,7 +665,7 @@ func (committer *memoryPublicationCommitter) CommitPublication(
 		return "", fmt.Errorf("publication restart state conflict")
 	}
 	if err := ctx.Err(); err != nil {
-		return reg.PublicationCommitCancelled, nil
+		return ledger.PublicationCommitCancelled, nil
 	}
 	committer.state = request.PublishedState
 	committer.effects = append(committer.effects, request.Attempt)
@@ -672,12 +673,12 @@ func (committer *memoryPublicationCommitter) CommitPublication(
 	if !committer.restart.CoversTerminalWatermark(request.PublishedRestartState) {
 		committer.restart = request.PublishedRestartState
 	}
-	return reg.PublicationCommitCommitted, nil
+	return ledger.PublicationCommitCommitted, nil
 }
 
 func (committer *memoryPublicationCommitter) CommitTerminalState(
 	ctx context.Context,
-	request reg.TerminalStateCommitRequest,
+	request ledger.TerminalStateCommitRequest,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -704,7 +705,7 @@ func TestPublicationCommitCarriesExactFinalObservationAndRestartState(t *testing
 	source, views := runtimeSourceAndViews(t)
 	initial, sampleLedger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
 	committer := &memoryPublicationCommitter{state: initial}
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -723,7 +724,7 @@ func TestPublicationCommitCarriesExactFinalObservationAndRestartState(t *testing
 	}
 	for ordinal := range views {
 		if outcome, err := attempt.Claim(uint64(ordinal)); err != nil ||
-			outcome != reg.ClaimSucceeded {
+			outcome != ledger.ClaimSucceeded {
 			t.Fatalf("Claim(%d)=(%q, %v)", ordinal, outcome, err)
 		}
 	}
@@ -752,7 +753,7 @@ func TestPublicationCommitCarriesExactFinalObservationAndRestartState(t *testing
 	durableBytes := append([]byte(nil), request.ObservationBytes...)
 	publishedState := request.PublishedState
 	publishedRestartState := request.PublishedRestartState
-	request = reg.PublicationCommitRequest{}
+	request = ledger.PublicationCommitRequest{}
 	committedObservation, err := reg.UnmarshalObservation(profile, durableBytes)
 	if err != nil {
 		t.Fatalf("UnmarshalObservation after committed-memory discard: %v", err)
@@ -781,7 +782,7 @@ func TestPublicationCommitCarriesExactFinalObservationAndRestartState(t *testing
 	if publishedRestartState.NextTerminalSequence == 0 {
 		t.Fatal("atomic publication request omits terminal restart state")
 	}
-	restored, err := reg.NewSampleLedgerFromRestart(
+	restored, err := ledger.NewSampleLedgerFromRestart(
 		publishedState,
 		publishedState.Revision,
 		reg.DefaultLedgerLimits(),
@@ -797,7 +798,7 @@ func TestPublicationCommitCarriesExactFinalObservationAndRestartState(t *testing
 		state:   publishedState,
 		restart: publishedRestartState,
 	}
-	restoredFactory, err := reg.NewObservationFactory(profile, restored, restartCommitter)
+	restoredFactory, err := ledger.NewObservationFactory(profile, restored, restartCommitter)
 	if err != nil {
 		t.Fatalf("NewObservationFactory(restored): %v", err)
 	}
@@ -814,7 +815,7 @@ func TestPublicationCommitCarriesExactFinalObservationAndRestartState(t *testing
 		t.Fatalf("BeginRuntimeAttempt(restored): %v", err)
 	}
 	if result, err := restartedAttempt.Cancel(); err != nil ||
-		result != reg.CancellationCompleted {
+		result != ledger.CancellationCompleted {
 		t.Fatalf("Cancel(restored)=(%q, %v)", result, err)
 	}
 	if got := restartCommitter.terminal[0].Attempt.AttemptTerminalSequence; got != publishedRestartState.NextTerminalSequence {
@@ -827,7 +828,7 @@ func TestDurableObservationRoundTripsLargeProducerNormalization(t *testing.T) {
 	source, views := runtimeSourceAndViews(t)
 	initial, sampleLedger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
 	committer := &memoryPublicationCommitter{state: initial}
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -851,7 +852,7 @@ func TestDurableObservationRoundTripsLargeProducerNormalization(t *testing.T) {
 	}
 	for index := range views {
 		if outcome, err := attempt.Claim(uint64(index)); err != nil ||
-			outcome != reg.ClaimSucceeded {
+			outcome != ledger.ClaimSucceeded {
 			t.Fatalf("Claim(%d)=(%q, %v)", index, outcome, err)
 		}
 	}
@@ -946,7 +947,7 @@ func TestRuntimeAdmissionRejectsOversizedDurableEnvelopeBeforeClaims(t *testing.
 	source, views := runtimeSourceAndViewsWithConfig(t, config, 41)
 	initial, sampleLedger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
 	committer := &memoryPublicationCommitter{state: initial}
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -968,10 +969,10 @@ func TestRuntimeAdmissionRejectsOversizedDurableEnvelopeBeforeClaims(t *testing.
 	if err := attempt.Admit(); err == nil {
 		t.Fatal("durably oversized runtime observation was admitted")
 	}
-	if outcome, err := attempt.Claim(0); err == nil || outcome == reg.ClaimSucceeded {
+	if outcome, err := attempt.Claim(0); err == nil || outcome == ledger.ClaimSucceeded {
 		t.Fatalf("Claim after failed admission=(%q, %v)", outcome, err)
 	}
-	if phase := attempt.Phase(); phase != reg.AttemptCancelled {
+	if phase := attempt.Phase(); phase != ledger.AttemptCancelled {
 		t.Fatalf("failed durable admission phase=%q", phase)
 	}
 	if snapshot := source.Snapshot(); snapshot.LiveCapabilities != 0 ||
@@ -991,14 +992,14 @@ func TestCommittedSampleStateRequiresConsumedTerminalWatermark(t *testing.T) {
 	state.HighWater = 1
 	state.LastCommittedAttempt = reg.AttemptIdentity{PollGenerationID: 41}
 	limits := reg.DefaultLedgerLimits()
-	if sampleLedger, err := reg.NewSampleLedger(state, 1, limits); err == nil || sampleLedger != nil {
+	if sampleLedger, err := ledger.NewSampleLedger(state, 1, limits); err == nil || sampleLedger != nil {
 		t.Fatal("committed sample state without restart metadata was accepted")
 	}
-	initialRestart := reg.LedgerRestartState{
+	initialRestart := ledger.RestartState{
 		SchemaVersion:        1,
 		NextTerminalSequence: 1,
 	}
-	if sampleLedger, err := reg.NewSampleLedgerFromRestart(
+	if sampleLedger, err := ledger.NewSampleLedgerFromRestart(
 		state,
 		1,
 		limits,
@@ -1006,17 +1007,17 @@ func TestCommittedSampleStateRequiresConsumedTerminalWatermark(t *testing.T) {
 	); err == nil || sampleLedger != nil {
 		t.Fatal("committed sample state with an initial terminal watermark was accepted")
 	}
-	minimumRestart := reg.LedgerRestartState{
+	minimumRestart := ledger.RestartState{
 		SchemaVersion:            1,
 		NextTerminalSequence:     3,
 		TruncatedThroughSequence: 2,
 	}
-	sampleLedger, err := reg.NewSampleLedgerFromRestart(state, 1, limits, minimumRestart)
+	sampleLedger, err := ledger.NewSampleLedgerFromRestart(state, 1, limits, minimumRestart)
 	if err != nil {
 		t.Fatalf("NewSampleLedgerFromRestart(minimum): %v", err)
 	}
 	committer := &memoryPublicationCommitter{state: state, restart: minimumRestart}
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -1030,7 +1031,7 @@ func TestCommittedSampleStateRequiresConsumedTerminalWatermark(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeginRuntimeAttempt: %v", err)
 	}
-	if result, err := attempt.Cancel(); err != nil || result != reg.CancellationCompleted {
+	if result, err := attempt.Cancel(); err != nil || result != ledger.CancellationCompleted {
 		t.Fatalf("Cancel=(%q, %v)", result, err)
 	}
 	committer.mu.Lock()
@@ -1042,12 +1043,12 @@ func TestCommittedSampleStateRequiresConsumedTerminalWatermark(t *testing.T) {
 	impossible := state
 	impossible.Revision = math.MaxUint64/2 + 1
 	impossible.HighWater = impossible.Revision
-	exhausted := reg.LedgerRestartState{
+	exhausted := ledger.RestartState{
 		SchemaVersion:            1,
 		SequenceExhausted:        true,
 		TruncatedThroughSequence: math.MaxUint64,
 	}
-	if sampleLedger, err := reg.NewSampleLedgerFromRestart(
+	if sampleLedger, err := ledger.NewSampleLedgerFromRestart(
 		impossible,
 		impossible.Revision,
 		limits,
@@ -1062,7 +1063,7 @@ func TestCancellationCrossesDurableTerminalBoundary(t *testing.T) {
 	source, views := runtimeSourceAndViews(t)
 	initial, sampleLedger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
 	committer := &memoryPublicationCommitter{state: initial}
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -1075,21 +1076,21 @@ func TestCancellationCrossesDurableTerminalBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeginRuntimeAttempt: %v", err)
 	}
-	if result, err := attempt.Cancel(); err != nil || result != reg.CancellationCompleted {
+	if result, err := attempt.Cancel(); err != nil || result != ledger.CancellationCompleted {
 		t.Fatalf("Cancel=(%q, %v)", result, err)
 	}
 	committer.mu.Lock()
 	terminalCalls := committer.terminalCalls
-	terminalRequests := append([]reg.TerminalStateCommitRequest(nil), committer.terminal...)
+	terminalRequests := append([]ledger.TerminalStateCommitRequest(nil), committer.terminal...)
 	committer.mu.Unlock()
 	if terminalCalls != 1 {
 		t.Fatalf("durable cancellation terminal commits=%d, want 1", terminalCalls)
 	}
 	terminal := terminalRequests[0]
-	if terminal.Outcome != reg.AttemptCancelled {
+	if terminal.Outcome != ledger.AttemptCancelled {
 		t.Fatalf("durable cancellation outcome=%q", terminal.Outcome)
 	}
-	restored, err := reg.NewSampleLedgerFromRestart(
+	restored, err := ledger.NewSampleLedgerFromRestart(
 		initial,
 		0,
 		reg.DefaultLedgerLimits(),
@@ -1105,7 +1106,7 @@ func TestCancellationCrossesDurableTerminalBoundary(t *testing.T) {
 		state:   initial,
 		restart: terminal.TerminalRestartState,
 	}
-	restoredFactory, err := reg.NewObservationFactory(profile, restored, restartCommitter)
+	restoredFactory, err := ledger.NewObservationFactory(profile, restored, restartCommitter)
 	if err != nil {
 		t.Fatalf("NewObservationFactory(restored): %v", err)
 	}
@@ -1122,7 +1123,7 @@ func TestCancellationCrossesDurableTerminalBoundary(t *testing.T) {
 		t.Fatalf("BeginRuntimeAttempt(restored): %v", err)
 	}
 	if result, err := restartedAttempt.Cancel(); err != nil ||
-		result != reg.CancellationCompleted {
+		result != ledger.CancellationCompleted {
 		t.Fatalf("Cancel(restored)=(%q, %v)", result, err)
 	}
 	if got := restartCommitter.terminal[0].Attempt.AttemptTerminalSequence; got != terminal.TerminalRestartState.NextTerminalSequence {
@@ -1138,7 +1139,7 @@ func TestCancellationPersistenceFailureRetainsAndRetriesAttempt(t *testing.T) {
 		memoryPublicationCommitter: memoryPublicationCommitter{state: initial},
 		failuresLeft:               1,
 	}
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -1152,10 +1153,10 @@ func TestCancellationPersistenceFailureRetainsAndRetriesAttempt(t *testing.T) {
 		t.Fatalf("BeginRuntimeAttempt: %v", err)
 	}
 
-	if result, err := attempt.Cancel(); err == nil || result != reg.CancellationFailed {
+	if result, err := attempt.Cancel(); err == nil || result != ledger.CancellationFailed {
 		t.Fatalf("first Cancel=(%q, %v), want retryable persistence failure", result, err)
 	}
-	if phase := attempt.Phase(); phase != reg.AttemptCancelling {
+	if phase := attempt.Phase(); phase != ledger.AttemptCancelling {
 		t.Fatalf("phase after nondurable terminalization=%q", phase)
 	}
 	if snapshot := sampleLedger.Snapshot(); snapshot.RetainedAttempts != 1 ||
@@ -1166,7 +1167,7 @@ func TestCancellationPersistenceFailureRetainsAndRetriesAttempt(t *testing.T) {
 		t.Fatal("nondurable terminal watermark was exported")
 	}
 
-	if result, err := attempt.Cancel(); err != nil || result != reg.CancellationCompleted {
+	if result, err := attempt.Cancel(); err != nil || result != ledger.CancellationCompleted {
 		t.Fatalf("retry Cancel=(%q, %v)", result, err)
 	}
 	if calls := committer.callCount(); calls != 2 {
@@ -1187,7 +1188,7 @@ func TestTerminalPersistenceFailurePropagatesToAllCancellationWaiters(t *testing
 		entered:                    make(chan struct{}),
 		release:                    make(chan struct{}),
 	}
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -1201,7 +1202,7 @@ func TestTerminalPersistenceFailurePropagatesToAllCancellationWaiters(t *testing
 		t.Fatalf("BeginRuntimeAttempt: %v", err)
 	}
 	type cancellation struct {
-		result reg.CancellationResult
+		result ledger.CancellationResult
 		err    error
 	}
 	results := make(chan cancellation, 2)
@@ -1217,7 +1218,7 @@ func TestTerminalPersistenceFailurePropagatesToAllCancellationWaiters(t *testing
 	close(committer.release)
 	for index := 0; index < 2; index++ {
 		got := <-results
-		if got.result != reg.CancellationFailed || got.err == nil {
+		if got.result != ledger.CancellationFailed || got.err == nil {
 			t.Fatalf("waiter %d Cancel=(%q, %v)", index, got.result, got.err)
 		}
 	}
@@ -1234,11 +1235,11 @@ func TestTerminalCommitUsesConfiguredFiniteDeadline(t *testing.T) {
 		memoryPublicationCommitter: memoryPublicationCommitter{state: initial},
 		deadlineObserved:           make(chan struct{}),
 	}
-	factory, err := reg.NewObservationFactoryWithOptions(
+	factory, err := ledger.NewObservationFactoryWithOptions(
 		profile,
 		sampleLedger,
 		committer,
-		reg.ObservationFactoryOptions{TerminalCommitTimeout: time.Millisecond},
+		ledger.ObservationFactoryOptions{TerminalCommitTimeout: time.Millisecond},
 	)
 	if err != nil {
 		t.Fatalf("NewObservationFactoryWithOptions: %v", err)
@@ -1252,11 +1253,11 @@ func TestTerminalCommitUsesConfiguredFiniteDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeginRuntimeAttempt: %v", err)
 	}
-	if result, err := attempt.Cancel(); err == nil || result != reg.CancellationFailed {
+	if result, err := attempt.Cancel(); err == nil || result != ledger.CancellationFailed {
 		t.Fatalf("Cancel=(%q, %v), want bounded retryable failure", result, err)
 	}
 	<-committer.deadlineObserved
-	if phase := attempt.Phase(); phase != reg.AttemptCancelling {
+	if phase := attempt.Phase(); phase != ledger.AttemptCancelling {
 		t.Fatalf("deadline failure phase=%q", phase)
 	}
 }
@@ -1269,7 +1270,7 @@ func TestPublishFailureTerminalPersistenceIsRetryable(t *testing.T) {
 		memoryPublicationCommitter: memoryPublicationCommitter{state: initial},
 		failuresLeft:               1,
 	}}
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -1283,7 +1284,7 @@ func TestPublishFailureTerminalPersistenceIsRetryable(t *testing.T) {
 	)
 	for ordinal := range views {
 		if outcome, err := attempt.Claim(uint64(ordinal)); err != nil ||
-			outcome != reg.ClaimSucceeded {
+			outcome != ledger.ClaimSucceeded {
 			t.Fatalf("Claim(%d)=(%q, %v)", ordinal, outcome, err)
 		}
 	}
@@ -1293,14 +1294,14 @@ func TestPublishFailureTerminalPersistenceIsRetryable(t *testing.T) {
 	if _, err := attempt.Publish(context.Background()); err == nil {
 		t.Fatal("forced publication failure was accepted")
 	}
-	if phase := attempt.Phase(); phase != reg.AttemptPublishing {
+	if phase := attempt.Phase(); phase != ledger.AttemptPublishing {
 		t.Fatalf("nondurable publish-failure phase=%q", phase)
 	}
 	if snapshot := sampleLedger.Snapshot(); snapshot.RetainedAttempts != 1 {
 		t.Fatalf("nondurable publish failure was reclaimed: %+v", snapshot)
 	}
 	if result, err := attempt.Cancel(); err != nil ||
-		result != reg.CancellationPublishFailed {
+		result != ledger.CancellationPublishFailed {
 		t.Fatalf("terminal persistence retry Cancel=(%q, %v)", result, err)
 	}
 }
@@ -1313,7 +1314,7 @@ func TestAdmissionFailureTerminalPersistenceIsRetryable(t *testing.T) {
 		memoryPublicationCommitter: memoryPublicationCommitter{state: initial},
 		failuresLeft:               1,
 	}
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -1330,37 +1331,35 @@ func TestAdmissionFailureTerminalPersistenceIsRetryable(t *testing.T) {
 	if err := attempt.Admit(); err == nil {
 		t.Fatal("generation-mismatched admission was accepted")
 	}
-	if phase := attempt.Phase(); phase != reg.AttemptCancelling {
+	if phase := attempt.Phase(); phase != ledger.AttemptCancelling {
 		t.Fatalf("nondurable admission-failure phase=%q", phase)
 	}
-	if result, err := attempt.Cancel(); err != nil || result != reg.CancellationCompleted {
+	if result, err := attempt.Cancel(); err != nil || result != ledger.CancellationCompleted {
 		t.Fatalf("admission terminal persistence retry=(%q, %v)", result, err)
 	}
 }
 
-func TestRuntimeAttemptClaimsProducerCapabilitiesAndRetainsExactNormalization(
-	t *testing.T,
-) {
+func TestRuntimeAttemptClaimsProducerCapabilitiesAndRetainsExactNormalization(t *testing.T) {
 	profile := profileFixture(t)
 	source, views := runtimeSourceAndViews(t)
-	initial, err := reg.EmptySampleLedgerState("runtime-ledger", profile)
+	initial, err := ledger.EmptySampleLedgerState("runtime-ledger", profile)
 	if err != nil {
 		t.Fatalf("EmptySampleLedgerState: %v", err)
 	}
-	sampleLedger, err := reg.NewSampleLedger(initial, 0, reg.DefaultLedgerLimits())
+	sampleLedger, err := ledger.NewSampleLedger(initial, 0, reg.DefaultLedgerLimits())
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
 	committer := &memoryPublicationCommitter{state: initial}
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
-	attempt, err := factory.BeginRuntimeAttempt(reg.RuntimeAttemptRequest{
+	attempt, err := factory.BeginRuntimeAttempt(ledger.RuntimeAttemptRequest{
 		Source:     source,
 		AttemptKey: "poll-41",
 		Identity:   reg.AttemptIdentity{PollGenerationID: 41},
-		Observation: reg.RuntimeObservationFacts{
+		Observation: ledger.RuntimeObservationFacts{
 			SourceValidity:          reg.SourceValid,
 			SourceTime:              reg.SourceTimeUnavailable(),
 			LocalReceiptTime:        time.Unix(1_700_000_000, 0).UTC(),
@@ -1376,11 +1375,11 @@ func TestRuntimeAttemptClaimsProducerCapabilitiesAndRetainsExactNormalization(
 		t.Fatalf("BeginRuntimeAttempt: %v", err)
 	}
 	copied := *attempt
-	if duplicate, err := factory.BeginRuntimeAttempt(reg.RuntimeAttemptRequest{
+	if duplicate, err := factory.BeginRuntimeAttempt(ledger.RuntimeAttemptRequest{
 		Source:       source,
 		AttemptKey:   "poll-41",
 		Identity:     reg.AttemptIdentity{PollGenerationID: 42},
-		Observation:  reg.RuntimeObservationFacts{SourceValidity: reg.SourceValid},
+		Observation:  ledger.RuntimeObservationFacts{SourceValidity: reg.SourceValid},
 		Dependencies: make([]reg.RuntimeDependencyFacts, 2),
 	}); err == nil || duplicate != nil {
 		t.Fatal("duplicate retained AttemptKey was admitted")
@@ -1398,11 +1397,11 @@ func TestRuntimeAttemptClaimsProducerCapabilitiesAndRetainsExactNormalization(
 	}
 	for ordinal := uint64(0); ordinal < 2; ordinal++ {
 		outcome, err := copied.Claim(ordinal)
-		if err != nil || outcome != reg.ClaimSucceeded {
+		if err != nil || outcome != ledger.ClaimSucceeded {
 			t.Fatalf("Claim(%d)=(%q, %v)", ordinal, outcome, err)
 		}
 	}
-	if outcome, err := attempt.Claim(0); err == nil || outcome != reg.ClaimSucceeded {
+	if outcome, err := attempt.Claim(0); err == nil || outcome != ledger.ClaimSucceeded {
 		t.Fatalf("second claim=(%q, %v), want immutable first outcome plus rejection", outcome, err)
 	}
 	if err := attempt.Seal(); err != nil {
@@ -1459,7 +1458,7 @@ func TestRuntimeAdmissionRejectsForeignMembershipAndEmptyAttempts(t *testing.T) 
 	t.Run("different source", func(t *testing.T) {
 		profile := profileFixture(t)
 		initial, sampleLedger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
-		factory, err := reg.NewObservationFactory(
+		factory, err := ledger.NewObservationFactory(
 			profile,
 			sampleLedger,
 			&memoryPublicationCommitter{state: initial},
@@ -1490,7 +1489,7 @@ func TestRuntimeAdmissionRejectsForeignMembershipAndEmptyAttempts(t *testing.T) 
 		if err := owner.Admit(); err != nil {
 			t.Fatalf("Admit(owner): %v", err)
 		}
-		if result, err := owner.Cancel(); err != nil || result != reg.CancellationCompleted {
+		if result, err := owner.Cancel(); err != nil || result != ledger.CancellationCompleted {
 			t.Fatalf("Cancel(owner)=(%q, %v)", result, err)
 		}
 		for name, source := range map[string]*modbus.RuntimeAcquisitionSource{
@@ -1511,7 +1510,7 @@ func TestRuntimeAdmissionRejectsForeignMembershipAndEmptyAttempts(t *testing.T) 
 	t.Run("different attempt on same source", func(t *testing.T) {
 		profile := profileFixture(t)
 		initial, sampleLedger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
-		factory, err := reg.NewObservationFactory(
+		factory, err := ledger.NewObservationFactory(
 			profile,
 			sampleLedger,
 			&memoryPublicationCommitter{state: initial},
@@ -1549,7 +1548,7 @@ func TestRuntimeAdmissionRejectsForeignMembershipAndEmptyAttempts(t *testing.T) 
 		if err := owner.Admit(); err != nil {
 			t.Fatalf("Admit(owner): %v", err)
 		}
-		if result, err := owner.Cancel(); err != nil || result != reg.CancellationCompleted {
+		if result, err := owner.Cancel(); err != nil || result != ledger.CancellationCompleted {
 			t.Fatalf("Cancel(owner)=(%q, %v)", result, err)
 		}
 		snapshot := source.Snapshot()
@@ -1565,7 +1564,7 @@ func TestRuntimeAdmissionRejectsForeignMembershipAndEmptyAttempts(t *testing.T) 
 	t.Run("empty admission", func(t *testing.T) {
 		profile := profileFixture(t)
 		initial, sampleLedger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
-		factory, err := reg.NewObservationFactory(
+		factory, err := ledger.NewObservationFactory(
 			profile,
 			sampleLedger,
 			&memoryPublicationCommitter{state: initial},
@@ -1586,13 +1585,13 @@ func TestRuntimeAdmissionRejectsForeignMembershipAndEmptyAttempts(t *testing.T) 
 		if err := attempt.Admit(); err == nil {
 			t.Fatal("empty producer attempt entered production")
 		}
-		if attempt.Phase() != reg.AttemptOpen {
+		if attempt.Phase() != ledger.AttemptOpen {
 			t.Fatalf("incomplete admission changed phase to %q", attempt.Phase())
 		}
-		if result, err := attempt.Cancel(); err != nil || result != reg.CancellationCompleted {
+		if result, err := attempt.Cancel(); err != nil || result != ledger.CancellationCompleted {
 			t.Fatalf("Cancel(empty)=(%q, %v)", result, err)
 		}
-		if attempt.Phase() != reg.AttemptCancelled {
+		if attempt.Phase() != ledger.AttemptCancelled {
 			t.Fatalf("empty attempt terminal phase = %q", attempt.Phase())
 		}
 		snapshot := source.Snapshot()
@@ -1613,7 +1612,7 @@ func TestRuntimeLedgerCapacityReclaimsReusesAndRestartsDeterministically(
 	limits.AuditTombstoneLimit = 3
 	initial, sampleLedger := runtimeLedgerForTest(t, profile, limits)
 	committer := &memoryPublicationCommitter{state: initial}
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -1649,7 +1648,7 @@ func TestRuntimeLedgerCapacityReclaimsReusesAndRestartsDeterministically(
 	if _, err := sampleLedger.ExportRestartState(); err == nil {
 		t.Fatal("live capabilities were exported as restartable state")
 	}
-	if result, err := first.Cancel(); err != nil || result != reg.CancellationCompleted {
+	if result, err := first.Cancel(); err != nil || result != ledger.CancellationCompleted {
 		t.Fatalf("Cancel(first)=(%q, %v)", result, err)
 	}
 	if snapshot := sampleLedger.Snapshot(); snapshot.RetainedAttempts != 0 ||
@@ -1666,7 +1665,7 @@ func TestRuntimeLedgerCapacityReclaimsReusesAndRestartsDeterministically(
 	if err != nil {
 		t.Fatalf("reused reclaimed AttemptKey: %v", err)
 	}
-	if result, err := reused.Cancel(); err != nil || result != reg.CancellationCompleted {
+	if result, err := reused.Cancel(); err != nil || result != ledger.CancellationCompleted {
 		t.Fatalf("Cancel(reused)=(%q, %v)", result, err)
 	}
 	restart, err := sampleLedger.ExportRestartState()
@@ -1677,7 +1676,7 @@ func TestRuntimeLedgerCapacityReclaimsReusesAndRestartsDeterministically(
 		restart.NextTerminalSequence != 7 {
 		t.Fatalf("bounded restart state = %+v", restart)
 	}
-	restored, err := reg.NewSampleLedgerFromRestart(initial, 0, limits, restart)
+	restored, err := ledger.NewSampleLedgerFromRestart(initial, 0, limits, restart)
 	if err != nil {
 		t.Fatalf("NewSampleLedgerFromRestart: %v", err)
 	}
@@ -1696,12 +1695,12 @@ func TestRuntimeLedgerCapacityReclaimsReusesAndRestartsDeterministically(
 		}
 	}
 
-	exhaustion := reg.LedgerRestartState{
+	exhaustion := ledger.RestartState{
 		SchemaVersion:            1,
 		NextTerminalSequence:     math.MaxUint64 - 1,
 		TruncatedThroughSequence: math.MaxUint64 - 2,
 	}
-	exhaustedLedger, err := reg.NewSampleLedgerFromRestart(
+	exhaustedLedger, err := ledger.NewSampleLedgerFromRestart(
 		initial,
 		0,
 		limits,
@@ -1710,7 +1709,7 @@ func TestRuntimeLedgerCapacityReclaimsReusesAndRestartsDeterministically(
 	if err != nil {
 		t.Fatalf("NewSampleLedgerFromRestart(exhaustion): %v", err)
 	}
-	exhaustedFactory, err := reg.NewObservationFactory(
+	exhaustedFactory, err := ledger.NewObservationFactory(
 		profile,
 		exhaustedLedger,
 		&memoryPublicationCommitter{state: initial},
@@ -1742,56 +1741,56 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 	limits.MaxClaimEntriesPerAttempt = 2
 	limits.MaxRetainedClaimEntries = 2 * limits.MaxRetainedAttempts
 
-	attempt := func(sequence, claimCount uint64, outcome reg.AttemptPhase) reg.LedgerAuditTombstone {
-		return reg.LedgerAuditTombstone{
+	attempt := func(sequence, claimCount uint64, outcome ledger.AttemptPhase) ledger.AuditTombstone {
+		return ledger.AuditTombstone{
 			SchemaVersion:    1,
-			ObjectKind:       reg.LedgerAuditAttempt,
+			ObjectKind:       ledger.AuditAttempt,
 			TerminalSequence: sequence,
 			ClaimCount:       claimCount,
 			TerminalOutcome:  string(outcome),
 		}
 	}
-	claim := func(sequence, attemptSequence, ordinal uint64) reg.LedgerAuditTombstone {
-		return reg.LedgerAuditTombstone{
+	claim := func(sequence, attemptSequence, ordinal uint64) ledger.AuditTombstone {
+		return ledger.AuditTombstone{
 			SchemaVersion:           1,
-			ObjectKind:              reg.LedgerAuditClaim,
+			ObjectKind:              ledger.AuditClaim,
 			TerminalSequence:        sequence,
 			AttemptTerminalSequence: attemptSequence,
 			ClaimOrdinal:            ordinal,
-			TerminalOutcome:         string(reg.ClaimAttemptCancelled),
+			TerminalOutcome:         string(ledger.ClaimAttemptCancelled),
 		}
 	}
 
 	tests := []struct {
 		name       string
-		tombstones []reg.LedgerAuditTombstone
+		tombstones []ledger.AuditTombstone
 		next       uint64
 		exhausted  bool
 		truncated  uint64
 	}{
 		{
 			name:       "claim sequence does not match reservation",
-			tombstones: []reg.LedgerAuditTombstone{attempt(7, 1, reg.AttemptCancelled), claim(9, 7, 0)},
+			tombstones: []ledger.AuditTombstone{attempt(7, 1, ledger.AttemptCancelled), claim(9, 7, 0)},
 			next:       10,
 			truncated:  6,
 		},
 		{
 			name:       "claim ordinal reaches configured bound",
-			tombstones: []reg.LedgerAuditTombstone{attempt(7, 1, reg.AttemptCancelled), claim(10, 7, 2)},
+			tombstones: []ledger.AuditTombstone{attempt(7, 1, ledger.AttemptCancelled), claim(10, 7, 2)},
 			next:       11,
 			truncated:  6,
 		},
 		{
 			name:       "claim reservation addition overflows",
-			tombstones: []reg.LedgerAuditTombstone{claim(math.MaxUint64, math.MaxUint64, 0)},
+			tombstones: []ledger.AuditTombstone{claim(math.MaxUint64, math.MaxUint64, 0)},
 			exhausted:  true,
 			truncated:  math.MaxUint64 - 1,
 		},
 		{
 			name: "claim reservation crosses future attempt",
-			tombstones: []reg.LedgerAuditTombstone{
-				attempt(7, 2, reg.AttemptCancelled),
-				attempt(8, 1, reg.AttemptCancelled),
+			tombstones: []ledger.AuditTombstone{
+				attempt(7, 2, ledger.AttemptCancelled),
+				attempt(8, 1, ledger.AttemptCancelled),
 				claim(9, 7, 1),
 			},
 			next:      10,
@@ -1799,13 +1798,13 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 		},
 		{
 			name:       "retained history has a sequence gap",
-			tombstones: []reg.LedgerAuditTombstone{attempt(7, 1, reg.AttemptCancelled), claim(9, 7, 1)},
+			tombstones: []ledger.AuditTombstone{attempt(7, 1, ledger.AttemptCancelled), claim(9, 7, 1)},
 			next:       10,
 			truncated:  6,
 		},
 		{
 			name: "claim links to a retained claim instead of an attempt",
-			tombstones: []reg.LedgerAuditTombstone{
+			tombstones: []ledger.AuditTombstone{
 				claim(7, 6, 0),
 				claim(8, 7, 0),
 			},
@@ -1819,8 +1818,8 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 		},
 		{
 			name: "two-claim reservation omits the second claim",
-			tombstones: []reg.LedgerAuditTombstone{
-				attempt(7, 2, reg.AttemptCancelled),
+			tombstones: []ledger.AuditTombstone{
+				attempt(7, 2, ledger.AttemptCancelled),
 				claim(8, 7, 0),
 			},
 			next:      9,
@@ -1828,8 +1827,8 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 		},
 		{
 			name: "published history contains a cancelled claim",
-			tombstones: []reg.LedgerAuditTombstone{
-				attempt(7, 1, reg.AttemptPublished),
+			tombstones: []ledger.AuditTombstone{
+				attempt(7, 1, ledger.AttemptPublished),
 				claim(8, 7, 0),
 			},
 			next:      9,
@@ -1838,14 +1837,14 @@ func TestLedgerRestartRejectsMalformedClaimSequenceReservations(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			restart := reg.LedgerRestartState{
+			restart := ledger.RestartState{
 				SchemaVersion:            1,
 				NextTerminalSequence:     test.next,
 				SequenceExhausted:        test.exhausted,
 				TruncatedThroughSequence: test.truncated,
 				AuditTombstones:          test.tombstones,
 			}
-			if _, err := reg.NewSampleLedgerFromRestart(
+			if _, err := ledger.NewSampleLedgerFromRestart(
 				state,
 				0,
 				limits,
@@ -1861,26 +1860,26 @@ func TestLedgerRestartLeadingTruncatedClaimSuffixIsCoherent(t *testing.T) {
 	profile := profileFixture(t)
 	state := emptyLedgerState(t, profile)
 	limits := reg.DefaultLedgerLimits()
-	claim := func(sequence, attemptSequence, ordinal uint64) reg.LedgerAuditTombstone {
-		return reg.LedgerAuditTombstone{
+	claim := func(sequence, attemptSequence, ordinal uint64) ledger.AuditTombstone {
+		return ledger.AuditTombstone{
 			SchemaVersion:           1,
-			ObjectKind:              reg.LedgerAuditClaim,
+			ObjectKind:              ledger.AuditClaim,
 			TerminalSequence:        sequence,
 			AttemptTerminalSequence: attemptSequence,
 			ClaimOrdinal:            ordinal,
-			TerminalOutcome:         string(reg.ClaimAttemptCancelled),
+			TerminalOutcome:         string(ledger.ClaimAttemptCancelled),
 		}
 	}
-	reviewerExample := reg.LedgerRestartState{
+	reviewerExample := ledger.RestartState{
 		SchemaVersion:            1,
 		NextTerminalSequence:     8,
 		TruncatedThroughSequence: 5,
-		AuditTombstones: []reg.LedgerAuditTombstone{
+		AuditTombstones: []ledger.AuditTombstone{
 			claim(6, 1, 4),
 			claim(7, 3, 3),
 		},
 	}
-	if sampleLedger, err := reg.NewSampleLedgerFromRestart(
+	if sampleLedger, err := ledger.NewSampleLedgerFromRestart(
 		state,
 		0,
 		limits,
@@ -1888,24 +1887,24 @@ func TestLedgerRestartLeadingTruncatedClaimSuffixIsCoherent(t *testing.T) {
 	); err == nil || sampleLedger != nil {
 		t.Fatal("overlapping truncated attempt suffixes were accepted")
 	}
-	valid := reg.LedgerRestartState{
+	valid := ledger.RestartState{
 		SchemaVersion:            1,
 		NextTerminalSequence:     10,
 		TruncatedThroughSequence: 5,
-		AuditTombstones: []reg.LedgerAuditTombstone{
+		AuditTombstones: []ledger.AuditTombstone{
 			claim(6, 1, 4),
 			claim(7, 1, 5),
 			{
 				SchemaVersion:    1,
-				ObjectKind:       reg.LedgerAuditAttempt,
+				ObjectKind:       ledger.AuditAttempt,
 				TerminalSequence: 8,
 				ClaimCount:       1,
-				TerminalOutcome:  string(reg.AttemptCancelled),
+				TerminalOutcome:  string(ledger.AttemptCancelled),
 			},
 			claim(9, 8, 0),
 		},
 	}
-	sampleLedger, err := reg.NewSampleLedgerFromRestart(state, 0, limits, valid)
+	sampleLedger, err := ledger.NewSampleLedgerFromRestart(state, 0, limits, valid)
 	if err != nil {
 		t.Fatalf("single truncated attempt suffix was rejected: %v", err)
 	}
@@ -1923,11 +1922,11 @@ func TestSampleRevisionMatchesRetainedPublicationHistory(t *testing.T) {
 	limits := reg.DefaultLedgerLimits()
 	attempt := func(
 		sequence uint64,
-		outcome reg.AttemptPhase,
-	) reg.LedgerAuditTombstone {
-		return reg.LedgerAuditTombstone{
+		outcome ledger.AttemptPhase,
+	) ledger.AuditTombstone {
+		return ledger.AuditTombstone{
 			SchemaVersion:    1,
-			ObjectKind:       reg.LedgerAuditAttempt,
+			ObjectKind:       ledger.AuditAttempt,
 			TerminalSequence: sequence,
 			ClaimCount:       1,
 			TerminalOutcome:  string(outcome),
@@ -1936,18 +1935,18 @@ func TestSampleRevisionMatchesRetainedPublicationHistory(t *testing.T) {
 	claim := func(
 		sequence uint64,
 		attemptSequence uint64,
-		outcome reg.ClaimOutcome,
-	) reg.LedgerAuditTombstone {
-		return reg.LedgerAuditTombstone{
+		outcome ledger.ClaimOutcome,
+	) ledger.AuditTombstone {
+		return ledger.AuditTombstone{
 			SchemaVersion:           1,
-			ObjectKind:              reg.LedgerAuditClaim,
+			ObjectKind:              ledger.AuditClaim,
 			TerminalSequence:        sequence,
 			AttemptTerminalSequence: attemptSequence,
 			ClaimOrdinal:            0,
 			TerminalOutcome:         string(outcome),
 		}
 	}
-	stateAtRevision := func(revision uint64) reg.SampleLedgerState {
+	stateAtRevision := func(revision uint64) ledger.SampleLedgerState {
 		state := emptyLedgerState(t, profile)
 		state.Revision = revision
 		state.HighWater = revision
@@ -1962,56 +1961,56 @@ func TestSampleRevisionMatchesRetainedPublicationHistory(t *testing.T) {
 		name      string
 		revision  uint64
 		truncated uint64
-		history   []reg.LedgerAuditTombstone
+		history   []ledger.AuditTombstone
 		wantError bool
 	}{
 		{
 			name: "complete revision zero contains a publication",
-			history: []reg.LedgerAuditTombstone{
-				attempt(1, reg.AttemptPublished),
-				claim(2, 1, reg.ClaimSucceeded),
+			history: []ledger.AuditTombstone{
+				attempt(1, ledger.AttemptPublished),
+				claim(2, 1, ledger.ClaimSucceeded),
 			},
 			wantError: true,
 		},
 		{
 			name:     "complete revision one contains only cancellation",
 			revision: 1,
-			history: []reg.LedgerAuditTombstone{
-				attempt(1, reg.AttemptCancelled),
-				claim(2, 1, reg.ClaimAttemptCancelled),
+			history: []ledger.AuditTombstone{
+				attempt(1, ledger.AttemptCancelled),
+				claim(2, 1, ledger.ClaimAttemptCancelled),
 			},
 			wantError: true,
 		},
 		{
 			name:     "complete mixed history has one publication",
 			revision: 1,
-			history: []reg.LedgerAuditTombstone{
-				attempt(1, reg.AttemptCancelled),
-				claim(2, 1, reg.ClaimAttemptCancelled),
-				attempt(3, reg.AttemptPublished),
-				claim(4, 3, reg.ClaimSucceeded),
+			history: []ledger.AuditTombstone{
+				attempt(1, ledger.AttemptCancelled),
+				claim(2, 1, ledger.ClaimAttemptCancelled),
+				attempt(3, ledger.AttemptPublished),
+				claim(4, 3, ledger.ClaimSucceeded),
 			},
 		},
 		{
 			name:      "truncated publication count is a valid lower bound",
 			revision:  2,
 			truncated: 2,
-			history: []reg.LedgerAuditTombstone{
-				attempt(3, reg.AttemptPublished),
-				claim(4, 3, reg.ClaimSucceeded),
+			history: []ledger.AuditTombstone{
+				attempt(3, ledger.AttemptPublished),
+				claim(4, 3, ledger.ClaimSucceeded),
 			},
 		},
 		{
 			name:      "truncated leading claim has unknown attempt outcome",
 			truncated: 2,
-			history: []reg.LedgerAuditTombstone{
+			history: []ledger.AuditTombstone{
 				{
 					SchemaVersion:           1,
-					ObjectKind:              reg.LedgerAuditClaim,
+					ObjectKind:              ledger.AuditClaim,
 					TerminalSequence:        3,
 					AttemptTerminalSequence: 1,
 					ClaimOrdinal:            1,
-					TerminalOutcome:         string(reg.ClaimSucceeded),
+					TerminalOutcome:         string(ledger.ClaimSucceeded),
 				},
 			},
 		},
@@ -2019,24 +2018,24 @@ func TestSampleRevisionMatchesRetainedPublicationHistory(t *testing.T) {
 			name:      "truncated suffix exceeds revision",
 			revision:  1,
 			truncated: 2,
-			history: []reg.LedgerAuditTombstone{
-				attempt(3, reg.AttemptPublished),
-				claim(4, 3, reg.ClaimSucceeded),
-				attempt(5, reg.AttemptPublished),
-				claim(6, 5, reg.ClaimSucceeded),
+			history: []ledger.AuditTombstone{
+				attempt(3, ledger.AttemptPublished),
+				claim(4, 3, ledger.ClaimSucceeded),
+				attempt(5, ledger.AttemptPublished),
+				claim(6, 5, ledger.ClaimSucceeded),
 			},
 			wantError: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			restart := reg.LedgerRestartState{
+			restart := ledger.RestartState{
 				SchemaVersion:            1,
 				NextTerminalSequence:     uint64(len(test.history)) + test.truncated + 1,
 				TruncatedThroughSequence: test.truncated,
 				AuditTombstones:          test.history,
 			}
-			sampleLedger, err := reg.NewSampleLedgerFromRestart(
+			sampleLedger, err := ledger.NewSampleLedgerFromRestart(
 				stateAtRevision(test.revision),
 				0,
 				limits,
@@ -2061,37 +2060,37 @@ func TestLedgerRestartClaimSequenceReservationRoundTrip(t *testing.T) {
 	limits := reg.DefaultLedgerLimits()
 	limits.MaxClaimEntriesPerAttempt = 2
 	limits.MaxRetainedClaimEntries = 2 * limits.MaxRetainedAttempts
-	restart := reg.LedgerRestartState{
+	restart := ledger.RestartState{
 		SchemaVersion:            1,
 		NextTerminalSequence:     10,
 		TruncatedThroughSequence: 6,
-		AuditTombstones: []reg.LedgerAuditTombstone{
+		AuditTombstones: []ledger.AuditTombstone{
 			{
 				SchemaVersion:    1,
-				ObjectKind:       reg.LedgerAuditAttempt,
+				ObjectKind:       ledger.AuditAttempt,
 				TerminalSequence: 7,
 				ClaimCount:       2,
-				TerminalOutcome:  string(reg.AttemptCancelled),
+				TerminalOutcome:  string(ledger.AttemptCancelled),
 			},
 			{
 				SchemaVersion:           1,
-				ObjectKind:              reg.LedgerAuditClaim,
+				ObjectKind:              ledger.AuditClaim,
 				TerminalSequence:        8,
 				AttemptTerminalSequence: 7,
 				ClaimOrdinal:            0,
-				TerminalOutcome:         string(reg.ClaimAttemptCancelled),
+				TerminalOutcome:         string(ledger.ClaimAttemptCancelled),
 			},
 			{
 				SchemaVersion:           1,
-				ObjectKind:              reg.LedgerAuditClaim,
+				ObjectKind:              ledger.AuditClaim,
 				TerminalSequence:        9,
 				AttemptTerminalSequence: 7,
 				ClaimOrdinal:            1,
-				TerminalOutcome:         string(reg.ClaimAttemptCancelled),
+				TerminalOutcome:         string(ledger.ClaimAttemptCancelled),
 			},
 		},
 	}
-	sampleLedger, err := reg.NewSampleLedgerFromRestart(state, 0, limits, restart)
+	sampleLedger, err := ledger.NewSampleLedgerFromRestart(state, 0, limits, restart)
 	if err != nil {
 		t.Fatalf("NewSampleLedgerFromRestart(valid): %v", err)
 	}
@@ -2113,60 +2112,60 @@ func TestLedgerRestartClaimSequenceReservationRoundTrip(t *testing.T) {
 }
 
 func TestTerminalWatermarkCoverageRejectsConflictingRetainedHistory(t *testing.T) {
-	attempt := func(sequence uint64, outcome reg.AttemptPhase) reg.LedgerAuditTombstone {
-		return reg.LedgerAuditTombstone{
+	attempt := func(sequence uint64, outcome ledger.AttemptPhase) ledger.AuditTombstone {
+		return ledger.AuditTombstone{
 			SchemaVersion:    1,
-			ObjectKind:       reg.LedgerAuditAttempt,
+			ObjectKind:       ledger.AuditAttempt,
 			TerminalSequence: sequence,
 			ClaimCount:       1,
 			TerminalOutcome:  string(outcome),
 		}
 	}
-	claim := func(sequence, attemptSequence uint64) reg.LedgerAuditTombstone {
-		return reg.LedgerAuditTombstone{
+	claim := func(sequence, attemptSequence uint64) ledger.AuditTombstone {
+		return ledger.AuditTombstone{
 			SchemaVersion:           1,
-			ObjectKind:              reg.LedgerAuditClaim,
+			ObjectKind:              ledger.AuditClaim,
 			TerminalSequence:        sequence,
 			AttemptTerminalSequence: attemptSequence,
 			ClaimOrdinal:            0,
-			TerminalOutcome:         string(reg.ClaimAttemptCancelled),
+			TerminalOutcome:         string(ledger.ClaimAttemptCancelled),
 		}
 	}
-	prior := reg.LedgerRestartState{
+	prior := ledger.RestartState{
 		SchemaVersion:            1,
 		NextTerminalSequence:     9,
 		TruncatedThroughSequence: 6,
-		AuditTombstones: []reg.LedgerAuditTombstone{
-			attempt(7, reg.AttemptCancelled),
+		AuditTombstones: []ledger.AuditTombstone{
+			attempt(7, ledger.AttemptCancelled),
 			claim(8, 7),
 		},
 	}
 	tests := []struct {
 		name    string
-		current reg.LedgerRestartState
+		current ledger.RestartState
 	}{
 		{
 			name: "same watermark",
-			current: reg.LedgerRestartState{
+			current: ledger.RestartState{
 				SchemaVersion:            1,
 				NextTerminalSequence:     9,
 				TruncatedThroughSequence: 6,
-				AuditTombstones: []reg.LedgerAuditTombstone{
-					attempt(7, reg.AttemptCancelFailed),
+				AuditTombstones: []ledger.AuditTombstone{
+					attempt(7, ledger.AttemptCancelFailed),
 					claim(8, 7),
 				},
 			},
 		},
 		{
 			name: "higher watermark",
-			current: reg.LedgerRestartState{
+			current: ledger.RestartState{
 				SchemaVersion:            1,
 				NextTerminalSequence:     11,
 				TruncatedThroughSequence: 6,
-				AuditTombstones: []reg.LedgerAuditTombstone{
-					attempt(7, reg.AttemptCancelFailed),
+				AuditTombstones: []ledger.AuditTombstone{
+					attempt(7, ledger.AttemptCancelFailed),
 					claim(8, 7),
-					attempt(9, reg.AttemptCancelled),
+					attempt(9, ledger.AttemptCancelled),
 					claim(10, 9),
 				},
 			},
@@ -2183,28 +2182,28 @@ func TestTerminalWatermarkCoverageRejectsConflictingRetainedHistory(t *testing.T
 
 func TestLedgerRestartJSONRejectsAggregateLargerThanContract(t *testing.T) {
 	const attempts = 18000
-	tombstones := make([]reg.LedgerAuditTombstone, 0, attempts*2)
+	tombstones := make([]ledger.AuditTombstone, 0, attempts*2)
 	for index := uint64(0); index < attempts; index++ {
 		attemptSequence := index*2 + 1
 		tombstones = append(tombstones,
-			reg.LedgerAuditTombstone{
+			ledger.AuditTombstone{
 				SchemaVersion:    1,
-				ObjectKind:       reg.LedgerAuditAttempt,
+				ObjectKind:       ledger.AuditAttempt,
 				TerminalSequence: attemptSequence,
 				ClaimCount:       1,
-				TerminalOutcome:  string(reg.AttemptCancelled),
+				TerminalOutcome:  string(ledger.AttemptCancelled),
 			},
-			reg.LedgerAuditTombstone{
+			ledger.AuditTombstone{
 				SchemaVersion:           1,
-				ObjectKind:              reg.LedgerAuditClaim,
+				ObjectKind:              ledger.AuditClaim,
 				TerminalSequence:        attemptSequence + 1,
 				AttemptTerminalSequence: attemptSequence,
 				ClaimOrdinal:            0,
-				TerminalOutcome:         string(reg.ClaimAttemptCancelled),
+				TerminalOutcome:         string(ledger.ClaimAttemptCancelled),
 			},
 		)
 	}
-	restart := reg.LedgerRestartState{
+	restart := ledger.RestartState{
 		SchemaVersion:        1,
 		NextTerminalSequence: attempts*2 + 1,
 		AuditTombstones:      tombstones,
@@ -2217,7 +2216,7 @@ func TestLedgerRestartJSONRejectsAggregateLargerThanContract(t *testing.T) {
 func TestRuntimeAttemptRejectsUnboundedFactsBeforeProducerRetention(t *testing.T) {
 	profile := profileFixture(t)
 	initial, sampleLedger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
-	factory, err := reg.NewObservationFactory(
+	factory, err := ledger.NewObservationFactory(
 		profile,
 		sampleLedger,
 		&memoryPublicationCommitter{state: initial},
@@ -2246,7 +2245,7 @@ func TestRuntimeAttemptRejectsUnboundedFactsBeforeProducerRetention(t *testing.T
 func TestRuntimeClaimAndCancelRaceHasOneDeterministicDrain(t *testing.T) {
 	profile := profileFixture(t)
 	initial, sampleLedger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
-	factory, err := reg.NewObservationFactory(
+	factory, err := ledger.NewObservationFactory(
 		profile,
 		sampleLedger,
 		&memoryPublicationCommitter{state: initial},
@@ -2264,9 +2263,9 @@ func TestRuntimeClaimAndCancelRaceHasOneDeterministicDrain(t *testing.T) {
 		41,
 	)
 	start := make(chan struct{})
-	var claimOutcome reg.ClaimOutcome
+	var claimOutcome ledger.ClaimOutcome
 	var claimErr error
-	var cancelResult reg.CancellationResult
+	var cancelResult ledger.CancellationResult
 	var cancelErr error
 	var wait sync.WaitGroup
 	wait.Add(2)
@@ -2282,22 +2281,22 @@ func TestRuntimeClaimAndCancelRaceHasOneDeterministicDrain(t *testing.T) {
 	}()
 	close(start)
 	wait.Wait()
-	if cancelErr != nil || cancelResult != reg.CancellationCompleted {
+	if cancelErr != nil || cancelResult != ledger.CancellationCompleted {
 		t.Fatalf("Cancel=(%q, %v)", cancelResult, cancelErr)
 	}
 	switch claimOutcome {
-	case reg.ClaimSucceeded:
+	case ledger.ClaimSucceeded:
 		if claimErr != nil {
 			t.Fatalf("successful claim returned %v", claimErr)
 		}
-	case reg.ClaimAttemptCancelled, "":
+	case ledger.ClaimAttemptCancelled, "":
 		if claimErr == nil {
 			t.Fatal("cancelled claim did not report closed admission")
 		}
 	default:
 		t.Fatalf("claim race outcome=(%q, %v)", claimOutcome, claimErr)
 	}
-	if attempt.Phase() != reg.AttemptCancelled {
+	if attempt.Phase() != ledger.AttemptCancelled {
 		t.Fatalf("phase=%q want cancelled", attempt.Phase())
 	}
 	snapshot := sampleLedger.Snapshot()
@@ -2307,15 +2306,15 @@ func TestRuntimeClaimAndCancelRaceHasOneDeterministicDrain(t *testing.T) {
 	}
 	claimOutcomes := make(map[uint64]string)
 	for _, tombstone := range snapshot.AuditTombstones {
-		if tombstone.ObjectKind == reg.LedgerAuditClaim {
+		if tombstone.ObjectKind == ledger.AuditClaim {
 			claimOutcomes[tombstone.ClaimOrdinal] = tombstone.TerminalOutcome
 		}
 	}
-	if got := claimOutcomes[0]; got != string(reg.ClaimSucceeded) &&
-		got != string(reg.ClaimAttemptCancelled) {
+	if got := claimOutcomes[0]; got != string(ledger.ClaimSucceeded) &&
+		got != string(ledger.ClaimAttemptCancelled) {
 		t.Fatalf("claim 0 tombstone=%q", got)
 	}
-	if got := claimOutcomes[1]; got != string(reg.ClaimAttemptCancelled) {
+	if got := claimOutcomes[1]; got != string(ledger.ClaimAttemptCancelled) {
 		t.Fatalf("claim 1 tombstone=%q", got)
 	}
 	producer := source.Snapshot()
@@ -2326,8 +2325,8 @@ func TestRuntimeClaimAndCancelRaceHasOneDeterministicDrain(t *testing.T) {
 
 func sealedRuntimeAttemptForTest(
 	t *testing.T,
-	committer reg.PublicationCommitter,
-) (*reg.ObservationAttempt, *reg.SampleLedger, *modbus.RuntimeAcquisitionSource) {
+	committer ledger.PublicationCommitter,
+) (*ledger.ObservationAttempt, *ledger.SampleLedger, *modbus.RuntimeAcquisitionSource) {
 	t.Helper()
 	profile := profileFixture(t)
 	initial, sampleLedger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
@@ -2336,7 +2335,7 @@ func sealedRuntimeAttemptForTest(
 		memory.state = initial
 		memory.mu.Unlock()
 	}
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -2351,7 +2350,7 @@ func sealedRuntimeAttemptForTest(
 	)
 	for ordinal := uint64(0); ordinal < uint64(len(views)); ordinal++ {
 		outcome, err := attempt.Claim(ordinal)
-		if err != nil || outcome != reg.ClaimSucceeded {
+		if err != nil || outcome != ledger.ClaimSucceeded {
 			t.Fatalf("Claim(%d)=(%q, %v)", ordinal, outcome, err)
 		}
 	}
@@ -2367,13 +2366,13 @@ type publicationResult struct {
 }
 
 type cancellationOutcome struct {
-	result reg.CancellationResult
+	result ledger.CancellationResult
 	err    error
 }
 
 func TestRuntimePublishAndCancelShareOneTransactionalDecision(t *testing.T) {
 	t.Run("cancellation wins", func(t *testing.T) {
-		committer := newArbitrationPublicationCommitter(reg.SampleLedgerState{})
+		committer := newArbitrationPublicationCommitter(ledger.SampleLedgerState{})
 		attempt, sampleLedger, source := sealedRuntimeAttemptForTest(t, committer)
 		published := make(chan publicationResult, 1)
 		go func() {
@@ -2386,11 +2385,11 @@ func TestRuntimePublishAndCancelShareOneTransactionalDecision(t *testing.T) {
 		if result.err == nil || result.observation.SampleID() != "" {
 			t.Fatal("cancelled transaction published an observation")
 		}
-		if cancelErr != nil || cancelResult != reg.CancellationPublishFailed {
+		if cancelErr != nil || cancelResult != ledger.CancellationPublishFailed {
 			t.Fatalf("Cancel=(%q, %v)", cancelResult, cancelErr)
 		}
 		if committer.effectCount() != 0 || sampleLedger.ExportState().Revision != 0 ||
-			attempt.Phase() != reg.AttemptPublishFailed {
+			attempt.Phase() != ledger.AttemptPublishFailed {
 			t.Fatalf("cancelled transaction crossed its commit boundary")
 		}
 		producer := source.Snapshot()
@@ -2400,7 +2399,7 @@ func TestRuntimePublishAndCancelShareOneTransactionalDecision(t *testing.T) {
 	})
 
 	t.Run("commit wins", func(t *testing.T) {
-		committer := newArbitrationPublicationCommitter(reg.SampleLedgerState{})
+		committer := newArbitrationPublicationCommitter(ledger.SampleLedgerState{})
 		attempt, sampleLedger, source := sealedRuntimeAttemptForTest(t, committer)
 		published := make(chan publicationResult, 1)
 		go func() {
@@ -2414,11 +2413,11 @@ func TestRuntimePublishAndCancelShareOneTransactionalDecision(t *testing.T) {
 		if result.err != nil || result.observation.SampleID() != "runtime-ledger:1" {
 			t.Fatalf("committed publication=(%q, %v)", result.observation.SampleID(), result.err)
 		}
-		if cancelErr != nil || cancelResult != reg.CancellationAlreadyPublished {
+		if cancelErr != nil || cancelResult != ledger.CancellationAlreadyPublished {
 			t.Fatalf("Cancel=(%q, %v)", cancelResult, cancelErr)
 		}
 		if committer.effectCount() != 1 || sampleLedger.ExportState().Revision != 1 ||
-			attempt.Phase() != reg.AttemptPublished {
+			attempt.Phase() != ledger.AttemptPublished {
 			t.Fatal("committed transaction did not make one terminal decision")
 		}
 		producer := source.Snapshot()
@@ -2428,7 +2427,7 @@ func TestRuntimePublishAndCancelShareOneTransactionalDecision(t *testing.T) {
 	})
 
 	t.Run("simultaneous arbitration", func(t *testing.T) {
-		committer := newArbitrationPublicationCommitter(reg.SampleLedgerState{})
+		committer := newArbitrationPublicationCommitter(ledger.SampleLedgerState{})
 		attempt, sampleLedger, _ := sealedRuntimeAttemptForTest(t, committer)
 		published := make(chan publicationResult, 1)
 		go func() {
@@ -2456,16 +2455,16 @@ func TestRuntimePublishAndCancelShareOneTransactionalDecision(t *testing.T) {
 		switch committer.effectCount() {
 		case 0:
 			if publishResult.err == nil || publishResult.observation.SampleID() != "" ||
-				cancelResult.result != reg.CancellationPublishFailed ||
+				cancelResult.result != ledger.CancellationPublishFailed ||
 				sampleLedger.ExportState().Revision != 0 ||
-				attempt.Phase() != reg.AttemptPublishFailed {
+				attempt.Phase() != ledger.AttemptPublishFailed {
 				t.Fatal("cancelled arbitration had a partial commit")
 			}
 		case 1:
 			if publishResult.err != nil || publishResult.observation.SampleID() != "runtime-ledger:1" ||
-				cancelResult.result != reg.CancellationAlreadyPublished ||
+				cancelResult.result != ledger.CancellationAlreadyPublished ||
 				sampleLedger.ExportState().Revision != 1 ||
-				attempt.Phase() != reg.AttemptPublished {
+				attempt.Phase() != ledger.AttemptPublished {
 				t.Fatal("committed arbitration had a partial decision")
 			}
 		default:

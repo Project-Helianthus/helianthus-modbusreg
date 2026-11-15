@@ -7,20 +7,21 @@ import (
 	"time"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
 // m203SyntheticCorpus contains only generic standard-family declarations and
 // offline fixture identities. Detection declarations reconstruct the existing
 // ProfileDetector from the corpus catalog; no executable pointer is persisted.
-func m203SyntheticCorpus(t *testing.T) reg.FixtureConformanceCorpusSpec {
+func m203SyntheticCorpus(t *testing.T) detection.FixtureConformanceCorpusSpec {
 	t.Helper()
 	alpha := detectionProfile(t, "synthetic.standard.alpha", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	beta := m203HoldingProfile(t, "synthetic.standard.beta", "2.0.0")
-	return reg.FixtureConformanceCorpusSpec{
+	return detection.FixtureConformanceCorpusSpec{
 		SchemaVersion: version(t, "1.0.0"),
-		Metadata:      reg.SanitizedFixtureMetadata{CorpusID: "synthetic-conformance-public", LicenseExpression: "CC0-1.0", Provenance: "public synthetic fixture"},
+		Metadata:      detection.SanitizedFixtureMetadata{CorpusID: "synthetic-conformance-public", LicenseExpression: "CC0-1.0", Provenance: "public synthetic fixture"},
 		Profiles:      []reg.ProfileDescriptor{alpha, beta},
-		Records: []reg.FixtureConformanceRecordSpec{
+		Records: []detection.FixtureConformanceRecordSpec{
 			m203Record(t, "synthetic-fc04-alpha", alpha, 17, 501),
 			m203Record(t, "synthetic-fc03-beta", beta, 18, 502),
 		},
@@ -56,7 +57,7 @@ func m203HoldingProfile(t *testing.T, id, profileVersion string) reg.ProfileDesc
 	return profile
 }
 
-func m203Record(t *testing.T, id string, profile reg.ProfileDescriptor, unit byte, generation uint64) reg.FixtureConformanceRecordSpec {
+func m203Record(t *testing.T, id string, profile reg.ProfileDescriptor, unit byte, generation uint64) detection.FixtureConformanceRecordSpec {
 	t.Helper()
 	observation := successfulObservationSpec(t, profile)
 	observation.Endpoint, observation.UnitID, observation.PollGenerationID = "fixture-endpoint-"+id, unit, generation
@@ -71,45 +72,45 @@ func m203Record(t *testing.T, id string, profile reg.ProfileDescriptor, unit byt
 		}
 		observation.Dependencies[index].View = snapshotFromRecord(t, record)
 	}
-	return reg.FixtureConformanceRecordSpec{
+	return detection.FixtureConformanceRecordSpec{
 		RecordID: id, ProfileID: profile.ID(), ProfileVersion: profile.Version(), Observation: observation,
 		Detection:      m203DetectionCase(t, profile),
-		Qualification:  reg.FixtureQualificationExpectation{Expected: reg.FixtureQualificationDispositionQualified},
-		ExpectedReplay: reg.FixtureReplayExpectation{Outcome: reg.FixtureReplayAccepted, Reason: reg.FixtureReplayReasonAccepted, ExpectedRawWords: [][]uint16{{0x0102, 0x0304}, {0x0304, 0x0506}}},
+		Qualification:  detection.FixtureQualificationExpectation{Expected: detection.FixtureQualificationDispositionQualified},
+		ExpectedReplay: detection.FixtureReplayExpectation{Outcome: detection.FixtureReplayAccepted, Reason: detection.FixtureReplayReasonAccepted, ExpectedRawWords: [][]uint16{{0x0102, 0x0304}, {0x0304, 0x0506}}},
 	}
 }
 
-func m203DetectionCase(t *testing.T, profile reg.ProfileDescriptor) reg.FixtureDetectionCaseSpec {
+func m203DetectionCase(t *testing.T, profile reg.ProfileDescriptor) detection.FixtureDetectionCaseSpec {
 	t.Helper()
-	return reg.FixtureDetectionCaseSpec{
-		Declaration: reg.FixtureDetectorDeclarationSpec{
+	return detection.FixtureDetectionCaseSpec{
+		Declaration: detection.FixtureDetectorDeclarationSpec{
 			DetectorVersion: profile.DetectorVersion(),
 			Plan:            detectionPlan(t).Spec(),
-			Candidates: []reg.DetectionCandidateSpec{
+			Candidates: []detection.CandidateSpec{
 				detectionCandidate(t, profile, 100, true, false).Spec(),
 			},
 			Limits: detectionLimits(),
 		},
-		Input: reg.FixtureDetectorInput{Probes: []reg.FixtureProbeInput{
+		Input: detection.FixtureDetectorInput{Probes: []detection.FixtureProbeInput{
 			{DeclarationID: "manufacturer-identity", Result: m203ProbeResultSpec("manufacturer-alpha", "probe-evidence-manufacturer")},
 			{DeclarationID: "model-identity", Result: m203ProbeResultSpec("model-series-a", "probe-evidence-model")},
 			{DeclarationID: "firmware-identity", Result: m203ProbeResultSpec("1.10.0", "probe-evidence-firmware")},
 		}},
-		Expected: reg.FixtureDetectionExpectation{Outcome: reg.DetectionMatched, Reason: reg.DetectionReasonSelected, SelectedProfileID: profile.ID(), SelectedProfileVersion: profile.Version(), Evidence: []reg.FixtureDetectionEvidenceExpectation{{
-			ProfileID: profile.ID(), ProfileVersion: profile.Version(), Score: 100, Reason: reg.DetectionReasonSelected,
-			MatchedGates:     []reg.ProbeIdentityField{reg.ProbeIdentityManufacturer, reg.ProbeIdentityModel, reg.ProbeIdentityFirmware},
+		Expected: detection.FixtureDetectionExpectation{Outcome: detection.Matched, Reason: detection.ReasonSelected, SelectedProfileID: profile.ID(), SelectedProfileVersion: profile.Version(), Evidence: []detection.FixtureDetectionEvidenceExpectation{{
+			ProfileID: profile.ID(), ProfileVersion: profile.Version(), Score: 100, Reason: detection.ReasonSelected,
+			MatchedGates:     []detection.ProbeIdentityField{detection.ProbeIdentityManufacturer, detection.ProbeIdentityModel, detection.ProbeIdentityFirmware},
 			ProbeEvidenceIDs: []string{"probe-evidence-manufacturer", "probe-evidence-model", "probe-evidence-firmware"},
 			DetectorVersion:  profile.DetectorVersion(), QualificationVersion: profile.QualificationVersion(),
 		}}},
 	}
 }
 
-func m203ProbeResultSpec(value, evidenceID string) reg.ProbeReadResultSpec {
-	return reg.ProbeReadResultSpec{Status: reg.ProbeReadSucceeded, Words: detectionWords(value), EvidenceID: evidenceID}
+func m203ProbeResultSpec(value, evidenceID string) detection.ProbeReadResultSpec {
+	return detection.ProbeReadResultSpec{Status: detection.ProbeReadSucceeded, Words: detectionWords(value), EvidenceID: evidenceID}
 }
 
 func TestM203FixtureCorpusBindsSanitizedTransportNeutralEvidence(t *testing.T) {
-	corpus, err := reg.NewFixtureConformanceCorpus(m203SyntheticCorpus(t))
+	corpus, err := detection.NewFixtureConformanceCorpus(m203SyntheticCorpus(t))
 	if err != nil {
 		t.Fatalf("NewFixtureConformanceCorpus: %v", err)
 	}
@@ -136,13 +137,13 @@ func TestM203FixtureCorpusBindsSanitizedTransportNeutralEvidence(t *testing.T) {
 		t.Fatalf("incomplete provenance: %#v", result)
 	}
 	fixtureDetection := result.Detection()
-	if fixtureDetection.Actual.Outcome() != reg.DetectionMatched || fixtureDetection.Actual.Reason() != reg.DetectionReasonSelected || fixtureDetection.Actual.SelectedProfileID() != result.ProfileID() || fixtureDetection.Actual.SelectedProfileVersion() != result.ProfileVersion() || !fixtureDetection.MatchesExpected() || result.Qualification() != reg.FixtureQualificationDispositionQualified {
+	if fixtureDetection.Actual.Outcome() != detection.Matched || fixtureDetection.Actual.Reason() != detection.ReasonSelected || fixtureDetection.Actual.SelectedProfileID() != result.ProfileID() || fixtureDetection.Actual.SelectedProfileVersion() != result.ProfileVersion() || !fixtureDetection.MatchesExpected() || result.Qualification() != detection.FixtureQualificationDispositionQualified {
 		t.Fatalf("detector/qualification result = %#v", result)
 	}
 }
 
 func TestM203CorpusSpecAndResultAccessorsAreImmutableAndBounded(t *testing.T) {
-	corpus, err := reg.NewFixtureConformanceCorpus(m203SyntheticCorpus(t))
+	corpus, err := detection.NewFixtureConformanceCorpus(m203SyntheticCorpus(t))
 	if err != nil {
 		t.Fatalf("NewFixtureConformanceCorpus: %v", err)
 	}
@@ -161,14 +162,14 @@ func TestM203CorpusSpecAndResultAccessorsAreImmutableAndBounded(t *testing.T) {
 	if report.Records()[0].RawWords()[0] == 0xffff {
 		t.Fatal("report raw-word accessor leaked mutation")
 	}
-	if _, err := reg.NewFixtureConformanceCorpusWithLimits(m203SyntheticCorpus(t), reg.FixtureConformanceLimits{MaxRecords: 1, MaxReportBytes: reg.MaxSerializedContractBytes}); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonOversized) {
+	if _, err := detection.NewFixtureConformanceCorpusWithLimits(m203SyntheticCorpus(t), detection.FixtureConformanceLimits{MaxRecords: 1, MaxReportBytes: reg.MaxSerializedContractBytes}); !detection.IsFixtureMutationReason(err, detection.FixtureMutationReasonOversized) {
 		t.Fatalf("bounded corpus error = %v, want oversized", err)
 	}
 }
 
 func TestM203CompatibleUnequalOverlapsRetainExactLogicalSlices(t *testing.T) {
 	spec := m203SyntheticCorpus(t)
-	corpus, err := reg.NewFixtureConformanceCorpus(spec)
+	corpus, err := detection.NewFixtureConformanceCorpus(spec)
 	if err != nil {
 		t.Fatalf("NewFixtureConformanceCorpus: %v", err)
 	}
@@ -233,8 +234,8 @@ func TestM203BoundedMultiReportRetainsEveryFC03FC04DependencyFact(t *testing.T) 
 	for index, dependency := range observation.Dependencies {
 		record.ExpectedReplay.ExpectedRawWords[index] = dependency.View.Record().Words
 	}
-	spec := reg.FixtureConformanceCorpusSpec{SchemaVersion: version(t, "1.0.0"), Metadata: reg.SanitizedFixtureMetadata{CorpusID: "fixture-mixed-fc03-fc04", LicenseExpression: "CC0-1.0", Provenance: "public synthetic fixture"}, Profiles: []reg.ProfileDescriptor{profile}, Records: []reg.FixtureConformanceRecordSpec{record}}
-	corpus, err := reg.NewFixtureConformanceCorpus(spec)
+	spec := detection.FixtureConformanceCorpusSpec{SchemaVersion: version(t, "1.0.0"), Metadata: detection.SanitizedFixtureMetadata{CorpusID: "fixture-mixed-fc03-fc04", LicenseExpression: "CC0-1.0", Provenance: "public synthetic fixture"}, Profiles: []reg.ProfileDescriptor{profile}, Records: []detection.FixtureConformanceRecordSpec{record}}
+	corpus, err := detection.NewFixtureConformanceCorpus(spec)
 	if err != nil {
 		t.Fatalf("NewFixtureConformanceCorpus: %v", err)
 	}
@@ -299,11 +300,11 @@ func TestM203BoundedMultiReportRetainsEveryFC03FC04DependencyFact(t *testing.T) 
 	if repeat, marshalErr := corpus.MarshalBoundedReport(); marshalErr != nil || !bytes.Equal(encoded, repeat) {
 		t.Fatalf("report serialization is nondeterministic: %q, %v", repeat, marshalErr)
 	}
-	limited, err := reg.NewFixtureConformanceCorpusWithLimits(spec, reg.FixtureConformanceLimits{MaxRecords: 1, MaxReportBytes: len(encoded) - 1})
+	limited, err := detection.NewFixtureConformanceCorpusWithLimits(spec, detection.FixtureConformanceLimits{MaxRecords: 1, MaxReportBytes: len(encoded) - 1})
 	if err != nil {
 		t.Fatalf("NewFixtureConformanceCorpusWithLimits: %v", err)
 	}
-	if _, err := limited.MarshalBoundedReport(); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonOversized) {
+	if _, err := limited.MarshalBoundedReport(); !detection.IsFixtureMutationReason(err, detection.FixtureMutationReasonOversized) {
 		t.Fatalf("one-byte-short report limit error = %v", err)
 	}
 }
@@ -325,8 +326,8 @@ func TestM203BoundedMultiPreservesCanonicalSourceSkew(t *testing.T) {
 	}
 	record := m203Record(t, "fixture-bounded-valid", profile, observation.UnitID, observation.PollGenerationID)
 	record.Observation = observation
-	corpusSpec := reg.FixtureConformanceCorpusSpec{SchemaVersion: version(t, "1.0.0"), Metadata: reg.SanitizedFixtureMetadata{CorpusID: "fixture-bounded-corpus", LicenseExpression: "CC0-1.0", Provenance: "public synthetic fixture"}, Profiles: []reg.ProfileDescriptor{profile}, Records: []reg.FixtureConformanceRecordSpec{record}}
-	if _, err := reg.NewFixtureConformanceCorpus(corpusSpec); err != nil {
+	corpusSpec := detection.FixtureConformanceCorpusSpec{SchemaVersion: version(t, "1.0.0"), Metadata: detection.SanitizedFixtureMetadata{CorpusID: "fixture-bounded-corpus", LicenseExpression: "CC0-1.0", Provenance: "public synthetic fixture"}, Profiles: []reg.ProfileDescriptor{profile}, Records: []detection.FixtureConformanceRecordSpec{record}}
+	if _, err := detection.NewFixtureConformanceCorpus(corpusSpec); err != nil {
 		t.Fatalf("canonical bounded source skew rejected: %v", err)
 	}
 	for _, test := range []struct {
@@ -339,13 +340,13 @@ func TestM203BoundedMultiPreservesCanonicalSourceSkew(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			negative := corpusSpec
-			negative.Records = append([]reg.FixtureConformanceRecordSpec(nil), corpusSpec.Records...)
+			negative.Records = append([]detection.FixtureConformanceRecordSpec(nil), corpusSpec.Records...)
 			negative.Records[0].Observation.Dependencies = append([]reg.DependencyResult(nil), corpusSpec.Records[0].Observation.Dependencies...)
 			view := negative.Records[0].Observation.Dependencies[1].View.Record()
 			test.mutate(&view)
 			negative.Records[0].Observation.Dependencies[1].View = snapshotFromRecord(t, view)
-			negative.Records[0].ExpectedReplay = reg.FixtureReplayExpectation{Outcome: reg.FixtureReplayRejected, Reason: reg.FixtureReplayReasonSourceMismatch}
-			if _, err := reg.NewFixtureConformanceCorpus(negative); err != nil {
+			negative.Records[0].ExpectedReplay = detection.FixtureReplayExpectation{Outcome: detection.FixtureReplayRejected, Reason: detection.FixtureReplayReasonSourceMismatch}
+			if _, err := detection.NewFixtureConformanceCorpus(negative); err != nil {
 				t.Fatalf("bounded source mismatch rejected: %v", err)
 			}
 		})
@@ -355,10 +356,10 @@ func TestM203BoundedMultiPreservesCanonicalSourceSkew(t *testing.T) {
 func TestM203RejectedQualificationMatchesUnqualifiedDetection(t *testing.T) {
 	profile := detectionProfile(t, "synthetic.standard.unqualified", "1.0.0", reg.MaturityExperimental, reg.ProfileActive, false)
 	record := m203Record(t, "fixture-unqualified", profile, 20, 601)
-	record.Qualification.Expected = reg.FixtureQualificationDispositionRejected
-	record.Detection.Expected = reg.FixtureDetectionExpectation{Outcome: reg.DetectionNoMatch, Reason: reg.DetectionReasonProfileUnqualified, Evidence: []reg.FixtureDetectionEvidenceExpectation{{ProfileID: profile.ID(), ProfileVersion: profile.Version(), Score: 100, Reason: reg.DetectionReasonProfileUnqualified, DetectorVersion: profile.DetectorVersion(), QualificationVersion: profile.QualificationVersion()}}}
-	spec := reg.FixtureConformanceCorpusSpec{SchemaVersion: version(t, "1.0.0"), Metadata: reg.SanitizedFixtureMetadata{CorpusID: "fixture-unqualified-corpus", LicenseExpression: "CC0-1.0", Provenance: "public synthetic fixture"}, Profiles: []reg.ProfileDescriptor{profile}, Records: []reg.FixtureConformanceRecordSpec{record}}
-	corpus, err := reg.NewFixtureConformanceCorpus(spec)
+	record.Qualification.Expected = detection.FixtureQualificationDispositionRejected
+	record.Detection.Expected = detection.FixtureDetectionExpectation{Outcome: detection.NoMatch, Reason: detection.ReasonProfileUnqualified, Evidence: []detection.FixtureDetectionEvidenceExpectation{{ProfileID: profile.ID(), ProfileVersion: profile.Version(), Score: 100, Reason: detection.ReasonProfileUnqualified, DetectorVersion: profile.DetectorVersion(), QualificationVersion: profile.QualificationVersion()}}}
+	spec := detection.FixtureConformanceCorpusSpec{SchemaVersion: version(t, "1.0.0"), Metadata: detection.SanitizedFixtureMetadata{CorpusID: "fixture-unqualified-corpus", LicenseExpression: "CC0-1.0", Provenance: "public synthetic fixture"}, Profiles: []reg.ProfileDescriptor{profile}, Records: []detection.FixtureConformanceRecordSpec{record}}
+	corpus, err := detection.NewFixtureConformanceCorpus(spec)
 	if err != nil {
 		t.Fatalf("unqualified/rejected corpus: %v", err)
 	}
@@ -367,18 +368,18 @@ func TestM203RejectedQualificationMatchesUnqualifiedDetection(t *testing.T) {
 		t.Fatalf("Replay: %v", err)
 	}
 	result := report.Records()[0]
-	if result.Qualification() != reg.FixtureQualificationDispositionRejected || result.Detection().Actual.Outcome() != reg.DetectionNoMatch || result.Detection().Actual.Reason() != reg.DetectionReasonProfileUnqualified || !result.Detection().MatchesExpected() {
+	if result.Qualification() != detection.FixtureQualificationDispositionRejected || result.Detection().Actual.Outcome() != detection.NoMatch || result.Detection().Actual.Reason() != detection.ReasonProfileUnqualified || !result.Detection().MatchesExpected() {
 		t.Fatalf("unqualified result = %#v", result)
 	}
 	qualifiedRejected := m203SyntheticCorpus(t)
-	qualifiedRejected.Records[0].Qualification.Expected = reg.FixtureQualificationDispositionRejected
-	if _, err := reg.NewFixtureConformanceCorpus(qualifiedRejected); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonContradictory) {
+	qualifiedRejected.Records[0].Qualification.Expected = detection.FixtureQualificationDispositionRejected
+	if _, err := detection.NewFixtureConformanceCorpus(qualifiedRejected); !detection.IsFixtureMutationReason(err, detection.FixtureMutationReasonContradictory) {
 		t.Fatalf("qualified/rejected error = %v", err)
 	}
 	unqualifiedQualified := spec
-	unqualifiedQualified.Records = append([]reg.FixtureConformanceRecordSpec(nil), spec.Records...)
-	unqualifiedQualified.Records[0].Qualification.Expected = reg.FixtureQualificationDispositionQualified
-	if _, err := reg.NewFixtureConformanceCorpus(unqualifiedQualified); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonContradictory) {
+	unqualifiedQualified.Records = append([]detection.FixtureConformanceRecordSpec(nil), spec.Records...)
+	unqualifiedQualified.Records[0].Qualification.Expected = detection.FixtureQualificationDispositionQualified
+	if _, err := detection.NewFixtureConformanceCorpus(unqualifiedQualified); !detection.IsFixtureMutationReason(err, detection.FixtureMutationReasonContradictory) {
 		t.Fatalf("unqualified/qualified error = %v", err)
 	}
 }

@@ -5,26 +5,27 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
 func TestU24ProbePlanBufferOwnership(t *testing.T) {
 	for _, accessor := range []struct {
 		name string
-		read func(reg.ProbePlan) []reg.ProbeDeclarationSpec
+		read func(detection.ProbePlan) []detection.ProbeDeclarationSpec
 	}{
-		{"Spec", func(plan reg.ProbePlan) []reg.ProbeDeclarationSpec { return plan.Spec().Declarations }},
-		{"Declarations", func(plan reg.ProbePlan) []reg.ProbeDeclarationSpec { return plan.Declarations() }},
+		{"Spec", func(plan detection.ProbePlan) []detection.ProbeDeclarationSpec { return plan.Spec().Declarations }},
+		{"Declarations", func(plan detection.ProbePlan) []detection.ProbeDeclarationSpec { return plan.Declarations() }},
 	} {
 		t.Run(accessor.name, func(t *testing.T) {
-			expected := [2]reg.ProbeDeclarationSpec{
-				{ID: "synthetic-manufacturer", Function: reg.ProbeReadHoldingRegisters, Address: 10, WordCount: 2, IdentityField: reg.ProbeIdentityManufacturer, Encoding: reg.ProbeIdentityASCII},
-				{ID: "synthetic-firmware", Function: reg.ProbeReadInputRegisters, Address: 30, WordCount: 1, IdentityField: reg.ProbeIdentityFirmware, Encoding: reg.ProbeIdentityASCII},
+			expected := [2]detection.ProbeDeclarationSpec{
+				{ID: "synthetic-manufacturer", Function: detection.ProbeReadHoldingRegisters, Address: 10, WordCount: 2, IdentityField: detection.ProbeIdentityManufacturer, Encoding: detection.ProbeIdentityASCII},
+				{ID: "synthetic-firmware", Function: detection.ProbeReadInputRegisters, Address: 30, WordCount: 1, IdentityField: detection.ProbeIdentityFirmware, Encoding: detection.ProbeIdentityASCII},
 			}
-			input := append([]reg.ProbeDeclarationSpec(nil), expected[:]...)
+			input := append([]detection.ProbeDeclarationSpec(nil), expected[:]...)
 			version := reg.MustParseVersion("0.7.0")
-			plan, err := reg.NewProbePlan(reg.ProbePlanSpec{
+			plan, err := detection.NewProbePlan(detection.ProbePlanSpec{
 				Version: version, Declarations: input,
-			}, reg.DefaultDetectionLimits())
+			}, detection.DefaultDetectionLimits())
 			if err != nil {
 				t.Fatalf("NewProbePlan: %v", err)
 			}
@@ -71,8 +72,8 @@ func TestU24ProbePlanBufferOwnership(t *testing.T) {
 func TestU24ProbeReadResultBufferOwnership(t *testing.T) {
 	expected := [2]uint16{0x1234, 0xabcd}
 	input := append([]uint16(nil), expected[:]...)
-	result, err := reg.NewProbeReadResult(reg.ProbeReadResultSpec{
-		Status: reg.ProbeReadSucceeded, Words: input, EvidenceID: "synthetic-u24-result",
+	result, err := detection.NewProbeReadResult(detection.ProbeReadResultSpec{
+		Status: detection.ProbeReadSucceeded, Words: input, EvidenceID: "synthetic-u24-result",
 	})
 	if err != nil {
 		t.Fatalf("NewProbeReadResult: %v", err)
@@ -82,7 +83,7 @@ func TestU24ProbeReadResultBufferOwnership(t *testing.T) {
 		if got := result.Words(); !reflect.DeepEqual(got, expected[:]) {
 			t.Fatalf("%s: Words = %04x, want %04x", phase, got, expected)
 		}
-		if result.Status() != reg.ProbeReadSucceeded || result.EvidenceID() != "synthetic-u24-result" || result.ExceptionCode() != 0 {
+		if result.Status() != detection.ProbeReadSucceeded || result.EvidenceID() != "synthetic-u24-result" || result.ExceptionCode() != 0 {
 			t.Fatalf("%s: successful result metadata changed", phase)
 		}
 	}

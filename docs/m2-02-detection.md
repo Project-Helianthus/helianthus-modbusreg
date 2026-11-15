@@ -30,9 +30,9 @@ The implementation exposes these constructor-owned immutable values:
 
 - `ProbePlan` from `ProbePlanSpec` and ordered `ProbeDeclarationSpec` values;
 - `ProbeReadResult` from `ProbeReadResultSpec`;
-- `DetectionCandidate` from `DetectionCandidateSpec`;
+- `Candidate` from `CandidateSpec`;
 - `ProfileDetector` from `ProfileDetectorSpec`; and
-- `DetectionDecision`, serialized through `MarshalDetectionDecision` and
+- `Decision`, serialized through `MarshalDetectionDecision` and
   `UnmarshalDetectionDecision`.
 
 Constructors reject zero values and malformed or infeasible declarations.
@@ -89,7 +89,7 @@ gate, and selected-profile consistency.
 
 ## Bounds
 
-`DetectionLimits` closes plan declarations, executed reads, words per read,
+`Limits` closes plan declarations, executed reads, words per read,
 aggregate words, decoded identity bytes, evidence-ID bytes, and serialized
 decision bytes. Every limit is finite and positive. Plan feasibility and a
 conservative worst-case decision size are checked before any read. Runtime

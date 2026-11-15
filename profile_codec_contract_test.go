@@ -9,10 +9,12 @@ import (
 	"time"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
+	"github.com/Project-Helianthus/helianthus-modbusreg/ledger"
 )
 
 type fixtureValidationFactory struct {
-	replayer *reg.FixtureReplayer
+	replayer *detection.FixtureReplayer
 }
 
 type fixtureReplaySessionState struct {
@@ -30,7 +32,7 @@ func newFixtureValidationFactory(
 	profile reg.ProfileDescriptor,
 ) *fixtureValidationFactory {
 	t.Helper()
-	replayer, err := reg.NewFixtureReplayer(profile)
+	replayer, err := detection.NewFixtureReplayer(profile)
 	if err != nil {
 		t.Fatalf("NewFixtureReplayer: %v", err)
 	}
@@ -93,23 +95,23 @@ func (attempt *fixtureReplaySession) MarshalSpec(
 
 func (attempt *fixtureReplaySession) Replay(
 	spec reg.ObservationSpec,
-) (reg.FixtureReplay, error) {
+) (detection.FixtureReplay, error) {
 	if attempt == nil || attempt.state == nil {
-		return reg.FixtureReplay{}, fmt.Errorf("fixture validation attempt is invalid")
+		return detection.FixtureReplay{}, fmt.Errorf("fixture validation attempt is invalid")
 	}
 	attempt.state.mu.Lock()
 	defer attempt.state.mu.Unlock()
 	if spec.PollGenerationID != attempt.state.identity.PollGenerationID ||
 		spec.RetryOrdinal != attempt.state.identity.RetryOrdinal {
-		return reg.FixtureReplay{}, fmt.Errorf("fixture replay identity is mismatched")
+		return detection.FixtureReplay{}, fmt.Errorf("fixture replay identity is mismatched")
 	}
 	encoded, err := reg.MarshalFixtureSpec(spec)
 	if err != nil {
-		return reg.FixtureReplay{}, err
+		return detection.FixtureReplay{}, err
 	}
 	replay, err := attempt.state.factory.replayer.Replay(encoded)
 	if err != nil {
-		return reg.FixtureReplay{}, err
+		return detection.FixtureReplay{}, err
 	}
 	return replay, nil
 }
@@ -247,10 +249,10 @@ func profileFixture(t *testing.T) reg.ProfileDescriptor {
 func newFactory(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
-	state reg.SampleLedgerState,
-) (*fixtureValidationFactory, *reg.SampleLedger) {
+	state ledger.SampleLedgerState,
+) (*fixtureValidationFactory, *ledger.SampleLedger) {
 	t.Helper()
-	sampleLedger, err := reg.NewSampleLedger(state, 0)
+	sampleLedger, err := ledger.NewSampleLedger(state, 0)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
@@ -260,9 +262,9 @@ func newFactory(
 func emptyLedgerState(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
-) reg.SampleLedgerState {
+) ledger.SampleLedgerState {
 	t.Helper()
-	state, err := reg.EmptySampleLedgerState(
+	state, err := ledger.EmptySampleLedgerState(
 		"fixture-issuer",
 		profile,
 	)
@@ -275,21 +277,21 @@ func emptyLedgerState(
 func replayWithFactory(
 	factory *fixtureValidationFactory,
 	spec reg.ObservationSpec,
-) (reg.FixtureReplay, error) {
+) (detection.FixtureReplay, error) {
 	encoded, err := reg.MarshalFixtureSpec(spec)
 	if err != nil {
-		return reg.FixtureReplay{}, err
+		return detection.FixtureReplay{}, err
 	}
 	attempt, err := factory.BeginFixtureReplay(reg.AttemptIdentity{
 		PollGenerationID: spec.PollGenerationID,
 		RetryOrdinal:     spec.RetryOrdinal,
 	})
 	if err != nil {
-		return reg.FixtureReplay{}, err
+		return detection.FixtureReplay{}, err
 	}
 	decoded, err := attempt.DecodeSpec(encoded)
 	if err != nil {
-		return reg.FixtureReplay{}, err
+		return detection.FixtureReplay{}, err
 	}
 	return attempt.Replay(decoded)
 }
@@ -298,7 +300,7 @@ func replayFixture(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	spec reg.ObservationSpec,
-) (reg.FixtureReplay, error) {
+) (detection.FixtureReplay, error) {
 	t.Helper()
 	factory, _ := newFactory(t, profile, emptyLedgerState(t, profile))
 	return replayWithFactory(factory, spec)

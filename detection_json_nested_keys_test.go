@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
 func TestQ25DetectionDecisionNestedKeyCollisions(t *testing.T) {
@@ -17,25 +18,25 @@ func TestQ25DetectionDecisionNestedKeyCollisions(t *testing.T) {
 		t.Fatalf("NewCatalog: %v", err)
 	}
 	detector := newDetector(t, catalog, detectionCandidate(t, profile, 100, true, false))
-	decision, err := detector.Detect(context.Background(), detectionReader(t), reg.DetectionOptions{})
+	decision, err := detector.Detect(context.Background(), detectionReader(t), detection.Options{})
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
 	}
-	if decision.Outcome() != reg.DetectionMatched || decision.SelectedProfileID() != profile.ID() ||
+	if decision.Outcome() != detection.Matched || decision.SelectedProfileID() != profile.ID() ||
 		len(decision.Evidence()) != 1 || len(decision.Evidence()[0].ProbeEvidenceIDs) != 3 {
 		t.Fatalf("expected a matched decision with nonempty evidence: %+v", decision)
 	}
-	encoded, err := reg.MarshalDetectionDecision(decision)
+	encoded, err := detection.MarshalDetectionDecision(decision)
 	if err != nil {
 		t.Fatalf("MarshalDetectionDecision: %v", err)
 	}
 	assertAccepted := func(t *testing.T, data []byte) {
 		t.Helper()
-		restored, err := reg.UnmarshalDetectionDecision(data)
+		restored, err := detection.UnmarshalDetectionDecision(data)
 		if err != nil {
 			t.Fatalf("valid decision rejected: %v", err)
 		}
-		reencoded, err := reg.MarshalDetectionDecision(restored)
+		reencoded, err := detection.MarshalDetectionDecision(restored)
 		if err != nil || !bytes.Equal(reencoded, encoded) {
 			t.Fatalf("valid decision changed during round trip: %v", err)
 		}
@@ -98,7 +99,7 @@ func TestQ25DetectionDecisionNestedKeyCollisions(t *testing.T) {
 						if bytes.Equal(candidate, encoded) || !json.Valid(candidate) {
 							t.Fatal("collision mutation did not produce changed, syntactically valid JSON")
 						}
-						if _, err := reg.UnmarshalDetectionDecision(candidate); err == nil {
+						if _, err := detection.UnmarshalDetectionDecision(candidate); err == nil {
 							t.Fatal("decision with a key collision was accepted")
 						}
 					})

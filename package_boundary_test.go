@@ -24,14 +24,18 @@ import (
 // A test-support package under internal/ imports at most the root and the
 // standard family it supports, and only where its row allows it. The SunSpec
 // standard family imports only the root; the Fronius and OutBack overlays
-// may import the root and the SunSpec standard family.
+// may import the root and the SunSpec standard family. The detection and
+// ledger packages import only the root, never each other or a vendor
+// package, and no vendor package imports either of them.
 var packageImportRules = map[string][]string{
 	".":                              {},
+	"detection":                      {"."},
 	"fronius":                        {".", "sunspec"},
 	"growatt":                        {"."},
 	"huawei":                         {".", "profiles"},
 	"internal/qualifiedfunctiontest": {},
 	"internal/sunspecfixture":        {".", "sunspec"},
+	"ledger":                         {"."},
 	"outback":                        {".", "sunspec"},
 	"profiles":                       {},
 	"sunspec":                        {"."},

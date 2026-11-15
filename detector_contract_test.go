@@ -12,24 +12,25 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
 type recordedProbeReader struct {
 	mu      sync.Mutex
-	results map[string]reg.ProbeReadResult
+	results map[string]detection.ProbeReadResult
 	errors  map[string]error
-	reads   []reg.ProbeReadRequest
+	reads   []detection.ProbeReadRequest
 }
 
 func (reader *recordedProbeReader) ReadProbe(
 	_ context.Context,
-	request reg.ProbeReadRequest,
-) (reg.ProbeReadResult, error) {
+	request detection.ProbeReadRequest,
+) (detection.ProbeReadResult, error) {
 	reader.mu.Lock()
 	defer reader.mu.Unlock()
 	reader.reads = append(reader.reads, request)
 	if err := reader.errors[request.DeclarationID()]; err != nil {
-		return reg.ProbeReadResult{}, err
+		return detection.ProbeReadResult{}, err
 	}
 	return reader.results[request.DeclarationID()], nil
 }
@@ -63,10 +64,10 @@ func mustProbeResult(
 	t *testing.T,
 	value string,
 	evidenceID string,
-) reg.ProbeReadResult {
+) detection.ProbeReadResult {
 	t.Helper()
-	result, err := reg.NewProbeReadResult(reg.ProbeReadResultSpec{
-		Status:     reg.ProbeReadSucceeded,
+	result, err := detection.NewProbeReadResult(detection.ProbeReadResultSpec{
+		Status:     detection.ProbeReadSucceeded,
 		Words:      detectionWords(value),
 		EvidenceID: evidenceID,
 	})
@@ -76,38 +77,38 @@ func mustProbeResult(
 	return result
 }
 
-func detectionLimits() reg.DetectionLimits {
-	return reg.DefaultDetectionLimits()
+func detectionLimits() detection.Limits {
+	return detection.DefaultDetectionLimits()
 }
 
-func detectionPlan(t *testing.T) reg.ProbePlan {
+func detectionPlan(t *testing.T) detection.ProbePlan {
 	t.Helper()
-	plan, err := reg.NewProbePlan(reg.ProbePlanSpec{
+	plan, err := detection.NewProbePlan(detection.ProbePlanSpec{
 		Version: version(t, "1.0.0"),
-		Declarations: []reg.ProbeDeclarationSpec{
+		Declarations: []detection.ProbeDeclarationSpec{
 			{
 				ID:            "manufacturer-identity",
-				Function:      reg.ProbeReadHoldingRegisters,
+				Function:      detection.ProbeReadHoldingRegisters,
 				Address:       100,
 				WordCount:     16,
-				IdentityField: reg.ProbeIdentityManufacturer,
-				Encoding:      reg.ProbeIdentityASCII,
+				IdentityField: detection.ProbeIdentityManufacturer,
+				Encoding:      detection.ProbeIdentityASCII,
 			},
 			{
 				ID:            "model-identity",
-				Function:      reg.ProbeReadInputRegisters,
+				Function:      detection.ProbeReadInputRegisters,
 				Address:       140,
 				WordCount:     16,
-				IdentityField: reg.ProbeIdentityModel,
-				Encoding:      reg.ProbeIdentityASCII,
+				IdentityField: detection.ProbeIdentityModel,
+				Encoding:      detection.ProbeIdentityASCII,
 			},
 			{
 				ID:            "firmware-identity",
-				Function:      reg.ProbeReadHoldingRegisters,
+				Function:      detection.ProbeReadHoldingRegisters,
 				Address:       180,
 				WordCount:     16,
-				IdentityField: reg.ProbeIdentityFirmware,
-				Encoding:      reg.ProbeIdentityASCII,
+				IdentityField: detection.ProbeIdentityFirmware,
+				Encoding:      detection.ProbeIdentityASCII,
 			},
 		},
 	}, detectionLimits())
@@ -147,21 +148,21 @@ func detectionCandidate(
 	score uint32,
 	enabled bool,
 	fixtureOnly bool,
-) reg.DetectionCandidate {
+) detection.Candidate {
 	t.Helper()
-	candidate, err := reg.NewDetectionCandidate(reg.DetectionCandidateSpec{
+	candidate, err := detection.NewCandidate(detection.CandidateSpec{
 		ProfileID:      profile.ID(),
 		ProfileVersion: profile.Version(),
 		Score:          score,
 		Enabled:        enabled,
 		FixtureOnly:    fixtureOnly,
-		Manufacturer: reg.IdentityStringGateSpec{
+		Manufacturer: detection.IdentityStringGateSpec{
 			Expected: "manufacturer-alpha",
 		},
-		Model: reg.IdentityStringGateSpec{
+		Model: detection.IdentityStringGateSpec{
 			Expected: "model-series-a",
 		},
-		Firmware: reg.FirmwareGateSpec{
+		Firmware: detection.FirmwareGateSpec{
 			MinimumInclusive: version(t, "1.9.0"),
 			MaximumExclusive: version(t, "2.0.0"),
 		},
@@ -175,7 +176,7 @@ func detectionCandidate(
 func detectionReader(t *testing.T) *recordedProbeReader {
 	t.Helper()
 	return &recordedProbeReader{
-		results: map[string]reg.ProbeReadResult{
+		results: map[string]detection.ProbeReadResult{
 			"manufacturer-identity": mustProbeResult(
 				t,
 				"manufacturer-alpha",
@@ -199,10 +200,10 @@ func detectionReader(t *testing.T) *recordedProbeReader {
 func newDetector(
 	t *testing.T,
 	catalog reg.Catalog,
-	candidates ...reg.DetectionCandidate,
-) *reg.ProfileDetector {
+	candidates ...detection.Candidate,
+) *detection.ProfileDetector {
 	t.Helper()
-	detector, err := reg.NewProfileDetector(reg.ProfileDetectorSpec{
+	detector, err := detection.NewProfileDetector(detection.ProfileDetectorSpec{
 		DetectorVersion: version(t, "1.0.0"),
 		Plan:            detectionPlan(t),
 		Catalog:         catalog,
@@ -219,8 +220,8 @@ func TestProbeContractIsReadOnlyBoundedAndTransportNeutral(t *testing.T) {
 	plan := detectionPlan(t)
 	declarations := plan.Declarations()
 	if len(declarations) != 3 ||
-		declarations[0].Function != reg.ProbeReadHoldingRegisters ||
-		declarations[1].Function != reg.ProbeReadInputRegisters {
+		declarations[0].Function != detection.ProbeReadHoldingRegisters ||
+		declarations[1].Function != detection.ProbeReadInputRegisters {
 		t.Fatalf("probe declarations=%+v", declarations)
 	}
 	declarations[0].ID = "mutated"
@@ -228,11 +229,11 @@ func TestProbeContractIsReadOnlyBoundedAndTransportNeutral(t *testing.T) {
 		t.Fatal("probe plan declarations are mutable through an accessor")
 	}
 
-	readerType := reflect.TypeOf((*reg.ProbeReader)(nil)).Elem()
+	readerType := reflect.TypeOf((*detection.ProbeReader)(nil)).Elem()
 	if readerType.NumMethod() != 1 || readerType.Method(0).Name != "ReadProbe" {
 		t.Fatalf("probe reader surface=%v", readerType)
 	}
-	requestType := reflect.TypeOf(reg.ProbeReadRequest{})
+	requestType := reflect.TypeOf(detection.ProbeReadRequest{})
 	for index := 0; index < requestType.NumField(); index++ {
 		name := strings.ToLower(requestType.Field(index).Name)
 		for _, forbidden := range []string{"endpoint", "transport", "write", "socket", "serial"} {
@@ -242,17 +243,17 @@ func TestProbeContractIsReadOnlyBoundedAndTransportNeutral(t *testing.T) {
 		}
 	}
 
-	invalidFunctions := []reg.ProbeFunction{"", reg.ProbeFunction("fc06"), reg.ProbeFunction("write")}
+	invalidFunctions := []detection.ProbeFunction{"", detection.ProbeFunction("fc06"), detection.ProbeFunction("write")}
 	for _, function := range invalidFunctions {
-		_, err := reg.NewProbePlan(reg.ProbePlanSpec{
+		_, err := detection.NewProbePlan(detection.ProbePlanSpec{
 			Version: version(t, "1.0.0"),
-			Declarations: []reg.ProbeDeclarationSpec{{
+			Declarations: []detection.ProbeDeclarationSpec{{
 				ID:            "invalid-function",
 				Function:      function,
 				Address:       1,
 				WordCount:     1,
-				IdentityField: reg.ProbeIdentityManufacturer,
-				Encoding:      reg.ProbeIdentityASCII,
+				IdentityField: detection.ProbeIdentityManufacturer,
+				Encoding:      detection.ProbeIdentityASCII,
 			}},
 		}, detectionLimits())
 		if err == nil {
@@ -276,11 +277,11 @@ func TestDetectorExecutesDeclarationsOnceInDeclaredOrder(t *testing.T) {
 	}
 	detector := newDetector(t, catalog, detectionCandidate(t, profile, 100, true, false))
 	reader := detectionReader(t)
-	decision, err := detector.Detect(context.Background(), reader, reg.DetectionOptions{})
+	decision, err := detector.Detect(context.Background(), reader, detection.Options{})
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
 	}
-	if decision.Outcome() != reg.DetectionMatched ||
+	if decision.Outcome() != detection.Matched ||
 		decision.SelectedProfileID() != profile.ID() ||
 		decision.SelectedProfileVersion() != profile.Version() {
 		t.Fatalf("decision=%+v", decision)
@@ -311,30 +312,30 @@ func TestDetectorUsesStrictIdentityAndSemanticFirmwareGates(t *testing.T) {
 		name       string
 		field      string
 		value      string
-		wantReason reg.DetectionReason
+		wantReason detection.Reason
 	}{
 		{name: "semantic 1.10 exceeds 1.9", field: "firmware-identity", value: "1.10.0"},
-		{name: "manufacturer case differs", field: "manufacturer-identity", value: "Manufacturer-Alpha", wantReason: reg.DetectionReasonIdentityMismatch},
-		{name: "model suffix differs", field: "model-identity", value: "model-series-a-plus", wantReason: reg.DetectionReasonIdentityMismatch},
-		{name: "firmware below range", field: "firmware-identity", value: "1.8.99", wantReason: reg.DetectionReasonFirmwareMismatch},
-		{name: "firmware upper bound excluded", field: "firmware-identity", value: "2.0.0", wantReason: reg.DetectionReasonFirmwareMismatch},
-		{name: "firmware is not semantic", field: "firmware-identity", value: "release-1.10", wantReason: reg.DetectionReasonInvalidIdentity},
+		{name: "manufacturer case differs", field: "manufacturer-identity", value: "Manufacturer-Alpha", wantReason: detection.ReasonIdentityMismatch},
+		{name: "model suffix differs", field: "model-identity", value: "model-series-a-plus", wantReason: detection.ReasonIdentityMismatch},
+		{name: "firmware below range", field: "firmware-identity", value: "1.8.99", wantReason: detection.ReasonFirmwareMismatch},
+		{name: "firmware upper bound excluded", field: "firmware-identity", value: "2.0.0", wantReason: detection.ReasonFirmwareMismatch},
+		{name: "firmware is not semantic", field: "firmware-identity", value: "release-1.10", wantReason: detection.ReasonInvalidIdentity},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			reader := detectionReader(t)
 			reader.results[test.field] = mustProbeResult(t, test.value, "probe-evidence-case")
-			decision, err := detector.Detect(context.Background(), reader, reg.DetectionOptions{})
+			decision, err := detector.Detect(context.Background(), reader, detection.Options{})
 			if err != nil {
 				t.Fatalf("Detect: %v", err)
 			}
 			if test.wantReason == "" {
-				if decision.Outcome() != reg.DetectionMatched {
+				if decision.Outcome() != detection.Matched {
 					t.Fatalf("semantic firmware was not matched: %+v", decision)
 				}
 				return
 			}
-			if decision.Outcome() != reg.DetectionNoMatch || decision.Reason() != test.wantReason {
+			if decision.Outcome() != detection.NoMatch || decision.Reason() != test.wantReason {
 				t.Fatalf("decision=(%q,%q)", decision.Outcome(), decision.Reason())
 			}
 		})
@@ -354,14 +355,14 @@ func TestDetectorFirmwareComparisonDoesNotUseMachineIntegers(t *testing.T) {
 	minimum := strings.Repeat("8", 120) + ".0.0"
 	actual := strings.Repeat("9", 120) + ".0.0"
 	maximum := "1" + strings.Repeat("0", 120) + ".0.0"
-	candidate, err := reg.NewDetectionCandidate(reg.DetectionCandidateSpec{
+	candidate, err := detection.NewCandidate(detection.CandidateSpec{
 		ProfileID:      profile.ID(),
 		ProfileVersion: profile.Version(),
 		Score:          1,
 		Enabled:        true,
-		Manufacturer:   reg.IdentityStringGateSpec{Expected: "manufacturer-alpha"},
-		Model:          reg.IdentityStringGateSpec{Expected: "model-series-a"},
-		Firmware: reg.FirmwareGateSpec{
+		Manufacturer:   detection.IdentityStringGateSpec{Expected: "manufacturer-alpha"},
+		Model:          detection.IdentityStringGateSpec{Expected: "model-series-a"},
+		Firmware: detection.FirmwareGateSpec{
 			MinimumInclusive: version(t, minimum),
 			MaximumExclusive: version(t, maximum),
 		},
@@ -371,15 +372,15 @@ func TestDetectorFirmwareComparisonDoesNotUseMachineIntegers(t *testing.T) {
 	}
 	planSpec := detectionPlan(t).Spec()
 	planSpec.Declarations[2].WordCount = uint16(len(detectionWords(actual)))
-	plan, err := reg.NewProbePlan(planSpec, detectionLimits())
+	plan, err := detection.NewProbePlan(planSpec, detectionLimits())
 	if err != nil {
 		t.Fatalf("NewProbePlan: %v", err)
 	}
-	detector, err := reg.NewProfileDetector(reg.ProfileDetectorSpec{
+	detector, err := detection.NewProfileDetector(detection.ProfileDetectorSpec{
 		DetectorVersion: version(t, "1.0.0"),
 		Plan:            plan,
 		Catalog:         catalog,
-		Candidates:      []reg.DetectionCandidate{candidate},
+		Candidates:      []detection.Candidate{candidate},
 		Limits:          detectionLimits(),
 	})
 	if err != nil {
@@ -391,8 +392,8 @@ func TestDetectorFirmwareComparisonDoesNotUseMachineIntegers(t *testing.T) {
 		actual,
 		"probe-evidence-large-firmware",
 	)
-	decision, err := detector.Detect(context.Background(), reader, reg.DetectionOptions{})
-	if err != nil || decision.Outcome() != reg.DetectionMatched {
+	decision, err := detector.Detect(context.Background(), reader, detection.Options{})
+	if err != nil || decision.Outcome() != detection.Matched {
 		t.Fatalf("large numeric firmware decision=(%+v,%v)", decision, err)
 	}
 }
@@ -409,9 +410,9 @@ func TestDetectorRejectsEveryMultipleEligibleMatchIndependentOfOrderAndScore(t *
 			t.Fatalf("NewCatalog: %v", err)
 		}
 		detector := newDetector(t, catalog, secondCandidate, firstCandidate)
-		decision, err := detector.Detect(context.Background(), detectionReader(t), reg.DetectionOptions{})
-		if err != nil || decision.Outcome() != reg.DetectionAmbiguous ||
-			decision.Reason() != reg.DetectionReasonMultipleMatches ||
+		decision, err := detector.Detect(context.Background(), detectionReader(t), detection.Options{})
+		if err != nil || decision.Outcome() != detection.Ambiguous ||
+			decision.Reason() != detection.ReasonMultipleMatches ||
 			decision.SelectedProfileID() != "" {
 			t.Fatalf("permuted selection=(%+v,%v)", decision, err)
 		}
@@ -422,10 +423,10 @@ func TestDetectorRejectsEveryMultipleEligibleMatchIndependentOfOrderAndScore(t *
 	decision, err := newDetector(t, catalog, firstCandidate, tied).Detect(
 		context.Background(),
 		detectionReader(t),
-		reg.DetectionOptions{},
+		detection.Options{},
 	)
-	if err != nil || decision.Outcome() != reg.DetectionAmbiguous ||
-		decision.Reason() != reg.DetectionReasonMultipleMatches ||
+	if err != nil || decision.Outcome() != detection.Ambiguous ||
+		decision.Reason() != detection.ReasonMultipleMatches ||
 		decision.SelectedProfileID() != "" {
 		t.Fatalf("equal-best decision=(%+v,%v)", decision, err)
 	}
@@ -433,7 +434,7 @@ func TestDetectorRejectsEveryMultipleEligibleMatchIndependentOfOrderAndScore(t *
 	if len(evidence) != 2 || evidence[0].ProfileID != first.ID() || evidence[1].ProfileID != second.ID() {
 		t.Fatalf("ambiguity evidence is not identity-sorted: %+v", evidence)
 	}
-	encoded, err := reg.MarshalDetectionDecision(decision)
+	encoded, err := detection.MarshalDetectionDecision(decision)
 	if err != nil {
 		t.Fatalf("MarshalDetectionDecision: %v", err)
 	}
@@ -443,7 +444,7 @@ func TestDetectorRejectsEveryMultipleEligibleMatchIndependentOfOrderAndScore(t *
 	}
 	contradictory["evidence"].([]any)[1].(map[string]any)["detector_version"] = "2.0.0"
 	malformed, _ := json.Marshal(contradictory)
-	if _, err := reg.UnmarshalDetectionDecision(malformed); err == nil {
+	if _, err := detection.UnmarshalDetectionDecision(malformed); err == nil {
 		t.Fatal("contradictory detector contract versions were accepted")
 	}
 }
@@ -453,24 +454,24 @@ func TestHistoricalRankedDetectionDecisionFixtureIsByteStable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decision, err := reg.UnmarshalDetectionDecision(fixture)
+	decision, err := detection.UnmarshalDetectionDecision(fixture)
 	if err != nil {
 		t.Fatalf("UnmarshalDetectionDecision: %v", err)
 	}
-	if decision.Outcome() != reg.DetectionAmbiguous ||
-		decision.Reason() != reg.DetectionReasonEqualBest ||
+	if decision.Outcome() != detection.Ambiguous ||
+		decision.Reason() != detection.ReasonEqualBest ||
 		decision.SelectedProfileID() != "" ||
 		decision.SelectedProfileVersion().String() != "" {
 		t.Fatalf("legacy decision=%+v", decision)
 	}
 	evidence := decision.Evidence()
 	if len(evidence) != 3 ||
-		evidence[0].Reason != reg.DetectionReasonEqualBest || evidence[0].Score != 100 ||
-		evidence[1].Reason != reg.DetectionReasonEqualBest || evidence[1].Score != 100 ||
-		evidence[2].Reason != reg.DetectionReasonLowerScore || evidence[2].Score != 50 {
+		evidence[0].Reason != detection.ReasonEqualBest || evidence[0].Score != 100 ||
+		evidence[1].Reason != detection.ReasonEqualBest || evidence[1].Score != 100 ||
+		evidence[2].Reason != detection.ReasonLowerScore || evidence[2].Score != 50 {
 		t.Fatalf("legacy evidence=%+v", evidence)
 	}
-	reencoded, err := reg.MarshalDetectionDecision(decision)
+	reencoded, err := detection.MarshalDetectionDecision(decision)
 	if err != nil || !bytes.Equal(reencoded, fixture) {
 		t.Fatalf("legacy decision round trip changed: %v", err)
 	}
@@ -481,17 +482,17 @@ func TestDetectorExplicitNoMatchAndFixtureOptIn(t *testing.T) {
 	catalog, _ := reg.NewCatalog(profile)
 	detector := newDetector(t, catalog, detectionCandidate(t, profile, 10, true, true))
 
-	decision, err := detector.Detect(context.Background(), detectionReader(t), reg.DetectionOptions{})
-	if err != nil || decision.Outcome() != reg.DetectionNoMatch ||
-		decision.Reason() != reg.DetectionReasonFixtureOptInRequired {
+	decision, err := detector.Detect(context.Background(), detectionReader(t), detection.Options{})
+	if err != nil || decision.Outcome() != detection.NoMatch ||
+		decision.Reason() != detection.ReasonFixtureOptInRequired {
 		t.Fatalf("fixture default decision=(%+v,%v)", decision, err)
 	}
 	decision, err = detector.Detect(
 		context.Background(),
 		detectionReader(t),
-		reg.DetectionOptions{AllowFixtureOnly: true},
+		detection.Options{AllowFixtureOnly: true},
 	)
-	if err != nil || decision.Outcome() != reg.DetectionMatched {
+	if err != nil || decision.Outcome() != detection.Matched {
 		t.Fatalf("fixture opt-in decision=(%+v,%v)", decision, err)
 	}
 
@@ -500,10 +501,10 @@ func TestDetectorExplicitNoMatchAndFixtureOptIn(t *testing.T) {
 	decision, err = detector.Detect(
 		context.Background(),
 		reader,
-		reg.DetectionOptions{AllowFixtureOnly: true},
+		detection.Options{AllowFixtureOnly: true},
 	)
-	if err != nil || decision.Outcome() != reg.DetectionNoMatch ||
-		decision.Reason() != reg.DetectionReasonIdentityMismatch {
+	if err != nil || decision.Outcome() != detection.NoMatch ||
+		decision.Reason() != detection.ReasonIdentityMismatch {
 		t.Fatalf("explicit no-match=(%+v,%v)", decision, err)
 	}
 }
@@ -543,21 +544,21 @@ func TestActiveSelectionRejectsIneligibleProfilesBeforeScoring(t *testing.T) {
 		detectionCandidate(t, superseded, 100, true, false),
 		detectionCandidate(t, eligible, 1, true, false),
 	)
-	decision, err := detector.Detect(context.Background(), detectionReader(t), reg.DetectionOptions{})
-	if err != nil || decision.Outcome() != reg.DetectionMatched ||
+	decision, err := detector.Detect(context.Background(), detectionReader(t), detection.Options{})
+	if err != nil || decision.Outcome() != detection.Matched ||
 		decision.SelectedProfileID() != eligible.ID() {
 		t.Fatalf("active selection=(%+v,%v)", decision, err)
 	}
-	reasons := make(map[string]reg.DetectionReason)
+	reasons := make(map[string]detection.Reason)
 	for _, evidence := range decision.Evidence() {
 		reasons[evidence.ProfileID] = evidence.Reason
 	}
-	want := map[string]reg.DetectionReason{
-		revoked.ID():     reg.DetectionReasonProfileRevoked,
-		disabled.ID():    reg.DetectionReasonCandidateDisabled,
-		defaultOff.ID():  reg.DetectionReasonProfileDefaultOff,
-		unqualified.ID(): reg.DetectionReasonProfileUnqualified,
-		superseded.ID():  reg.DetectionReasonProfileSuperseded,
+	want := map[string]detection.Reason{
+		revoked.ID():     detection.ReasonProfileRevoked,
+		disabled.ID():    detection.ReasonCandidateDisabled,
+		defaultOff.ID():  detection.ReasonProfileDefaultOff,
+		unqualified.ID(): detection.ReasonProfileUnqualified,
+		superseded.ID():  detection.ReasonProfileSuperseded,
 	}
 	for profileID, reason := range want {
 		if reasons[profileID] != reason {
@@ -570,16 +571,16 @@ func TestDetectorFailsClosedOnProbeFailuresAndIdentityConflicts(t *testing.T) {
 	profile := detectionProfile(t, "example.standard.fail-closed", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	catalog, _ := reg.NewCatalog(profile)
 	detector := newDetector(t, catalog, detectionCandidate(t, profile, 10, true, false))
-	exception, err := reg.NewProbeReadResult(reg.ProbeReadResultSpec{
-		Status:        reg.ProbeReadException,
+	exception, err := detection.NewProbeReadResult(detection.ProbeReadResultSpec{
+		Status:        detection.ProbeReadException,
 		EvidenceID:    "probe-evidence-exception",
 		ExceptionCode: 2,
 	})
 	if err != nil {
 		t.Fatalf("NewProbeReadResult(exception): %v", err)
 	}
-	incomplete, err := reg.NewProbeReadResult(reg.ProbeReadResultSpec{
-		Status:     reg.ProbeReadSucceeded,
+	incomplete, err := detection.NewProbeReadResult(detection.ProbeReadResultSpec{
+		Status:     detection.ProbeReadSucceeded,
 		Words:      []uint16{1},
 		EvidenceID: "probe-evidence-incomplete",
 	})
@@ -589,21 +590,21 @@ func TestDetectorFailsClosedOnProbeFailuresAndIdentityConflicts(t *testing.T) {
 	tests := []struct {
 		name   string
 		mutate func(*recordedProbeReader)
-		reason reg.DetectionReason
+		reason detection.Reason
 	}{
 		{name: "reader error", mutate: func(reader *recordedProbeReader) {
 			reader.errors["manufacturer-identity"] = errors.New("forced read failure")
-		}, reason: reg.DetectionReasonReadError},
-		{name: "modbus exception", mutate: func(reader *recordedProbeReader) { reader.results["manufacturer-identity"] = exception }, reason: reg.DetectionReasonProbeException},
-		{name: "incomplete words", mutate: func(reader *recordedProbeReader) { reader.results["manufacturer-identity"] = incomplete }, reason: reg.DetectionReasonIncompleteProbe},
-		{name: "missing result", mutate: func(reader *recordedProbeReader) { delete(reader.results, "manufacturer-identity") }, reason: reg.DetectionReasonInvalidProbeResult},
+		}, reason: detection.ReasonReadError},
+		{name: "modbus exception", mutate: func(reader *recordedProbeReader) { reader.results["manufacturer-identity"] = exception }, reason: detection.ReasonProbeException},
+		{name: "incomplete words", mutate: func(reader *recordedProbeReader) { reader.results["manufacturer-identity"] = incomplete }, reason: detection.ReasonIncompleteProbe},
+		{name: "missing result", mutate: func(reader *recordedProbeReader) { delete(reader.results, "manufacturer-identity") }, reason: detection.ReasonInvalidProbeResult},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			reader := detectionReader(t)
 			test.mutate(reader)
-			decision, err := detector.Detect(context.Background(), reader, reg.DetectionOptions{})
-			if err != nil || decision.Outcome() != reg.DetectionNoMatch ||
+			decision, err := detector.Detect(context.Background(), reader, detection.Options{})
+			if err != nil || decision.Outcome() != detection.NoMatch ||
 				decision.Reason() != test.reason || decision.SelectedProfileID() != "" {
 				t.Fatalf("fail-closed decision=(%+v,%v)", decision, err)
 			}
@@ -613,21 +614,21 @@ func TestDetectorFailsClosedOnProbeFailuresAndIdentityConflicts(t *testing.T) {
 	base := detectionPlan(t).Spec()
 	duplicateID := base
 	duplicateID.Declarations = append(
-		append([]reg.ProbeDeclarationSpec(nil), base.Declarations...),
+		append([]detection.ProbeDeclarationSpec(nil), base.Declarations...),
 		base.Declarations[0],
 	)
-	if _, err := reg.NewProbePlan(duplicateID, detectionLimits()); err == nil {
+	if _, err := detection.NewProbePlan(duplicateID, detectionLimits()); err == nil {
 		t.Fatal("duplicate probe declaration was accepted")
 	}
 	contradictory := base
 	secondManufacturer := base.Declarations[1]
 	secondManufacturer.ID = "second-manufacturer"
-	secondManufacturer.IdentityField = reg.ProbeIdentityManufacturer
+	secondManufacturer.IdentityField = detection.ProbeIdentityManufacturer
 	contradictory.Declarations = append(
-		append([]reg.ProbeDeclarationSpec(nil), base.Declarations...),
+		append([]detection.ProbeDeclarationSpec(nil), base.Declarations...),
 		secondManufacturer,
 	)
-	if _, err := reg.NewProbePlan(contradictory, detectionLimits()); err == nil {
+	if _, err := detection.NewProbePlan(contradictory, detectionLimits()); err == nil {
 		t.Fatal("contradictory identity producers were accepted")
 	}
 }
@@ -636,26 +637,26 @@ func TestDetectionBoundsAndImmutableSerializableEvidence(t *testing.T) {
 	profile := detectionProfile(t, "example.standard.evidence", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	catalog, _ := reg.NewCatalog(profile)
 	limits := detectionLimits()
-	invalidLimits := []reg.DetectionLimits{
+	invalidLimits := []detection.Limits{
 		{},
-		func() reg.DetectionLimits { value := limits; value.MaxPlanDeclarations = 0; return value }(),
-		func() reg.DetectionLimits { value := limits; value.MaxReads = 0; return value }(),
-		func() reg.DetectionLimits { value := limits; value.MaxWordsPerRead = 0; return value }(),
-		func() reg.DetectionLimits { value := limits; value.MaxTotalWords = 0; return value }(),
-		func() reg.DetectionLimits { value := limits; value.MaxIdentityBytes = 0; return value }(),
-		func() reg.DetectionLimits { value := limits; value.MaxEvidenceIDBytes = 0; return value }(),
-		func() reg.DetectionLimits {
+		func() detection.Limits { value := limits; value.MaxPlanDeclarations = 0; return value }(),
+		func() detection.Limits { value := limits; value.MaxReads = 0; return value }(),
+		func() detection.Limits { value := limits; value.MaxWordsPerRead = 0; return value }(),
+		func() detection.Limits { value := limits; value.MaxTotalWords = 0; return value }(),
+		func() detection.Limits { value := limits; value.MaxIdentityBytes = 0; return value }(),
+		func() detection.Limits { value := limits; value.MaxEvidenceIDBytes = 0; return value }(),
+		func() detection.Limits {
 			value := limits
 			value.MaxDecisionBytes = reg.MaxSerializedContractBytes + 1
 			return value
 		}(),
 	}
 	for index, invalid := range invalidLimits {
-		_, err := reg.NewProfileDetector(reg.ProfileDetectorSpec{
+		_, err := detection.NewProfileDetector(detection.ProfileDetectorSpec{
 			DetectorVersion: version(t, "1.0.0"),
 			Plan:            detectionPlan(t),
 			Catalog:         catalog,
-			Candidates:      []reg.DetectionCandidate{detectionCandidate(t, profile, 1, true, false)},
+			Candidates:      []detection.Candidate{detectionCandidate(t, profile, 1, true, false)},
 			Limits:          invalid,
 		})
 		if err == nil {
@@ -663,23 +664,23 @@ func TestDetectionBoundsAndImmutableSerializableEvidence(t *testing.T) {
 		}
 	}
 
-	maximumWords, err := reg.NewProbeReadResult(reg.ProbeReadResultSpec{
-		Status:     reg.ProbeReadSucceeded,
+	maximumWords, err := detection.NewProbeReadResult(detection.ProbeReadResultSpec{
+		Status:     detection.ProbeReadSucceeded,
 		Words:      make([]uint16, limits.MaxWordsPerRead),
 		EvidenceID: strings.Repeat("e", limits.MaxEvidenceIDBytes),
 	})
 	if err != nil || len(maximumWords.Words()) != limits.MaxWordsPerRead {
 		t.Fatalf("maximum probe result was rejected: %v", err)
 	}
-	if _, err := reg.NewProbeReadResult(reg.ProbeReadResultSpec{
-		Status:     reg.ProbeReadSucceeded,
+	if _, err := detection.NewProbeReadResult(detection.ProbeReadResultSpec{
+		Status:     detection.ProbeReadSucceeded,
 		Words:      make([]uint16, limits.MaxWordsPerRead+1),
 		EvidenceID: "probe-evidence-oversized-words",
 	}); err == nil {
 		t.Fatal("oversized probe words were accepted")
 	}
-	if _, err := reg.NewProbeReadResult(reg.ProbeReadResultSpec{
-		Status:     reg.ProbeReadSucceeded,
+	if _, err := detection.NewProbeReadResult(detection.ProbeReadResultSpec{
+		Status:     detection.ProbeReadSucceeded,
 		Words:      []uint16{1},
 		EvidenceID: strings.Repeat("e", limits.MaxEvidenceIDBytes+1),
 	}); err == nil {
@@ -687,44 +688,44 @@ func TestDetectionBoundsAndImmutableSerializableEvidence(t *testing.T) {
 	}
 
 	basePlan := detectionPlan(t)
-	for name, constrained := range map[string]reg.DetectionLimits{
-		"plan declarations": func() reg.DetectionLimits {
+	for name, constrained := range map[string]detection.Limits{
+		"plan declarations": func() detection.Limits {
 			value := limits
 			value.MaxPlanDeclarations = len(basePlan.Declarations()) - 1
 			return value
 		}(),
-		"executed reads": func() reg.DetectionLimits {
+		"executed reads": func() detection.Limits {
 			value := limits
 			value.MaxReads = len(basePlan.Declarations()) - 1
 			return value
 		}(),
-		"aggregate words": func() reg.DetectionLimits {
+		"aggregate words": func() detection.Limits {
 			value := limits
 			value.MaxTotalWords = 16
 			return value
 		}(),
 	} {
-		_, err := reg.NewProfileDetector(reg.ProfileDetectorSpec{
+		_, err := detection.NewProfileDetector(detection.ProfileDetectorSpec{
 			DetectorVersion: version(t, "1.0.0"),
 			Plan:            basePlan,
 			Catalog:         catalog,
-			Candidates:      []reg.DetectionCandidate{detectionCandidate(t, profile, 1, true, false)},
+			Candidates:      []detection.Candidate{detectionCandidate(t, profile, 1, true, false)},
 			Limits:          constrained,
 		})
 		if err == nil {
 			t.Fatalf("%s bound was not enforced", name)
 		}
 	}
-	if _, err := reg.NewDetectionCandidate(reg.DetectionCandidateSpec{
+	if _, err := detection.NewCandidate(detection.CandidateSpec{
 		ProfileID:      profile.ID(),
 		ProfileVersion: profile.Version(),
 		Score:          1,
 		Enabled:        true,
-		Manufacturer: reg.IdentityStringGateSpec{
+		Manufacturer: detection.IdentityStringGateSpec{
 			Expected: strings.Repeat("i", limits.MaxIdentityBytes+1),
 		},
-		Model: reg.IdentityStringGateSpec{Expected: "model-series-a"},
-		Firmware: reg.FirmwareGateSpec{
+		Model: detection.IdentityStringGateSpec{Expected: "model-series-a"},
+		Firmware: detection.FirmwareGateSpec{
 			MinimumInclusive: version(t, "1.0.0"),
 			MaximumExclusive: version(t, "2.0.0"),
 		},
@@ -733,7 +734,7 @@ func TestDetectionBoundsAndImmutableSerializableEvidence(t *testing.T) {
 	}
 
 	detector := newDetector(t, catalog, detectionCandidate(t, profile, 1, true, false))
-	decision, err := detector.Detect(context.Background(), detectionReader(t), reg.DetectionOptions{})
+	decision, err := detector.Detect(context.Background(), detectionReader(t), detection.Options{})
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
 	}
@@ -741,13 +742,13 @@ func TestDetectionBoundsAndImmutableSerializableEvidence(t *testing.T) {
 	if len(evidence) != 1 ||
 		evidence[0].ProfileID != profile.ID() ||
 		evidence[0].ProfileVersion != profile.Version() ||
-		evidence[0].Reason != reg.DetectionReasonSelected ||
+		evidence[0].Reason != detection.ReasonSelected ||
 		evidence[0].DetectorVersion != profile.DetectorVersion() ||
 		evidence[0].QualificationVersion != profile.QualificationVersion() ||
-		!reflect.DeepEqual(evidence[0].MatchedGates, []reg.ProbeIdentityField{
-			reg.ProbeIdentityManufacturer,
-			reg.ProbeIdentityModel,
-			reg.ProbeIdentityFirmware,
+		!reflect.DeepEqual(evidence[0].MatchedGates, []detection.ProbeIdentityField{
+			detection.ProbeIdentityManufacturer,
+			detection.ProbeIdentityModel,
+			detection.ProbeIdentityFirmware,
 		}) || len(evidence[0].ProbeEvidenceIDs) != 3 {
 		t.Fatalf("decision evidence=%+v", evidence)
 	}
@@ -755,20 +756,20 @@ func TestDetectionBoundsAndImmutableSerializableEvidence(t *testing.T) {
 	evidence[0].MatchedGates[0] = "mutated"
 	evidence[0].ProbeEvidenceIDs[0] = "mutated"
 	if fresh := decision.Evidence(); fresh[0].ProfileID != profile.ID() ||
-		fresh[0].MatchedGates[0] != reg.ProbeIdentityManufacturer ||
+		fresh[0].MatchedGates[0] != detection.ProbeIdentityManufacturer ||
 		fresh[0].ProbeEvidenceIDs[0] != "probe-evidence-manufacturer" {
 		t.Fatal("decision evidence is mutable through an accessor")
 	}
 
-	encoded, err := reg.MarshalDetectionDecision(decision)
+	encoded, err := detection.MarshalDetectionDecision(decision)
 	if err != nil || len(encoded) > limits.MaxDecisionBytes {
 		t.Fatalf("MarshalDetectionDecision=(%d,%v)", len(encoded), err)
 	}
-	restored, err := reg.UnmarshalDetectionDecision(encoded)
+	restored, err := detection.UnmarshalDetectionDecision(encoded)
 	if err != nil {
 		t.Fatalf("UnmarshalDetectionDecision: %v", err)
 	}
-	reencoded, err := reg.MarshalDetectionDecision(restored)
+	reencoded, err := detection.MarshalDetectionDecision(restored)
 	if err != nil || !reflect.DeepEqual(reencoded, encoded) {
 		t.Fatalf("decision round trip changed: %v", err)
 	}
@@ -778,7 +779,7 @@ func TestDetectionBoundsAndImmutableSerializableEvidence(t *testing.T) {
 	}
 	object["unknown"] = true
 	unknown, _ := json.Marshal(object)
-	if _, err := reg.UnmarshalDetectionDecision(unknown); err == nil {
+	if _, err := detection.UnmarshalDetectionDecision(unknown); err == nil {
 		t.Fatal("unknown decision field was accepted")
 	}
 	missingObject := make(map[string]any)
@@ -787,7 +788,7 @@ func TestDetectionBoundsAndImmutableSerializableEvidence(t *testing.T) {
 	}
 	delete(missingObject, "reason")
 	missing, _ := json.Marshal(missingObject)
-	if _, err := reg.UnmarshalDetectionDecision(missing); err == nil {
+	if _, err := detection.UnmarshalDetectionDecision(missing); err == nil {
 		t.Fatal("decision with a missing field was accepted")
 	}
 	caseFolded := strings.Replace(
@@ -796,7 +797,7 @@ func TestDetectionBoundsAndImmutableSerializableEvidence(t *testing.T) {
 		`"Outcome"`,
 		1,
 	)
-	if _, err := reg.UnmarshalDetectionDecision([]byte(caseFolded)); err == nil {
+	if _, err := detection.UnmarshalDetectionDecision([]byte(caseFolded)); err == nil {
 		t.Fatal("case-folded decision field was accepted")
 	}
 	duplicate := strings.Replace(
@@ -805,7 +806,7 @@ func TestDetectionBoundsAndImmutableSerializableEvidence(t *testing.T) {
 		`"outcome":"matched","outcome":"matched"`,
 		1,
 	)
-	if _, err := reg.UnmarshalDetectionDecision([]byte(duplicate)); err == nil {
+	if _, err := detection.UnmarshalDetectionDecision([]byte(duplicate)); err == nil {
 		t.Fatal("duplicate decision field was accepted")
 	}
 	impossibleObject := make(map[string]any)
@@ -816,10 +817,10 @@ func TestDetectionBoundsAndImmutableSerializableEvidence(t *testing.T) {
 	impossibleEvidence["matched_gates"] = []any{}
 	impossibleEvidence["probe_evidence_ids"] = []any{}
 	impossible, _ := json.Marshal(impossibleObject)
-	if _, err := reg.UnmarshalDetectionDecision(impossible); err == nil {
+	if _, err := detection.UnmarshalDetectionDecision(impossible); err == nil {
 		t.Fatal("selected evidence without matched gates was accepted")
 	}
-	if _, err := reg.UnmarshalDetectionDecision(
+	if _, err := detection.UnmarshalDetectionDecision(
 		[]byte(strings.Repeat("x", reg.MaxSerializedContractBytes+1)),
 	); err == nil {
 		t.Fatal("oversized decision was accepted")
@@ -830,21 +831,21 @@ func TestDetectorRejectsDuplicateAndInexactCatalogBindingsBeforeReads(t *testing
 	profile := detectionProfile(t, "example.standard.bound", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	catalog, _ := reg.NewCatalog(profile)
 	candidate := detectionCandidate(t, profile, 1, true, false)
-	base := reg.ProfileDetectorSpec{
+	base := detection.ProfileDetectorSpec{
 		DetectorVersion: version(t, "1.0.0"),
 		Plan:            detectionPlan(t),
 		Catalog:         catalog,
-		Candidates:      []reg.DetectionCandidate{candidate, candidate},
+		Candidates:      []detection.Candidate{candidate, candidate},
 		Limits:          detectionLimits(),
 	}
-	if _, err := reg.NewProfileDetector(base); err == nil {
+	if _, err := detection.NewProfileDetector(base); err == nil {
 		t.Fatal("duplicate candidate profile binding was accepted")
 	}
 
 	otherProfile := detectionProfile(t, "example.standard.bound", "2.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	inexact := detectionCandidate(t, otherProfile, 1, true, false)
-	base.Candidates = []reg.DetectionCandidate{inexact}
-	if _, err := reg.NewProfileDetector(base); err == nil {
+	base.Candidates = []detection.Candidate{inexact}
+	if _, err := detection.NewProfileDetector(base); err == nil {
 		t.Fatal("candidate with an inexact catalog version was accepted")
 	}
 
@@ -857,15 +858,15 @@ func TestDetectorRejectsDuplicateAndInexactCatalogBindingsBeforeReads(t *testing
 	}
 	wrongCatalog, _ := reg.NewCatalog(wrongContract)
 	base.Catalog = wrongCatalog
-	base.Candidates = []reg.DetectionCandidate{detectionCandidate(t, wrongContract, 1, true, false)}
-	if _, err := reg.NewProfileDetector(base); err == nil {
+	base.Candidates = []detection.Candidate{detectionCandidate(t, wrongContract, 1, true, false)}
+	if _, err := detection.NewProfileDetector(base); err == nil {
 		t.Fatal("profile with an inexact detector contract was accepted")
 	}
 
 	base.Catalog = catalog
-	base.Candidates = []reg.DetectionCandidate{candidate}
+	base.Candidates = []detection.Candidate{candidate}
 	base.Limits.MaxDecisionBytes = 100
-	if _, err := reg.NewProfileDetector(base); err == nil {
+	if _, err := detection.NewProfileDetector(base); err == nil {
 		t.Fatal("detector with an infeasible decision bound was accepted")
 	}
 }

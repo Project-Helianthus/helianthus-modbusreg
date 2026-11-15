@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/ledger"
 )
 
 func TestM303CompletionGoldenJSONIsStableAndRoundTrips(t *testing.T) {
@@ -19,18 +19,18 @@ func TestM303CompletionGoldenJSONIsStableAndRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(golden): %v", err)
 	}
-	record, err := reg.NewCurrentFMV3M303CompletionRecord()
+	record, err := ledger.NewCurrentFMV3M303CompletionRecord()
 	if err != nil {
 		t.Fatalf("NewCurrentFMV3M303CompletionRecord: %v", err)
 	}
-	encoded, err := reg.MarshalFMV3M303CompletionRecord(record)
+	encoded, err := ledger.MarshalFMV3M303CompletionRecord(record)
 	if err != nil {
 		t.Fatalf("MarshalFMV3M303CompletionRecord: %v", err)
 	}
 	if !bytes.Equal(encoded, bytes.TrimSpace(golden)) {
 		t.Fatalf("canonical JSON changed\n got: %s\nwant: %s", encoded, golden)
 	}
-	decoded, err := reg.UnmarshalFMV3M303CompletionRecord(golden)
+	decoded, err := ledger.UnmarshalFMV3M303CompletionRecord(golden)
 	if err != nil {
 		t.Fatalf("UnmarshalFMV3M303CompletionRecord(golden): %v", err)
 	}
@@ -41,7 +41,7 @@ func TestM303CompletionGoldenJSONIsStableAndRoundTrips(t *testing.T) {
 	if !bytes.Equal(roundTrip, encoded) {
 		t.Fatalf("round trip changed JSON\n got: %s\nwant: %s", roundTrip, encoded)
 	}
-	if decoded.Disposition() != reg.CompletionDispositionStandardOnly || decoded.OverlayPresent() ||
+	if decoded.Disposition() != ledger.CompletionDispositionStandardOnly || decoded.OverlayPresent() ||
 		!decoded.ReadOnly() || !decoded.TransportNeutral() || decoded.WriteCapable() ||
 		decoded.AutomaticProductQualification() {
 		t.Fatalf("canonical decision leaked capability: %#v", decoded.Spec())
@@ -72,7 +72,7 @@ func TestM303CompletionRejectsIncompatibleOrUnsafeRecords(t *testing.T) {
 			if bytes.Equal(candidate, golden) {
 				t.Fatal("test mutation did not apply")
 			}
-			if _, err := reg.UnmarshalFMV3M303CompletionRecord(candidate); err == nil {
+			if _, err := ledger.UnmarshalFMV3M303CompletionRecord(candidate); err == nil {
 				t.Fatal("unsafe completion record was accepted")
 			}
 		})
@@ -80,54 +80,54 @@ func TestM303CompletionRejectsIncompatibleOrUnsafeRecords(t *testing.T) {
 }
 
 func TestM303CompletionConstructorRejectsNonCanonicalConclusion(t *testing.T) {
-	current, err := reg.NewCurrentFMV3M303CompletionRecord()
+	current, err := ledger.NewCurrentFMV3M303CompletionRecord()
 	if err != nil {
 		t.Fatalf("NewCurrentFMV3M303CompletionRecord: %v", err)
 	}
 	mutations := []struct {
 		name   string
-		mutate func(*reg.CompletionRecordSpec)
+		mutate func(*ledger.CompletionRecordSpec)
 	}{
-		{"docs evidence SHA", func(spec *reg.CompletionRecordSpec) {
+		{"docs evidence SHA", func(spec *ledger.CompletionRecordSpec) {
 			spec.Evidence.DocsEvidenceSHA = strings.Repeat("a", 40)
 		}},
-		{"M3-02 merge SHA", func(spec *reg.CompletionRecordSpec) {
+		{"M3-02 merge SHA", func(spec *ledger.CompletionRecordSpec) {
 			spec.Evidence.M302MergeSHA = strings.Repeat("b", 40)
 		}},
-		{"official models SHA", func(spec *reg.CompletionRecordSpec) {
+		{"official models SHA", func(spec *ledger.CompletionRecordSpec) {
 			spec.Evidence.OfficialModelsSHA = strings.Repeat("c", 40)
 		}},
-		{"standard profile ID", func(spec *reg.CompletionRecordSpec) {
+		{"standard profile ID", func(spec *ledger.CompletionRecordSpec) {
 			spec.StandardProfileID = "sunspec.other"
 		}},
-		{"standard profile version", func(spec *reg.CompletionRecordSpec) {
+		{"standard profile version", func(spec *ledger.CompletionRecordSpec) {
 			spec.StandardProfileVersion = "1.0.1"
 		}},
-		{"applicability entry", func(spec *reg.CompletionRecordSpec) {
+		{"applicability entry", func(spec *ledger.CompletionRecordSpec) {
 			spec.Applicability[0] = "qualified documentary boundary"
 		}},
-		{"applicability missing", func(spec *reg.CompletionRecordSpec) {
+		{"applicability missing", func(spec *ledger.CompletionRecordSpec) {
 			spec.Applicability = []string{}
 		}},
-		{"applicability extra", func(spec *reg.CompletionRecordSpec) {
+		{"applicability extra", func(spec *ledger.CompletionRecordSpec) {
 			spec.Applicability = append(spec.Applicability, "extra applicability")
 		}},
-		{"limitations missing", func(spec *reg.CompletionRecordSpec) {
+		{"limitations missing", func(spec *ledger.CompletionRecordSpec) {
 			spec.Limitations = append([]string(nil), spec.Limitations[:len(spec.Limitations)-1]...)
 		}},
-		{"limitations extra", func(spec *reg.CompletionRecordSpec) {
+		{"limitations extra", func(spec *ledger.CompletionRecordSpec) {
 			spec.Limitations = append(spec.Limitations, "extra product: UNKNOWN")
 		}},
-		{"limitations reordered", func(spec *reg.CompletionRecordSpec) {
+		{"limitations reordered", func(spec *ledger.CompletionRecordSpec) {
 			spec.Limitations[0], spec.Limitations[1] = spec.Limitations[1], spec.Limitations[0]
 		}},
-		{"rollback missing", func(spec *reg.CompletionRecordSpec) {
+		{"rollback missing", func(spec *ledger.CompletionRecordSpec) {
 			spec.InvalidationRollback = append([]string(nil), spec.InvalidationRollback[:len(spec.InvalidationRollback)-1]...)
 		}},
-		{"rollback extra", func(spec *reg.CompletionRecordSpec) {
+		{"rollback extra", func(spec *ledger.CompletionRecordSpec) {
 			spec.InvalidationRollback = append(spec.InvalidationRollback, "extra rollback")
 		}},
-		{"rollback reordered", func(spec *reg.CompletionRecordSpec) {
+		{"rollback reordered", func(spec *ledger.CompletionRecordSpec) {
 			spec.InvalidationRollback[0], spec.InvalidationRollback[1] = spec.InvalidationRollback[1], spec.InvalidationRollback[0]
 		}},
 	}
@@ -135,10 +135,10 @@ func TestM303CompletionConstructorRejectsNonCanonicalConclusion(t *testing.T) {
 		index := index
 		mutations = append(mutations, struct {
 			name   string
-			mutate func(*reg.CompletionRecordSpec)
+			mutate func(*ledger.CompletionRecordSpec)
 		}{
 			name: "limitation entry " + current.Limitations()[index],
-			mutate: func(spec *reg.CompletionRecordSpec) {
+			mutate: func(spec *ledger.CompletionRecordSpec) {
 				spec.Limitations[index] = "mutated product: UNKNOWN"
 			},
 		})
@@ -147,10 +147,10 @@ func TestM303CompletionConstructorRejectsNonCanonicalConclusion(t *testing.T) {
 		index := index
 		mutations = append(mutations, struct {
 			name   string
-			mutate func(*reg.CompletionRecordSpec)
+			mutate func(*ledger.CompletionRecordSpec)
 		}{
 			name: "rollback entry " + current.InvalidationRollback()[index],
-			mutate: func(spec *reg.CompletionRecordSpec) {
+			mutate: func(spec *ledger.CompletionRecordSpec) {
 				spec.InvalidationRollback[index] = "mutated rollback"
 			},
 		})
@@ -159,7 +159,7 @@ func TestM303CompletionConstructorRejectsNonCanonicalConclusion(t *testing.T) {
 		t.Run(mutation.name, func(t *testing.T) {
 			candidate := current.Spec()
 			mutation.mutate(&candidate)
-			if _, err := reg.NewFMV3M303CompletionRecord(candidate); err == nil {
+			if _, err := ledger.NewFMV3M303CompletionRecord(candidate); err == nil {
 				t.Fatal("constructor accepted non-canonical completion conclusion")
 			}
 		})
@@ -226,7 +226,7 @@ func TestM303CompletionJSONRejectsNonCanonicalConclusion(t *testing.T) {
 				}
 				candidate = updated
 			}
-			if _, err := reg.UnmarshalFMV3M303CompletionRecord(candidate); err == nil {
+			if _, err := ledger.UnmarshalFMV3M303CompletionRecord(candidate); err == nil {
 				t.Fatal("JSON unmarshal accepted non-canonical completion conclusion")
 			}
 		})
@@ -234,24 +234,24 @@ func TestM303CompletionJSONRejectsNonCanonicalConclusion(t *testing.T) {
 }
 
 func TestM303CompletionDispositionSetIsClosed(t *testing.T) {
-	current, err := reg.NewCurrentFMV3M303CompletionRecord()
+	current, err := ledger.NewCurrentFMV3M303CompletionRecord()
 	if err != nil {
 		t.Fatalf("NewCurrentFMV3M303CompletionRecord: %v", err)
 	}
-	if current.Disposition() != reg.CompletionDispositionStandardOnly {
+	if current.Disposition() != ledger.CompletionDispositionStandardOnly {
 		t.Fatalf("canonical disposition = %q", current.Disposition())
 	}
 	overlayRequired := current.Spec()
-	overlayRequired.Disposition = reg.CompletionDispositionOverlayRequired
+	overlayRequired.Disposition = ledger.CompletionDispositionOverlayRequired
 	overlayRequired.OverlayPresent = true
 	t.Run("constructor", func(t *testing.T) {
-		if _, err := reg.NewFMV3M303CompletionRecord(overlayRequired); err == nil {
+		if _, err := ledger.NewFMV3M303CompletionRecord(overlayRequired); err == nil {
 			t.Fatal("current evidence contract represented OVERLAY_REQUIRED")
 		}
 	})
 	unknown := overlayRequired
-	unknown.Disposition = reg.CompletionDisposition("OTHER")
-	if _, err := reg.NewFMV3M303CompletionRecord(unknown); err == nil {
+	unknown.Disposition = ledger.CompletionDisposition("OTHER")
+	if _, err := ledger.NewFMV3M303CompletionRecord(unknown); err == nil {
 		t.Fatal("unknown disposition was accepted")
 	}
 
@@ -275,14 +275,14 @@ func TestM303CompletionDispositionSetIsClosed(t *testing.T) {
 		t.Fatal("OVERLAY_REQUIRED JSON mutation did not apply")
 	}
 	t.Run("JSON unmarshal", func(t *testing.T) {
-		if _, err := reg.UnmarshalFMV3M303CompletionRecord(fabricated); err == nil {
+		if _, err := ledger.UnmarshalFMV3M303CompletionRecord(fabricated); err == nil {
 			t.Fatal("current evidence contract unmarshaled fabricated OVERLAY_REQUIRED")
 		}
 	})
 }
 
 func TestM303CompletionUsesDefensiveCopies(t *testing.T) {
-	record, err := reg.NewCurrentFMV3M303CompletionRecord()
+	record, err := ledger.NewCurrentFMV3M303CompletionRecord()
 	if err != nil {
 		t.Fatalf("NewCurrentFMV3M303CompletionRecord: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestM303CompletionUsesDefensiveCopies(t *testing.T) {
 
 func TestM303CompletionAddsNoVendorOverlayDetectorOrTransportImport(t *testing.T) {
 	for _, name := range []string{"completion_record.go", "completion_record_serialization.go"} {
-		path := filepath.Join(".", name)
+		path := filepath.Join("ledger", name)
 		source, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("ReadFile(%s): %v", path, err)
@@ -319,7 +319,7 @@ func TestM303CompletionAddsNoVendorOverlayDetectorOrTransportImport(t *testing.T
 			}
 		}
 	}
-	for _, value := range []any{reg.CompletionRecord{}, reg.CompletionRecordSpec{}} {
+	for _, value := range []any{ledger.CompletionRecord{}, ledger.CompletionRecordSpec{}} {
 		typ := reflect.TypeOf(value)
 		for method := 0; method < typ.NumMethod(); method++ {
 			if name := typ.Method(method).Name; name == "Write" || name == "Control" || name == "Qualify" {

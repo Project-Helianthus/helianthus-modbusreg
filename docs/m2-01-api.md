@@ -13,7 +13,7 @@ composition.
 4. Construct dependencies and an ordered `DependencySet`.
 5. Construct a standard-family `ProfileDescriptor` and deterministic `Catalog`.
 6. Create or restore profile-bound `SampleLedgerState` and bounded
-   `LedgerRestartState`.
+   `RestartState`.
 7. Create `SampleLedger` with finite `LedgerLimits`.
 8. Implement `PublicationCommitter` so durable state, irreversible external
    effect, and terminal decision share one transaction.
@@ -203,13 +203,13 @@ Terminal sequence reservation is all-or-nothing for one attempt and all of its
 claims. Sequence exhaustion is explicit. Terminal attempts are reclaimed
 synchronously, freeing attempt and claim capacity for deterministic reuse.
 
-`LedgerAuditTombstone` is a strict bounded snake_case JSON variant. Attempt and
+`AuditTombstone` is a strict bounded snake_case JSON variant. Attempt and
 claim records contain only terminal sequence links, the attempt's bounded
 `claim_count`, ordinal where applicable, and closed outcomes. They do not
 reconstruct attempt keys, capabilities, normalization bytes, diagnostics, or
 producer authority.
 
-`LedgerRestartState` is also a strict snake_case JSON object. Its retained
+`RestartState` is also a strict snake_case JSON object. Its retained
 tombstones must be one contiguous suffix ending at `next_terminal_sequence - 1`
 (or `MaxUint64` after exhaustion). Claim records must link to the correct
 attempt-kind record when that target is retained, claim ordinals must match the
@@ -231,7 +231,7 @@ a retained attempt record appears, only complete retained attempt intervals may
 follow; claims from another truncated attempt cannot overlap that suffix.
 
 A nonzero sample revision/high-water cannot be restored without
-`LedgerRestartState`. In the absence of exact historical profile cardinality,
+`RestartState`. In the absence of exact historical profile cardinality,
 the restart watermark must conservatively prove at least two consumed terminal
 sequences per committed publication: one attempt plus at least one claim. An
 exhausted terminal watermark satisfies this relationship only when that minimum

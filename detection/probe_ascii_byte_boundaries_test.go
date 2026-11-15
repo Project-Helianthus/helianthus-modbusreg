@@ -1,4 +1,4 @@
-package modbusreg
+package detection
 
 import (
 	"fmt"

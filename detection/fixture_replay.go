@@ -1,24 +1,26 @@
-package modbusreg
+package detection
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
 // FixtureReplayer validates offline evidence without creating a runtime
 // capability, production attempt, seal, publication, or sample identity.
 type FixtureReplayer struct {
-	profile ProfileDescriptor
+	profile modbusreg.ProfileDescriptor
 }
 
 // NewFixtureReplayer binds offline validation to one immutable profile.
-func NewFixtureReplayer(profile ProfileDescriptor) (*FixtureReplayer, error) {
-	copy, err := NewProfileDescriptor(profile.Spec())
+func NewFixtureReplayer(profile modbusreg.ProfileDescriptor) (*FixtureReplayer, error) {
+	copy, err := modbusreg.NewProfileDescriptor(profile.Spec())
 	if err != nil {
 		return nil, fmt.Errorf("fixture replay profile: %w", err)
 	}
-	if copy.Kind() != ProfileStandardFamily {
+	if copy.Kind() != modbusreg.ProfileStandardFamily {
 		return nil, fmt.Errorf("vendor overlay requires M3 resolution")
 	}
 	return &FixtureReplayer{profile: copy}, nil
@@ -28,8 +30,8 @@ func NewFixtureReplayer(profile ProfileDescriptor) (*FixtureReplayer, error) {
 // capability, claim, seal, publish, or production SampleID method.
 type FixtureReplay struct {
 	fixtureID string
-	spec      ObservationSpec
-	replayed  []ReplayedDependency
+	spec      modbusreg.ObservationSpec
+	replayed  []modbusreg.ReplayedDependency
 }
 
 // Replay strictly decodes and validates one bounded fixture record.
@@ -37,14 +39,14 @@ func (replayer *FixtureReplayer) Replay(data []byte) (FixtureReplay, error) {
 	if replayer == nil || replayer.profile.ID() == "" {
 		return FixtureReplay{}, fmt.Errorf("fixture replayer is invalid")
 	}
-	var spec ObservationSpec
+	var spec modbusreg.ObservationSpec
 	if err := spec.UnmarshalJSON(data); err != nil {
 		return FixtureReplay{}, err
 	}
 	if spec.SampleID != "" {
 		return FixtureReplay{}, fmt.Errorf("fixture cannot contain a production sample ID")
 	}
-	validated, err := NewObservation(replayer.profile, spec)
+	validated, err := modbusreg.NewObservation(replayer.profile, spec)
 	if err != nil {
 		return FixtureReplay{}, err
 	}
@@ -65,13 +67,13 @@ func (replay FixtureReplay) FixtureID() string {
 }
 
 // Spec returns an independent fixture envelope with no production sample ID.
-func (replay FixtureReplay) Spec() ObservationSpec {
-	return CloneObservationSpec(replay.spec)
+func (replay FixtureReplay) Spec() modbusreg.ObservationSpec {
+	return modbusreg.CloneObservationSpec(replay.spec)
 }
 
 // Replay returns independent validated fixture dependencies.
-func (replay FixtureReplay) Replay() []ReplayedDependency {
-	result := make([]ReplayedDependency, len(replay.replayed))
+func (replay FixtureReplay) Replay() []modbusreg.ReplayedDependency {
+	result := make([]modbusreg.ReplayedDependency, len(replay.replayed))
 	copy(result, replay.replayed)
 	return result
 }
