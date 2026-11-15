@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
 func TestQ30DetectionDecisionSerializedByteBudget(t *testing.T) {
@@ -12,14 +13,14 @@ func TestQ30DetectionDecisionSerializedByteBudget(t *testing.T) {
 	valid := []byte(`{"schema_version":"1.0.0","outcome":"no_match","reason":"invalid_identity","selected_profile_id":"","selected_profile_version":"","evidence":[{"profile_id":"synthetic.family","profile_version":"1.0.0","score":1,"reason":"invalid_identity","matched_gates":[],"probe_evidence_ids":[],"detector_version":"1.0.0","qualification_version":"1.0.0"}]}`)
 	assertDecision := func(t *testing.T, data []byte) {
 		t.Helper()
-		decision, err := reg.UnmarshalDetectionDecision(data)
+		decision, err := detection.UnmarshalDetectionDecision(data)
 		if err != nil {
 			t.Fatalf("valid decision (%d bytes) rejected: %v", len(data), err)
 		}
-		if decision.Outcome() != reg.DetectionNoMatch || decision.Reason() != reg.DetectionReasonInvalidIdentity {
+		if decision.Outcome() != detection.NoMatch || decision.Reason() != detection.ReasonInvalidIdentity {
 			t.Fatal("decoded decision changed outcome or reason")
 		}
-		canonical, err := reg.MarshalDetectionDecision(decision)
+		canonical, err := detection.MarshalDetectionDecision(decision)
 		if err != nil || !bytes.Equal(canonical, valid) {
 			t.Fatalf("decoded decision changed canonical content: %v", err)
 		}
@@ -57,7 +58,7 @@ func TestQ30DetectionDecisionSerializedByteBudget(t *testing.T) {
 						assertDecision(t, data)
 						return
 					}
-					if _, err := reg.UnmarshalDetectionDecision(data); err == nil || err.Error() != "serialized contract exceeds the byte boundary" {
+					if _, err := detection.UnmarshalDetectionDecision(data); err == nil || err.Error() != "serialized contract exceeds the byte boundary" {
 						t.Fatalf("one byte over limit must fail at byte preflight: %v", err)
 					}
 				})
@@ -71,7 +72,7 @@ func TestQ30DetectionDecisionSerializedByteBudget(t *testing.T) {
 		for index := range data {
 			data[index] = 'x'
 		}
-		if _, err := reg.UnmarshalDetectionDecision(data); err == nil || err.Error() != "serialized contract exceeds the byte boundary" {
+		if _, err := detection.UnmarshalDetectionDecision(data); err == nil || err.Error() != "serialized contract exceeds the byte boundary" {
 			t.Fatalf("oversized input must be rejected before parsing: %v", err)
 		}
 	})
@@ -86,7 +87,7 @@ func TestQ30DetectionDecisionSerializedByteBudget(t *testing.T) {
 			t.Fatal("multiple-value vector must contain two valid decisions within budget")
 		}
 		// Pin rejection in preflight, before the second strict decoder also checks EOF.
-		if _, err := reg.UnmarshalDetectionDecision(data); err == nil || err.Error() != "serialized contract contains multiple values" {
+		if _, err := detection.UnmarshalDetectionDecision(data); err == nil || err.Error() != "serialized contract contains multiple values" {
 			t.Fatalf("second JSON value must fail at trailing-token preflight: %v", err)
 		}
 	})

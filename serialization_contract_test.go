@@ -8,6 +8,7 @@ import (
 	"time"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/ledger"
 )
 
 func TestLedgerRestartStateStrictTopLevelJSON(t *testing.T) {
@@ -15,11 +16,11 @@ func TestLedgerRestartStateStrictTopLevelJSON(t *testing.T) {
 	initial := emptyLedgerState(t, profile)
 	limits := reg.DefaultLedgerLimits()
 	validTruncated := []byte(`{"schema_version":1,"next_terminal_sequence":7,"sequence_exhausted":false,"truncated_through_sequence":6,"audit_tombstones":[]}`)
-	var decoded reg.LedgerRestartState
+	var decoded ledger.RestartState
 	if err := json.Unmarshal(validTruncated, &decoded); err != nil {
 		t.Fatalf("Unmarshal(valid truncated restart): %v", err)
 	}
-	if _, err := reg.NewSampleLedgerFromRestart(initial, 0, limits, decoded); err != nil {
+	if _, err := ledger.NewSampleLedgerFromRestart(initial, 0, limits, decoded); err != nil {
 		t.Fatalf("NewSampleLedgerFromRestart(valid truncated restart): %v", err)
 	}
 	roundTrip, err := json.Marshal(decoded)
@@ -37,7 +38,7 @@ func TestLedgerRestartStateStrictTopLevelJSON(t *testing.T) {
 		[]byte(`{"schema_version":1,"schema_version":1,"next_terminal_sequence":1,"sequence_exhausted":false,"truncated_through_sequence":0,"audit_tombstones":[]}`),
 	}
 	for index, encoded := range invalid {
-		var restart reg.LedgerRestartState
+		var restart ledger.RestartState
 		if err := json.Unmarshal(encoded, &restart); err == nil {
 			t.Fatalf("invalid top-level restart JSON %d was accepted", index)
 		}
@@ -182,7 +183,7 @@ func TestJSONRejectsNullAndMissingRequiredMembers(t *testing.T) {
 	}
 
 	state := fixtureLedgerState(t, profile, "fixture-json-ledger")
-	ledgerBytes, err := reg.MarshalSampleLedgerState(state)
+	ledgerBytes, err := ledger.MarshalSampleLedgerState(state)
 	if err != nil {
 		t.Fatalf("MarshalSampleLedgerState: %v", err)
 	}
@@ -199,7 +200,7 @@ func TestJSONRejectsNullAndMissingRequiredMembers(t *testing.T) {
 		if bytes.Equal(candidate, ledgerBytes) {
 			t.Fatalf("ledger mutation %d did not apply", index)
 		}
-		if _, err := reg.UnmarshalSampleLedgerState(candidate); err == nil {
+		if _, err := ledger.UnmarshalSampleLedgerState(candidate); err == nil {
 			t.Fatalf("ledger null/missing case %d was accepted", index)
 		}
 	}

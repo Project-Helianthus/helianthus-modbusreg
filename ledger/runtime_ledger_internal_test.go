@@ -1,4 +1,4 @@
-package modbusreg
+package ledger
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
 func internalDigestDependency(
@@ -20,25 +21,25 @@ func internalDigestDependency(
 	version string,
 	address uint32,
 	evidence string,
-) Dependency {
+) modbusreg.Dependency {
 	t.Helper()
-	dependency, err := NewDependency(DependencySpec{
+	dependency, err := modbusreg.NewDependency(modbusreg.DependencySpec{
 		ID:      id,
-		Version: MustParseVersion(version),
-		Table:   InputRegisters,
-		Normalization: AddressNormalizationSpec{
-			Version:             MustParseVersion("1.0.0"),
+		Version: modbusreg.MustParseVersion(version),
+		Table:   modbusreg.InputRegisters,
+		Normalization: modbusreg.AddressNormalizationSpec{
+			Version:             modbusreg.MustParseVersion("1.0.0"),
 			SourceLocator:       "urn:helianthus:evidence:runtime-digest",
 			DocumentaryNotation: "one-based input register",
-			DocumentaryBase:     AddressBaseOneBased,
+			DocumentaryBase:     modbusreg.AddressBaseOneBased,
 			AddressSpaceLabel:   "input_registers",
 			DocumentaryAddress:  address,
-			Transformation:      TransformSubtractOne,
+			Transformation:      modbusreg.TransformSubtractOne,
 			ResolvedPDUOffset:   uint16(address - 1),
 		},
 		WordCount:          2,
 		CodecID:            "u32-energy",
-		CodecVersion:       MustParseVersion("1.0.0"),
+		CodecVersion:       modbusreg.MustParseVersion("1.0.0"),
 		CoherenceGroup:     "sample",
 		EvidenceReferences: []string{evidence},
 		ApplicabilityRefs:  []string{"applicability-v1"},
@@ -49,9 +50,9 @@ func internalDigestDependency(
 	return dependency
 }
 
-func internalDigestSet(t *testing.T, dependencies []Dependency) DependencySet {
+func internalDigestSet(t *testing.T, dependencies []modbusreg.Dependency) modbusreg.DependencySet {
 	t.Helper()
-	set, err := NewDependencySet(MustParseVersion("1.0.0"), dependencies)
+	set, err := modbusreg.NewDependencySet(modbusreg.MustParseVersion("1.0.0"), dependencies)
 	if err != nil {
 		t.Fatalf("NewDependencySet: %v", err)
 	}
@@ -60,26 +61,26 @@ func internalDigestSet(t *testing.T, dependencies []Dependency) DependencySet {
 
 // internalDigestProfile builds a validated synthetic single-wire profile over
 // set, whose dependencies use the two-word u32-energy codec and cite evidence.
-func internalDigestProfile(t *testing.T, set DependencySet, evidence string) ProfileDescriptor {
+func internalDigestProfile(t *testing.T, set modbusreg.DependencySet, evidence string) modbusreg.ProfileDescriptor {
 	t.Helper()
-	v := MustParseVersion("1.0.0")
-	codec, err := NewCodec(CodecSpec{
+	v := modbusreg.MustParseVersion("1.0.0")
+	codec, err := modbusreg.NewCodec(modbusreg.CodecSpec{
 		ID: "u32-energy", Version: v, RawWordCount: 2, WordPermutation: []uint16{1, 0},
-		IntraWordByteOrder: ByteOrderModbus, Representation: RepresentationUnsignedInteger,
-		Scale:  ScaleSpec{Source: ScaleConstant, ApplicationOrder: ScaleAfterRepresentation, Numerator: 1, Denominator: 10},
-		String: StringSpec{Applicability: StringNotApplicable}, OutputProfileType: "decimal", ValidityBehavior: ValidityRejectSentinel,
+		IntraWordByteOrder: modbusreg.ByteOrderModbus, Representation: modbusreg.RepresentationUnsignedInteger,
+		Scale:  modbusreg.ScaleSpec{Source: modbusreg.ScaleConstant, ApplicationOrder: modbusreg.ScaleAfterRepresentation, Numerator: 1, Denominator: 10},
+		String: modbusreg.StringSpec{Applicability: modbusreg.StringNotApplicable}, OutputProfileType: "decimal", ValidityBehavior: modbusreg.ValidityRejectSentinel,
 	})
 	if err != nil {
 		t.Fatalf("NewCodec: %v", err)
 	}
-	profile, err := NewProfileDescriptor(ProfileDescriptorSpec{
-		SchemaVersion: v, ID: "synthetic.standard.ledger", Version: v, Kind: ProfileStandardFamily,
+	profile, err := modbusreg.NewProfileDescriptor(modbusreg.ProfileDescriptorSpec{
+		SchemaVersion: v, ID: "synthetic.standard.ledger", Version: v, Kind: modbusreg.ProfileStandardFamily,
 		StandardApplicability: []string{"applicability-v1"}, ModelApplicability: []string{}, KnownExclusions: []string{},
 		RuntimeContractVersion: v, DetectorVersion: v, CodecContractVersion: v, NormalizationVersion: v, CoherenceVersion: v, QualificationVersion: v,
-		Codecs: []Codec{codec}, Dependencies: set,
-		Coherence: CoherencePolicySpec{Version: v, Mode: CoherenceSingleWireResponse, AcquisitionOrder: AcquisitionOrderNotApplicable, RetrySetBehavior: RetrySetNotApplicable},
-		Evidence:  []EvidenceReference{{ID: evidence, PublicationDisposition: PublicationMetadataOnly}},
-		Maturity:  MaturityExperimental, State: ProfileActive,
+		Codecs: []modbusreg.Codec{codec}, Dependencies: set,
+		Coherence: modbusreg.CoherencePolicySpec{Version: v, Mode: modbusreg.CoherenceSingleWireResponse, AcquisitionOrder: modbusreg.AcquisitionOrderNotApplicable, RetrySetBehavior: modbusreg.RetrySetNotApplicable},
+		Evidence:  []modbusreg.EvidenceReference{{ID: evidence, PublicationDisposition: modbusreg.PublicationMetadataOnly}},
+		Maturity:  modbusreg.MaturityExperimental, State: modbusreg.ProfileActive,
 	})
 	if err != nil {
 		t.Fatalf("NewProfileDescriptor: %v", err)
@@ -90,8 +91,8 @@ func internalDigestProfile(t *testing.T, set DependencySet, evidence string) Pro
 func TestRuntimeDependencySetDigestCanonicalGoldenVector(t *testing.T) {
 	first := internalDigestDependency(t, "energy-a", "1.0.0", 101, "evidence-a")
 	second := internalDigestDependency(t, "energy-b", "2.3.4", 102, "evidence-b")
-	set := internalDigestSet(t, []Dependency{first, second})
-	encoded, digest, err := encodeRuntimeDependencySet(set, MaxSerializedContractBytes)
+	set := internalDigestSet(t, []modbusreg.Dependency{first, second})
+	encoded, digest, err := encodeRuntimeDependencySet(set, modbusreg.MaxSerializedContractBytes)
 	if err != nil {
 		t.Fatalf("encodeRuntimeDependencySet: %v", err)
 	}
@@ -104,10 +105,10 @@ func TestRuntimeDependencySetDigestCanonicalGoldenVector(t *testing.T) {
 		t.Fatalf("digest = %q", digest)
 	}
 
-	permuted := internalDigestSet(t, []Dependency{second, first})
+	permuted := internalDigestSet(t, []modbusreg.Dependency{second, first})
 	_, permutedDigest, err := encodeRuntimeDependencySet(
 		permuted,
-		MaxSerializedContractBytes,
+		modbusreg.MaxSerializedContractBytes,
 	)
 	if err != nil {
 		t.Fatalf("encodeRuntimeDependencySet(permuted): %v", err)
@@ -116,13 +117,13 @@ func TestRuntimeDependencySetDigestCanonicalGoldenVector(t *testing.T) {
 		t.Fatal("dependency permutation did not change the digest")
 	}
 
-	metadataOnly := internalDigestSet(t, []Dependency{
+	metadataOnly := internalDigestSet(t, []modbusreg.Dependency{
 		internalDigestDependency(t, "energy-a", "1.0.0", 101, "replacement-a"),
 		internalDigestDependency(t, "energy-b", "2.3.4", 102, "replacement-b"),
 	})
 	_, metadataDigest, err := encodeRuntimeDependencySet(
 		metadataOnly,
-		MaxSerializedContractBytes,
+		modbusreg.MaxSerializedContractBytes,
 	)
 	if err != nil {
 		t.Fatalf("encodeRuntimeDependencySet(metadata): %v", err)
@@ -135,14 +136,14 @@ func TestRuntimeDependencySetDigestCanonicalGoldenVector(t *testing.T) {
 func TestLedgerAuditTombstoneStrictJSONRoundTrip(t *testing.T) {
 	tests := []struct {
 		name      string
-		tombstone LedgerAuditTombstone
+		tombstone AuditTombstone
 		expected  string
 	}{
 		{
 			name: "attempt",
-			tombstone: LedgerAuditTombstone{
+			tombstone: AuditTombstone{
 				SchemaVersion:    1,
-				ObjectKind:       LedgerAuditAttempt,
+				ObjectKind:       AuditAttempt,
 				TerminalSequence: 7,
 				ClaimCount:       1,
 				TerminalOutcome:  string(AttemptCancelled),
@@ -151,9 +152,9 @@ func TestLedgerAuditTombstoneStrictJSONRoundTrip(t *testing.T) {
 		},
 		{
 			name: "claim ordinal zero",
-			tombstone: LedgerAuditTombstone{
+			tombstone: AuditTombstone{
 				SchemaVersion:           1,
-				ObjectKind:              LedgerAuditClaim,
+				ObjectKind:              AuditClaim,
 				TerminalSequence:        8,
 				AttemptTerminalSequence: 7,
 				ClaimOrdinal:            0,
@@ -171,7 +172,7 @@ func TestLedgerAuditTombstoneStrictJSONRoundTrip(t *testing.T) {
 			if string(encoded) != test.expected {
 				t.Fatalf("encoding = %s", encoded)
 			}
-			var decoded LedgerAuditTombstone
+			var decoded AuditTombstone
 			if err := json.Unmarshal(encoded, &decoded); err != nil {
 				t.Fatalf("Unmarshal: %v", err)
 			}
@@ -188,7 +189,7 @@ func TestLedgerAuditTombstoneStrictJSONRoundTrip(t *testing.T) {
 		`{"schema_version":1,"object_kind":"attempt","terminal_sequence":7,"terminal_outcome":"` + strings.Repeat("x", 257) + `"}`,
 	}
 	for index, encoded := range invalid {
-		var decoded LedgerAuditTombstone
+		var decoded AuditTombstone
 		if err := json.Unmarshal([]byte(encoded), &decoded); err == nil {
 			t.Fatalf("invalid tombstone %d was accepted", index)
 		}
@@ -297,14 +298,14 @@ func (committer *retryJoinTerminalCommitter) callCount() int {
 }
 
 func TestConcurrentCancellationRetriesJoinTerminalPersistence(t *testing.T) {
-	limits := DefaultLedgerLimits()
+	limits := modbusreg.DefaultLedgerLimits()
 	ledger := &SampleLedger{
 		limits:                      limits,
 		attempts:                    make(map[string]*runtimeAttemptState),
 		commitSerial:                make(chan struct{}, 1),
 		nextTerminalSequence:        3,
 		durableNextTerminalSequence: 1,
-		auditTombstones:             make([]LedgerAuditTombstone, 0, limits.AuditTombstoneLimit),
+		auditTombstones:             make([]AuditTombstone, 0, limits.AuditTombstoneLimit),
 	}
 	ledger.commitSerial <- struct{}{}
 	committer := &retryJoinTerminalCommitter{
@@ -312,7 +313,7 @@ func TestConcurrentCancellationRetriesJoinTerminalPersistence(t *testing.T) {
 		retryRelease: make(chan struct{}),
 	}
 	factory := &ObservationFactory{
-		profile: internalDigestProfile(t, internalDigestSet(t, []Dependency{
+		profile: internalDigestProfile(t, internalDigestSet(t, []modbusreg.Dependency{
 			internalDigestDependency(t, "reuse", "1.0.0", 101, "reuse-evidence"),
 		}), "reuse-evidence"),
 		ledger:                ledger,
@@ -340,7 +341,7 @@ func TestConcurrentCancellationRetriesJoinTerminalPersistence(t *testing.T) {
 	}
 	reuseSource := internalRuntimeSource(t)
 	type visibility struct {
-		restart LedgerRestartState
+		restart RestartState
 		reused  *ObservationAttempt
 		err     error
 	}
@@ -356,15 +357,15 @@ func TestConcurrentCancellationRetriesJoinTerminalPersistence(t *testing.T) {
 			reused, beginErr := factory.BeginRuntimeAttempt(RuntimeAttemptRequest{
 				Source:     reuseSource,
 				AttemptKey: "concurrent-terminal-retry",
-				Identity:   AttemptIdentity{PollGenerationID: 2},
+				Identity:   modbusreg.AttemptIdentity{PollGenerationID: 2},
 				Observation: RuntimeObservationFacts{
-					SourceValidity:          SourceValid,
-					SourceTime:              SourceTimeUnavailable(),
+					SourceValidity:          modbusreg.SourceValid,
+					SourceTime:              modbusreg.SourceTimeUnavailable(),
 					LocalReceiptTime:        time.Unix(1_700_000_000, 0).UTC(),
 					LocalReceiptTimePresent: true,
 				},
-				Dependencies: []RuntimeDependencyFacts{{
-					SourceTime: SourceTimeUnavailable(),
+				Dependencies: []modbusreg.RuntimeDependencyFacts{{
+					SourceTime: modbusreg.SourceTimeUnavailable(),
 				}},
 			})
 			visible <- visibility{restart: restart, reused: reused, err: beginErr}
@@ -428,14 +429,14 @@ func TestConcurrentCancellationRetriesJoinTerminalPersistence(t *testing.T) {
 }
 
 func TestUnknownDrainErrorTerminalizesAndWakesCancellationWaiters(t *testing.T) {
-	limits := DefaultLedgerLimits()
+	limits := modbusreg.DefaultLedgerLimits()
 	ledger := &SampleLedger{
 		limits:                      limits,
 		attempts:                    make(map[string]*runtimeAttemptState),
 		commitSerial:                make(chan struct{}, 1),
 		nextTerminalSequence:        3,
 		durableNextTerminalSequence: 1,
-		auditTombstones:             make([]LedgerAuditTombstone, 0, limits.AuditTombstoneLimit),
+		auditTombstones:             make([]AuditTombstone, 0, limits.AuditTombstoneLimit),
 	}
 	ledger.commitSerial <- struct{}{}
 	factory := &ObservationFactory{
@@ -510,7 +511,7 @@ func TestUnknownDrainErrorTerminalizesAndWakesCancellationWaiters(t *testing.T) 
 	}
 	foundCancelFailure := false
 	for _, tombstone := range snapshot.AuditTombstones {
-		if tombstone.ObjectKind == LedgerAuditAttempt &&
+		if tombstone.ObjectKind == AuditAttempt &&
 			tombstone.TerminalOutcome == string(AttemptCancelFailed) {
 			foundCancelFailure = true
 		}

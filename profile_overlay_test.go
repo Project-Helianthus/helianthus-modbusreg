@@ -10,16 +10,18 @@ import (
 	"time"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
+	"github.com/Project-Helianthus/helianthus-modbusreg/ledger"
 )
 
 func fixtureFactoryWithLedger(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
-	state reg.SampleLedgerState,
+	state ledger.SampleLedgerState,
 	trustedMinimumRevision uint64,
-) (*fixtureValidationFactory, *reg.SampleLedger) {
+) (*fixtureValidationFactory, *ledger.SampleLedger) {
 	t.Helper()
-	sampleLedger, err := reg.NewSampleLedger(state, trustedMinimumRevision)
+	sampleLedger, err := ledger.NewSampleLedger(state, trustedMinimumRevision)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
@@ -29,9 +31,9 @@ func fixtureFactoryWithLedger(
 func emptyFixtureLedgerState(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
-) reg.SampleLedgerState {
+) ledger.SampleLedgerState {
 	t.Helper()
-	state, err := reg.EmptySampleLedgerState(
+	state, err := ledger.EmptySampleLedgerState(
 		"fixture-issuer",
 		profile,
 	)
@@ -45,7 +47,7 @@ func validateFixtureSpec(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	spec reg.ObservationSpec,
-) (reg.FixtureReplay, error) {
+) (detection.FixtureReplay, error) {
 	t.Helper()
 	factory, _ := fixtureFactoryWithLedger(
 		t,
@@ -369,7 +371,7 @@ func TestConstructorsAndSerializationAreBounded(t *testing.T) {
 		"i",
 		reg.MaxSampleIssuerDomainBytes+1,
 	)
-	if _, err := reg.EmptySampleLedgerState(
+	if _, err := ledger.EmptySampleLedgerState(
 		overlongIssuer,
 		profileFixture(t),
 	); err == nil {
@@ -582,23 +584,23 @@ func TestSampleLedgerStateRestartValidationIsBounded(t *testing.T) {
 	state.Revision = count
 	state.HighWater = count
 	state.LastCommittedAttempt = reg.AttemptIdentity{PollGenerationID: count}
-	encoded, err := reg.MarshalSampleLedgerState(state)
+	encoded, err := ledger.MarshalSampleLedgerState(state)
 	if err != nil {
 		t.Fatalf("MarshalSampleLedgerState: %v", err)
 	}
-	decoded, err := reg.UnmarshalSampleLedgerState(encoded)
+	decoded, err := ledger.UnmarshalSampleLedgerState(encoded)
 	if err != nil {
 		t.Fatalf("UnmarshalSampleLedgerState: %v", err)
 	}
-	if _, err := reg.NewSampleLedger(decoded, count+1); err == nil {
+	if _, err := ledger.NewSampleLedger(decoded, count+1); err == nil {
 		t.Fatal("stale ledger restore ignored trusted minimum revision")
 	}
-	restart := reg.LedgerRestartState{
+	restart := ledger.RestartState{
 		SchemaVersion:            1,
 		NextTerminalSequence:     count*2 + 1,
 		TruncatedThroughSequence: count * 2,
 	}
-	restarted, err := reg.NewSampleLedgerFromRestart(
+	restarted, err := ledger.NewSampleLedgerFromRestart(
 		decoded,
 		count,
 		reg.DefaultLedgerLimits(),
@@ -613,7 +615,7 @@ func TestSampleLedgerStateRestartValidationIsBounded(t *testing.T) {
 
 	badState := decoded
 	badState.DependencySetID = "not-a-content-id"
-	if _, err := reg.NewSampleLedgerFromRestart(
+	if _, err := ledger.NewSampleLedgerFromRestart(
 		badState,
 		0,
 		reg.DefaultLedgerLimits(),
@@ -623,7 +625,7 @@ func TestSampleLedgerStateRestartValidationIsBounded(t *testing.T) {
 	}
 	badState.DependencySetID =
 		"sha256:" + strings.Repeat("A", 64)
-	if _, err := reg.NewSampleLedgerFromRestart(
+	if _, err := ledger.NewSampleLedgerFromRestart(
 		badState,
 		0,
 		reg.DefaultLedgerLimits(),
@@ -639,12 +641,12 @@ func TestPersistedSampleGenerationCoversEveryCommittedRevision(t *testing.T) {
 	state.Revision = 2
 	state.HighWater = 2
 	state.LastCommittedAttempt = reg.AttemptIdentity{PollGenerationID: 1}
-	restart := reg.LedgerRestartState{
+	restart := ledger.RestartState{
 		SchemaVersion:            1,
 		NextTerminalSequence:     5,
 		TruncatedThroughSequence: 4,
 	}
-	if sampleLedger, err := reg.NewSampleLedgerFromRestart(
+	if sampleLedger, err := ledger.NewSampleLedgerFromRestart(
 		state,
 		2,
 		reg.DefaultLedgerLimits(),
@@ -652,13 +654,13 @@ func TestPersistedSampleGenerationCoversEveryCommittedRevision(t *testing.T) {
 	); err == nil || sampleLedger != nil {
 		t.Fatal("committed revision count exceeded its poll generation")
 	}
-	if encoded, err := reg.MarshalSampleLedgerState(state); err == nil || encoded != nil {
+	if encoded, err := ledger.MarshalSampleLedgerState(state); err == nil || encoded != nil {
 		t.Fatal("invalid committed poll generation was serialized")
 	}
 
 	valid := state
 	valid.LastCommittedAttempt.PollGenerationID = 7
-	encoded, err := reg.MarshalSampleLedgerState(valid)
+	encoded, err := ledger.MarshalSampleLedgerState(valid)
 	if err != nil {
 		t.Fatalf("MarshalSampleLedgerState(valid skipped generation): %v", err)
 	}
@@ -671,17 +673,17 @@ func TestPersistedSampleGenerationCoversEveryCommittedRevision(t *testing.T) {
 	if bytes.Equal(badJSON, encoded) {
 		t.Fatal("poll generation JSON mutation did not apply")
 	}
-	if _, err := reg.UnmarshalSampleLedgerState(badJSON); err == nil {
+	if _, err := ledger.UnmarshalSampleLedgerState(badJSON); err == nil {
 		t.Fatal("invalid committed poll generation JSON was accepted")
 	}
-	decoded, err := reg.UnmarshalSampleLedgerState(encoded)
+	decoded, err := ledger.UnmarshalSampleLedgerState(encoded)
 	if err != nil {
 		t.Fatalf("UnmarshalSampleLedgerState(valid skipped generation): %v", err)
 	}
 	if decoded != valid {
 		t.Fatalf("valid skipped generation changed: got %+v want %+v", decoded, valid)
 	}
-	if _, err := reg.NewSampleLedgerFromRestart(
+	if _, err := ledger.NewSampleLedgerFromRestart(
 		valid,
 		2,
 		reg.DefaultLedgerLimits(),
@@ -744,7 +746,7 @@ func TestSerializationRoundTripsNewFields(t *testing.T) {
 		t.Fatalf("Replay(decoded): %v", err)
 	}
 
-	ledgerBytes, err := reg.MarshalSampleLedgerState(
+	ledgerBytes, err := ledger.MarshalSampleLedgerState(
 		sampleLedger.ExportState(),
 	)
 	if err != nil {

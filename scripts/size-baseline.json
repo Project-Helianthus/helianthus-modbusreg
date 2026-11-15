@@ -2,13 +2,13 @@
   "version": 1,
   "violations": [
     {
-      "path": "fixture_conformance.go",
+      "path": "detection/fixture_conformance.go",
       "symbol": "$file",
       "metric": "file_lines",
       "value": 1147
     },
     {
-      "path": "fixture_conformance.go",
+      "path": "detection/fixture_conformance.go",
       "symbol": "$file",
       "metric": "functions_per_file",
       "value": 83
@@ -122,13 +122,13 @@
       "value": 71
     },
     {
-      "path": "runtime_ledger.go",
+      "path": "ledger/runtime_ledger.go",
       "symbol": "$file",
       "metric": "file_lines",
       "value": 2324
     },
     {
-      "path": "runtime_ledger.go",
+      "path": "ledger/runtime_ledger.go",
       "symbol": "$file",
       "metric": "functions_per_file",
       "value": 64

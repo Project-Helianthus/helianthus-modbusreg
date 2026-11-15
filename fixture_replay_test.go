@@ -8,6 +8,8 @@ import (
 	"time"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
+	"github.com/Project-Helianthus/helianthus-modbusreg/ledger"
 )
 
 func boundedSingleDependencyProfile(t *testing.T) reg.ProfileDescriptor {
@@ -122,11 +124,11 @@ func TestPersistedAttemptMustMatchProfileMode(t *testing.T) {
 			state.Revision = 1
 			state.HighWater = 1
 			state.LastCommittedAttempt = test.attempt
-			sampleLedger, err := reg.NewSampleLedgerFromRestart(
+			sampleLedger, err := ledger.NewSampleLedgerFromRestart(
 				state,
 				1,
 				reg.DefaultLedgerLimits(),
-				reg.LedgerRestartState{
+				ledger.RestartState{
 					SchemaVersion:            1,
 					NextTerminalSequence:     3,
 					TruncatedThroughSequence: 2,
@@ -135,7 +137,7 @@ func TestPersistedAttemptMustMatchProfileMode(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewSampleLedger: %v", err)
 			}
-			if _, err := reg.NewObservationFactory(
+			if _, err := ledger.NewObservationFactory(
 				test.profile,
 				sampleLedger,
 				&memoryPublicationCommitter{},
@@ -230,7 +232,7 @@ func TestExplicitObservedUTCYearOneRoundTrips(t *testing.T) {
 func TestMissingJSONFieldErrorIsDeterministic(t *testing.T) {
 	const expected = `serialized object is missing required key "schema_version"`
 	for iteration := 0; iteration < 100; iteration++ {
-		_, err := reg.UnmarshalSampleLedgerState([]byte(`{}`))
+		_, err := ledger.UnmarshalSampleLedgerState([]byte(`{}`))
 		if err == nil || err.Error() != expected {
 			t.Fatalf("iteration %d missing-key error = %v", iteration, err)
 		}
@@ -246,7 +248,7 @@ func TestFixtureReplayUsesDecodedImmutableSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarshalFixtureSpec: %v", err)
 	}
-	replayer, err := reg.NewFixtureReplayer(profile)
+	replayer, err := detection.NewFixtureReplayer(profile)
 	if err != nil {
 		t.Fatalf("NewFixtureReplayer: %v", err)
 	}

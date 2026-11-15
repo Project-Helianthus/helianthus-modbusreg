@@ -10,38 +10,39 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/ledger"
 )
 
 func TestS07RestartStateBoundaries(t *testing.T) {
 	// This synthetic domain has no committed publications or external fixtures.
 	digest := sha256.Sum256([]byte("S07 synthetic dependency set"))
-	initial := reg.SampleLedgerState{
+	initial := ledger.SampleLedgerState{
 		SchemaVersion: reg.CurrentSchemaVersion(), IssuerDomain: "s07-synthetic",
 		ProfileID: "s07-family", ProfileVersion: reg.MustParseVersion("0.1.0"),
 		DependencySetID: fmt.Sprintf("sha256:%x", digest),
 	}
-	attempt := func(sequence, count uint64) reg.LedgerAuditTombstone {
-		return reg.LedgerAuditTombstone{
-			SchemaVersion: 1, ObjectKind: reg.LedgerAuditAttempt,
+	attempt := func(sequence, count uint64) ledger.AuditTombstone {
+		return ledger.AuditTombstone{
+			SchemaVersion: 1, ObjectKind: ledger.AuditAttempt,
 			TerminalSequence: sequence, ClaimCount: count,
-			TerminalOutcome: string(reg.AttemptCancelled),
+			TerminalOutcome: string(ledger.AttemptCancelled),
 		}
 	}
-	claim := func(sequence, parent, ordinal uint64) reg.LedgerAuditTombstone {
-		return reg.LedgerAuditTombstone{
-			SchemaVersion: 1, ObjectKind: reg.LedgerAuditClaim,
+	claim := func(sequence, parent, ordinal uint64) ledger.AuditTombstone {
+		return ledger.AuditTombstone{
+			SchemaVersion: 1, ObjectKind: ledger.AuditClaim,
 			TerminalSequence: sequence, AttemptTerminalSequence: parent,
-			ClaimOrdinal: ordinal, TerminalOutcome: string(reg.ClaimAttemptCancelled),
+			ClaimOrdinal: ordinal, TerminalOutcome: string(ledger.ClaimAttemptCancelled),
 		}
 	}
-	state := func(next, truncated uint64, exhausted bool, records ...reg.LedgerAuditTombstone) reg.LedgerRestartState {
-		return reg.LedgerRestartState{
+	state := func(next, truncated uint64, exhausted bool, records ...ledger.AuditTombstone) ledger.RestartState {
+		return ledger.RestartState{
 			SchemaVersion: 1, NextTerminalSequence: next, SequenceExhausted: exhausted,
 			TruncatedThroughSequence: truncated,
-			AuditTombstones:          append([]reg.LedgerAuditTombstone{}, records...),
+			AuditTombstones:          append([]ledger.AuditTombstone{}, records...),
 		}
 	}
-	sameState := func(got, want reg.LedgerRestartState) bool {
+	sameState := func(got, want ledger.RestartState) bool {
 		return got.SchemaVersion == want.SchemaVersion &&
 			got.NextTerminalSequence == want.NextTerminalSequence &&
 			got.SequenceExhausted == want.SequenceExhausted &&
@@ -50,7 +51,7 @@ func TestS07RestartStateBoundaries(t *testing.T) {
 	}
 	tests := []struct {
 		name    string
-		restart reg.LedgerRestartState
+		restart ledger.RestartState
 		wantErr string
 	}{
 		// A single retained claim has a valid truncated parent, ordinal and end
@@ -89,7 +90,7 @@ func TestS07RestartStateBoundaries(t *testing.T) {
 					"schema_version": record.SchemaVersion, "object_kind": record.ObjectKind,
 					"terminal_sequence": record.TerminalSequence, "terminal_outcome": record.TerminalOutcome,
 				}
-				if record.ObjectKind == reg.LedgerAuditAttempt {
+				if record.ObjectKind == ledger.AuditAttempt {
 					fields["claim_count"] = record.ClaimCount
 				} else {
 					fields["attempt_terminal_sequence"] = record.AttemptTerminalSequence
@@ -125,7 +126,7 @@ func TestS07RestartStateBoundaries(t *testing.T) {
 				}
 			})
 			t.Run("restore", func(t *testing.T) {
-				sampleLedger, err := reg.NewSampleLedgerFromRestart(initial, 0, reg.DefaultLedgerLimits(), test.restart)
+				sampleLedger, err := ledger.NewSampleLedgerFromRestart(initial, 0, reg.DefaultLedgerLimits(), test.restart)
 				checkError(t, err)
 				if test.wantErr != "" {
 					if sampleLedger != nil {
@@ -142,14 +143,14 @@ func TestS07RestartStateBoundaries(t *testing.T) {
 				encoded, err := json.Marshal(test.restart)
 				checkError(t, err)
 				if test.wantErr == "" {
-					var got reg.LedgerRestartState
+					var got ledger.RestartState
 					if err := json.Unmarshal(encoded, &got); err != nil || !sameState(got, test.restart) {
 						t.Fatalf("marshal round trip = %+v, %v; want %+v", got, err, test.restart)
 					}
 				}
 			})
 			t.Run("unmarshal", func(t *testing.T) {
-				var got reg.LedgerRestartState
+				var got ledger.RestartState
 				err := json.Unmarshal(wire, &got)
 				checkError(t, err)
 				if test.wantErr == "" && !sameState(got, test.restart) {

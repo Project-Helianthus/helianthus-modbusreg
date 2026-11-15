@@ -1,15 +1,17 @@
-package modbusreg
+package detection
 
 import (
 	"fmt"
 	"sort"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
 type detectionCandidateEvidenceDTO struct {
 	ProfileID            string               `json:"profile_id"`
 	ProfileVersion       string               `json:"profile_version"`
 	Score                uint32               `json:"score"`
-	Reason               DetectionReason      `json:"reason"`
+	Reason               Reason               `json:"reason"`
 	MatchedGates         []ProbeIdentityField `json:"matched_gates"`
 	ProbeEvidenceIDs     []string             `json:"probe_evidence_ids"`
 	DetectorVersion      string               `json:"detector_version"`
@@ -18,42 +20,42 @@ type detectionCandidateEvidenceDTO struct {
 
 type detectionDecisionDTO struct {
 	SchemaVersion          string                          `json:"schema_version"`
-	Outcome                DetectionOutcome                `json:"outcome"`
-	Reason                 DetectionReason                 `json:"reason"`
+	Outcome                Outcome                         `json:"outcome"`
+	Reason                 Reason                          `json:"reason"`
 	SelectedProfileID      string                          `json:"selected_profile_id"`
 	SelectedProfileVersion string                          `json:"selected_profile_version"`
 	Evidence               []detectionCandidateEvidenceDTO `json:"evidence"`
 }
 
-func validDetectionOutcome(outcome DetectionOutcome) bool {
+func validDetectionOutcome(outcome Outcome) bool {
 	switch outcome {
-	case DetectionMatched, DetectionNoMatch, DetectionAmbiguous:
+	case Matched, NoMatch, Ambiguous:
 		return true
 	default:
 		return false
 	}
 }
 
-func validDetectionReason(reason DetectionReason) bool {
+func validDetectionReason(reason Reason) bool {
 	switch reason {
-	case DetectionReasonSelected,
-		DetectionReasonEqualBest,
-		DetectionReasonMultipleMatches,
-		DetectionReasonLowerScore,
-		DetectionReasonIdentityMismatch,
-		DetectionReasonFirmwareMismatch,
-		DetectionReasonInvalidIdentity,
-		DetectionReasonFixtureOptInRequired,
-		DetectionReasonCandidateDisabled,
-		DetectionReasonProfileDefaultOff,
-		DetectionReasonProfileRevoked,
-		DetectionReasonProfileSuperseded,
-		DetectionReasonProfileUnqualified,
-		DetectionReasonReadError,
-		DetectionReasonProbeException,
-		DetectionReasonIncompleteProbe,
-		DetectionReasonInvalidProbeResult,
-		DetectionReasonContextCancelled:
+	case ReasonSelected,
+		ReasonEqualBest,
+		ReasonMultipleMatches,
+		ReasonLowerScore,
+		ReasonIdentityMismatch,
+		ReasonFirmwareMismatch,
+		ReasonInvalidIdentity,
+		ReasonFixtureOptInRequired,
+		ReasonCandidateDisabled,
+		ReasonProfileDefaultOff,
+		ReasonProfileRevoked,
+		ReasonProfileSuperseded,
+		ReasonProfileUnqualified,
+		ReasonReadError,
+		ReasonProbeException,
+		ReasonIncompleteProbe,
+		ReasonInvalidProbeResult,
+		ReasonContextCancelled:
 		return true
 	default:
 		return false
@@ -73,7 +75,7 @@ func identityFieldRank(field ProbeIdentityField) int {
 	}
 }
 
-func validEvidenceOrder(evidence []DetectionCandidateEvidence) bool {
+func validEvidenceOrder(evidence []CandidateEvidence) bool {
 	for index := 1; index < len(evidence); index++ {
 		previous := evidence[index-1]
 		current := evidence[index]
@@ -85,10 +87,10 @@ func validEvidenceOrder(evidence []DetectionCandidateEvidence) bool {
 }
 
 func validateDetectionEvidence(
-	evidence DetectionCandidateEvidence,
-	limits DetectionLimits,
+	evidence CandidateEvidence,
+	limits Limits,
 ) error {
-	if !ValidIdentity(evidence.ProfileID) ||
+	if !modbusreg.ValidIdentity(evidence.ProfileID) ||
 		!evidence.ProfileVersion.Valid() ||
 		evidence.Score == 0 ||
 		!validDetectionReason(evidence.Reason) ||
@@ -117,18 +119,18 @@ func validateDetectionEvidence(
 	}
 	gateCount := len(evidence.MatchedGates)
 	switch evidence.Reason {
-	case DetectionReasonSelected,
-		DetectionReasonEqualBest,
-		DetectionReasonMultipleMatches,
-		DetectionReasonLowerScore:
+	case ReasonSelected,
+		ReasonEqualBest,
+		ReasonMultipleMatches,
+		ReasonLowerScore:
 		if gateCount != 3 {
 			return fmt.Errorf("ranked detection evidence lacks complete gates")
 		}
-	case DetectionReasonIdentityMismatch:
+	case ReasonIdentityMismatch:
 		if gateCount > 1 {
 			return fmt.Errorf("identity mismatch evidence has impossible gates")
 		}
-	case DetectionReasonFirmwareMismatch:
+	case ReasonFirmwareMismatch:
 		if gateCount != 2 {
 			return fmt.Errorf("firmware mismatch evidence has impossible gates")
 		}
@@ -141,8 +143,8 @@ func validateDetectionEvidence(
 }
 
 func validateDetectionDecision(
-	decision DetectionDecision,
-	limits DetectionLimits,
+	decision Decision,
+	limits Limits,
 ) error {
 	if err := validateDetectionLimits(limits); err != nil {
 		return err
@@ -150,7 +152,7 @@ func validateDetectionDecision(
 	if !validDetectionOutcome(decision.outcome) ||
 		!validDetectionReason(decision.reason) ||
 		len(decision.evidence) == 0 ||
-		len(decision.evidence) > MaxProfileDependencies ||
+		len(decision.evidence) > modbusreg.MaxProfileDependencies ||
 		!validEvidenceOrder(decision.evidence) {
 		return fmt.Errorf("detection decision is invalid")
 	}
@@ -160,7 +162,7 @@ func validateDetectionDecision(
 	lowerScoreCount := 0
 	var equalBestScore uint32
 	var selectedScore uint32
-	var detectorVersion Version
+	var detectorVersion modbusreg.Version
 	overallReasonPresent := false
 	for index, evidence := range decision.evidence {
 		if err := validateDetectionEvidence(evidence, limits); err != nil {
@@ -172,34 +174,34 @@ func validateDetectionDecision(
 			return fmt.Errorf("detection evidence contract versions disagree")
 		}
 		switch evidence.Reason {
-		case DetectionReasonSelected:
+		case ReasonSelected:
 			selectedCount++
 			selectedScore = evidence.Score
-		case DetectionReasonEqualBest:
+		case ReasonEqualBest:
 			if equalBestCount == 0 {
 				equalBestScore = evidence.Score
 			} else if evidence.Score != equalBestScore {
 				return fmt.Errorf("ambiguous candidates do not have equal scores")
 			}
 			equalBestCount++
-		case DetectionReasonMultipleMatches:
+		case ReasonMultipleMatches:
 			multipleMatchCount++
-		case DetectionReasonLowerScore:
+		case ReasonLowerScore:
 			lowerScoreCount++
 		}
 		overallReasonPresent = overallReasonPresent || evidence.Reason == decision.reason
 	}
 	switch decision.outcome {
-	case DetectionMatched:
-		if decision.reason != DetectionReasonSelected ||
-			!ValidIdentity(decision.selectedProfileID) ||
+	case Matched:
+		if decision.reason != ReasonSelected ||
+			!modbusreg.ValidIdentity(decision.selectedProfileID) ||
 			!decision.selectedProfileVersion.Valid() ||
 			selectedCount != 1 || equalBestCount != 0 || multipleMatchCount != 0 {
 			return fmt.Errorf("matched detection decision is inconsistent")
 		}
 		found := false
 		for _, evidence := range decision.evidence {
-			if evidence.Reason == DetectionReasonSelected {
+			if evidence.Reason == ReasonSelected {
 				found = evidence.ProfileID == decision.selectedProfileID &&
 					evidence.ProfileVersion == decision.selectedProfileVersion
 			}
@@ -208,39 +210,39 @@ func validateDetectionDecision(
 			return fmt.Errorf("selected profile is absent from decision evidence")
 		}
 		for _, evidence := range decision.evidence {
-			if evidence.Reason == DetectionReasonLowerScore &&
+			if evidence.Reason == ReasonLowerScore &&
 				evidence.Score >= selectedScore {
 				return fmt.Errorf("matched detection ranking is inconsistent")
 			}
 		}
-	case DetectionAmbiguous:
+	case Ambiguous:
 		if decision.selectedProfileID != "" ||
 			decision.selectedProfileVersion.Valid() || selectedCount != 0 {
 			return fmt.Errorf("ambiguous detection decision is inconsistent")
 		}
 		switch decision.reason {
-		case DetectionReasonEqualBest:
+		case ReasonEqualBest:
 			if equalBestCount < 2 || multipleMatchCount != 0 {
 				return fmt.Errorf("ambiguous detection decision is inconsistent")
 			}
 			for _, evidence := range decision.evidence {
-				if evidence.Reason == DetectionReasonLowerScore &&
+				if evidence.Reason == ReasonLowerScore &&
 					evidence.Score >= equalBestScore {
 					return fmt.Errorf("ambiguous detection ranking is inconsistent")
 				}
 			}
-		case DetectionReasonMultipleMatches:
+		case ReasonMultipleMatches:
 			if multipleMatchCount < 2 || equalBestCount != 0 || lowerScoreCount != 0 {
 				return fmt.Errorf("exclusive detection decision is inconsistent")
 			}
 		default:
 			return fmt.Errorf("ambiguous detection decision is inconsistent")
 		}
-	case DetectionNoMatch:
-		if decision.reason == DetectionReasonSelected ||
-			decision.reason == DetectionReasonEqualBest ||
-			decision.reason == DetectionReasonMultipleMatches ||
-			decision.reason == DetectionReasonLowerScore ||
+	case NoMatch:
+		if decision.reason == ReasonSelected ||
+			decision.reason == ReasonEqualBest ||
+			decision.reason == ReasonMultipleMatches ||
+			decision.reason == ReasonLowerScore ||
 			decision.selectedProfileID != "" ||
 			decision.selectedProfileVersion.Valid() ||
 			selectedCount != 0 || equalBestCount != 0 || multipleMatchCount != 0 || lowerScoreCount != 0 ||
@@ -254,7 +256,7 @@ func validateDetectionDecision(
 }
 
 func detectionDecisionToDTO(
-	decision DetectionDecision,
+	decision Decision,
 ) detectionDecisionDTO {
 	evidence := make([]detectionCandidateEvidenceDTO, len(decision.evidence))
 	for index, item := range decision.evidence {
@@ -274,7 +276,7 @@ func detectionDecisionToDTO(
 		selectedVersion = decision.selectedProfileVersion.String()
 	}
 	return detectionDecisionDTO{
-		SchemaVersion:          CurrentSchemaVersion().String(),
+		SchemaVersion:          modbusreg.CurrentSchemaVersion().String(),
 		Outcome:                decision.outcome,
 		Reason:                 decision.reason,
 		SelectedProfileID:      decision.selectedProfileID,
@@ -284,7 +286,7 @@ func detectionDecisionToDTO(
 }
 
 // MarshalDetectionDecision emits the canonical bounded durable decision form.
-func MarshalDetectionDecision(decision DetectionDecision) ([]byte, error) {
+func MarshalDetectionDecision(decision Decision) ([]byte, error) {
 	limits := DefaultDetectionLimits()
 	if decision.maxDecisionBytes > 0 {
 		limits.MaxDecisionBytes = decision.maxDecisionBytes
@@ -292,7 +294,7 @@ func MarshalDetectionDecision(decision DetectionDecision) ([]byte, error) {
 	if err := validateDetectionDecision(decision, limits); err != nil {
 		return nil, err
 	}
-	encoded, err := MarshalBounded(detectionDecisionToDTO(decision))
+	encoded, err := modbusreg.MarshalBounded(detectionDecisionToDTO(decision))
 	if err != nil {
 		return nil, err
 	}
@@ -304,23 +306,23 @@ func MarshalDetectionDecision(decision DetectionDecision) ([]byte, error) {
 
 func detectionEvidenceFromDTO(
 	record detectionCandidateEvidenceDTO,
-) (DetectionCandidateEvidence, error) {
-	profileVersion, err := ParseRequiredVersion("profile_version", record.ProfileVersion)
+) (CandidateEvidence, error) {
+	profileVersion, err := modbusreg.ParseRequiredVersion("profile_version", record.ProfileVersion)
 	if err != nil {
-		return DetectionCandidateEvidence{}, err
+		return CandidateEvidence{}, err
 	}
-	detectorVersion, err := ParseRequiredVersion("detector_version", record.DetectorVersion)
+	detectorVersion, err := modbusreg.ParseRequiredVersion("detector_version", record.DetectorVersion)
 	if err != nil {
-		return DetectionCandidateEvidence{}, err
+		return CandidateEvidence{}, err
 	}
-	qualificationVersion, err := ParseRequiredVersion(
+	qualificationVersion, err := modbusreg.ParseRequiredVersion(
 		"qualification_version",
 		record.QualificationVersion,
 	)
 	if err != nil {
-		return DetectionCandidateEvidence{}, err
+		return CandidateEvidence{}, err
 	}
-	return DetectionCandidateEvidence{
+	return CandidateEvidence{
 		ProfileID:            record.ProfileID,
 		ProfileVersion:       profileVersion,
 		Score:                record.Score,
@@ -334,60 +336,60 @@ func detectionEvidenceFromDTO(
 
 // UnmarshalDetectionDecision strictly reconstructs one canonical bounded
 // decision. Unknown, missing, duplicate, and case-folded keys are rejected.
-func UnmarshalDetectionDecision(data []byte) (DetectionDecision, error) {
+func UnmarshalDetectionDecision(data []byte) (Decision, error) {
 	var record detectionDecisionDTO
-	if err := DecodeStrict(data, &record); err != nil {
-		return DetectionDecision{}, err
+	if err := modbusreg.DecodeStrict(data, &record); err != nil {
+		return Decision{}, err
 	}
-	schemaVersion, err := ParseRequiredVersion("schema_version", record.SchemaVersion)
-	if err != nil || schemaVersion != CurrentSchemaVersion() {
-		return DetectionDecision{}, fmt.Errorf("detection decision schema is incompatible")
+	schemaVersion, err := modbusreg.ParseRequiredVersion("schema_version", record.SchemaVersion)
+	if err != nil || schemaVersion != modbusreg.CurrentSchemaVersion() {
+		return Decision{}, fmt.Errorf("detection decision schema is incompatible")
 	}
-	selectedVersion := Version{}
+	selectedVersion := modbusreg.Version{}
 	if record.SelectedProfileVersion != "" {
-		selectedVersion, err = ParseRequiredVersion(
+		selectedVersion, err = modbusreg.ParseRequiredVersion(
 			"selected_profile_version",
 			record.SelectedProfileVersion,
 		)
 		if err != nil {
-			return DetectionDecision{}, err
+			return Decision{}, err
 		}
 	}
-	evidence := make([]DetectionCandidateEvidence, len(record.Evidence))
+	evidence := make([]CandidateEvidence, len(record.Evidence))
 	for index, item := range record.Evidence {
 		evidence[index], err = detectionEvidenceFromDTO(item)
 		if err != nil {
-			return DetectionDecision{}, err
+			return Decision{}, err
 		}
 	}
 	if !sort.SliceIsSorted(evidence, func(first, second int) bool {
 		if evidence[first].ProfileID != evidence[second].ProfileID {
 			return evidence[first].ProfileID < evidence[second].ProfileID
 		}
-		return CompareVersions(
+		return modbusreg.CompareVersions(
 			evidence[first].ProfileVersion,
 			evidence[second].ProfileVersion,
 		) < 0
 	}) {
-		return DetectionDecision{}, fmt.Errorf("detection evidence is not canonical")
+		return Decision{}, fmt.Errorf("detection evidence is not canonical")
 	}
-	decision := DetectionDecision{
+	decision := Decision{
 		outcome:                record.Outcome,
 		reason:                 record.Reason,
 		selectedProfileID:      record.SelectedProfileID,
 		selectedProfileVersion: selectedVersion,
 		evidence:               evidence,
-		maxDecisionBytes:       MaxSerializedContractBytes,
+		maxDecisionBytes:       modbusreg.MaxSerializedContractBytes,
 	}
 	if err := validateDetectionDecision(decision, DefaultDetectionLimits()); err != nil {
-		return DetectionDecision{}, err
+		return Decision{}, err
 	}
 	reencoded, err := MarshalDetectionDecision(decision)
 	if err != nil {
-		return DetectionDecision{}, err
+		return Decision{}, err
 	}
-	if len(reencoded) > MaxSerializedContractBytes {
-		return DetectionDecision{}, fmt.Errorf("detection decision exceeds the byte bound")
+	if len(reencoded) > modbusreg.MaxSerializedContractBytes {
+		return Decision{}, fmt.Errorf("detection decision exceeds the byte bound")
 	}
 	return decision, nil
 }

@@ -1,4 +1,4 @@
-package modbusreg
+package ledger
 
 import (
 	"bytes"
@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
 // ClaimOutcome is the closed immutable M2 claim terminal enum.
@@ -55,55 +56,55 @@ const (
 	CancellationAlreadyPublished CancellationResult = "already_published"
 )
 
-// LedgerAuditObjectKind is the closed tombstone variant discriminator.
-type LedgerAuditObjectKind string
+// AuditObjectKind is the closed tombstone variant discriminator.
+type AuditObjectKind string
 
 const (
-	LedgerAuditAttempt LedgerAuditObjectKind = "attempt"
-	LedgerAuditClaim   LedgerAuditObjectKind = "claim"
+	AuditAttempt AuditObjectKind = "attempt"
+	AuditClaim   AuditObjectKind = "claim"
 )
 
-// LedgerAuditTombstone is a bounded, immutable, non-reconstructing audit
+// AuditTombstone is a bounded, immutable, non-reconstructing audit
 // record. Claim-only fields are absent from attempt JSON encodings.
-type LedgerAuditTombstone struct {
-	SchemaVersion           int                   `json:"schema_version"`
-	ObjectKind              LedgerAuditObjectKind `json:"object_kind"`
-	TerminalSequence        uint64                `json:"terminal_sequence"`
-	ClaimCount              uint64                `json:"claim_count,omitempty"`
-	AttemptTerminalSequence uint64                `json:"attempt_terminal_sequence,omitempty"`
-	ClaimOrdinal            uint64                `json:"claim_ordinal,omitempty"`
-	TerminalOutcome         string                `json:"terminal_outcome"`
+type AuditTombstone struct {
+	SchemaVersion           int             `json:"schema_version"`
+	ObjectKind              AuditObjectKind `json:"object_kind"`
+	TerminalSequence        uint64          `json:"terminal_sequence"`
+	ClaimCount              uint64          `json:"claim_count,omitempty"`
+	AttemptTerminalSequence uint64          `json:"attempt_terminal_sequence,omitempty"`
+	ClaimOrdinal            uint64          `json:"claim_ordinal,omitempty"`
+	TerminalOutcome         string          `json:"terminal_outcome"`
 }
 
 const maxLedgerAuditTombstoneJSONBytes = 256
 
 type attemptAuditTombstoneDTO struct {
-	SchemaVersion    int                   `json:"schema_version"`
-	ObjectKind       LedgerAuditObjectKind `json:"object_kind"`
-	TerminalSequence uint64                `json:"terminal_sequence"`
-	ClaimCount       uint64                `json:"claim_count"`
-	TerminalOutcome  string                `json:"terminal_outcome"`
+	SchemaVersion    int             `json:"schema_version"`
+	ObjectKind       AuditObjectKind `json:"object_kind"`
+	TerminalSequence uint64          `json:"terminal_sequence"`
+	ClaimCount       uint64          `json:"claim_count"`
+	TerminalOutcome  string          `json:"terminal_outcome"`
 }
 
 type claimAuditTombstoneDTO struct {
-	SchemaVersion           int                   `json:"schema_version"`
-	ObjectKind              LedgerAuditObjectKind `json:"object_kind"`
-	TerminalSequence        uint64                `json:"terminal_sequence"`
-	AttemptTerminalSequence uint64                `json:"attempt_terminal_sequence"`
-	ClaimOrdinal            uint64                `json:"claim_ordinal"`
-	TerminalOutcome         string                `json:"terminal_outcome"`
+	SchemaVersion           int             `json:"schema_version"`
+	ObjectKind              AuditObjectKind `json:"object_kind"`
+	TerminalSequence        uint64          `json:"terminal_sequence"`
+	AttemptTerminalSequence uint64          `json:"attempt_terminal_sequence"`
+	ClaimOrdinal            uint64          `json:"claim_ordinal"`
+	TerminalOutcome         string          `json:"terminal_outcome"`
 }
 
-func validateLedgerAuditTombstone(tombstone LedgerAuditTombstone) error {
+func validateLedgerAuditTombstone(tombstone AuditTombstone) error {
 	switch tombstone.ObjectKind {
-	case LedgerAuditAttempt:
+	case AuditAttempt:
 		if !validAttemptTerminalOutcome(AttemptPhase(tombstone.TerminalOutcome)) ||
 			tombstone.SchemaVersion != 1 || tombstone.TerminalSequence == 0 ||
 			tombstone.ClaimCount == 0 ||
 			tombstone.AttemptTerminalSequence != 0 || tombstone.ClaimOrdinal != 0 {
 			return fmt.Errorf("attempt audit tombstone is invalid")
 		}
-	case LedgerAuditClaim:
+	case AuditClaim:
 		if !validClaimOutcome(ClaimOutcome(tombstone.TerminalOutcome)) ||
 			tombstone.SchemaVersion != 1 || tombstone.TerminalSequence == 0 ||
 			tombstone.AttemptTerminalSequence == 0 || tombstone.ClaimCount != 0 {
@@ -115,23 +116,23 @@ func validateLedgerAuditTombstone(tombstone LedgerAuditTombstone) error {
 	return nil
 }
 
-func (tombstone LedgerAuditTombstone) MarshalJSON() ([]byte, error) {
+func (tombstone AuditTombstone) MarshalJSON() ([]byte, error) {
 	if err := validateLedgerAuditTombstone(tombstone); err != nil {
 		return nil, err
 	}
 	switch tombstone.ObjectKind {
-	case LedgerAuditAttempt:
+	case AuditAttempt:
 		return json.Marshal(attemptAuditTombstoneDTO{
 			SchemaVersion:    1,
-			ObjectKind:       LedgerAuditAttempt,
+			ObjectKind:       AuditAttempt,
 			TerminalSequence: tombstone.TerminalSequence,
 			ClaimCount:       tombstone.ClaimCount,
 			TerminalOutcome:  tombstone.TerminalOutcome,
 		})
-	case LedgerAuditClaim:
+	case AuditClaim:
 		return json.Marshal(claimAuditTombstoneDTO{
 			SchemaVersion:           1,
-			ObjectKind:              LedgerAuditClaim,
+			ObjectKind:              AuditClaim,
 			TerminalSequence:        tombstone.TerminalSequence,
 			AttemptTerminalSequence: tombstone.AttemptTerminalSequence,
 			ClaimOrdinal:            tombstone.ClaimOrdinal,
@@ -145,36 +146,36 @@ func (tombstone LedgerAuditTombstone) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON accepts only the exact closed attempt or claim tombstone
 // projection. The fixed byte ceiling prevents whitespace or object padding
 // from bypassing configured audit bounds before activation validation.
-func (tombstone *LedgerAuditTombstone) UnmarshalJSON(data []byte) error {
+func (tombstone *AuditTombstone) UnmarshalJSON(data []byte) error {
 	if tombstone == nil || len(data) == 0 || len(data) > maxLedgerAuditTombstoneJSONBytes {
 		return fmt.Errorf("ledger audit tombstone encoding exceeds its bound")
 	}
 	var discriminator struct {
-		ObjectKind LedgerAuditObjectKind `json:"object_kind"`
+		ObjectKind AuditObjectKind `json:"object_kind"`
 	}
 	if err := json.Unmarshal(data, &discriminator); err != nil {
 		return err
 	}
-	var decoded LedgerAuditTombstone
+	var decoded AuditTombstone
 	switch discriminator.ObjectKind {
-	case LedgerAuditAttempt:
+	case AuditAttempt:
 		var record attemptAuditTombstoneDTO
-		if err := DecodeStrict(data, &record); err != nil {
+		if err := modbusreg.DecodeStrict(data, &record); err != nil {
 			return err
 		}
-		decoded = LedgerAuditTombstone{
+		decoded = AuditTombstone{
 			SchemaVersion:    record.SchemaVersion,
 			ObjectKind:       record.ObjectKind,
 			TerminalSequence: record.TerminalSequence,
 			ClaimCount:       record.ClaimCount,
 			TerminalOutcome:  record.TerminalOutcome,
 		}
-	case LedgerAuditClaim:
+	case AuditClaim:
 		var record claimAuditTombstoneDTO
-		if err := DecodeStrict(data, &record); err != nil {
+		if err := modbusreg.DecodeStrict(data, &record); err != nil {
 			return err
 		}
-		decoded = LedgerAuditTombstone{
+		decoded = AuditTombstone{
 			SchemaVersion:           record.SchemaVersion,
 			ObjectKind:              record.ObjectKind,
 			TerminalSequence:        record.TerminalSequence,
@@ -192,22 +193,22 @@ func (tombstone *LedgerAuditTombstone) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// LedgerRestartState is the bounded deterministic audit/sequence restart
+// RestartState is the bounded deterministic audit/sequence restart
 // state. Live attempts and capabilities are intentionally nonserializable.
-type LedgerRestartState struct {
-	SchemaVersion            int                    `json:"schema_version"`
-	NextTerminalSequence     uint64                 `json:"next_terminal_sequence"`
-	SequenceExhausted        bool                   `json:"sequence_exhausted"`
-	TruncatedThroughSequence uint64                 `json:"truncated_through_sequence"`
-	AuditTombstones          []LedgerAuditTombstone `json:"audit_tombstones"`
+type RestartState struct {
+	SchemaVersion            int              `json:"schema_version"`
+	NextTerminalSequence     uint64           `json:"next_terminal_sequence"`
+	SequenceExhausted        bool             `json:"sequence_exhausted"`
+	TruncatedThroughSequence uint64           `json:"truncated_through_sequence"`
+	AuditTombstones          []AuditTombstone `json:"audit_tombstones"`
 }
 
 // CoversTerminalWatermark reports whether restart prevents reuse of every
 // terminal sequence already covered by prior without contradicting any
 // overlapping retained history. History fully below restart's truncation
 // watermark is intentionally non-reconstructing and needs no comparison.
-func (restart LedgerRestartState) CoversTerminalWatermark(
-	prior LedgerRestartState,
+func (restart RestartState) CoversTerminalWatermark(
+	prior RestartState,
 ) bool {
 	limits := maximumLedgerRestartValidationLimits()
 	if validateLedgerRestartState(restart, limits) != nil ||
@@ -221,7 +222,7 @@ func (restart LedgerRestartState) CoversTerminalWatermark(
 		restart.NextTerminalSequence < prior.NextTerminalSequence {
 		return false
 	}
-	current := make(map[uint64]LedgerAuditTombstone, len(restart.AuditTombstones))
+	current := make(map[uint64]AuditTombstone, len(restart.AuditTombstones))
 	for _, tombstone := range restart.AuditTombstones {
 		current[tombstone.TerminalSequence] = tombstone
 	}
@@ -238,30 +239,30 @@ func (restart LedgerRestartState) CoversTerminalWatermark(
 }
 
 type ledgerRestartStateDTO struct {
-	SchemaVersion            int                    `json:"schema_version"`
-	NextTerminalSequence     uint64                 `json:"next_terminal_sequence"`
-	SequenceExhausted        bool                   `json:"sequence_exhausted"`
-	TruncatedThroughSequence uint64                 `json:"truncated_through_sequence"`
-	AuditTombstones          []LedgerAuditTombstone `json:"audit_tombstones"`
+	SchemaVersion            int              `json:"schema_version"`
+	NextTerminalSequence     uint64           `json:"next_terminal_sequence"`
+	SequenceExhausted        bool             `json:"sequence_exhausted"`
+	TruncatedThroughSequence uint64           `json:"truncated_through_sequence"`
+	AuditTombstones          []AuditTombstone `json:"audit_tombstones"`
 }
 
-func maximumLedgerRestartValidationLimits() LedgerLimits {
-	limits := DefaultLedgerLimits()
-	limits.MaxClaimEntriesPerAttempt = MaxProfileDependencies
-	limits.AuditTombstoneLimit = MaxLedgerRestartAuditTombstones
-	limits.AuditTombstoneMaxEncodedBytes = MaxSerializedContractBytes
+func maximumLedgerRestartValidationLimits() modbusreg.LedgerLimits {
+	limits := modbusreg.DefaultLedgerLimits()
+	limits.MaxClaimEntriesPerAttempt = modbusreg.MaxProfileDependencies
+	limits.AuditTombstoneLimit = modbusreg.MaxLedgerRestartAuditTombstones
+	limits.AuditTombstoneMaxEncodedBytes = modbusreg.MaxSerializedContractBytes
 	return limits
 }
 
 // MarshalJSON emits the exact bounded snake_case restart contract.
-func (restart LedgerRestartState) MarshalJSON() ([]byte, error) {
+func (restart RestartState) MarshalJSON() ([]byte, error) {
 	if err := validateLedgerRestartState(
 		restart,
 		maximumLedgerRestartValidationLimits(),
 	); err != nil {
 		return nil, err
 	}
-	return MarshalBounded(ledgerRestartStateDTO{
+	return modbusreg.MarshalBounded(ledgerRestartStateDTO{
 		SchemaVersion:            restart.SchemaVersion,
 		NextTerminalSequence:     restart.NextTerminalSequence,
 		SequenceExhausted:        restart.SequenceExhausted,
@@ -271,20 +272,20 @@ func (restart LedgerRestartState) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON accepts only the exact closed top-level restart object.
-func (restart *LedgerRestartState) UnmarshalJSON(data []byte) error {
+func (restart *RestartState) UnmarshalJSON(data []byte) error {
 	if restart == nil {
 		return fmt.Errorf("ledger restart state target is nil")
 	}
 	var record ledgerRestartStateDTO
-	if err := DecodeStrict(data, &record); err != nil {
+	if err := modbusreg.DecodeStrict(data, &record); err != nil {
 		return err
 	}
-	decoded := LedgerRestartState{
+	decoded := RestartState{
 		SchemaVersion:            record.SchemaVersion,
 		NextTerminalSequence:     record.NextTerminalSequence,
 		SequenceExhausted:        record.SequenceExhausted,
 		TruncatedThroughSequence: record.TruncatedThroughSequence,
-		AuditTombstones:          append([]LedgerAuditTombstone(nil), record.AuditTombstones...),
+		AuditTombstones:          append([]AuditTombstone(nil), record.AuditTombstones...),
 	}
 	if err := validateLedgerRestartState(
 		decoded,
@@ -297,36 +298,36 @@ func (restart *LedgerRestartState) UnmarshalJSON(data []byte) error {
 }
 
 func nonNilLedgerAuditTombstones(
-	values []LedgerAuditTombstone,
-) []LedgerAuditTombstone {
+	values []AuditTombstone,
+) []AuditTombstone {
 	if values == nil {
-		return []LedgerAuditTombstone{}
+		return []AuditTombstone{}
 	}
 	return values
 }
 
-// LedgerSnapshot reports bounded resource use without exposing attempt keys,
+// Snapshot reports bounded resource use without exposing attempt keys,
 // capabilities, normalization records, or diagnostics.
-type LedgerSnapshot struct {
+type Snapshot struct {
 	RetainedAttempts     int
 	RetainedClaimEntries int
 	NextTerminalSequence uint64
 	SequenceExhausted    bool
-	AuditTombstones      []LedgerAuditTombstone
+	AuditTombstones      []AuditTombstone
 }
 
 // SampleLedger owns sample sequencing plus the bounded M2 attempt ledger.
 type SampleLedger struct {
 	mu                          sync.Mutex
 	commitSerial                chan struct{}
-	limits                      LedgerLimits
+	limits                      modbusreg.LedgerLimits
 	issuerDomain                string
 	profileID                   string
-	profileVersion              Version
+	profileVersion              modbusreg.Version
 	dependencySetID             string
 	revision                    uint64
 	highWater                   uint64
-	lastCommittedAttempt        AttemptIdentity
+	lastCommittedAttempt        modbusreg.AttemptIdentity
 	attempts                    map[string]*runtimeAttemptState
 	retainedClaims              int
 	nextTerminalSequence        uint64
@@ -334,7 +335,7 @@ type SampleLedger struct {
 	durableNextTerminalSequence uint64
 	durableSequenceExhausted    bool
 	truncatedThroughSequence    uint64
-	auditTombstones             []LedgerAuditTombstone
+	auditTombstones             []AuditTombstone
 }
 
 // NewSampleLedger activates a new bounded attempt ledger. Omitting limits is
@@ -342,7 +343,7 @@ type SampleLedger struct {
 func NewSampleLedger(
 	state SampleLedgerState,
 	trustedMinimumRevision uint64,
-	configuredLimits ...LedgerLimits,
+	configuredLimits ...modbusreg.LedgerLimits,
 ) (*SampleLedger, error) {
 	limits, err := selectLedgerLimits(configuredLimits)
 	if err != nil {
@@ -355,22 +356,22 @@ func NewSampleLedger(
 func NewSampleLedgerFromRestart(
 	state SampleLedgerState,
 	trustedMinimumRevision uint64,
-	limits LedgerLimits,
-	restart LedgerRestartState,
+	limits modbusreg.LedgerLimits,
+	restart RestartState,
 ) (*SampleLedger, error) {
 	return newSampleLedger(state, trustedMinimumRevision, limits, &restart)
 }
 
-func selectLedgerLimits(configured []LedgerLimits) (LedgerLimits, error) {
+func selectLedgerLimits(configured []modbusreg.LedgerLimits) (modbusreg.LedgerLimits, error) {
 	if len(configured) > 1 {
-		return LedgerLimits{}, fmt.Errorf("sample ledger accepts one limits value")
+		return modbusreg.LedgerLimits{}, fmt.Errorf("sample ledger accepts one limits value")
 	}
-	limits := DefaultLedgerLimits()
+	limits := modbusreg.DefaultLedgerLimits()
 	if len(configured) == 1 {
 		limits = configured[0]
 	}
-	if err := ValidateLedgerLimits(limits); err != nil {
-		return LedgerLimits{}, err
+	if err := modbusreg.ValidateLedgerLimits(limits); err != nil {
+		return modbusreg.LedgerLimits{}, err
 	}
 	return limits, nil
 }
@@ -378,16 +379,16 @@ func selectLedgerLimits(configured []LedgerLimits) (LedgerLimits, error) {
 func newSampleLedger(
 	state SampleLedgerState,
 	trustedMinimumRevision uint64,
-	limits LedgerLimits,
-	restart *LedgerRestartState,
+	limits modbusreg.LedgerLimits,
+	restart *RestartState,
 ) (*SampleLedger, error) {
-	if err := ValidateLedgerLimits(limits); err != nil {
+	if err := modbusreg.ValidateLedgerLimits(limits); err != nil {
 		return nil, err
 	}
 	const restartEnvelopeBudget = 512
 	perTombstoneBudget := limits.AuditTombstoneMaxEncodedBytes + 1
 	if limits.AuditTombstoneLimit >
-		(MaxSerializedContractBytes-restartEnvelopeBudget)/perTombstoneBudget {
+		(modbusreg.MaxSerializedContractBytes-restartEnvelopeBudget)/perTombstoneBudget {
 		return nil, fmt.Errorf("ledger audit limits exceed the aggregate serialization bound")
 	}
 	if err := validateLargestLedgerTombstones(limits); err != nil {
@@ -401,7 +402,7 @@ func newSampleLedger(
 	}
 	nextSequence := uint64(1)
 	durableNextSequence := uint64(1)
-	var tombstones []LedgerAuditTombstone
+	var tombstones []AuditTombstone
 	sequenceExhausted := false
 	durableSequenceExhausted := false
 	var truncatedThrough uint64
@@ -417,7 +418,7 @@ func newSampleLedger(
 		sequenceExhausted = restart.SequenceExhausted
 		durableSequenceExhausted = restart.SequenceExhausted
 		truncatedThrough = restart.TruncatedThroughSequence
-		tombstones = append([]LedgerAuditTombstone(nil), restart.AuditTombstones...)
+		tombstones = append([]AuditTombstone(nil), restart.AuditTombstones...)
 	}
 	ledger := &SampleLedger{
 		commitSerial:                make(chan struct{}, 1),
@@ -443,11 +444,11 @@ func newSampleLedger(
 
 func validateSampleRestartRelationship(
 	state SampleLedgerState,
-	restart LedgerRestartState,
+	restart RestartState,
 ) error {
 	var retainedPublications uint64
 	for _, tombstone := range restart.AuditTombstones {
-		if tombstone.ObjectKind == LedgerAuditAttempt &&
+		if tombstone.ObjectKind == AuditAttempt &&
 			tombstone.TerminalOutcome == string(AttemptPublished) {
 			if retainedPublications == math.MaxUint64 {
 				return fmt.Errorf("retained publication history exceeds sample revision capacity")
@@ -485,26 +486,26 @@ func validateSampleRestartRelationship(
 // issuer domain, profile and dependency set: the CAS revision, the high-water
 // mark of issued sample IDs and the last committed attempt.
 type SampleLedgerState struct {
-	SchemaVersion        Version
+	SchemaVersion        modbusreg.Version
 	IssuerDomain         string
 	ProfileID            string
-	ProfileVersion       Version
+	ProfileVersion       modbusreg.Version
 	DependencySetID      string
 	Revision             uint64
 	HighWater            uint64
-	LastCommittedAttempt AttemptIdentity
+	LastCommittedAttempt modbusreg.AttemptIdentity
 }
 
 // EmptySampleLedgerState creates a new issuer/profile/dependency-set domain.
 func EmptySampleLedgerState(
 	issuerDomain string,
-	profile ProfileDescriptor,
+	profile modbusreg.ProfileDescriptor,
 ) (SampleLedgerState, error) {
 	if profile.ID() == "" {
 		return SampleLedgerState{}, fmt.Errorf("sample ledger profile is invalid")
 	}
 	state := SampleLedgerState{
-		SchemaVersion:   CurrentSchemaVersion(),
+		SchemaVersion:   modbusreg.CurrentSchemaVersion(),
 		IssuerDomain:    issuerDomain,
 		ProfileID:       profile.ID(),
 		ProfileVersion:  profile.Version(),
@@ -520,12 +521,12 @@ func validateSampleLedgerState(
 	state SampleLedgerState,
 	trustedMinimumRevision uint64,
 ) error {
-	initialAttemptState := state.LastCommittedAttempt == (AttemptIdentity{})
-	if state.SchemaVersion != CurrentSchemaVersion() ||
+	initialAttemptState := state.LastCommittedAttempt == (modbusreg.AttemptIdentity{})
+	if state.SchemaVersion != modbusreg.CurrentSchemaVersion() ||
 		!validIssuerDomain(state.IssuerDomain) ||
-		!ValidIdentity(state.ProfileID) ||
+		!modbusreg.ValidIdentity(state.ProfileID) ||
 		!state.ProfileVersion.Valid() ||
-		!ValidDependencySetID(state.DependencySetID) ||
+		!modbusreg.ValidDependencySetID(state.DependencySetID) ||
 		state.Revision != state.HighWater ||
 		state.Revision < trustedMinimumRevision ||
 		(state.Revision == 0 && !initialAttemptState) ||
@@ -540,7 +541,7 @@ func validateSampleLedgerState(
 }
 
 func validIssuerDomain(value string) bool {
-	if len(value) > MaxSampleIssuerDomainBytes || !ValidIdentity(value) {
+	if len(value) > modbusreg.MaxSampleIssuerDomainBytes || !modbusreg.ValidIdentity(value) {
 		return false
 	}
 	for _, character := range value {
@@ -552,8 +553,8 @@ func validIssuerDomain(value string) bool {
 }
 
 func validateLedgerRestartState(
-	restart LedgerRestartState,
-	limits LedgerLimits,
+	restart RestartState,
+	limits modbusreg.LedgerLimits,
 ) error {
 	if restart.SchemaVersion != 1 ||
 		len(restart.AuditTombstones) > limits.AuditTombstoneLimit ||
@@ -581,7 +582,7 @@ func validateLedgerRestartState(
 	}
 	var previous uint64
 	tombstoneBySequence := make(
-		map[uint64]LedgerAuditTombstone,
+		map[uint64]AuditTombstone,
 		len(restart.AuditTombstones),
 	)
 	for index, tombstone := range restart.AuditTombstones {
@@ -603,11 +604,11 @@ func validateLedgerRestartState(
 	var leadingClaimOrdinal uint64
 	retainedAttemptSeen := false
 	for _, tombstone := range restart.AuditTombstones {
-		if tombstone.ObjectKind == LedgerAuditAttempt {
+		if tombstone.ObjectKind == AuditAttempt {
 			retainedAttemptSeen = true
 			continue
 		}
-		if tombstone.ObjectKind != LedgerAuditClaim ||
+		if tombstone.ObjectKind != AuditClaim ||
 			tombstone.AttemptTerminalSequence > restart.TruncatedThroughSequence {
 			continue
 		}
@@ -629,7 +630,7 @@ func validateLedgerRestartState(
 	lastClaimOrdinal := make(map[uint64]uint64)
 	for index, tombstone := range restart.AuditTombstones {
 		switch tombstone.ObjectKind {
-		case LedgerAuditClaim:
+		case AuditClaim:
 			if tombstone.ClaimOrdinal >= uint64(limits.MaxClaimEntriesPerAttempt) ||
 				tombstone.ClaimOrdinal == math.MaxUint64 {
 				return fmt.Errorf("ledger restart claim ordinal is invalid")
@@ -640,7 +641,7 @@ func validateLedgerRestartState(
 				return fmt.Errorf("ledger restart claim sequence is invalid")
 			}
 			if target, exists := tombstoneBySequence[tombstone.AttemptTerminalSequence]; tombstone.AttemptTerminalSequence > restart.TruncatedThroughSequence &&
-				(!exists || target.ObjectKind != LedgerAuditAttempt) {
+				(!exists || target.ObjectKind != AuditAttempt) {
 				return fmt.Errorf("ledger restart claim target is not an attempt")
 			}
 			if prior, exists := lastClaimOrdinal[tombstone.AttemptTerminalSequence]; exists {
@@ -652,7 +653,7 @@ func validateLedgerRestartState(
 				return fmt.Errorf("ledger restart retained attempt lacks its first claim")
 			}
 			lastClaimOrdinal[tombstone.AttemptTerminalSequence] = tombstone.ClaimOrdinal
-		case LedgerAuditAttempt:
+		case AuditAttempt:
 			if tombstone.ClaimCount > uint64(limits.MaxClaimEntriesPerAttempt) ||
 				tombstone.ClaimCount > math.MaxUint64-tombstone.TerminalSequence {
 				return fmt.Errorf("ledger restart attempt claim count is invalid")
@@ -663,7 +664,7 @@ func validateLedgerRestartState(
 			}
 			for ordinal := uint64(0); ordinal < tombstone.ClaimCount; ordinal++ {
 				claim := restart.AuditTombstones[index+int(ordinal)+1]
-				if claim.ObjectKind != LedgerAuditClaim ||
+				if claim.ObjectKind != AuditClaim ||
 					claim.AttemptTerminalSequence != tombstone.TerminalSequence ||
 					claim.ClaimOrdinal != ordinal ||
 					claim.TerminalSequence != tombstone.TerminalSequence+ordinal+1 {
@@ -680,16 +681,16 @@ func validateLedgerRestartState(
 		}
 	}
 	for _, tombstone := range restart.AuditTombstones {
-		if tombstone.ObjectKind != LedgerAuditClaim {
+		if tombstone.ObjectKind != AuditClaim {
 			continue
 		}
 		if target, exists := tombstoneBySequence[tombstone.AttemptTerminalSequence]; exists &&
-			target.ObjectKind == LedgerAuditAttempt &&
+			target.ObjectKind == AuditAttempt &&
 			tombstone.ClaimOrdinal >= target.ClaimCount {
 			return fmt.Errorf("ledger restart claim exceeds its reservation")
 		}
 	}
-	if _, err := MarshalBounded(ledgerRestartStateDTO{
+	if _, err := modbusreg.MarshalBounded(ledgerRestartStateDTO{
 		SchemaVersion:            restart.SchemaVersion,
 		NextTerminalSequence:     restart.NextTerminalSequence,
 		SequenceExhausted:        restart.SequenceExhausted,
@@ -701,18 +702,18 @@ func validateLedgerRestartState(
 	return nil
 }
 
-func validateLargestLedgerTombstones(limits LedgerLimits) error {
-	candidates := []LedgerAuditTombstone{
+func validateLargestLedgerTombstones(limits modbusreg.LedgerLimits) error {
+	candidates := []AuditTombstone{
 		{
 			SchemaVersion:    1,
-			ObjectKind:       LedgerAuditAttempt,
+			ObjectKind:       AuditAttempt,
 			TerminalSequence: math.MaxUint64,
 			ClaimCount:       uint64(limits.MaxClaimEntriesPerAttempt),
 			TerminalOutcome:  string(AttemptPublishFailed),
 		},
 		{
 			SchemaVersion:           1,
-			ObjectKind:              LedgerAuditClaim,
+			ObjectKind:              AuditClaim,
 			TerminalSequence:        math.MaxUint64,
 			AttemptTerminalSequence: math.MaxUint64,
 			ClaimOrdinal:            math.MaxUint64,
@@ -729,9 +730,9 @@ func validateLargestLedgerTombstones(limits LedgerLimits) error {
 }
 
 // Limits returns the immutable activation bounds.
-func (ledger *SampleLedger) Limits() LedgerLimits {
+func (ledger *SampleLedger) Limits() modbusreg.LedgerLimits {
 	if ledger == nil {
-		return LedgerLimits{}
+		return modbusreg.LedgerLimits{}
 	}
 	ledger.mu.Lock()
 	defer ledger.mu.Unlock()
@@ -740,7 +741,7 @@ func (ledger *SampleLedger) Limits() LedgerLimits {
 
 func (ledger *SampleLedger) stateLocked() SampleLedgerState {
 	return SampleLedgerState{
-		SchemaVersion:        CurrentSchemaVersion(),
+		SchemaVersion:        modbusreg.CurrentSchemaVersion(),
 		IssuerDomain:         ledger.issuerDomain,
 		ProfileID:            ledger.profileID,
 		ProfileVersion:       ledger.profileVersion,
@@ -763,36 +764,36 @@ func (ledger *SampleLedger) ExportState() SampleLedgerState {
 
 // ExportRestartState succeeds only after all live attempts were synchronously
 // reclaimed, so no capability or attempt can be reconstructed after restart.
-func (ledger *SampleLedger) ExportRestartState() (LedgerRestartState, error) {
+func (ledger *SampleLedger) ExportRestartState() (RestartState, error) {
 	if ledger == nil {
-		return LedgerRestartState{}, fmt.Errorf("sample ledger is invalid")
+		return RestartState{}, fmt.Errorf("sample ledger is invalid")
 	}
 	ledger.mu.Lock()
 	defer ledger.mu.Unlock()
 	if len(ledger.attempts) != 0 || ledger.retainedClaims != 0 {
-		return LedgerRestartState{}, fmt.Errorf("live ledger state is not restartable")
+		return RestartState{}, fmt.Errorf("live ledger state is not restartable")
 	}
 	if ledger.nextTerminalSequence != ledger.durableNextTerminalSequence ||
 		ledger.sequenceExhausted != ledger.durableSequenceExhausted {
-		return LedgerRestartState{}, fmt.Errorf("terminal watermark is not durable")
+		return RestartState{}, fmt.Errorf("terminal watermark is not durable")
 	}
 	return ledger.durableRestartStateLocked(), nil
 }
 
-func (ledger *SampleLedger) durableRestartStateLocked() LedgerRestartState {
-	return LedgerRestartState{
+func (ledger *SampleLedger) durableRestartStateLocked() RestartState {
+	return RestartState{
 		SchemaVersion:            1,
 		NextTerminalSequence:     ledger.durableNextTerminalSequence,
 		SequenceExhausted:        ledger.durableSequenceExhausted,
 		TruncatedThroughSequence: ledger.truncatedThroughSequence,
 		AuditTombstones: append(
-			[]LedgerAuditTombstone(nil),
+			[]AuditTombstone(nil),
 			ledger.auditTombstones...,
 		),
 	}
 }
 
-func ledgerRestartStatesEqual(first, second LedgerRestartState) bool {
+func ledgerRestartStatesEqual(first, second RestartState) bool {
 	if first.SchemaVersion != second.SchemaVersion ||
 		first.NextTerminalSequence != second.NextTerminalSequence ||
 		first.SequenceExhausted != second.SequenceExhausted ||
@@ -809,19 +810,19 @@ func ledgerRestartStatesEqual(first, second LedgerRestartState) bool {
 }
 
 // Snapshot reports bounded resource counts and non-reconstructing tombstones.
-func (ledger *SampleLedger) Snapshot() LedgerSnapshot {
+func (ledger *SampleLedger) Snapshot() Snapshot {
 	if ledger == nil {
-		return LedgerSnapshot{}
+		return Snapshot{}
 	}
 	ledger.mu.Lock()
 	defer ledger.mu.Unlock()
-	return LedgerSnapshot{
+	return Snapshot{
 		RetainedAttempts:     len(ledger.attempts),
 		RetainedClaimEntries: ledger.retainedClaims,
 		NextTerminalSequence: ledger.nextTerminalSequence,
 		SequenceExhausted:    ledger.sequenceExhausted,
 		AuditTombstones: append(
-			[]LedgerAuditTombstone(nil),
+			[]AuditTombstone(nil),
 			ledger.auditTombstones...,
 		),
 	}
@@ -874,18 +875,18 @@ type PublishedAttemptV1 struct {
 type PublicationCommitRequest struct {
 	ExpectedState         SampleLedgerState
 	PublishedState        SampleLedgerState
-	ExpectedRestartState  LedgerRestartState
-	PublishedRestartState LedgerRestartState
+	ExpectedRestartState  RestartState
+	PublishedRestartState RestartState
 	Attempt               PublishedAttemptV1
-	Observation           Observation
+	Observation           modbusreg.Observation
 	ObservationBytes      []byte
 }
 
 // TerminalStateCommitRequest durably records a nonpublished terminal outcome
 // and its monotonic restart watermark without creating an external sample.
 type TerminalStateCommitRequest struct {
-	ExpectedRestartState LedgerRestartState
-	TerminalRestartState LedgerRestartState
+	ExpectedRestartState RestartState
+	TerminalRestartState RestartState
 	Attempt              PublishedAttemptV1
 	Outcome              AttemptPhase
 }
@@ -915,8 +916,8 @@ type PublicationCommitter interface {
 
 // RuntimeObservationFacts are immutable envelope facts not supplied by M1.
 type RuntimeObservationFacts struct {
-	SourceValidity          SourceValidity
-	SourceTime              SourceTimeSpec
+	SourceValidity          modbusreg.SourceValidity
+	SourceTime              modbusreg.SourceTimeSpec
 	LocalReceiptTime        time.Time
 	LocalReceiptTimePresent bool
 }
@@ -926,16 +927,16 @@ type RuntimeObservationFacts struct {
 type RuntimeAttemptRequest struct {
 	Source       *modbus.RuntimeAcquisitionSource
 	AttemptKey   string
-	Identity     AttemptIdentity
+	Identity     modbusreg.AttemptIdentity
 	Observation  RuntimeObservationFacts
-	Dependencies []RuntimeDependencyFacts
+	Dependencies []modbusreg.RuntimeDependencyFacts
 	Diagnostics  []string
 }
 
 // ObservationFactory binds production attempts to one profile, ledger, and
 // transactional publication boundary.
 type ObservationFactory struct {
-	profile               ProfileDescriptor
+	profile               modbusreg.ProfileDescriptor
 	ledger                *SampleLedger
 	committer             PublicationCommitter
 	dependencySetDigest   string
@@ -955,7 +956,7 @@ type ObservationFactoryOptions struct {
 // NewObservationFactory activates production ingestion. Fixture replay uses
 // the separate FixtureReplayer and never needs a committer.
 func NewObservationFactory(
-	profile ProfileDescriptor,
+	profile modbusreg.ProfileDescriptor,
 	ledger *SampleLedger,
 	committer PublicationCommitter,
 ) (*ObservationFactory, error) {
@@ -970,7 +971,7 @@ func NewObservationFactory(
 // NewObservationFactoryWithOptions activates production ingestion with an
 // explicit finite nonpublication terminal-commit deadline.
 func NewObservationFactoryWithOptions(
-	profile ProfileDescriptor,
+	profile modbusreg.ProfileDescriptor,
 	ledger *SampleLedger,
 	committer PublicationCommitter,
 	options ObservationFactoryOptions,
@@ -981,11 +982,11 @@ func NewObservationFactoryWithOptions(
 	if options.TerminalCommitTimeout <= 0 || options.TerminalCommitTimeout > time.Minute {
 		return nil, fmt.Errorf("terminal commit timeout must be finite and positive")
 	}
-	copy, err := NewProfileDescriptor(profile.Spec())
+	copy, err := modbusreg.NewProfileDescriptor(profile.Spec())
 	if err != nil {
 		return nil, fmt.Errorf("observation factory profile: %w", err)
 	}
-	if copy.Kind() != ProfileStandardFamily {
+	if copy.Kind() != modbusreg.ProfileStandardFamily {
 		return nil, fmt.Errorf("vendor overlay requires M3 resolution")
 	}
 	state := ledger.ExportState()
@@ -995,11 +996,11 @@ func NewObservationFactoryWithOptions(
 	}
 	if state.Revision > 0 {
 		switch copy.Coherence().Mode {
-		case CoherenceSingleWireResponse:
+		case modbusreg.CoherenceSingleWireResponse:
 			if state.LastCommittedAttempt.RetryOrdinal != 0 {
 				return nil, fmt.Errorf("persisted attempt disagrees with profile mode")
 			}
-		case CoherenceBoundedMultiResponse:
+		case modbusreg.CoherenceBoundedMultiResponse:
 			if state.LastCommittedAttempt.RetryOrdinal == 0 {
 				return nil, fmt.Errorf("persisted attempt disagrees with profile mode")
 			}
@@ -1025,7 +1026,7 @@ func NewObservationFactoryWithOptions(
 }
 
 func encodeRuntimeDependencySet(
-	set DependencySet,
+	set modbusreg.DependencySet,
 	maximum int,
 ) ([]byte, string, error) {
 	dependencies := set.Dependencies()
@@ -1087,7 +1088,7 @@ type runtimeAttemptState struct {
 	cond                     *sync.Cond
 	factory                  *ObservationFactory
 	key                      string
-	identity                 AttemptIdentity
+	identity                 modbusreg.AttemptIdentity
 	phase                    AttemptPhase
 	terminalSequence         uint64
 	entries                  []runtimeClaimEntry
@@ -1099,9 +1100,9 @@ type runtimeAttemptState struct {
 	acquisitions             []modbus.RuntimeAcquisition
 	issued                   []bool
 	observationFacts         RuntimeObservationFacts
-	dependencyFacts          []RuntimeDependencyFacts
+	dependencyFacts          []modbusreg.RuntimeDependencyFacts
 	diagnostics              []string
-	template                 Observation
+	template                 modbusreg.Observation
 	publishCancel            context.CancelFunc
 	publishAbort             chan struct{}
 	publishAbortClosed       bool
@@ -1195,7 +1196,7 @@ func (factory *ObservationFactory) BeginRuntimeAttempt(
 		issued:           make([]bool, len(declarations)),
 		observationFacts: request.Observation,
 		dependencyFacts: append(
-			[]RuntimeDependencyFacts(nil),
+			[]modbusreg.RuntimeDependencyFacts(nil),
 			request.Dependencies...,
 		),
 		diagnostics: append([]string(nil), request.Diagnostics...),
@@ -1289,7 +1290,7 @@ func (attempt *ObservationAttempt) Admit() error {
 	request := RuntimeAttemptRequest{
 		Identity:     state.identity,
 		Observation:  state.observationFacts,
-		Dependencies: append([]RuntimeDependencyFacts(nil), state.dependencyFacts...),
+		Dependencies: append([]modbusreg.RuntimeDependencyFacts(nil), state.dependencyFacts...),
 	}
 	template, validationErr := state.factory.buildRuntimeObservation(
 		state.key,
@@ -1349,16 +1350,16 @@ func (state *runtimeAttemptState) cancelUnresolvedLocked() {
 	}
 }
 
-func (factory *ObservationFactory) validateAttemptIdentity(identity AttemptIdentity) error {
+func (factory *ObservationFactory) validateAttemptIdentity(identity modbusreg.AttemptIdentity) error {
 	if identity.PollGenerationID == 0 {
 		return fmt.Errorf("attempt poll generation is absent")
 	}
 	switch factory.profile.Coherence().Mode {
-	case CoherenceSingleWireResponse:
+	case modbusreg.CoherenceSingleWireResponse:
 		if identity.RetryOrdinal != 0 {
 			return fmt.Errorf("single-wire retry identity is not applicable")
 		}
-	case CoherenceBoundedMultiResponse:
+	case modbusreg.CoherenceBoundedMultiResponse:
 		if identity.RetryOrdinal == 0 {
 			return fmt.Errorf("bounded retry identity is absent")
 		}
@@ -1373,7 +1374,7 @@ func (factory *ObservationFactory) validateAttemptIdentity(identity AttemptIdent
 	return nil
 }
 
-func validateRetainedDiagnostics(values []string, limits LedgerLimits) error {
+func validateRetainedDiagnostics(values []string, limits modbusreg.LedgerLimits) error {
 	if len(values) > limits.RetainedDiagnosticCountPerObjectMax {
 		return fmt.Errorf("retained diagnostics exceed count bound")
 	}
@@ -1388,38 +1389,38 @@ func validateRetainedDiagnostics(values []string, limits LedgerLimits) error {
 
 func validateRuntimeAttemptFacts(request RuntimeAttemptRequest) error {
 	switch request.Observation.SourceValidity {
-	case SourceValid, SourceInvalid, SourceNotImplemented, SourceReserved:
+	case modbusreg.SourceValid, modbusreg.SourceInvalid, modbusreg.SourceNotImplemented, modbusreg.SourceReserved:
 	default:
 		return fmt.Errorf("runtime observation source validity is unknown")
 	}
-	if err := ValidateSourceTime(request.Observation.SourceTime); err != nil {
+	if err := modbusreg.ValidateSourceTime(request.Observation.SourceTime); err != nil {
 		return fmt.Errorf("runtime observation source time: %w", err)
 	}
-	if _, err := CanonicalRequiredTime(
+	if _, err := modbusreg.CanonicalRequiredTime(
 		request.Observation.LocalReceiptTime,
 		request.Observation.LocalReceiptTimePresent,
 	); err != nil {
 		return fmt.Errorf("runtime observation receipt time: %w", err)
 	}
-	if err := PreflightAggregate(request.Dependencies); err != nil {
+	if err := modbusreg.PreflightAggregate(request.Dependencies); err != nil {
 		return fmt.Errorf("runtime dependency facts: %w", err)
 	}
 	for index, facts := range request.Dependencies {
-		if err := ValidateSourceTime(facts.SourceTime); err != nil {
+		if err := modbusreg.ValidateSourceTime(facts.SourceTime); err != nil {
 			return fmt.Errorf("runtime dependency %d source time: %w", index, err)
 		}
-		if HasLocalReceiptTime(
+		if modbusreg.HasLocalReceiptTime(
 			facts.LocalReceiptTime,
 			facts.LocalReceiptTimePresent,
 		) {
-			if _, err := CanonicalRequiredTime(
+			if _, err := modbusreg.CanonicalRequiredTime(
 				facts.LocalReceiptTime,
 				facts.LocalReceiptTimePresent,
 			); err != nil {
 				return fmt.Errorf("runtime dependency %d receipt time: %w", index, err)
 			}
 		}
-		if err := ValidateBoundedString(
+		if err := modbusreg.ValidateBoundedString(
 			"runtime dependency consistency marker",
 			facts.DocumentaryConsistencyMarker,
 			false,
@@ -1434,9 +1435,9 @@ func (factory *ObservationFactory) buildRuntimeObservation(
 	attemptKey string,
 	acquisitions []modbus.RuntimeAcquisition,
 	request RuntimeAttemptRequest,
-	declarations []Dependency,
-) (Observation, error) {
-	results := make([]DependencyResult, len(declarations))
+	declarations []modbusreg.Dependency,
+) (modbusreg.Observation, error) {
+	results := make([]modbusreg.DependencyResult, len(declarations))
 	runtimeBytes := make([][]byte, len(declarations))
 	runtimeFields := make([]modbus.RuntimeNormalizationFields, len(declarations))
 	var endpoint string
@@ -1444,28 +1445,28 @@ func (factory *ObservationFactory) buildRuntimeObservation(
 	for index, declaration := range declarations {
 		acquisition := acquisitions[index]
 		if !acquisition.Valid() || acquisition.AttemptKey() != attemptKey {
-			return Observation{}, fmt.Errorf("runtime acquisition %d changed identity", index)
+			return modbusreg.Observation{}, fmt.Errorf("runtime acquisition %d changed identity", index)
 		}
 		normalization := acquisition.Normalization()
 		if !normalization.Valid() {
-			return Observation{}, fmt.Errorf("runtime acquisition %d lacks normalization", index)
+			return modbusreg.Observation{}, fmt.Errorf("runtime acquisition %d lacks normalization", index)
 		}
 		encoded := normalization.Bytes()
 		if len(encoded) == 0 ||
 			len(encoded) > factory.ledger.limits.NormalizationRecordMaxEncodedBytes {
-			return Observation{}, fmt.Errorf("runtime normalization %d exceeds byte bound", index)
+			return modbusreg.Observation{}, fmt.Errorf("runtime normalization %d exceeds byte bound", index)
 		}
 		fields := normalization.Fields()
-		if err := MatchRuntimeNormalization(declaration, fields); err != nil {
-			return Observation{}, fmt.Errorf("runtime normalization %d: %w", index, err)
+		if err := modbusreg.MatchRuntimeNormalization(declaration, fields); err != nil {
+			return modbusreg.Observation{}, fmt.Errorf("runtime normalization %d: %w", index, err)
 		}
 		provenance := acquisition.Provenance()
 		if provenance.SourceKind != modbus.RuntimeAcquisitionSourceRuntime ||
 			provenance.SourceEvidenceID != fields.SourceEvidenceID ||
 			len(provenance.WireResponseBytes) == 0 {
-			return Observation{}, fmt.Errorf("runtime acquisition %d provenance is incomplete", index)
+			return modbusreg.Observation{}, fmt.Errorf("runtime acquisition %d provenance is incomplete", index)
 		}
-		snapshot, err := NewLogicalViewSnapshot(LogicalViewRecord{
+		snapshot, err := modbusreg.NewLogicalViewSnapshot(modbusreg.LogicalViewRecord{
 			LogicalViewID:       provenance.LogicalViewID,
 			WireResponseID:      provenance.WireResponseID,
 			PhysicalRequestID:   provenance.PhysicalRequestID,
@@ -1490,19 +1491,19 @@ func (factory *ObservationFactory) buildRuntimeObservation(
 			WireResponseBytes:   provenance.WireResponseBytes,
 		})
 		if err != nil {
-			return Observation{}, fmt.Errorf("runtime dependency %d view: %w", index, err)
+			return modbusreg.Observation{}, fmt.Errorf("runtime dependency %d view: %w", index, err)
 		}
 		if provenance.PollGeneration != request.Identity.PollGenerationID {
-			return Observation{}, fmt.Errorf("runtime dependency %d poll generation disagrees", index)
+			return modbusreg.Observation{}, fmt.Errorf("runtime dependency %d poll generation disagrees", index)
 		}
 		facts := request.Dependencies[index]
-		results[index] = DependencyResult{
+		results[index] = modbusreg.DependencyResult{
 			DependencyID:                 declaration.ID(),
 			DependencyVersion:            declaration.Version(),
 			CodecID:                      declaration.CodecID(),
 			CodecVersion:                 declaration.CodecVersion(),
 			NormalizationVersion:         declaration.Normalization().Spec().Version,
-			Status:                       DependencyReadSuccessful,
+			Status:                       modbusreg.DependencyReadSuccessful,
 			View:                         snapshot,
 			SourceTime:                   facts.SourceTime,
 			DocumentaryConsistencyMarker: facts.DocumentaryConsistencyMarker,
@@ -1516,8 +1517,8 @@ func (factory *ObservationFactory) buildRuntimeObservation(
 			unitID = provenance.UnitID
 		}
 	}
-	spec := ObservationSpec{
-		SchemaVersion:          CurrentSchemaVersion(),
+	spec := modbusreg.ObservationSpec{
+		SchemaVersion:          modbusreg.CurrentSchemaVersion(),
 		RuntimeContractVersion: factory.profile.RuntimeContractVersion(),
 		ProfileID:              factory.profile.ID(),
 		ProfileVersion:         factory.profile.Version(),
@@ -1539,7 +1540,7 @@ func (factory *ObservationFactory) buildRuntimeObservation(
 		request.Observation.LocalReceiptTime,
 		request.Observation.LocalReceiptTimePresent,
 	)
-	return NewRuntimeObservation(factory.profile, spec, runtimeBytes, runtimeFields)
+	return modbusreg.NewRuntimeObservation(factory.profile, spec, runtimeBytes, runtimeFields)
 }
 
 // Phase returns the shared attempt lifecycle state.
@@ -1815,15 +1816,15 @@ func (attempt *ObservationAttempt) Cancel() (CancellationResult, error) {
 // transactional commit boundary exactly once.
 func (attempt *ObservationAttempt) Publish(
 	ctx context.Context,
-) (Observation, error) {
+) (modbusreg.Observation, error) {
 	if attempt == nil || attempt.state == nil || ctx == nil {
-		return Observation{}, fmt.Errorf("observation attempt is invalid")
+		return modbusreg.Observation{}, fmt.Errorf("observation attempt is invalid")
 	}
 	state := attempt.state
 	state.mu.Lock()
 	if state.phase != AttemptSealed {
 		state.mu.Unlock()
-		return Observation{}, fmt.Errorf("observation attempt is not sealed")
+		return modbusreg.Observation{}, fmt.Errorf("observation attempt is not sealed")
 	}
 	publishContext, cancel := context.WithCancel(ctx)
 	publishAbort := make(chan struct{})
@@ -1887,7 +1888,7 @@ func (attempt *ObservationAttempt) Publish(
 	)
 	var observationBytes []byte
 	if err == nil {
-		observationBytes, err = MarshalObservation(observation)
+		observationBytes, err = modbusreg.MarshalObservation(observation)
 	}
 	if err != nil {
 		releaseCommitSerial()
@@ -1934,16 +1935,16 @@ func (attempt *ObservationAttempt) Publish(
 	state.mu.Unlock()
 	releaseCommitSerial()
 	if err := attempt.finishPublication(AttemptPublished); err != nil {
-		return Observation{}, err
+		return modbusreg.Observation{}, err
 	}
 	return observation, nil
 }
 
-func (attempt *ObservationAttempt) failPublication(cause error) (Observation, error) {
+func (attempt *ObservationAttempt) failPublication(cause error) (modbusreg.Observation, error) {
 	if terminalErr := attempt.finishPublication(AttemptPublishFailed); terminalErr != nil {
-		return Observation{}, fmt.Errorf("%v; terminal persistence: %w", cause, terminalErr)
+		return modbusreg.Observation{}, fmt.Errorf("%v; terminal persistence: %w", cause, terminalErr)
 	}
-	return Observation{}, cause
+	return modbusreg.Observation{}, cause
 }
 
 func (attempt *ObservationAttempt) finishPublication(outcome AttemptPhase) error {
@@ -2038,7 +2039,7 @@ func (state *runtimeAttemptState) publishedProjection() PublishedAttemptV1 {
 	}
 }
 
-func attemptIdentityAdvances(previous, next AttemptIdentity) bool {
+func attemptIdentityAdvances(previous, next modbusreg.AttemptIdentity) bool {
 	if next.PollGenerationID == 0 {
 		return false
 	}
@@ -2069,13 +2070,13 @@ func validAttemptTerminalOutcome(outcome AttemptPhase) bool {
 
 func (state *runtimeAttemptState) terminalTombstones(
 	outcome AttemptPhase,
-) []LedgerAuditTombstone {
+) []AuditTombstone {
 	state.mu.Lock()
 	defer state.mu.Unlock()
-	result := make([]LedgerAuditTombstone, 0, len(state.entries)+1)
-	result = append(result, LedgerAuditTombstone{
+	result := make([]AuditTombstone, 0, len(state.entries)+1)
+	result = append(result, AuditTombstone{
 		SchemaVersion:    1,
-		ObjectKind:       LedgerAuditAttempt,
+		ObjectKind:       AuditAttempt,
 		TerminalSequence: state.terminalSequence,
 		ClaimCount:       uint64(len(state.entries)),
 		TerminalOutcome:  string(outcome),
@@ -2084,9 +2085,9 @@ func (state *runtimeAttemptState) terminalTombstones(
 		if entry.phase != runtimeClaimTerminal || !validClaimOutcome(entry.outcome) {
 			continue
 		}
-		result = append(result, LedgerAuditTombstone{
+		result = append(result, AuditTombstone{
 			SchemaVersion:           1,
-			ObjectKind:              LedgerAuditClaim,
+			ObjectKind:              AuditClaim,
 			TerminalSequence:        entry.terminalSequence,
 			AttemptTerminalSequence: state.terminalSequence,
 			ClaimOrdinal:            uint64(ordinal),
@@ -2097,9 +2098,9 @@ func (state *runtimeAttemptState) terminalTombstones(
 }
 
 func (ledger *SampleLedger) terminalRestartStateLocked(
-	records []LedgerAuditTombstone,
-) (LedgerRestartState, error) {
-	combined := append([]LedgerAuditTombstone(nil), ledger.auditTombstones...)
+	records []AuditTombstone,
+) (RestartState, error) {
+	combined := append([]AuditTombstone(nil), ledger.auditTombstones...)
 	combined = append(combined, records...)
 	sort.Slice(combined, func(first, second int) bool {
 		return combined[first].TerminalSequence < combined[second].TerminalSequence
@@ -2109,7 +2110,7 @@ func (ledger *SampleLedger) terminalRestartStateLocked(
 		if len(unique) != 0 &&
 			unique[len(unique)-1].TerminalSequence == tombstone.TerminalSequence {
 			if unique[len(unique)-1] != tombstone {
-				return LedgerRestartState{}, fmt.Errorf("terminal sequence has conflicting outcomes")
+				return RestartState{}, fmt.Errorf("terminal sequence has conflicting outcomes")
 			}
 			continue
 		}
@@ -2122,7 +2123,7 @@ func (ledger *SampleLedger) terminalRestartStateLocked(
 	last := sort.Search(len(unique), func(index int) bool {
 		return unique[index].TerminalSequence >= endSequence
 	})
-	retained := []LedgerAuditTombstone(nil)
+	retained := []AuditTombstone(nil)
 	truncatedThrough := endSequence
 	if last < len(unique) && unique[last].TerminalSequence == endSequence {
 		first := last
@@ -2139,7 +2140,7 @@ func (ledger *SampleLedger) terminalRestartStateLocked(
 			truncatedThrough = retained[0].TerminalSequence - 1
 		}
 	}
-	restart := LedgerRestartState{
+	restart := RestartState{
 		SchemaVersion:            1,
 		NextTerminalSequence:     ledger.nextTerminalSequence,
 		SequenceExhausted:        ledger.sequenceExhausted,
@@ -2147,19 +2148,19 @@ func (ledger *SampleLedger) terminalRestartStateLocked(
 		AuditTombstones:          retained,
 	}
 	if err := validateLedgerRestartState(restart, ledger.limits); err != nil {
-		return LedgerRestartState{}, err
+		return RestartState{}, err
 	}
 	return restart, nil
 }
 
 func (ledger *SampleLedger) applyDurableRestartStateLocked(
-	restart LedgerRestartState,
+	restart RestartState,
 ) {
 	ledger.durableNextTerminalSequence = restart.NextTerminalSequence
 	ledger.durableSequenceExhausted = restart.SequenceExhausted
 	ledger.truncatedThroughSequence = restart.TruncatedThroughSequence
 	ledger.auditTombstones = append(
-		[]LedgerAuditTombstone(nil),
+		[]AuditTombstone(nil),
 		restart.AuditTombstones...,
 	)
 }
@@ -2255,9 +2256,9 @@ func (ledger *SampleLedger) finalizeTerminalAttempt(
 		if entry.phase != runtimeClaimTerminal || !validClaimOutcome(entry.outcome) {
 			continue
 		}
-		ledger.insertAuditTombstoneLocked(LedgerAuditTombstone{
+		ledger.insertAuditTombstoneLocked(AuditTombstone{
 			SchemaVersion:           1,
-			ObjectKind:              LedgerAuditClaim,
+			ObjectKind:              AuditClaim,
 			TerminalSequence:        entry.terminalSequence,
 			AttemptTerminalSequence: state.terminalSequence,
 			ClaimOrdinal:            uint64(ordinal),
@@ -2265,9 +2266,9 @@ func (ledger *SampleLedger) finalizeTerminalAttempt(
 		})
 	}
 	if !state.restartCommitted {
-		ledger.insertAuditTombstoneLocked(LedgerAuditTombstone{
+		ledger.insertAuditTombstoneLocked(AuditTombstone{
 			SchemaVersion:    1,
-			ObjectKind:       LedgerAuditAttempt,
+			ObjectKind:       AuditAttempt,
 			TerminalSequence: state.terminalSequence,
 			ClaimCount:       uint64(len(state.entries)),
 			TerminalOutcome:  string(outcome),
@@ -2278,7 +2279,7 @@ func (ledger *SampleLedger) finalizeTerminalAttempt(
 	state.terminalPersistenceErr = nil
 	state.factory = nil
 	state.key = ""
-	state.identity = AttemptIdentity{}
+	state.identity = modbusreg.AttemptIdentity{}
 	state.entries = nil
 	state.producerAttempt = nil
 	state.instance = modbus.RuntimeAttemptInstance{}
@@ -2289,7 +2290,7 @@ func (ledger *SampleLedger) finalizeTerminalAttempt(
 	state.dependencyFacts = nil
 	state.diagnostics = nil
 	state.source = nil
-	state.template = Observation{}
+	state.template = modbusreg.Observation{}
 	state.publishCancel = nil
 	state.publishAbort = nil
 	state.publishAbortClosed = false
@@ -2304,7 +2305,7 @@ func (ledger *SampleLedger) finalizeTerminalAttempt(
 }
 
 func (ledger *SampleLedger) insertAuditTombstoneLocked(
-	tombstone LedgerAuditTombstone,
+	tombstone AuditTombstone,
 ) {
 	index := sort.Search(len(ledger.auditTombstones), func(index int) bool {
 		return ledger.auditTombstones[index].TerminalSequence >
@@ -2312,7 +2313,7 @@ func (ledger *SampleLedger) insertAuditTombstoneLocked(
 	})
 	ledger.auditTombstones = append(
 		ledger.auditTombstones,
-		LedgerAuditTombstone{},
+		AuditTombstone{},
 	)
 	copy(ledger.auditTombstones[index+1:], ledger.auditTombstones[index:])
 	ledger.auditTombstones[index] = tombstone

@@ -1,10 +1,12 @@
-package modbusreg
+package detection
 
 import (
 	"context"
 	"fmt"
 	"math"
 	"unicode/utf8"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
 // ProbeFunction is the closed read-only Modbus function set used by detection.
@@ -37,8 +39,8 @@ const (
 	ProbeIdentityASCII ProbeIdentityEncoding = "ascii"
 )
 
-// DetectionLimits closes every detector-owned collection and byte dimension.
-type DetectionLimits struct {
+// Limits closes every detector-owned collection and byte dimension.
+type Limits struct {
 	MaxPlanDeclarations int
 	MaxReads            int
 	MaxWordsPerRead     int
@@ -50,19 +52,19 @@ type DetectionLimits struct {
 
 // DefaultDetectionLimits returns finite bounds for one manufacturer/model/
 // firmware detection plan.
-func DefaultDetectionLimits() DetectionLimits {
-	return DetectionLimits{
+func DefaultDetectionLimits() Limits {
+	return Limits{
 		MaxPlanDeclarations: 3,
 		MaxReads:            3,
-		MaxWordsPerRead:     MaxRawWords,
-		MaxTotalWords:       3 * MaxRawWords,
+		MaxWordsPerRead:     modbusreg.MaxRawWords,
+		MaxTotalWords:       3 * modbusreg.MaxRawWords,
 		MaxIdentityBytes:    256,
 		MaxEvidenceIDBytes:  256,
-		MaxDecisionBytes:    MaxSerializedContractBytes,
+		MaxDecisionBytes:    modbusreg.MaxSerializedContractBytes,
 	}
 }
 
-func validateDetectionLimits(limits DetectionLimits) error {
+func validateDetectionLimits(limits Limits) error {
 	positive := []int{
 		limits.MaxPlanDeclarations,
 		limits.MaxReads,
@@ -77,12 +79,12 @@ func validateDetectionLimits(limits DetectionLimits) error {
 			return fmt.Errorf("detection limits must be finite and positive")
 		}
 	}
-	if limits.MaxPlanDeclarations > MaxProfileDependencies ||
-		limits.MaxReads > MaxProfileDependencies ||
-		limits.MaxWordsPerRead > MaxRawWords ||
-		limits.MaxIdentityBytes > MaxContractStringBytes ||
-		limits.MaxEvidenceIDBytes > MaxContractStringBytes ||
-		limits.MaxDecisionBytes > MaxSerializedContractBytes {
+	if limits.MaxPlanDeclarations > modbusreg.MaxProfileDependencies ||
+		limits.MaxReads > modbusreg.MaxProfileDependencies ||
+		limits.MaxWordsPerRead > modbusreg.MaxRawWords ||
+		limits.MaxIdentityBytes > modbusreg.MaxContractStringBytes ||
+		limits.MaxEvidenceIDBytes > modbusreg.MaxContractStringBytes ||
+		limits.MaxDecisionBytes > modbusreg.MaxSerializedContractBytes {
 		return fmt.Errorf("detection limits exceed the contract maximum")
 	}
 	if limits.MaxPlanDeclarations > math.MaxInt/limits.MaxWordsPerRead ||
@@ -104,7 +106,7 @@ type ProbeDeclarationSpec struct {
 
 // ProbePlanSpec is the complete ordered detector read declaration.
 type ProbePlanSpec struct {
-	Version      Version
+	Version      modbusreg.Version
 	Declarations []ProbeDeclarationSpec
 }
 
@@ -133,7 +135,7 @@ func validProbeIdentityField(field ProbeIdentityField) bool {
 }
 
 // NewProbePlan validates all declarations and preserves their exact order.
-func NewProbePlan(spec ProbePlanSpec, limits DetectionLimits) (ProbePlan, error) {
+func NewProbePlan(spec ProbePlanSpec, limits Limits) (ProbePlan, error) {
 	if err := validateDetectionLimits(limits); err != nil {
 		return ProbePlan{}, err
 	}
@@ -142,14 +144,14 @@ func NewProbePlan(spec ProbePlanSpec, limits DetectionLimits) (ProbePlan, error)
 		len(spec.Declarations) > limits.MaxReads {
 		return ProbePlan{}, fmt.Errorf("probe plan cardinality is invalid")
 	}
-	if err := PreflightAggregate(spec); err != nil {
+	if err := modbusreg.PreflightAggregate(spec); err != nil {
 		return ProbePlan{}, err
 	}
 	seenIDs := make(map[string]struct{}, len(spec.Declarations))
 	seenFields := make(map[ProbeIdentityField]struct{}, len(spec.Declarations))
 	totalWords := 0
 	for _, declaration := range spec.Declarations {
-		if !ValidIdentity(declaration.ID) ||
+		if !modbusreg.ValidIdentity(declaration.ID) ||
 			!validProbeFunction(declaration.Function) ||
 			!validProbeIdentityField(declaration.IdentityField) ||
 			declaration.Encoding != ProbeIdentityASCII ||
@@ -183,7 +185,7 @@ func (plan ProbePlan) Spec() ProbePlanSpec {
 }
 
 // Version returns the immutable plan contract version.
-func (plan ProbePlan) Version() Version {
+func (plan ProbePlan) Version() modbusreg.Version {
 	return plan.spec.Version
 }
 
@@ -255,7 +257,7 @@ type ProbeReadResult struct {
 }
 
 func validProbeEvidenceID(value string, maximum int) bool {
-	return value != "" && len(value) <= maximum && ValidIdentity(value)
+	return value != "" && len(value) <= maximum && modbusreg.ValidIdentity(value)
 }
 
 // NewProbeReadResult validates against the absolute default result bounds.
@@ -278,7 +280,7 @@ func NewProbeReadResult(spec ProbeReadResultSpec) (ProbeReadResult, error) {
 	default:
 		return ProbeReadResult{}, fmt.Errorf("probe result status is invalid")
 	}
-	if err := PreflightAggregate(spec); err != nil {
+	if err := modbusreg.PreflightAggregate(spec); err != nil {
 		return ProbeReadResult{}, err
 	}
 	return ProbeReadResult{
@@ -303,7 +305,7 @@ func (result ProbeReadResult) EvidenceID() string { return result.evidenceID }
 // ExceptionCode returns zero for successful reads.
 func (result ProbeReadResult) ExceptionCode() uint8 { return result.exceptionCode }
 
-func (result ProbeReadResult) validWithin(limits DetectionLimits) bool {
+func (result ProbeReadResult) validWithin(limits Limits) bool {
 	if !validProbeEvidenceID(result.evidenceID, limits.MaxEvidenceIDBytes) {
 		return false
 	}

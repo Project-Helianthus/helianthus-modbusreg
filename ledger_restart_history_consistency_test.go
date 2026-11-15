@@ -7,33 +7,34 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/ledger"
 )
 
 func TestQ28RestartHistoryConsistency(t *testing.T) {
 	initial := emptyLedgerState(t, profileFixture(t))
 	limits := reg.DefaultLedgerLimits()
-	attempt := func(sequence uint64) reg.LedgerAuditTombstone {
-		return reg.LedgerAuditTombstone{
-			SchemaVersion: 1, ObjectKind: reg.LedgerAuditAttempt,
+	attempt := func(sequence uint64) ledger.AuditTombstone {
+		return ledger.AuditTombstone{
+			SchemaVersion: 1, ObjectKind: ledger.AuditAttempt,
 			TerminalSequence: sequence, ClaimCount: 1,
-			TerminalOutcome: string(reg.AttemptCancelled),
+			TerminalOutcome: string(ledger.AttemptCancelled),
 		}
 	}
-	claim := func(sequence, parent uint64) reg.LedgerAuditTombstone {
-		return reg.LedgerAuditTombstone{
-			SchemaVersion: 1, ObjectKind: reg.LedgerAuditClaim,
+	claim := func(sequence, parent uint64) ledger.AuditTombstone {
+		return ledger.AuditTombstone{
+			SchemaVersion: 1, ObjectKind: ledger.AuditClaim,
 			TerminalSequence: sequence, AttemptTerminalSequence: parent,
-			ClaimOrdinal: 0, TerminalOutcome: string(reg.ClaimAttemptCancelled),
+			ClaimOrdinal: 0, TerminalOutcome: string(ledger.ClaimAttemptCancelled),
 		}
 	}
-	full := reg.LedgerRestartState{
+	full := ledger.RestartState{
 		SchemaVersion: 1, NextTerminalSequence: 7,
-		AuditTombstones: []reg.LedgerAuditTombstone{
+		AuditTombstones: []ledger.AuditTombstone{
 			attempt(1), claim(2, 1), attempt(3), claim(4, 3), attempt(5), claim(6, 5),
 		},
 	}
-	clone := func(state reg.LedgerRestartState) reg.LedgerRestartState {
-		state.AuditTombstones = append([]reg.LedgerAuditTombstone(nil), state.AuditTombstones...)
+	clone := func(state ledger.RestartState) ledger.RestartState {
+		state.AuditTombstones = append([]ledger.AuditTombstone(nil), state.AuditTombstones...)
 		return state
 	}
 	prefixTruncated := clone(full)
@@ -45,11 +46,11 @@ func TestQ28RestartHistoryConsistency(t *testing.T) {
 
 	// This wire type bypasses only the top-level MarshalJSON validation so that
 	// malformed histories reach the public UnmarshalJSON boundary independently.
-	type restartWire reg.LedgerRestartState
-	check := func(t *testing.T, state reg.LedgerRestartState, wantValid bool) {
+	type restartWire ledger.RestartState
+	check := func(t *testing.T, state ledger.RestartState, wantValid bool) {
 		t.Helper()
 		t.Run("restore", func(t *testing.T) {
-			sampleLedger, err := reg.NewSampleLedgerFromRestart(initial, 0, limits, state)
+			sampleLedger, err := ledger.NewSampleLedgerFromRestart(initial, 0, limits, state)
 			if !wantValid {
 				if err == nil || sampleLedger != nil {
 					t.Fatal("invalid history was restored")
@@ -81,7 +82,7 @@ func TestQ28RestartHistoryConsistency(t *testing.T) {
 			}
 		})
 		t.Run("unmarshal", func(t *testing.T) {
-			var decoded reg.LedgerRestartState
+			var decoded ledger.RestartState
 			err := json.Unmarshal(wire, &decoded)
 			if !wantValid {
 				if err == nil {
@@ -92,7 +93,7 @@ func TestQ28RestartHistoryConsistency(t *testing.T) {
 			if err != nil || !reflect.DeepEqual(decoded, state) {
 				t.Fatalf("JSON round trip = %+v, %v; want %+v", decoded, err, state)
 			}
-			sampleLedger, err := reg.NewSampleLedgerFromRestart(initial, 0, limits, decoded)
+			sampleLedger, err := ledger.NewSampleLedgerFromRestart(initial, 0, limits, decoded)
 			if err != nil || sampleLedger == nil {
 				t.Fatalf("decoded valid history was rejected: %v", err)
 			}
@@ -101,33 +102,33 @@ func TestQ28RestartHistoryConsistency(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		mutate func(*reg.LedgerRestartState)
+		mutate func(*ledger.RestartState)
 	}{
-		{"missing_middle_tombstone", func(s *reg.LedgerRestartState) {
+		{"missing_middle_tombstone", func(s *ledger.RestartState) {
 			s.AuditTombstones = append(s.AuditTombstones[:3], s.AuditTombstones[4:]...)
 		}},
 		// Removing a complete reservation leaves all remaining claim links valid;
 		// only the unexplained gap violates the contiguous-history contract.
-		{"missing_middle_reservation", func(s *reg.LedgerRestartState) {
+		{"missing_middle_reservation", func(s *ledger.RestartState) {
 			s.AuditTombstones = append(s.AuditTombstones[:2], s.AuditTombstones[4:]...)
 		}},
-		{"reordered_reservations", func(s *reg.LedgerRestartState) {
+		{"reordered_reservations", func(s *ledger.RestartState) {
 			s.AuditTombstones[0], s.AuditTombstones[2] = s.AuditTombstones[2], s.AuditTombstones[0]
 			s.AuditTombstones[1], s.AuditTombstones[3] = s.AuditTombstones[3], s.AuditTombstones[1]
 		}},
-		{"duplicate_sequence", func(s *reg.LedgerRestartState) {
+		{"duplicate_sequence", func(s *ledger.RestartState) {
 			s.AuditTombstones[3].TerminalSequence = 3
 		}},
-		{"prefix_removed_without_boundary", func(s *reg.LedgerRestartState) {
+		{"prefix_removed_without_boundary", func(s *ledger.RestartState) {
 			s.AuditTombstones = s.AuditTombstones[2:]
 		}},
-		{"boundary_overlaps_retained_history", func(s *reg.LedgerRestartState) {
+		{"boundary_overlaps_retained_history", func(s *ledger.RestartState) {
 			s.TruncatedThroughSequence = 2
 		}},
-		{"next_sequence_skips_retained_tail", func(s *reg.LedgerRestartState) {
+		{"next_sequence_skips_retained_tail", func(s *ledger.RestartState) {
 			s.NextTerminalSequence = 8
 		}},
-		{"next_sequence_reuses_retained_tail", func(s *reg.LedgerRestartState) {
+		{"next_sequence_reuses_retained_tail", func(s *ledger.RestartState) {
 			// A legal leading claim suffix isolates the tail watermark from the
 			// separate completeness checks for retained attempt reservations.
 			*s = clone(claimTail)

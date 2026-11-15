@@ -7,10 +7,11 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
 func TestM203CorpusReplayIsDeterministicAcrossRealPermutationsAndConcurrentRuns(t *testing.T) {
-	baseline, err := reg.NewFixtureConformanceCorpus(m203SyntheticCorpus(t))
+	baseline, err := detection.NewFixtureConformanceCorpus(m203SyntheticCorpus(t))
 	if err != nil {
 		t.Fatalf("NewFixtureConformanceCorpus: %v", err)
 	}
@@ -21,18 +22,18 @@ func TestM203CorpusReplayIsDeterministicAcrossRealPermutationsAndConcurrentRuns(
 	permuted := m203SyntheticCorpus(t)
 	permuted.Profiles[0], permuted.Profiles[1] = permuted.Profiles[1], permuted.Profiles[0]
 	permuted.Records[0], permuted.Records[1] = permuted.Records[1], permuted.Records[0]
-	corpus, err := reg.NewFixtureConformanceCorpus(permuted)
+	corpus, err := detection.NewFixtureConformanceCorpus(permuted)
 	if err != nil {
 		t.Fatalf("NewFixtureConformanceCorpus(permuted): %v", err)
 	}
 	if got, marshalErr := corpus.MarshalBoundedReport(); marshalErr != nil || !bytes.Equal(got, want) {
 		t.Fatalf("permuted report = %q, %v; want byte-identical sorted report", got, marshalErr)
 	}
-	encoded, err := reg.MarshalFixtureConformanceCorpusSpec(m203SyntheticCorpus(t))
+	encoded, err := detection.MarshalFixtureConformanceCorpusSpec(m203SyntheticCorpus(t))
 	if err != nil {
 		t.Fatalf("MarshalFixtureConformanceCorpusSpec: %v", err)
 	}
-	restored, err := reg.UnmarshalFixtureConformanceCorpus(encoded)
+	restored, err := detection.UnmarshalFixtureConformanceCorpus(encoded)
 	if err != nil {
 		t.Fatalf("UnmarshalFixtureConformanceCorpus: %v", err)
 	}
@@ -53,7 +54,7 @@ func TestM203CorpusReplayIsDeterministicAcrossRealPermutationsAndConcurrentRuns(
 					return
 				}
 				if !bytes.Equal(got, want) {
-					errors <- reg.ErrFixtureConformanceNondeterministic
+					errors <- detection.ErrFixtureConformanceNondeterministic
 					return
 				}
 			}
@@ -68,7 +69,7 @@ func TestM203CorpusReplayIsDeterministicAcrossRealPermutationsAndConcurrentRuns(
 
 func TestM203CorpusSpecMarshalIsCanonicalAcrossIndependentPermutations(t *testing.T) {
 	baseline := m203SyntheticCorpus(t)
-	baselineEncoded, err := reg.MarshalFixtureConformanceCorpusSpec(baseline)
+	baselineEncoded, err := detection.MarshalFixtureConformanceCorpusSpec(baseline)
 	if err != nil {
 		t.Fatalf("MarshalFixtureConformanceCorpusSpec(baseline): %v", err)
 	}
@@ -76,7 +77,7 @@ func TestM203CorpusSpecMarshalIsCanonicalAcrossIndependentPermutations(t *testin
 	permuted := m203SyntheticCorpus(t)
 	permuted.Profiles[0], permuted.Profiles[1] = permuted.Profiles[1], permuted.Profiles[0]
 	permuted.Records[0], permuted.Records[1] = permuted.Records[1], permuted.Records[0]
-	permutedEncoded, err := reg.MarshalFixtureConformanceCorpusSpec(permuted)
+	permutedEncoded, err := detection.MarshalFixtureConformanceCorpusSpec(permuted)
 	if err != nil {
 		t.Fatalf("MarshalFixtureConformanceCorpusSpec(permuted): %v", err)
 	}
@@ -84,11 +85,11 @@ func TestM203CorpusSpecMarshalIsCanonicalAcrossIndependentPermutations(t *testin
 		t.Fatalf("permuted corpus spec = %s; want byte-identical canonical encoding %s", permutedEncoded, baselineEncoded)
 	}
 
-	baselineCorpus, err := reg.UnmarshalFixtureConformanceCorpus(baselineEncoded)
+	baselineCorpus, err := detection.UnmarshalFixtureConformanceCorpus(baselineEncoded)
 	if err != nil {
 		t.Fatalf("UnmarshalFixtureConformanceCorpus(baseline): %v", err)
 	}
-	permutedCorpus, err := reg.UnmarshalFixtureConformanceCorpus(permutedEncoded)
+	permutedCorpus, err := detection.UnmarshalFixtureConformanceCorpus(permutedEncoded)
 	if err != nil {
 		t.Fatalf("UnmarshalFixtureConformanceCorpus(permuted): %v", err)
 	}
@@ -106,7 +107,7 @@ func TestM203CorpusSpecMarshalIsCanonicalAcrossIndependentPermutations(t *testin
 }
 
 func TestM203BoundedReportCarriesConformanceEvidence(t *testing.T) {
-	corpus, err := reg.NewFixtureConformanceCorpus(m203SyntheticCorpus(t))
+	corpus, err := detection.NewFixtureConformanceCorpus(m203SyntheticCorpus(t))
 	if err != nil {
 		t.Fatalf("NewFixtureConformanceCorpus: %v", err)
 	}
@@ -137,11 +138,11 @@ func TestM203BoundedReportCarriesConformanceEvidence(t *testing.T) {
 	if len(report.Records) == 0 || report.Records[0].ProfileVersion == "" || len(report.Records[0].Function) == 0 || report.Records[0].Table == "" || report.Records[0].UnitID == 0 || report.Records[0].Normalized == 0 || len(report.Records[0].RawWords) == 0 || len(report.Records[0].LogicalSlices) == 0 || len(report.Records[0].Wire) == 0 || len(report.Records[0].Logical) == 0 || len(report.Records[0].Sample) == 0 || len(report.Records[0].Source) == 0 || report.Records[0].Qualification == "" || len(report.Records[0].Detection) == 0 {
 		t.Fatalf("report omitted conformance evidence: %#v", report.Records)
 	}
-	limited, err := reg.NewFixtureConformanceCorpusWithLimits(m203SyntheticCorpus(t), reg.FixtureConformanceLimits{MaxRecords: 2, MaxReportBytes: 1})
+	limited, err := detection.NewFixtureConformanceCorpusWithLimits(m203SyntheticCorpus(t), detection.FixtureConformanceLimits{MaxRecords: 2, MaxReportBytes: 1})
 	if err != nil {
 		t.Fatalf("NewFixtureConformanceCorpusWithLimits: %v", err)
 	}
-	if _, err := limited.MarshalBoundedReport(); !reg.IsFixtureMutationReason(err, reg.FixtureMutationReasonOversized) {
+	if _, err := limited.MarshalBoundedReport(); !detection.IsFixtureMutationReason(err, detection.FixtureMutationReasonOversized) {
 		t.Fatalf("small report limit error=%v", err)
 	}
 }
@@ -157,18 +158,18 @@ func TestM203CorpusActuallyReplaysConcreteExpectedOutcomes(t *testing.T) {
 	normalization := m203SyntheticCorpus(t).Records[0]
 	normalization.RecordID = "replay-normalization"
 	normalization.Observation.Dependencies[0].NormalizationVersion = version(t, "2.0.0")
-	normalization.ExpectedReplay = reg.FixtureReplayExpectation{Outcome: reg.FixtureReplayRejected, Reason: reg.FixtureReplayReasonNormalizationMismatch}
+	normalization.ExpectedReplay = detection.FixtureReplayExpectation{Outcome: detection.FixtureReplayRejected, Reason: detection.FixtureReplayReasonNormalizationMismatch}
 	generationSpec := m203SyntheticCorpus(t)
 	generation := generationSpec.Records[0]
 	generation.RecordID = "replay-generation"
 	generation.Observation.Dependencies[0].View = m203MutateView(t, &generationSpec, 0, 0, func(record *reg.LogicalViewRecord) { record.PollGeneration++ })
-	generation.ExpectedReplay = reg.FixtureReplayExpectation{Outcome: reg.FixtureReplayRejected, Reason: reg.FixtureReplayReasonGenerationMismatch}
+	generation.ExpectedReplay = detection.FixtureReplayExpectation{Outcome: detection.FixtureReplayRejected, Reason: detection.FixtureReplayReasonGenerationMismatch}
 	torn := m203SyntheticCorpus(t).Records[0]
 	torn.RecordID = "replay-torn-read"
 	torn.Observation.Dependencies[0].Status = reg.DependencyReadTorn
-	torn.ExpectedReplay = reg.FixtureReplayExpectation{Outcome: reg.FixtureReplayRejected, Reason: reg.FixtureReplayReasonTornRead}
-	spec.Records = []reg.FixtureConformanceRecordSpec{codec, detector, qualification, normalization, generation, torn}
-	corpus, err := reg.NewFixtureConformanceCorpus(spec)
+	torn.ExpectedReplay = detection.FixtureReplayExpectation{Outcome: detection.FixtureReplayRejected, Reason: detection.FixtureReplayReasonTornRead}
+	spec.Records = []detection.FixtureConformanceRecordSpec{codec, detector, qualification, normalization, generation, torn}
+	corpus, err := detection.NewFixtureConformanceCorpus(spec)
 	if err != nil {
 		t.Fatalf("NewFixtureConformanceCorpus: %v", err)
 	}

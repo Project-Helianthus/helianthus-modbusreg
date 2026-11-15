@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 	"github.com/Project-Helianthus/helianthus-modbusreg/fronius"
 	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
@@ -94,8 +95,8 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 		closure.Selection.MaxSelectedPrimaries != 1 ||
 		closure.Selection.NoPositiveOutcome != "NO_MATCH" ||
 		closure.Selection.MultiplePositiveOutcome != "INSUFFICIENT_EVIDENCE" ||
-		closure.Selection.SerializedMultiplePositiveOutcome != string(reg.DetectionAmbiguous) ||
-		closure.Selection.SerializedMultiplePositiveReason != string(reg.DetectionReasonMultipleMatches) ||
+		closure.Selection.SerializedMultiplePositiveOutcome != string(detection.Ambiguous) ||
+		closure.Selection.SerializedMultiplePositiveReason != string(detection.ReasonMultipleMatches) ||
 		closure.Selection.ImplicitPriority || !closure.Selection.SelectionIsStateless ||
 		closure.Selection.ActivationMutation ||
 		!reflect.DeepEqual(closure.Selection.EligibleProfileRequirements, wantRequirements) ||
@@ -165,7 +166,7 @@ func TestMixedCatalogNamedPrimaryFamiliesAreExhaustivelyExclusive(t *testing.T) 
 	}
 
 	for mask := 0; mask < 1<<len(profiles); mask++ {
-		candidates := make([]reg.DetectionCandidate, len(profiles))
+		candidates := make([]detection.Candidate, len(profiles))
 		selected := make([]string, 0, len(profiles))
 		for index, profile := range profiles {
 			enabled := mask&(1<<index) != 0
@@ -177,28 +178,28 @@ func TestMixedCatalogNamedPrimaryFamiliesAreExhaustivelyExclusive(t *testing.T) 
 		decision, err := newDetector(t, catalog, candidates...).Detect(
 			context.Background(),
 			detectionReader(t),
-			reg.DetectionOptions{},
+			detection.Options{},
 		)
 		if err != nil {
 			t.Fatalf("mask %05b: Detect: %v", mask, err)
 		}
 		switch len(selected) {
 		case 0:
-			if decision.Outcome() != reg.DetectionNoMatch || decision.SelectedProfileID() != "" {
+			if decision.Outcome() != detection.NoMatch || decision.SelectedProfileID() != "" {
 				t.Fatalf("mask %05b: zero-positive decision=%+v", mask, decision)
 			}
 		case 1:
-			if decision.Outcome() != reg.DetectionMatched || decision.SelectedProfileID() != selected[0] {
+			if decision.Outcome() != detection.Matched || decision.SelectedProfileID() != selected[0] {
 				t.Fatalf("mask %05b: one-positive decision=%+v", mask, decision)
 			}
 		default:
-			if decision.Outcome() != reg.DetectionAmbiguous ||
-				decision.Reason() != reg.DetectionReasonMultipleMatches ||
+			if decision.Outcome() != detection.Ambiguous ||
+				decision.Reason() != detection.ReasonMultipleMatches ||
 				decision.SelectedProfileID() != "" {
 				t.Fatalf("mask %05b: overlap decision=%+v", mask, decision)
 			}
 			for _, evidence := range decision.Evidence() {
-				if evidence.Reason == reg.DetectionReasonSelected {
+				if evidence.Reason == detection.ReasonSelected {
 					t.Fatalf("mask %05b: overlap retained a selected profile: %+v", mask, evidence)
 				}
 			}
@@ -217,7 +218,7 @@ func TestMixedCatalogExclusiveSelectionRejectsUnequalScoreOverlap(t *testing.T) 
 
 	for _, order := range [][]int{{0, 1, 2, 3}, {3, 1, 0, 2}} {
 		catalogProfiles := make([]reg.ProfileDescriptor, len(order))
-		candidates := make([]reg.DetectionCandidate, len(order))
+		candidates := make([]detection.Candidate, len(order))
 		for index, source := range order {
 			catalogProfiles[index] = profiles[source]
 			candidates[index] = detectionCandidate(t, profiles[source], scores[source], true, true)
@@ -229,24 +230,24 @@ func TestMixedCatalogExclusiveSelectionRejectsUnequalScoreOverlap(t *testing.T) 
 		decision, err := newDetector(t, catalog, candidates...).Detect(
 			context.Background(),
 			detectionReader(t),
-			reg.DetectionOptions{AllowFixtureOnly: true},
+			detection.Options{AllowFixtureOnly: true},
 		)
-		if err != nil || decision.Outcome() != reg.DetectionAmbiguous ||
-			decision.Reason() != reg.DetectionReasonMultipleMatches ||
+		if err != nil || decision.Outcome() != detection.Ambiguous ||
+			decision.Reason() != detection.ReasonMultipleMatches ||
 			decision.SelectedProfileID() != "" {
 			t.Fatalf("exclusive overlap decision=(%+v,%v)", decision, err)
 		}
 		for _, evidence := range decision.Evidence() {
-			if evidence.Reason != reg.DetectionReasonMultipleMatches {
+			if evidence.Reason != detection.ReasonMultipleMatches {
 				t.Fatalf("overlap evidence for %s=%q", evidence.ProfileID, evidence.Reason)
 			}
 		}
-		encoded, err := reg.MarshalDetectionDecision(decision)
+		encoded, err := detection.MarshalDetectionDecision(decision)
 		if err != nil {
 			t.Fatalf("MarshalDetectionDecision: %v", err)
 		}
-		roundTrip, err := reg.UnmarshalDetectionDecision(encoded)
-		if err != nil || roundTrip.Outcome() != reg.DetectionAmbiguous || roundTrip.Reason() != reg.DetectionReasonMultipleMatches {
+		roundTrip, err := detection.UnmarshalDetectionDecision(encoded)
+		if err != nil || roundTrip.Outcome() != detection.Ambiguous || roundTrip.Reason() != detection.ReasonMultipleMatches {
 			t.Fatalf("round-trip decision=(%+v,%v)", roundTrip, err)
 		}
 	}
@@ -278,19 +279,19 @@ func TestMixedCatalogExclusiveSelectionPreservesEligibilityLifecycle(t *testing.
 	decision, err := detector.Detect(
 		context.Background(),
 		detectionReader(t),
-		reg.DetectionOptions{AllowFixtureOnly: true},
+		detection.Options{AllowFixtureOnly: true},
 	)
-	if err != nil || decision.Outcome() != reg.DetectionMatched || decision.SelectedProfileID() != eligible.ID() {
+	if err != nil || decision.Outcome() != detection.Matched || decision.SelectedProfileID() != eligible.ID() {
 		t.Fatalf("lifecycle decision=(%+v,%v)", decision, err)
 	}
-	reasons := make(map[string]reg.DetectionReason)
+	reasons := make(map[string]detection.Reason)
 	for _, evidence := range decision.Evidence() {
 		reasons[evidence.ProfileID] = evidence.Reason
 	}
-	want := map[string]reg.DetectionReason{
-		unqualified.ID(): reg.DetectionReasonProfileUnqualified,
-		revoked.ID():     reg.DetectionReasonProfileRevoked,
-		superseded.ID():  reg.DetectionReasonProfileSuperseded,
+	want := map[string]detection.Reason{
+		unqualified.ID(): detection.ReasonProfileUnqualified,
+		revoked.ID():     detection.ReasonProfileRevoked,
+		superseded.ID():  detection.ReasonProfileSuperseded,
 	}
 	for profileID, reason := range want {
 		if reasons[profileID] != reason {

@@ -9,15 +9,17 @@ import (
 	"time"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
+	"github.com/Project-Helianthus/helianthus-modbusreg/ledger"
 )
 
 func fixtureLedgerState(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	issuer string,
-) reg.SampleLedgerState {
+) ledger.SampleLedgerState {
 	t.Helper()
-	state, err := reg.EmptySampleLedgerState(issuer, profile)
+	state, err := ledger.EmptySampleLedgerState(issuer, profile)
 	if err != nil {
 		t.Fatalf("EmptySampleLedgerState: %v", err)
 	}
@@ -27,10 +29,10 @@ func fixtureLedgerState(
 func fixtureFactoryFromState(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
-	state reg.SampleLedgerState,
+	state ledger.SampleLedgerState,
 ) *fixtureValidationFactory {
 	t.Helper()
-	sampleLedger, err := reg.NewSampleLedger(state, state.Revision)
+	sampleLedger, err := ledger.NewSampleLedger(state, state.Revision)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
@@ -66,7 +68,7 @@ func validateFixtureReplay(
 	t *testing.T,
 	profile reg.ProfileDescriptor,
 	spec reg.ObservationSpec,
-) (reg.FixtureReplay, error) {
+) (detection.FixtureReplay, error) {
 	t.Helper()
 	state := fixtureLedgerState(t, profile, "fixture-issuer")
 	factory := fixtureFactoryFromState(t, profile, state)

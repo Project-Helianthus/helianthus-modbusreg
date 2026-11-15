@@ -4,34 +4,35 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
 func TestProbeFc03OverflowAddressBoundary(t *testing.T) {
-	limits := reg.DefaultDetectionLimits()
+	limits := detection.DefaultDetectionLimits()
 	for _, tc := range []struct {
 		name     string
-		function reg.ProbeFunction
+		function detection.ProbeFunction
 		address  uint16
 		width    uint16
 		overflow bool
 	}{
-		{"fc03_final_register", reg.ProbeReadHoldingRegisters, 65535, 1, false},
-		{"fc03_overflow", reg.ProbeReadHoldingRegisters, 65535, 2, true},
-		{"fc03_two_words_ending_at_final_register", reg.ProbeReadHoldingRegisters, 65534, 2, false},
-		{"fc04_final_register", reg.ProbeReadInputRegisters, 65535, 1, false},
-		{"fc04_overflow", reg.ProbeReadInputRegisters, 65535, 2, true},
-		{"fc04_two_words_ending_at_final_register", reg.ProbeReadInputRegisters, 65534, 2, false},
+		{"fc03_final_register", detection.ProbeReadHoldingRegisters, 65535, 1, false},
+		{"fc03_overflow", detection.ProbeReadHoldingRegisters, 65535, 2, true},
+		{"fc03_two_words_ending_at_final_register", detection.ProbeReadHoldingRegisters, 65534, 2, false},
+		{"fc04_final_register", detection.ProbeReadInputRegisters, 65535, 1, false},
+		{"fc04_overflow", detection.ProbeReadInputRegisters, 65535, 2, true},
+		{"fc04_two_words_ending_at_final_register", detection.ProbeReadInputRegisters, 65534, 2, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := reg.NewProbePlan(reg.ProbePlanSpec{
+			_, err := detection.NewProbePlan(detection.ProbePlanSpec{
 				Version: reg.MustParseVersion("1.0.0"),
-				Declarations: []reg.ProbeDeclarationSpec{{
+				Declarations: []detection.ProbeDeclarationSpec{{
 					ID:            "synthetic-manufacturer",
 					Function:      tc.function,
 					Address:       tc.address,
 					WordCount:     tc.width,
-					IdentityField: reg.ProbeIdentityManufacturer,
-					Encoding:      reg.ProbeIdentityASCII,
+					IdentityField: detection.ProbeIdentityManufacturer,
+					Encoding:      detection.ProbeIdentityASCII,
 				}},
 			}, limits)
 			if tc.overflow {

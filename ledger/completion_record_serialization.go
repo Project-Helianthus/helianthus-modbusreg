@@ -1,6 +1,8 @@
-package modbusreg
+package ledger
 
 import "fmt"
+
+import modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 
 type completionRecordDTO struct {
 	SchemaID                      string                `json:"schema_id"`
@@ -67,14 +69,14 @@ func MarshalFMV3M303CompletionRecord(record CompletionRecord) ([]byte, error) {
 	if _, err := NewFMV3M303CompletionRecord(record.Spec()); err != nil {
 		return nil, err
 	}
-	return MarshalBounded(completionRecordToDTO(record))
+	return modbusreg.MarshalBounded(completionRecordToDTO(record))
 }
 
 // UnmarshalFMV3M303CompletionRecord rejects unknown fields and incompatible
 // schemas before constructing an immutable record.
 func UnmarshalFMV3M303CompletionRecord(data []byte) (CompletionRecord, error) {
 	var dto completionRecordDTO
-	if err := DecodeStrict(data, &dto); err != nil {
+	if err := modbusreg.DecodeStrict(data, &dto); err != nil {
 		return CompletionRecord{}, err
 	}
 	return completionRecordFromDTO(dto)
@@ -129,7 +131,7 @@ func MarshalSampleLedgerState(state SampleLedgerState) ([]byte, error) {
 	if err := validateSampleLedgerState(state, 0); err != nil {
 		return nil, err
 	}
-	return MarshalBounded(sampleLedgerDTO{
+	return modbusreg.MarshalBounded(sampleLedgerDTO{
 		SchemaVersion:   state.SchemaVersion.String(),
 		IssuerDomain:    state.IssuerDomain,
 		ProfileID:       state.ProfileID,
@@ -147,13 +149,13 @@ func MarshalSampleLedgerState(state SampleLedgerState) ([]byte, error) {
 // UnmarshalSampleLedgerState validates persisted restart state.
 func UnmarshalSampleLedgerState(data []byte) (SampleLedgerState, error) {
 	var record sampleLedgerDTO
-	if err := DecodeStrict(data, &record); err != nil {
+	if err := modbusreg.DecodeStrict(data, &record); err != nil {
 		return SampleLedgerState{}, err
 	}
-	if record.SchemaVersion != CurrentSchemaVersion().String() {
+	if record.SchemaVersion != modbusreg.CurrentSchemaVersion().String() {
 		return SampleLedgerState{}, fmt.Errorf("sample ledger schema is incompatible")
 	}
-	profileVersion, err := ParseRequiredVersion(
+	profileVersion, err := modbusreg.ParseRequiredVersion(
 		"profile_version",
 		record.ProfileVersion,
 	)
@@ -161,14 +163,14 @@ func UnmarshalSampleLedgerState(data []byte) (SampleLedgerState, error) {
 		return SampleLedgerState{}, err
 	}
 	state := SampleLedgerState{
-		SchemaVersion:   CurrentSchemaVersion(),
+		SchemaVersion:   modbusreg.CurrentSchemaVersion(),
 		IssuerDomain:    record.IssuerDomain,
 		ProfileID:       record.ProfileID,
 		ProfileVersion:  profileVersion,
 		DependencySetID: record.DependencySetID,
 		Revision:        record.Revision,
 		HighWater:       record.HighWater,
-		LastCommittedAttempt: AttemptIdentity{
+		LastCommittedAttempt: modbusreg.AttemptIdentity{
 			PollGenerationID: record.LastCommittedAttempt.PollGenerationID,
 			RetryOrdinal:     record.LastCommittedAttempt.RetryOrdinal,
 		},

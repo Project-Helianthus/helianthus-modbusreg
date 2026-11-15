@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
 func TestS29LateProbeEvidenceCollisionStopsDetection(t *testing.T) {
@@ -36,8 +37,8 @@ func TestS29LateProbeEvidenceCollisionStopsDetection(t *testing.T) {
 			detector, profile := s29Detector(t)
 			reader := detectionReader(t)
 			original := reader.results[test.declaration]
-			collision, err := reg.NewProbeReadResult(reg.ProbeReadResultSpec{
-				Status:     reg.ProbeReadSucceeded,
+			collision, err := detection.NewProbeReadResult(detection.ProbeReadResultSpec{
+				Status:     detection.ProbeReadSucceeded,
 				Words:      original.Words(),
 				EvidenceID: reader.results[test.prior].EvidenceID(),
 			})
@@ -45,9 +46,9 @@ func TestS29LateProbeEvidenceCollisionStopsDetection(t *testing.T) {
 				t.Fatalf("construct collision: %v", err)
 			}
 			reader.results[test.declaration] = collision
-			decision, err := detector.Detect(context.Background(), reader, reg.DetectionOptions{})
-			if err != nil || decision.Outcome() != reg.DetectionNoMatch ||
-				decision.Reason() != reg.DetectionReasonInvalidProbeResult ||
+			decision, err := detector.Detect(context.Background(), reader, detection.Options{})
+			if err != nil || decision.Outcome() != detection.NoMatch ||
+				decision.Reason() != detection.ReasonInvalidProbeResult ||
 				decision.SelectedProfileID() != "" || decision.SelectedProfileVersion() != (reg.Version{}) {
 				t.Fatalf("collision: outcome=%s reason=%s selected=%q version=%v err=%v",
 					decision.Outcome(), decision.Reason(), decision.SelectedProfileID(), decision.SelectedProfileVersion(), err)
@@ -75,7 +76,7 @@ func TestS29DistinctEvidenceAllowsEqualIdentityTextAcrossInvocations(t *testing.
 	}
 }
 
-func s29Detector(t *testing.T) (*reg.ProfileDetector, reg.ProfileDescriptor) {
+func s29Detector(t *testing.T) (*detection.ProfileDetector, reg.ProfileDescriptor) {
 	t.Helper()
 	profile := detectionProfile(t, "example.standard.evidence-collision", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	catalog, err := reg.NewCatalog(profile)
@@ -85,7 +86,7 @@ func s29Detector(t *testing.T) (*reg.ProfileDetector, reg.ProfileDescriptor) {
 	return newDetector(t, catalog, detectionCandidate(t, profile, 1, true, false)), profile
 }
 
-func s29DetectorWithEqualIdentity(t *testing.T) (*reg.ProfileDetector, reg.ProfileDescriptor) {
+func s29DetectorWithEqualIdentity(t *testing.T) (*detection.ProfileDetector, reg.ProfileDescriptor) {
 	t.Helper()
 	_, profile := s29Detector(t)
 	catalog, err := reg.NewCatalog(profile)
@@ -95,18 +96,18 @@ func s29DetectorWithEqualIdentity(t *testing.T) (*reg.ProfileDetector, reg.Profi
 	spec := detectionCandidate(t, profile, 1, true, false).Spec()
 	spec.Manufacturer.Expected = "synthetic-family"
 	spec.Model.Expected = "synthetic-family"
-	candidate, err := reg.NewDetectionCandidate(spec, detectionLimits())
+	candidate, err := detection.NewCandidate(spec, detectionLimits())
 	if err != nil {
 		t.Fatalf("NewDetectionCandidate: %v", err)
 	}
 	return newDetector(t, catalog, candidate), profile
 }
 
-func s29AssertMatched(t *testing.T, detector *reg.ProfileDetector, profile reg.ProfileDescriptor, reader *recordedProbeReader) {
+func s29AssertMatched(t *testing.T, detector *detection.ProfileDetector, profile reg.ProfileDescriptor, reader *recordedProbeReader) {
 	t.Helper()
-	decision, err := detector.Detect(context.Background(), reader, reg.DetectionOptions{})
-	if err != nil || decision.Outcome() != reg.DetectionMatched ||
-		decision.Reason() != reg.DetectionReasonSelected ||
+	decision, err := detector.Detect(context.Background(), reader, detection.Options{})
+	if err != nil || decision.Outcome() != detection.Matched ||
+		decision.Reason() != detection.ReasonSelected ||
 		decision.SelectedProfileID() != profile.ID() || decision.SelectedProfileVersion() != profile.Version() {
 		t.Fatalf("distinct evidence: outcome=%s reason=%s selected=%q version=%v err=%v",
 			decision.Outcome(), decision.Reason(), decision.SelectedProfileID(), decision.SelectedProfileVersion(), err)
@@ -116,7 +117,7 @@ func s29AssertMatched(t *testing.T, detector *reg.ProfileDetector, profile reg.P
 		t.Fatalf("distinct evidence reads=%v want %v", got, wantReads)
 	}
 	evidence := decision.Evidence()
-	if len(evidence) != 1 || evidence[0].Reason != reg.DetectionReasonSelected ||
+	if len(evidence) != 1 || evidence[0].Reason != detection.ReasonSelected ||
 		!reflect.DeepEqual(evidence[0].ProbeEvidenceIDs, []string{
 			"probe-evidence-manufacturer", "probe-evidence-model", "probe-evidence-firmware",
 		}) {

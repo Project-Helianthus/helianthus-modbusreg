@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
 func TestDetectionDecisionBoundEquality(t *testing.T) {
@@ -19,30 +20,30 @@ func TestDetectionDecisionBoundEquality(t *testing.T) {
 		{"evidence_id_budget", "family.a", "1.0.0", "1.0.0", "1.0.0", 43},
 	} {
 		t.Run(fixture.name, func(t *testing.T) {
-			limits := reg.DefaultDetectionLimits()
+			limits := detection.DefaultDetectionLimits()
 			limits.MaxEvidenceIDBytes = fixture.evidenceBytes
 			profile := decisionBoundProfile(t, fixture.id, fixture.profileVersion, fixture.detectorVersion, fixture.qualificationVersion)
 			catalog, err := reg.NewCatalog(profile)
 			if err != nil {
 				t.Fatalf("NewCatalog: %v", err)
 			}
-			declarations := []reg.ProbeDeclarationSpec{
-				{ID: "manufacturer", Function: reg.ProbeReadHoldingRegisters, Address: 100, WordCount: 16, IdentityField: reg.ProbeIdentityManufacturer, Encoding: reg.ProbeIdentityASCII},
-				{ID: "family", Function: reg.ProbeReadInputRegisters, Address: 140, WordCount: 16, IdentityField: reg.ProbeIdentityModel, Encoding: reg.ProbeIdentityASCII},
-				{ID: "firmware", Function: reg.ProbeReadHoldingRegisters, Address: 180, WordCount: 16, IdentityField: reg.ProbeIdentityFirmware, Encoding: reg.ProbeIdentityASCII},
+			declarations := []detection.ProbeDeclarationSpec{
+				{ID: "manufacturer", Function: detection.ProbeReadHoldingRegisters, Address: 100, WordCount: 16, IdentityField: detection.ProbeIdentityManufacturer, Encoding: detection.ProbeIdentityASCII},
+				{ID: "family", Function: detection.ProbeReadInputRegisters, Address: 140, WordCount: 16, IdentityField: detection.ProbeIdentityModel, Encoding: detection.ProbeIdentityASCII},
+				{ID: "firmware", Function: detection.ProbeReadHoldingRegisters, Address: 180, WordCount: 16, IdentityField: detection.ProbeIdentityFirmware, Encoding: detection.ProbeIdentityASCII},
 			}
-			plan, err := reg.NewProbePlan(reg.ProbePlanSpec{
+			plan, err := detection.NewProbePlan(detection.ProbePlanSpec{
 				Version: reg.MustParseVersion(fixture.detectorVersion), Declarations: declarations,
 			}, limits)
 			if err != nil {
 				t.Fatalf("NewProbePlan: %v", err)
 			}
-			candidate, err := reg.NewDetectionCandidate(reg.DetectionCandidateSpec{
+			candidate, err := detection.NewCandidate(detection.CandidateSpec{
 				ProfileID: fixture.id, ProfileVersion: reg.MustParseVersion(fixture.profileVersion),
 				Score: 1, Enabled: true, FixtureOnly: true,
-				Manufacturer: reg.IdentityStringGateSpec{Expected: "synthetic-manufacturer"},
-				Model:        reg.IdentityStringGateSpec{Expected: "synthetic-family"},
-				Firmware:     reg.FirmwareGateSpec{MinimumInclusive: reg.MustParseVersion("1.0.0"), MaximumExclusive: reg.MustParseVersion("2.0.0")},
+				Manufacturer: detection.IdentityStringGateSpec{Expected: "synthetic-manufacturer"},
+				Model:        detection.IdentityStringGateSpec{Expected: "synthetic-family"},
+				Firmware:     detection.FirmwareGateSpec{MinimumInclusive: reg.MustParseVersion("1.0.0"), MaximumExclusive: reg.MustParseVersion("2.0.0")},
 			}, limits)
 			if err != nil {
 				t.Fatalf("NewDetectionCandidate: %v", err)
@@ -61,9 +62,9 @@ func TestDetectionDecisionBoundEquality(t *testing.T) {
 					caseLimits := limits
 					caseLimits.MaxDecisionBytes = bound + boundary.delta
 					// Construction has no reader parameter; no runtime detection is invoked.
-					detector, err := reg.NewProfileDetector(reg.ProfileDetectorSpec{
+					detector, err := detection.NewProfileDetector(detection.ProfileDetectorSpec{
 						DetectorVersion: reg.MustParseVersion(fixture.detectorVersion), Plan: plan,
-						Catalog: catalog, Candidates: []reg.DetectionCandidate{candidate}, Limits: caseLimits,
+						Catalog: catalog, Candidates: []detection.Candidate{candidate}, Limits: caseLimits,
 					})
 					if boundary.delta < 0 {
 						if err == nil || err.Error() != "detection decision exceeds the configured byte bound" || detector != nil {

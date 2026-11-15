@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
 func TestConcurrentDetectionsAreDeterministicAndIndependent(t *testing.T) {
@@ -38,13 +39,13 @@ func TestConcurrentDetectionsAreDeterministicAndIndependent(t *testing.T) {
 			decision, detectErr := detector.Detect(
 				context.Background(),
 				reader,
-				reg.DetectionOptions{},
+				detection.Options{},
 			)
 			if detectErr != nil {
 				errorsFound <- detectErr
 				return
 			}
-			encoded, marshalErr := reg.MarshalDetectionDecision(decision)
+			encoded, marshalErr := detection.MarshalDetectionDecision(decision)
 			if marshalErr != nil {
 				errorsFound <- marshalErr
 				return
@@ -86,13 +87,13 @@ type cancellingProbeReader struct {
 
 func (reader *cancellingProbeReader) ReadProbe(
 	ctx context.Context,
-	_ reg.ProbeReadRequest,
-) (reg.ProbeReadResult, error) {
+	_ detection.ProbeReadRequest,
+) (detection.ProbeReadResult, error) {
 	reader.mu.Lock()
 	reader.reads++
 	reader.mu.Unlock()
 	<-ctx.Done()
-	return reg.ProbeReadResult{}, ctx.Err()
+	return detection.ProbeReadResult{}, ctx.Err()
 }
 
 func (reader *cancellingProbeReader) readCount() int {
@@ -115,10 +116,10 @@ func TestDetectionCancellationStopsTheBoundedPlan(t *testing.T) {
 	reader := &cancellingProbeReader{}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	decision, err := detector.Detect(ctx, reader, reg.DetectionOptions{})
+	decision, err := detector.Detect(ctx, reader, detection.Options{})
 	if !errors.Is(err, context.Canceled) ||
-		decision.Outcome() != reg.DetectionNoMatch ||
-		decision.Reason() != reg.DetectionReasonContextCancelled ||
+		decision.Outcome() != detection.NoMatch ||
+		decision.Reason() != detection.ReasonContextCancelled ||
 		decision.SelectedProfileID() != "" {
 		t.Fatalf("cancelled detection=(%+v,%v)", decision, err)
 	}
@@ -129,14 +130,14 @@ func TestDetectionCancellationStopsTheBoundedPlan(t *testing.T) {
 
 type cancelAfterSuccessfulRead struct {
 	cancel  context.CancelFunc
-	results map[string]reg.ProbeReadResult
+	results map[string]detection.ProbeReadResult
 	reads   int
 }
 
 func (reader *cancelAfterSuccessfulRead) ReadProbe(
 	_ context.Context,
-	request reg.ProbeReadRequest,
-) (reg.ProbeReadResult, error) {
+	request detection.ProbeReadRequest,
+) (detection.ProbeReadResult, error) {
 	reader.reads++
 	if reader.reads == 3 {
 		reader.cancel()
@@ -160,10 +161,10 @@ func TestDetectionCancellationAfterSuccessfulReadStillFailsClosed(t *testing.T) 
 		cancel:  cancel,
 		results: detectionReader(t).results,
 	}
-	decision, err := detector.Detect(ctx, reader, reg.DetectionOptions{})
+	decision, err := detector.Detect(ctx, reader, detection.Options{})
 	if !errors.Is(err, context.Canceled) ||
-		decision.Outcome() != reg.DetectionNoMatch ||
-		decision.Reason() != reg.DetectionReasonContextCancelled ||
+		decision.Outcome() != detection.NoMatch ||
+		decision.Reason() != detection.ReasonContextCancelled ||
 		reader.reads != 3 {
 		t.Fatalf("cancel-after-read detection=(%+v,%v), reads=%d", decision, err, reader.reads)
 	}
@@ -171,7 +172,7 @@ func TestDetectionCancellationAfterSuccessfulReadStillFailsClosed(t *testing.T) 
 
 type orderedBlockingReader struct {
 	mu      sync.Mutex
-	results map[string]reg.ProbeReadResult
+	results map[string]detection.ProbeReadResult
 	entered chan string
 	release chan struct{}
 	reads   []string
@@ -179,8 +180,8 @@ type orderedBlockingReader struct {
 
 func (reader *orderedBlockingReader) ReadProbe(
 	ctx context.Context,
-	request reg.ProbeReadRequest,
-) (reg.ProbeReadResult, error) {
+	request detection.ProbeReadRequest,
+) (detection.ProbeReadResult, error) {
 	reader.mu.Lock()
 	reader.reads = append(reader.reads, request.DeclarationID())
 	result := reader.results[request.DeclarationID()]
@@ -188,13 +189,13 @@ func (reader *orderedBlockingReader) ReadProbe(
 	select {
 	case reader.entered <- request.DeclarationID():
 	case <-ctx.Done():
-		return reg.ProbeReadResult{}, ctx.Err()
+		return detection.ProbeReadResult{}, ctx.Err()
 	}
 	select {
 	case <-reader.release:
 		return result, nil
 	case <-ctx.Done():
-		return reg.ProbeReadResult{}, ctx.Err()
+		return detection.ProbeReadResult{}, ctx.Err()
 	}
 }
 
@@ -217,8 +218,8 @@ func TestOneDetectionNeverExecutesProbeDeclarationsConcurrently(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		decision, err := detector.Detect(context.Background(), reader, reg.DetectionOptions{})
-		if err == nil && decision.Outcome() != reg.DetectionMatched {
+		decision, err := detector.Detect(context.Background(), reader, detection.Options{})
+		if err == nil && decision.Outcome() != detection.Matched {
 			err = errors.New("detection did not match")
 		}
 		done <- err

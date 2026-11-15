@@ -7,11 +7,11 @@ import (
 	"reflect"
 	"testing"
 
-	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/ledger"
 )
 
 func TestS30CompletionReceiverRetainsAcceptedRecordAfterDecodeFailures(t *testing.T) {
-	receiver, err := reg.NewCurrentFMV3M303CompletionRecord()
+	receiver, err := ledger.NewCurrentFMV3M303CompletionRecord()
 	if err != nil {
 		t.Fatalf("construct accepted record: %v", err)
 	}
@@ -19,10 +19,10 @@ func TestS30CompletionReceiverRetainsAcceptedRecordAfterDecodeFailures(t *testin
 	baseline.Applicability = append([]string(nil), baseline.Applicability...)
 	baseline.Limitations = append([]string(nil), baseline.Limitations...)
 	baseline.InvalidationRollback = append([]string(nil), baseline.InvalidationRollback...)
-	if reflect.DeepEqual(baseline, reg.CompletionRecordSpec{}) {
+	if reflect.DeepEqual(baseline, ledger.CompletionRecordSpec{}) {
 		t.Fatal("accepted receiver must be nonzero")
 	}
-	encoded, err := reg.MarshalFMV3M303CompletionRecord(receiver)
+	encoded, err := ledger.MarshalFMV3M303CompletionRecord(receiver)
 	if err != nil {
 		t.Fatalf("marshal accepted record: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestS30CompletionReceiverRetainsAcceptedRecordAfterDecodeFailures(t *testin
 			if !reflect.DeepEqual(receiver.Spec(), baseline) {
 				t.Error("failed decode changed the accepted receiver Spec")
 			}
-			retained, err := reg.MarshalFMV3M303CompletionRecord(receiver)
+			retained, err := ledger.MarshalFMV3M303CompletionRecord(receiver)
 			if err != nil {
 				t.Errorf("failed decode left an unusable receiver: %v", err)
 			}
@@ -111,18 +111,18 @@ func TestS30CompletionReceiverRetainsAcceptedRecordAfterDecodeFailures(t *testin
 		}
 		// A fresh receiver starts from the zero value, so only a decode that
 		// actually assigns the decoded record can produce the expected Spec and bytes.
-		var fresh reg.CompletionRecord
+		var fresh ledger.CompletionRecord
 		if err := fresh.UnmarshalJSON(canonical); err != nil {
 			t.Fatalf("valid decode into a fresh receiver: %v", err)
 		}
 		if !reflect.DeepEqual(fresh.Spec(), baseline) {
 			t.Error("valid decode into a fresh receiver did not produce the expected Spec")
 		}
-		freshBytes, err := reg.MarshalFMV3M303CompletionRecord(fresh)
+		freshBytes, err := ledger.MarshalFMV3M303CompletionRecord(fresh)
 		if err != nil || !bytes.Equal(freshBytes, canonical) {
 			t.Fatalf("fresh receiver did not round-trip canonical bytes: %v", err)
 		}
-		got, err := reg.MarshalFMV3M303CompletionRecord(receiver)
+		got, err := ledger.MarshalFMV3M303CompletionRecord(receiver)
 		if err != nil {
 			t.Fatalf("marshal after valid decode: %v", err)
 		}

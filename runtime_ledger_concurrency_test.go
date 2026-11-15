@@ -9,10 +9,11 @@ import (
 	"time"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/ledger"
 )
 
 func TestRuntimeAttemptPublicSurfaceKeepsProducerAuthorityPrivate(t *testing.T) {
-	typeOfAttempt := reflect.TypeOf((*reg.ObservationAttempt)(nil))
+	typeOfAttempt := reflect.TypeOf((*ledger.ObservationAttempt)(nil))
 	for _, forbidden := range []string{"ProducerAttempt", "Acquisition", "Capability"} {
 		if _, exists := typeOfAttempt.MethodByName(forbidden); exists {
 			t.Fatalf("runtime attempt exposes producer authority through %s", forbidden)
@@ -30,17 +31,17 @@ func TestRuntimeAttemptPublicSurfaceKeepsProducerAuthorityPrivate(t *testing.T) 
 
 type serialPublicationCommitter struct {
 	mu            sync.Mutex
-	state         reg.SampleLedgerState
+	state         ledger.SampleLedgerState
 	calls         int
 	effects       int
 	firstEntered  chan struct{}
 	secondEntered chan struct{}
 	releaseFirst  chan struct{}
-	restart       reg.LedgerRestartState
+	restart       ledger.RestartState
 }
 
 func newSerialPublicationCommitter(
-	state reg.SampleLedgerState,
+	state ledger.SampleLedgerState,
 ) *serialPublicationCommitter {
 	return &serialPublicationCommitter{
 		state:         state,
@@ -52,8 +53,8 @@ func newSerialPublicationCommitter(
 
 func (committer *serialPublicationCommitter) CommitPublication(
 	ctx context.Context,
-	request reg.PublicationCommitRequest,
-) (reg.PublicationCommitDecision, error) {
+	request ledger.PublicationCommitRequest,
+) (ledger.PublicationCommitDecision, error) {
 	committer.mu.Lock()
 	committer.calls++
 	call := committer.calls
@@ -62,7 +63,7 @@ func (committer *serialPublicationCommitter) CommitPublication(
 		close(committer.firstEntered)
 		select {
 		case <-ctx.Done():
-			return reg.PublicationCommitCancelled, nil
+			return ledger.PublicationCommitCancelled, nil
 		case <-committer.releaseFirst:
 		}
 	} else {
@@ -70,7 +71,7 @@ func (committer *serialPublicationCommitter) CommitPublication(
 			close(committer.secondEntered)
 		}
 		if err := ctx.Err(); err != nil {
-			return reg.PublicationCommitCancelled, nil
+			return ledger.PublicationCommitCancelled, nil
 		}
 	}
 	committer.mu.Lock()
@@ -90,12 +91,12 @@ func (committer *serialPublicationCommitter) CommitPublication(
 		committer.restart = request.PublishedRestartState
 	}
 	committer.effects++
-	return reg.PublicationCommitCommitted, nil
+	return ledger.PublicationCommitCommitted, nil
 }
 
 func (committer *serialPublicationCommitter) CommitTerminalState(
 	ctx context.Context,
-	request reg.TerminalStateCommitRequest,
+	request ledger.TerminalStateCommitRequest,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -123,21 +124,21 @@ func (committer *serialPublicationCommitter) counts() (int, int) {
 
 func twoSealedRuntimeAttempts(
 	t *testing.T,
-) (*serialPublicationCommitter, *reg.ObservationAttempt, *reg.ObservationAttempt, *reg.SampleLedger) {
+) (*serialPublicationCommitter, *ledger.ObservationAttempt, *ledger.ObservationAttempt, *ledger.SampleLedger) {
 	t.Helper()
 	profile := profileFixture(t)
 	initial, sampleLedger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
 	committer := newSerialPublicationCommitter(initial)
-	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
+	factory, err := ledger.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
-	seal := func(key string, poll uint64) *reg.ObservationAttempt {
+	seal := func(key string, poll uint64) *ledger.ObservationAttempt {
 		source, views := runtimeSourceAndViewsForGeneration(t, poll)
 		attempt := beginAdmittedRuntimeAttempt(t, factory, source, views, key, poll)
 		for ordinal := uint64(0); ordinal < uint64(len(views)); ordinal++ {
 			outcome, err := attempt.Claim(ordinal)
-			if err != nil || outcome != reg.ClaimSucceeded {
+			if err != nil || outcome != ledger.ClaimSucceeded {
 				t.Fatalf("Claim(%d)=(%q, %v)", ordinal, outcome, err)
 			}
 		}
@@ -170,8 +171,8 @@ func waitPublicationBeforeRelease(
 
 func waitAttemptPhase(
 	t *testing.T,
-	attempt *reg.ObservationAttempt,
-	want reg.AttemptPhase,
+	attempt *ledger.ObservationAttempt,
+	want ledger.AttemptPhase,
 ) {
 	t.Helper()
 	deadline := time.NewTimer(time.Second)
@@ -204,7 +205,7 @@ func TestQueuedPublicationCancellationDoesNotWaitForCommitSlot(t *testing.T) {
 			observation, err := second.Publish(context.Background())
 			secondResult <- publicationResult{observation: observation, err: err}
 		}()
-		waitAttemptPhase(t, second, reg.AttemptPublishing)
+		waitAttemptPhase(t, second, ledger.AttemptPublishing)
 		cancelled := make(chan cancellationOutcome, 1)
 		go func() {
 			result, err := second.Cancel()
@@ -213,8 +214,8 @@ func TestQueuedPublicationCancellationDoesNotWaitForCommitSlot(t *testing.T) {
 		published := waitPublicationBeforeRelease(t, secondResult, committer.releaseFirst)
 		cancelResult := <-cancelled
 		if published.err == nil || cancelResult.err != nil ||
-			cancelResult.result != reg.CancellationPublishFailed ||
-			second.Phase() != reg.AttemptPublishFailed {
+			cancelResult.result != ledger.CancellationPublishFailed ||
+			second.Phase() != ledger.AttemptPublishFailed {
 			t.Fatalf("queued cancellation = (%v, %+v, %q)", published.err, cancelResult, second.Phase())
 		}
 		close(committer.releaseFirst)
@@ -243,10 +244,10 @@ func TestQueuedPublicationCancellationDoesNotWaitForCommitSlot(t *testing.T) {
 			observation, err := second.Publish(ctx)
 			secondResult <- publicationResult{observation: observation, err: err}
 		}()
-		waitAttemptPhase(t, second, reg.AttemptPublishing)
+		waitAttemptPhase(t, second, ledger.AttemptPublishing)
 		cancel()
 		published := waitPublicationBeforeRelease(t, secondResult, committer.releaseFirst)
-		if published.err == nil || second.Phase() != reg.AttemptPublishFailed {
+		if published.err == nil || second.Phase() != ledger.AttemptPublishFailed {
 			t.Fatalf("context cancellation = (%v, %q)", published.err, second.Phase())
 		}
 		close(committer.releaseFirst)
@@ -264,7 +265,7 @@ func TestQueuedPublicationCancellationDoesNotWaitForCommitSlot(t *testing.T) {
 
 func TestProducerRestartRetirementRacingCancellationIsBenign(t *testing.T) {
 	for iteration := 0; iteration < 10; iteration++ {
-		committer := newArbitrationPublicationCommitter(reg.SampleLedgerState{})
+		committer := newArbitrationPublicationCommitter(ledger.SampleLedgerState{})
 		attempt, sampleLedger, source := sealedRuntimeAttemptForTest(t, committer)
 		start := make(chan struct{})
 		exportResult := make(chan error, 1)
@@ -284,8 +285,8 @@ func TestProducerRestartRetirementRacingCancellationIsBenign(t *testing.T) {
 			t.Fatalf("iteration %d ExportRestartState: %v", iteration, err)
 		}
 		cancelled := <-cancelResult
-		if cancelled.err != nil || cancelled.result != reg.CancellationCompleted ||
-			attempt.Phase() != reg.AttemptCancelled {
+		if cancelled.err != nil || cancelled.result != ledger.CancellationCompleted ||
+			attempt.Phase() != ledger.AttemptCancelled {
 			t.Fatalf("iteration %d Cancel=(%q, %v), phase=%q", iteration, cancelled.result, cancelled.err, attempt.Phase())
 		}
 		if snapshot := sampleLedger.Snapshot(); snapshot.RetainedAttempts != 0 ||

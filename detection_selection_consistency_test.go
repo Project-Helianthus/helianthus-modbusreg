@@ -7,9 +7,10 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
-func q27Decision(t *testing.T, outcome reg.DetectionOutcome) []byte {
+func q27Decision(t *testing.T, outcome detection.Outcome) []byte {
 	t.Helper()
 	alpha := detectionProfile(t, "fixture.alpha", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	beta := detectionProfile(t, "fixture.beta", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
@@ -17,41 +18,41 @@ func q27Decision(t *testing.T, outcome reg.DetectionOutcome) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidates := []reg.DetectionCandidate{detectionCandidate(t, beta, 20, outcome != reg.DetectionNoMatch, true)}
-	wantReason := reg.DetectionReasonSelected
+	candidates := []detection.Candidate{detectionCandidate(t, beta, 20, outcome != detection.NoMatch, true)}
+	wantReason := detection.ReasonSelected
 	wantID, wantVersion := "fixture.beta", "1.0.0"
-	if outcome == reg.DetectionAmbiguous {
+	if outcome == detection.Ambiguous {
 		candidates = append(candidates, detectionCandidate(t, alpha, 10, true, true))
-		wantReason = reg.DetectionReasonMultipleMatches
+		wantReason = detection.ReasonMultipleMatches
 	}
-	if outcome == reg.DetectionNoMatch {
-		wantReason = reg.DetectionReasonCandidateDisabled
+	if outcome == detection.NoMatch {
+		wantReason = detection.ReasonCandidateDisabled
 	}
-	if outcome != reg.DetectionMatched {
+	if outcome != detection.Matched {
 		wantID, wantVersion = "", ""
 	}
-	decision, err := newDetector(t, catalog, candidates...).Detect(context.Background(), detectionReader(t), reg.DetectionOptions{AllowFixtureOnly: true})
+	decision, err := newDetector(t, catalog, candidates...).Detect(context.Background(), detectionReader(t), detection.Options{AllowFixtureOnly: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if decision.Outcome() != outcome || decision.Reason() != wantReason || decision.SelectedProfileID() != wantID || decision.SelectedProfileVersion().String() != wantVersion {
 		t.Fatalf("unexpected baseline: %+v", decision)
 	}
-	if outcome == reg.DetectionAmbiguous {
+	if outcome == detection.Ambiguous {
 		evidence := decision.Evidence()
-		if len(evidence) != 2 || evidence[0].Score != 10 || evidence[1].Score != 20 || evidence[0].Reason != reg.DetectionReasonMultipleMatches || evidence[1].Reason != reg.DetectionReasonMultipleMatches {
+		if len(evidence) != 2 || evidence[0].Score != 10 || evidence[1].Score != 20 || evidence[0].Reason != detection.ReasonMultipleMatches || evidence[1].Reason != detection.ReasonMultipleMatches {
 			t.Fatalf("unequal-score overlap lost exclusive evidence: %+v", evidence)
 		}
 	}
-	encoded, err := reg.MarshalDetectionDecision(decision)
+	encoded, err := detection.MarshalDetectionDecision(decision)
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := reg.UnmarshalDetectionDecision(encoded)
+	restored, err := detection.UnmarshalDetectionDecision(encoded)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reencoded, err := reg.MarshalDetectionDecision(restored)
+	reencoded, err := detection.MarshalDetectionDecision(restored)
 	if err != nil || !bytes.Equal(encoded, reencoded) {
 		t.Fatalf("unmodified decision did not round-trip: %v", err)
 	}
@@ -73,13 +74,13 @@ func q27Reject(t *testing.T, data []byte, want string) {
 	}
 	// These errors originate in validateDetectionDecision, after strict decoding,
 	// version parsing, and canonical evidence ordering have succeeded.
-	if _, err := reg.UnmarshalDetectionDecision(data); err == nil || err.Error() != want {
+	if _, err := detection.UnmarshalDetectionDecision(data); err == nil || err.Error() != want {
 		t.Fatalf("decode error = %v; want semantic validator error %q", err, want)
 	}
 }
 
 func TestQ27MatchedSelectionConsistency(t *testing.T) {
-	baseline := q27Decision(t, reg.DetectionMatched)
+	baseline := q27Decision(t, detection.Matched)
 	for _, tc := range []struct{ name, old, replacement, want string }{
 		{"selected_profile_id", `"selected_profile_id":"fixture.beta"`, `"selected_profile_id":"fixture.alpha"`, "selected profile is absent from decision evidence"},
 		{"selected_profile_version", `"selected_profile_version":"1.0.0"`, `"selected_profile_version":"2.0.0"`, "selected profile is absent from decision evidence"},
@@ -105,7 +106,7 @@ func TestQ27MatchedSelectionConsistency(t *testing.T) {
 }
 
 func TestQ27NoMatchSelectionConsistency(t *testing.T) {
-	baseline := q27Decision(t, reg.DetectionNoMatch)
+	baseline := q27Decision(t, detection.NoMatch)
 	for _, field := range []struct{ name, value string }{
 		{"selected_profile_id", "fixture.beta"},
 		{"selected_profile_version", "1.0.0"},
@@ -117,7 +118,7 @@ func TestQ27NoMatchSelectionConsistency(t *testing.T) {
 }
 
 func TestQ27AmbiguousSelectionConsistency(t *testing.T) {
-	baseline := q27Decision(t, reg.DetectionAmbiguous)
+	baseline := q27Decision(t, detection.Ambiguous)
 	for _, tc := range []struct{ name, old, replacement, want string }{
 		{"selected_profile_id", `"selected_profile_id":""`, `"selected_profile_id":"fixture.beta"`, "ambiguous detection decision is inconsistent"},
 		{"selected_profile_version", `"selected_profile_version":""`, `"selected_profile_version":"1.0.0"`, "ambiguous detection decision is inconsistent"},

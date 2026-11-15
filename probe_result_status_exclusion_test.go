@@ -5,19 +5,19 @@ import (
 	"reflect"
 	"testing"
 
-	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
 func TestProbeResultStatusExclusionSuccess(t *testing.T) {
-	result, err := reg.NewProbeReadResult(reg.ProbeReadResultSpec{
-		Status:     reg.ProbeReadSucceeded,
+	result, err := detection.NewProbeReadResult(detection.ProbeReadResultSpec{
+		Status:     detection.ProbeReadSucceeded,
 		Words:      []uint16{0x1234},
 		EvidenceID: "synthetic-probe-result",
 	})
 	if err != nil {
 		t.Fatalf("one-word success rejected: %v", err)
 	}
-	if result.Status() != reg.ProbeReadSucceeded ||
+	if result.Status() != detection.ProbeReadSucceeded ||
 		!reflect.DeepEqual(result.Words(), []uint16{0x1234}) ||
 		result.ExceptionCode() != 0 {
 		t.Fatalf("success payload changed: %+v", result)
@@ -27,15 +27,15 @@ func TestProbeResultStatusExclusionSuccess(t *testing.T) {
 func TestProbeResultStatusExclusionExceptionCodes(t *testing.T) {
 	for code := 1; code <= 255; code++ {
 		t.Run(fmt.Sprintf("code_%03d", code), func(t *testing.T) {
-			result, err := reg.NewProbeReadResult(reg.ProbeReadResultSpec{
-				Status:        reg.ProbeReadException,
+			result, err := detection.NewProbeReadResult(detection.ProbeReadResultSpec{
+				Status:        detection.ProbeReadException,
 				EvidenceID:    "synthetic-probe-result",
 				ExceptionCode: uint8(code),
 			})
 			if err != nil {
 				t.Fatalf("exception code %d rejected: %v", code, err)
 			}
-			if result.Status() != reg.ProbeReadException ||
+			if result.Status() != detection.ProbeReadException ||
 				len(result.Words()) != 0 || result.ExceptionCode() != uint8(code) {
 				t.Fatalf("exception code %d payload changed: %+v", code, result)
 			}
@@ -46,37 +46,37 @@ func TestProbeResultStatusExclusionExceptionCodes(t *testing.T) {
 func TestProbeResultStatusExclusionContradictions(t *testing.T) {
 	tests := []struct {
 		name string
-		spec reg.ProbeReadResultSpec
+		spec detection.ProbeReadResultSpec
 	}{
 		{
 			name: "success_with_exception_code",
-			spec: reg.ProbeReadResultSpec{Status: reg.ProbeReadSucceeded, Words: []uint16{0x1234}, ExceptionCode: 1},
+			spec: detection.ProbeReadResultSpec{Status: detection.ProbeReadSucceeded, Words: []uint16{0x1234}, ExceptionCode: 1},
 		},
 		{
 			name: "exception_with_words",
-			spec: reg.ProbeReadResultSpec{Status: reg.ProbeReadException, Words: []uint16{0x1234}, ExceptionCode: 1},
+			spec: detection.ProbeReadResultSpec{Status: detection.ProbeReadException, Words: []uint16{0x1234}, ExceptionCode: 1},
 		},
 		{
 			name: "exception_with_zero_code",
-			spec: reg.ProbeReadResultSpec{Status: reg.ProbeReadException},
+			spec: detection.ProbeReadResultSpec{Status: detection.ProbeReadException},
 		},
 		{
 			name: "unknown_status",
-			spec: reg.ProbeReadResultSpec{Status: reg.ProbeReadStatus("unknown"), Words: []uint16{0x1234}},
+			spec: detection.ProbeReadResultSpec{Status: detection.ProbeReadStatus("unknown"), Words: []uint16{0x1234}},
 		},
 		{
 			name: "empty_success",
-			spec: reg.ProbeReadResultSpec{Status: reg.ProbeReadSucceeded},
+			spec: detection.ProbeReadResultSpec{Status: detection.ProbeReadSucceeded},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			test.spec.EvidenceID = "synthetic-probe-result"
-			result, err := reg.NewProbeReadResult(test.spec)
+			result, err := detection.NewProbeReadResult(test.spec)
 			if err == nil {
 				t.Error("contradictory result accepted")
 			}
-			if !reflect.DeepEqual(result, reg.ProbeReadResult{}) {
+			if !reflect.DeepEqual(result, detection.ProbeReadResult{}) {
 				t.Errorf("constructor error must return the zero result: %+v", result)
 			}
 		})

@@ -8,6 +8,7 @@ import (
 
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 	"github.com/Project-Helianthus/helianthus-modbusreg/growatt"
 )
 
@@ -61,13 +62,13 @@ func TestK21GrowattExactProfileNegativeAdmissionMatrix(t *testing.T) {
 				spec.ProfileID = id
 				spec.Manufacturer.Expected = "Growatt"
 				spec.Model.Expected = input.Profile.Family
-				candidate, err := reg.NewDetectionCandidate(spec, detectionLimits())
+				candidate, err := detection.NewCandidate(spec, detectionLimits())
 				if err != nil {
 					t.Fatal(err)
 				}
-				detector, err := reg.NewProfileDetector(reg.ProfileDetectorSpec{
+				detector, err := detection.NewProfileDetector(detection.ProfileDetectorSpec{
 					DetectorVersion: control.DetectorVersion(), Plan: detectionPlan(t),
-					Catalog: catalog, Candidates: []reg.DetectionCandidate{candidate}, Limits: detectionLimits(),
+					Catalog: catalog, Candidates: []detection.Candidate{candidate}, Limits: detectionLimits(),
 				})
 				if err == nil || detector != nil {
 					t.Fatalf("unregistered profile acquired a detector: id=%s detector=%v err=%v", id, detector, err)
@@ -97,8 +98,8 @@ func TestK21GrowattExactProfileNegativeAdmissionMatrix(t *testing.T) {
 			}
 			// Recheck selection after every rejection to catch poisoning of an
 			// independently eligible profile by the negative admission path.
-			decision, err := newDetector(t, catalog, detectionCandidate(t, control, 100, true, false)).Detect(context.Background(), detectionReader(t), reg.DetectionOptions{})
-			if err != nil || decision.Outcome() != reg.DetectionMatched || decision.SelectedProfileID() != control.ID() || decision.SelectedProfileVersion() != control.Version() {
+			decision, err := newDetector(t, catalog, detectionCandidate(t, control, 100, true, false)).Detect(context.Background(), detectionReader(t), detection.Options{})
+			if err != nil || decision.Outcome() != detection.Matched || decision.SelectedProfileID() != control.ID() || decision.SelectedProfileVersion() != control.Version() {
 				t.Fatalf("qualified control became unselectable: decision=%v err=%v", decision, err)
 			}
 		})

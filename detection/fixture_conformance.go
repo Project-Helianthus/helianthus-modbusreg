@@ -1,4 +1,4 @@
-package modbusreg
+package detection
 
 import (
 	"bytes"
@@ -10,6 +10,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
 // FixtureMutationReason is the closed construction/decoding rejection set.
@@ -45,11 +47,11 @@ type FixtureConformanceLimits struct {
 }
 
 func defaultFixtureConformanceLimits() FixtureConformanceLimits {
-	return FixtureConformanceLimits{MaxRecords: MaxProfileDependencies, MaxReportBytes: MaxSerializedContractBytes}
+	return FixtureConformanceLimits{MaxRecords: modbusreg.MaxProfileDependencies, MaxReportBytes: modbusreg.MaxSerializedContractBytes}
 }
 
 func validateFixtureConformanceLimits(limits FixtureConformanceLimits) error {
-	if limits.MaxRecords <= 0 || limits.MaxRecords > MaxProfileDependencies || limits.MaxReportBytes <= 0 || limits.MaxReportBytes > MaxSerializedContractBytes {
+	if limits.MaxRecords <= 0 || limits.MaxRecords > modbusreg.MaxProfileDependencies || limits.MaxReportBytes <= 0 || limits.MaxReportBytes > modbusreg.MaxSerializedContractBytes {
 		return fixtureMutationError{FixtureMutationReasonOversized}
 	}
 	return nil
@@ -65,10 +67,10 @@ type SanitizedFixtureMetadata struct {
 // FixtureDetectorDeclarationSpec is the serializable input used to rebuild an
 // existing ProfileDetector against the immutable corpus catalog.
 type FixtureDetectorDeclarationSpec struct {
-	DetectorVersion Version                  `json:"detector_version"`
-	Plan            ProbePlanSpec            `json:"plan"`
-	Candidates      []DetectionCandidateSpec `json:"candidates"`
-	Limits          DetectionLimits          `json:"limits"`
+	DetectorVersion modbusreg.Version `json:"detector_version"`
+	Plan            ProbePlanSpec     `json:"plan"`
+	Candidates      []CandidateSpec   `json:"candidates"`
+	Limits          Limits            `json:"limits"`
 }
 
 type FixtureProbeInput struct {
@@ -82,20 +84,20 @@ type FixtureDetectorInput struct {
 
 type FixtureDetectionEvidenceExpectation struct {
 	ProfileID            string               `json:"profile_id"`
-	ProfileVersion       Version              `json:"profile_version"`
+	ProfileVersion       modbusreg.Version    `json:"profile_version"`
 	Score                uint32               `json:"score"`
-	Reason               DetectionReason      `json:"reason"`
+	Reason               Reason               `json:"reason"`
 	MatchedGates         []ProbeIdentityField `json:"matched_gates"`
 	ProbeEvidenceIDs     []string             `json:"probe_evidence_ids"`
-	DetectorVersion      Version              `json:"detector_version"`
-	QualificationVersion Version              `json:"qualification_version"`
+	DetectorVersion      modbusreg.Version    `json:"detector_version"`
+	QualificationVersion modbusreg.Version    `json:"qualification_version"`
 }
 
 type FixtureDetectionExpectation struct {
-	Outcome                DetectionOutcome                      `json:"outcome"`
-	Reason                 DetectionReason                       `json:"reason"`
+	Outcome                Outcome                               `json:"outcome"`
+	Reason                 Reason                                `json:"reason"`
 	SelectedProfileID      string                                `json:"selected_profile_id"`
-	SelectedProfileVersion Version                               `json:"selected_profile_version"`
+	SelectedProfileVersion modbusreg.Version                     `json:"selected_profile_version"`
 	Evidence               []FixtureDetectionEvidenceExpectation `json:"evidence"`
 }
 
@@ -147,30 +149,30 @@ type FixtureReplayExpectation struct {
 type FixtureConformanceRecordSpec struct {
 	RecordID       string                          `json:"record_id"`
 	ProfileID      string                          `json:"profile_id"`
-	ProfileVersion Version                         `json:"profile_version"`
-	Observation    ObservationSpec                 `json:"observation"`
+	ProfileVersion modbusreg.Version               `json:"profile_version"`
+	Observation    modbusreg.ObservationSpec       `json:"observation"`
 	Detection      FixtureDetectionCaseSpec        `json:"detection"`
 	Qualification  FixtureQualificationExpectation `json:"qualification"`
 	ExpectedReplay FixtureReplayExpectation        `json:"expected_replay"`
 }
 
 type FixtureConformanceCorpusSpec struct {
-	SchemaVersion Version                        `json:"schema_version"`
+	SchemaVersion modbusreg.Version              `json:"schema_version"`
 	Metadata      SanitizedFixtureMetadata       `json:"metadata"`
-	Profiles      []ProfileDescriptor            `json:"profiles"`
+	Profiles      []modbusreg.ProfileDescriptor  `json:"profiles"`
 	Records       []FixtureConformanceRecordSpec `json:"records"`
 }
 
 type FixtureConformanceCorpus struct {
 	spec    FixtureConformanceCorpusSpec
-	catalog Catalog
+	catalog modbusreg.Catalog
 	limits  FixtureConformanceLimits
 }
 
 func cloneFixtureCorpusSpec(spec FixtureConformanceCorpusSpec) FixtureConformanceCorpusSpec {
-	spec.Profiles = append([]ProfileDescriptor(nil), spec.Profiles...)
+	spec.Profiles = append([]modbusreg.ProfileDescriptor(nil), spec.Profiles...)
 	for i := range spec.Profiles {
-		spec.Profiles[i], _ = NewProfileDescriptor(spec.Profiles[i].Spec())
+		spec.Profiles[i], _ = modbusreg.NewProfileDescriptor(spec.Profiles[i].Spec())
 	}
 	spec.Records = append([]FixtureConformanceRecordSpec(nil), spec.Records...)
 	for i := range spec.Records {
@@ -180,9 +182,9 @@ func cloneFixtureCorpusSpec(spec FixtureConformanceCorpusSpec) FixtureConformanc
 }
 
 func cloneFixtureRecordSpec(record FixtureConformanceRecordSpec) FixtureConformanceRecordSpec {
-	record.Observation = CloneObservationSpec(record.Observation)
+	record.Observation = modbusreg.CloneObservationSpec(record.Observation)
 	record.Detection.Declaration.Plan = cloneProbePlanSpec(record.Detection.Declaration.Plan)
-	record.Detection.Declaration.Candidates = append([]DetectionCandidateSpec(nil), record.Detection.Declaration.Candidates...)
+	record.Detection.Declaration.Candidates = append([]CandidateSpec(nil), record.Detection.Declaration.Candidates...)
 	record.Detection.Input.Probes = append([]FixtureProbeInput(nil), record.Detection.Input.Probes...)
 	for i := range record.Detection.Input.Probes {
 		record.Detection.Input.Probes[i].Result.Words = append([]uint16(nil), record.Detection.Input.Probes[i].Result.Words...)
@@ -205,16 +207,16 @@ func cloneWordSets(values [][]uint16) [][]uint16 {
 }
 
 func validFixtureIdentity(value string) bool {
-	return ValidIdentity(value) && (strings.HasPrefix(value, "fixture-") || strings.HasPrefix(value, "fixture:"))
+	return modbusreg.ValidIdentity(value) && (strings.HasPrefix(value, "fixture-") || strings.HasPrefix(value, "fixture:"))
 }
 
 func validateSanitizedMetadata(metadata SanitizedFixtureMetadata) error {
-	if ValidateBoundedString("fixture corpus ID", metadata.CorpusID, true) != nil ||
-		ValidateBoundedString("fixture license expression", metadata.LicenseExpression, true) != nil ||
-		ValidateBoundedString("fixture provenance", metadata.Provenance, true) != nil {
+	if modbusreg.ValidateBoundedString("fixture corpus ID", metadata.CorpusID, true) != nil ||
+		modbusreg.ValidateBoundedString("fixture license expression", metadata.LicenseExpression, true) != nil ||
+		modbusreg.ValidateBoundedString("fixture provenance", metadata.Provenance, true) != nil {
 		return fixtureMutationError{FixtureMutationReasonOversized}
 	}
-	if !ValidIdentity(metadata.CorpusID) || metadata.LicenseExpression != "CC0-1.0" || metadata.Provenance != "public synthetic fixture" {
+	if !modbusreg.ValidIdentity(metadata.CorpusID) || metadata.LicenseExpression != "CC0-1.0" || metadata.Provenance != "public synthetic fixture" {
 		return fixtureMutationError{FixtureMutationReasonUnsanitized}
 	}
 	return nil
@@ -244,30 +246,30 @@ func NewFixtureConformanceCorpusWithLimits(spec FixtureConformanceCorpusSpec, li
 	if err := validateFixtureConformanceLimits(limits); err != nil {
 		return nil, err
 	}
-	if err := PreflightAggregate(spec); err != nil {
+	if err := modbusreg.PreflightAggregate(spec); err != nil {
 		return nil, fixtureMutationError{FixtureMutationReasonOversized}
 	}
 	if len(spec.Profiles) > limits.MaxRecords || len(spec.Records) > limits.MaxRecords {
 		return nil, fixtureMutationError{FixtureMutationReasonOversized}
 	}
-	if spec.SchemaVersion != CurrentSchemaVersion() || len(spec.Profiles) == 0 || len(spec.Records) == 0 {
+	if spec.SchemaVersion != modbusreg.CurrentSchemaVersion() || len(spec.Profiles) == 0 || len(spec.Records) == 0 {
 		return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 	}
 	if err := validateSanitizedMetadata(spec.Metadata); err != nil {
 		return nil, err
 	}
-	catalog, err := NewCatalog(spec.Profiles...)
+	catalog, err := modbusreg.NewCatalog(spec.Profiles...)
 	if err != nil {
 		return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 	}
 	copy := cloneFixtureCorpusSpec(spec)
 	seen := make(map[string]struct{}, len(copy.Records))
-	profiles := make(map[string]ProfileDescriptor, len(copy.Profiles))
+	profiles := make(map[string]modbusreg.ProfileDescriptor, len(copy.Profiles))
 	for _, profile := range copy.Profiles {
 		profiles[profile.ID()] = profile
 	}
 	for _, record := range copy.Records {
-		if !ValidIdentity(record.RecordID) || !ValidIdentity(record.ProfileID) || !record.ProfileVersion.Valid() {
+		if !modbusreg.ValidIdentity(record.RecordID) || !modbusreg.ValidIdentity(record.ProfileID) || !record.ProfileVersion.Valid() {
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
 		if _, ok := seen[strings.ToLower(record.RecordID)]; ok {
@@ -290,7 +292,7 @@ func NewFixtureConformanceCorpusWithLimits(spec FixtureConformanceCorpusSpec, li
 	return &FixtureConformanceCorpus{spec: copy, catalog: catalog, limits: limits}, nil
 }
 
-func validateFixtureRecordDeclaration(catalog Catalog, profile ProfileDescriptor, record FixtureConformanceRecordSpec) error {
+func validateFixtureRecordDeclaration(catalog modbusreg.Catalog, profile modbusreg.ProfileDescriptor, record FixtureConformanceRecordSpec) error {
 	detector, err := newFixtureDetector(catalog, record.Detection.Declaration)
 	if err != nil {
 		return fixtureMutationError{FixtureMutationReasonMalformed}
@@ -302,17 +304,17 @@ func validateFixtureRecordDeclaration(catalog Catalog, profile ProfileDescriptor
 	if err != nil {
 		return fixtureMutationError{FixtureMutationReasonMalformed}
 	}
-	decision, err := detector.Detect(context.Background(), reader, DetectionOptions{})
+	decision, err := detector.Detect(context.Background(), reader, Options{})
 	if err != nil || !(FixtureDetectionResult{Actual: decision, expected: record.Detection.Expected}).MatchesExpected() {
 		return fixtureMutationError{FixtureMutationReasonContradictory}
 	}
 	switch record.Qualification.Expected {
 	case FixtureQualificationDispositionQualified:
-		if profile.Spec().Maturity != MaturityQualified || decision.Outcome() != DetectionMatched {
+		if profile.Spec().Maturity != modbusreg.MaturityQualified || decision.Outcome() != Matched {
 			return fixtureMutationError{FixtureMutationReasonContradictory}
 		}
 	case FixtureQualificationDispositionRejected:
-		if profile.Spec().Maturity == MaturityQualified || decision.Outcome() != DetectionNoMatch || decision.Reason() != DetectionReasonProfileUnqualified {
+		if profile.Spec().Maturity == modbusreg.MaturityQualified || decision.Outcome() != NoMatch || decision.Reason() != ReasonProfileUnqualified {
 			return fixtureMutationError{FixtureMutationReasonContradictory}
 		}
 	default:
@@ -331,14 +333,14 @@ func validateFixtureRecordDeclaration(catalog Catalog, profile ProfileDescriptor
 	return nil
 }
 
-func newFixtureDetector(catalog Catalog, declaration FixtureDetectorDeclarationSpec) (*ProfileDetector, error) {
+func newFixtureDetector(catalog modbusreg.Catalog, declaration FixtureDetectorDeclarationSpec) (*ProfileDetector, error) {
 	plan, err := NewProbePlan(declaration.Plan, declaration.Limits)
 	if err != nil {
 		return nil, err
 	}
-	candidates := make([]DetectionCandidate, len(declaration.Candidates))
+	candidates := make([]Candidate, len(declaration.Candidates))
 	for index, spec := range declaration.Candidates {
-		candidate, candidateErr := NewDetectionCandidate(spec, declaration.Limits)
+		candidate, candidateErr := NewCandidate(spec, declaration.Limits)
 		if candidateErr != nil {
 			return nil, candidateErr
 		}
@@ -399,7 +401,7 @@ func validateFixtureProbeSet(input FixtureDetectorInput, plan ProbePlanSpec) err
 	return nil
 }
 
-func classifyFixtureObservation(profile ProfileDescriptor, spec ObservationSpec) FixtureReplayReason {
+func classifyFixtureObservation(profile modbusreg.ProfileDescriptor, spec modbusreg.ObservationSpec) FixtureReplayReason {
 	if fixtureObservationAdmitted(profile, spec) {
 		return FixtureReplayReasonAccepted
 	}
@@ -411,7 +413,7 @@ func classifyFixtureObservation(profile ProfileDescriptor, spec ObservationSpec)
 	firstView := spec.Dependencies[0].View.Record()
 	for i, dependency := range spec.Dependencies {
 		view := dependency.View.Record()
-		if dependency.Status == DependencyReadTorn {
+		if dependency.Status == modbusreg.DependencyReadTorn {
 			return FixtureReplayReasonTornRead
 		}
 		if dependency.NormalizationVersion != declarations[i].Normalization().Spec().Version {
@@ -420,7 +422,7 @@ func classifyFixtureObservation(profile ProfileDescriptor, spec ObservationSpec)
 		if view.UnitID != spec.UnitID {
 			return FixtureReplayReasonUnitMismatch
 		}
-		if policy.Mode == CoherenceBoundedMultiResponse &&
+		if policy.Mode == modbusreg.CoherenceBoundedMultiResponse &&
 			(view.Endpoint != firstView.Endpoint ||
 				view.ConnectionID != firstView.ConnectionID ||
 				view.Transport != firstView.Transport ||
@@ -433,15 +435,15 @@ func classifyFixtureObservation(profile ProfileDescriptor, spec ObservationSpec)
 		if view.DeadlineIdentity != spec.Dependencies[0].View.Record().DeadlineIdentity {
 			return FixtureReplayReasonDeadlineMismatch
 		}
-		if view.Table != declarations[i].Table() || (view.Table == HoldingRegisters && view.RequestedFunction != FunctionReadHoldingRegisters) || (view.Table == InputRegisters && view.RequestedFunction != FunctionReadInputRegisters) || view.RequestedFunction != view.ReceivedFunction {
+		if view.Table != declarations[i].Table() || (view.Table == modbusreg.HoldingRegisters && view.RequestedFunction != modbusreg.FunctionReadHoldingRegisters) || (view.Table == modbusreg.InputRegisters && view.RequestedFunction != modbusreg.FunctionReadInputRegisters) || view.RequestedFunction != view.ReceivedFunction {
 			return FixtureReplayReasonTableAccessMismatch
 		}
-		if policy.Mode == CoherenceSingleWireResponse {
-			if dependency.SourceTime.State != SourceTimeUnavailableState || !dependency.SourceTime.Time.IsZero() {
+		if policy.Mode == modbusreg.CoherenceSingleWireResponse {
+			if dependency.SourceTime.State != modbusreg.SourceTimeUnavailableState || !dependency.SourceTime.Time.IsZero() {
 				return FixtureReplayReasonSourceMismatch
 			}
 		}
-		if policy.Mode == CoherenceBoundedMultiResponse &&
+		if policy.Mode == modbusreg.CoherenceBoundedMultiResponse &&
 			policy.DocumentaryConsistencyMarker != "" &&
 			dependency.DocumentaryConsistencyMarker != policy.DocumentaryConsistencyMarker {
 			return FixtureReplayReasonCoherenceMismatch
@@ -450,8 +452,8 @@ func classifyFixtureObservation(profile ProfileDescriptor, spec ObservationSpec)
 	return FixtureReplayReasonObservationRejected
 }
 
-func fixtureObservationAdmitted(profile ProfileDescriptor, spec ObservationSpec) bool {
-	encoded, err := MarshalFixtureSpec(spec)
+func fixtureObservationAdmitted(profile modbusreg.ProfileDescriptor, spec modbusreg.ObservationSpec) bool {
+	encoded, err := modbusreg.MarshalFixtureSpec(spec)
 	if err != nil {
 		return false
 	}
@@ -464,8 +466,8 @@ func fixtureObservationAdmitted(profile ProfileDescriptor, spec ObservationSpec)
 }
 
 func actualFixtureReplay(
-	profile ProfileDescriptor,
-	spec ObservationSpec,
+	profile modbusreg.ProfileDescriptor,
+	spec modbusreg.ObservationSpec,
 ) (FixtureReplayActual, error) {
 	reason := classifyFixtureObservation(profile, spec)
 	actual := FixtureReplayActual{
@@ -479,7 +481,7 @@ func actualFixtureReplay(
 	if reason != FixtureReplayReasonAccepted {
 		return actual, nil
 	}
-	encoded, err := MarshalFixtureSpec(spec)
+	encoded, err := modbusreg.MarshalFixtureSpec(spec)
 	if err != nil {
 		return FixtureReplayActual{}, err
 	}
@@ -553,7 +555,7 @@ func slicesEqual(first, second []uint16) bool {
 }
 
 type FixtureDetectionResult struct {
-	Actual   DetectionDecision
+	Actual   Decision
 	expected FixtureDetectionExpectation
 }
 
@@ -614,28 +616,28 @@ func (slice FixtureLogicalSlice) CanonicalBytes() []byte {
 // view, wire, and sample identities distinguish overlapping FC03/FC04 reads.
 type FixtureDependencyFact struct {
 	ordinal    uint32
-	function   FunctionCode
-	table      LogicalTable
+	function   modbusreg.FunctionCode
+	table      modbusreg.LogicalTable
 	unit       byte
 	normalized uint16
 	rawWords   []uint16
 	slice      FixtureLogicalSlice
-	source     SourceTimeSpec
+	source     modbusreg.SourceTimeSpec
 	wire       FixtureWireProvenance
 	logical    FixtureLogicalProvenance
 	sample     FixtureSampleProvenance
 }
 
-func (fact FixtureDependencyFact) Ordinal() uint32            { return fact.ordinal }
-func (fact FixtureDependencyFact) FunctionCode() FunctionCode { return fact.function }
-func (fact FixtureDependencyFact) Table() LogicalTable        { return fact.table }
-func (fact FixtureDependencyFact) UnitID() byte               { return fact.unit }
-func (fact FixtureDependencyFact) NormalizedAddress() uint16  { return fact.normalized }
-func (fact FixtureDependencyFact) RawWords() []uint16         { return append([]uint16(nil), fact.rawWords...) }
+func (fact FixtureDependencyFact) Ordinal() uint32                      { return fact.ordinal }
+func (fact FixtureDependencyFact) FunctionCode() modbusreg.FunctionCode { return fact.function }
+func (fact FixtureDependencyFact) Table() modbusreg.LogicalTable        { return fact.table }
+func (fact FixtureDependencyFact) UnitID() byte                         { return fact.unit }
+func (fact FixtureDependencyFact) NormalizedAddress() uint16            { return fact.normalized }
+func (fact FixtureDependencyFact) RawWords() []uint16                   { return append([]uint16(nil), fact.rawWords...) }
 func (fact FixtureDependencyFact) LogicalSlice() FixtureLogicalSlice {
 	return FixtureLogicalSlice{words: append([]uint16(nil), fact.slice.words...)}
 }
-func (fact FixtureDependencyFact) SourceTime() SourceTimeSpec            { return fact.source }
+func (fact FixtureDependencyFact) SourceTime() modbusreg.SourceTimeSpec  { return fact.source }
 func (fact FixtureDependencyFact) WireProvenance() FixtureWireProvenance { return fact.wire }
 func (fact FixtureDependencyFact) LogicalProvenance() FixtureLogicalProvenance {
 	return fact.logical
@@ -644,13 +646,13 @@ func (fact FixtureDependencyFact) SampleProvenance() FixtureSampleProvenance { r
 
 type FixtureConformanceRecord struct {
 	recordID, profileID string
-	profileVersion      Version
-	function            FunctionCode
-	table               LogicalTable
+	profileVersion      modbusreg.Version
+	function            modbusreg.FunctionCode
+	table               modbusreg.LogicalTable
 	unit                byte
 	normalized          uint16
 	rawWords            []uint16
-	source              SourceTimeSpec
+	source              modbusreg.SourceTimeSpec
 	wire                FixtureWireProvenance
 	logical             FixtureLogicalProvenance
 	sample              FixtureSampleProvenance
@@ -661,17 +663,19 @@ type FixtureConformanceRecord struct {
 	replay              FixtureReplayResult
 }
 
-func (record FixtureConformanceRecord) RecordID() string           { return record.recordID }
-func (record FixtureConformanceRecord) ProfileID() string          { return record.profileID }
-func (record FixtureConformanceRecord) ProfileVersion() Version    { return record.profileVersion }
-func (record FixtureConformanceRecord) FunctionCode() FunctionCode { return record.function }
-func (record FixtureConformanceRecord) Table() LogicalTable        { return record.table }
-func (record FixtureConformanceRecord) UnitID() byte               { return record.unit }
-func (record FixtureConformanceRecord) NormalizedAddress() uint16  { return record.normalized }
+func (record FixtureConformanceRecord) RecordID() string  { return record.recordID }
+func (record FixtureConformanceRecord) ProfileID() string { return record.profileID }
+func (record FixtureConformanceRecord) ProfileVersion() modbusreg.Version {
+	return record.profileVersion
+}
+func (record FixtureConformanceRecord) FunctionCode() modbusreg.FunctionCode { return record.function }
+func (record FixtureConformanceRecord) Table() modbusreg.LogicalTable        { return record.table }
+func (record FixtureConformanceRecord) UnitID() byte                         { return record.unit }
+func (record FixtureConformanceRecord) NormalizedAddress() uint16            { return record.normalized }
 func (record FixtureConformanceRecord) RawWords() []uint16 {
 	return append([]uint16(nil), record.rawWords...)
 }
-func (record FixtureConformanceRecord) SourceTime() SourceTimeSpec            { return record.source }
+func (record FixtureConformanceRecord) SourceTime() modbusreg.SourceTimeSpec  { return record.source }
 func (record FixtureConformanceRecord) WireProvenance() FixtureWireProvenance { return record.wire }
 func (record FixtureConformanceRecord) LogicalProvenance() FixtureLogicalProvenance {
 	return record.logical
@@ -726,7 +730,7 @@ func (corpus *FixtureConformanceCorpus) Replay() (FixtureConformanceReport, erro
 		return FixtureConformanceReport{}, fixtureMutationError{FixtureMutationReasonMalformed}
 	}
 	records := make([]FixtureConformanceRecord, len(corpus.spec.Records))
-	profiles := make(map[string]ProfileDescriptor, len(corpus.spec.Profiles))
+	profiles := make(map[string]modbusreg.ProfileDescriptor, len(corpus.spec.Profiles))
 	for _, profile := range corpus.spec.Profiles {
 		profiles[profile.ID()] = profile
 	}
@@ -741,7 +745,7 @@ func (corpus *FixtureConformanceCorpus) Replay() (FixtureConformanceReport, erro
 	return FixtureConformanceReport{metadata: corpus.spec.Metadata, records: records}, nil
 }
 
-func replayFixtureRecord(catalog Catalog, profile ProfileDescriptor, spec FixtureConformanceRecordSpec) (FixtureConformanceRecord, error) {
+func replayFixtureRecord(catalog modbusreg.Catalog, profile modbusreg.ProfileDescriptor, spec FixtureConformanceRecordSpec) (FixtureConformanceRecord, error) {
 	actual, err := actualFixtureReplay(profile, spec.Observation)
 	if err != nil {
 		return FixtureConformanceRecord{}, err
@@ -754,7 +758,7 @@ func replayFixtureRecord(catalog Catalog, profile ProfileDescriptor, spec Fixtur
 	if err != nil {
 		return FixtureConformanceRecord{}, err
 	}
-	decision, err := detector.Detect(context.Background(), reader, DetectionOptions{})
+	decision, err := detector.Detect(context.Background(), reader, Options{})
 	if err != nil {
 		return FixtureConformanceRecord{}, err
 	}
@@ -779,19 +783,19 @@ func replayFixtureRecord(catalog Catalog, profile ProfileDescriptor, spec Fixtur
 var ErrFixtureConformanceNondeterministic = errors.New("fixture conformance report is nondeterministic")
 
 type fixtureCorpusDTO struct {
-	SchemaVersion Version           `json:"schema_version"`
+	SchemaVersion modbusreg.Version `json:"schema_version"`
 	Metadata      json.RawMessage   `json:"metadata"`
 	Profiles      []json.RawMessage `json:"profiles"`
 	Records       []json.RawMessage `json:"records"`
 }
 type fixtureRecordDTO struct {
-	RecordID       string          `json:"record_id"`
-	ProfileID      string          `json:"profile_id"`
-	ProfileVersion Version         `json:"profile_version"`
-	Observation    json.RawMessage `json:"observation"`
-	Detection      json.RawMessage `json:"detection"`
-	Qualification  json.RawMessage `json:"qualification"`
-	ExpectedReplay json.RawMessage `json:"expected_replay"`
+	RecordID       string            `json:"record_id"`
+	ProfileID      string            `json:"profile_id"`
+	ProfileVersion modbusreg.Version `json:"profile_version"`
+	Observation    json.RawMessage   `json:"observation"`
+	Detection      json.RawMessage   `json:"detection"`
+	Qualification  json.RawMessage   `json:"qualification"`
+	ExpectedReplay json.RawMessage   `json:"expected_replay"`
 }
 
 func MarshalFixtureConformanceCorpusSpec(spec FixtureConformanceCorpusSpec) ([]byte, error) {
@@ -806,14 +810,14 @@ func MarshalFixtureConformanceCorpusSpec(spec FixtureConformanceCorpusSpec) ([]b
 	}
 	dto := fixtureCorpusDTO{SchemaVersion: spec.SchemaVersion, Metadata: metadata, Profiles: make([]json.RawMessage, len(spec.Profiles)), Records: make([]json.RawMessage, len(spec.Records))}
 	for i, profile := range spec.Profiles {
-		encoded, err := MarshalProfileDescriptor(profile)
+		encoded, err := modbusreg.MarshalProfileDescriptor(profile)
 		if err != nil {
 			return nil, err
 		}
 		dto.Profiles[i] = encoded
 	}
 	for i, record := range spec.Records {
-		encoded, err := MarshalFixtureSpec(record.Observation)
+		encoded, err := modbusreg.MarshalFixtureSpec(record.Observation)
 		if err != nil {
 			return nil, err
 		}
@@ -835,14 +839,14 @@ func MarshalFixtureConformanceCorpusSpec(spec FixtureConformanceCorpusSpec) ([]b
 		}
 		dto.Records[i] = recordBytes
 	}
-	return MarshalBounded(dto)
+	return modbusreg.MarshalBounded(dto)
 }
 
 func preflightFixtureCorpusJSON(data []byte) error {
 	if len(data) == 0 {
 		return fixtureMutationError{FixtureMutationReasonMalformed}
 	}
-	if len(data) > MaxSerializedContractBytes {
+	if len(data) > modbusreg.MaxSerializedContractBytes {
 		return fixtureMutationError{FixtureMutationReasonOversized}
 	}
 	fields, err := preflightFixtureObjectJSON(data, "schema_version", "metadata", "profiles", "records")
@@ -925,7 +929,7 @@ func preflightFixtureObjectJSONOptional(data []byte, optional []string, keys ...
 }
 
 func preflightFixtureArrayJSON(data []byte, element func([]byte) error) error {
-	return preflightFixtureArrayJSONWithLimit(data, MaxProfileDependencies, element)
+	return preflightFixtureArrayJSONWithLimit(data, modbusreg.MaxProfileDependencies, element)
 }
 
 func preflightFixtureArrayJSONWithLimit(data []byte, limit int, element func([]byte) error) error {
@@ -965,22 +969,22 @@ func UnmarshalFixtureConformanceCorpus(data []byte) (*FixtureConformanceCorpus, 
 	if err := json.Unmarshal(data, &dto); err != nil {
 		return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 	}
-	if err := PreflightAggregate(dto); err != nil {
+	if err := modbusreg.PreflightAggregate(dto); err != nil {
 		return nil, fixtureMutationError{FixtureMutationReasonOversized}
 	}
 	var metadata SanitizedFixtureMetadata
 	if err := json.Unmarshal(dto.Metadata, &metadata); err != nil {
 		return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 	}
-	if len(metadata.CorpusID) > MaxContractStringBytes || len(metadata.LicenseExpression) > MaxContractStringBytes || len(metadata.Provenance) > MaxContractStringBytes {
+	if len(metadata.CorpusID) > modbusreg.MaxContractStringBytes || len(metadata.LicenseExpression) > modbusreg.MaxContractStringBytes || len(metadata.Provenance) > modbusreg.MaxContractStringBytes {
 		return nil, fixtureMutationError{FixtureMutationReasonOversized}
 	}
-	if err := DecodeStrict(dto.Metadata, &metadata); err != nil {
+	if err := modbusreg.DecodeStrict(dto.Metadata, &metadata); err != nil {
 		return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 	}
-	spec := FixtureConformanceCorpusSpec{SchemaVersion: dto.SchemaVersion, Metadata: metadata, Profiles: make([]ProfileDescriptor, len(dto.Profiles)), Records: make([]FixtureConformanceRecordSpec, len(dto.Records))}
+	spec := FixtureConformanceCorpusSpec{SchemaVersion: dto.SchemaVersion, Metadata: metadata, Profiles: make([]modbusreg.ProfileDescriptor, len(dto.Profiles)), Records: make([]FixtureConformanceRecordSpec, len(dto.Records))}
 	for i, encoded := range dto.Profiles {
-		profile, err := UnmarshalProfileDescriptor(encoded)
+		profile, err := modbusreg.UnmarshalProfileDescriptor(encoded)
 		if err != nil {
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
@@ -994,20 +998,20 @@ func UnmarshalFixtureConformanceCorpus(data []byte) (*FixtureConformanceCorpus, 
 		if err := json.Unmarshal(encodedRecord, &record); err != nil {
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
-		var observation ObservationSpec
+		var observation modbusreg.ObservationSpec
 		if err := json.Unmarshal(record.Observation, &observation); err != nil {
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
 		var detection FixtureDetectionCaseSpec
-		if err := DecodeStrict(record.Detection, &detection); err != nil {
+		if err := modbusreg.DecodeStrict(record.Detection, &detection); err != nil {
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
 		var qualification FixtureQualificationExpectation
-		if err := DecodeStrict(record.Qualification, &qualification); err != nil {
+		if err := modbusreg.DecodeStrict(record.Qualification, &qualification); err != nil {
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
 		var expected FixtureReplayExpectation
-		if err := DecodeStrict(record.ExpectedReplay, &expected); err != nil {
+		if err := modbusreg.DecodeStrict(record.ExpectedReplay, &expected); err != nil {
 			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
 		}
 		spec.Records[i] = FixtureConformanceRecordSpec{RecordID: record.RecordID, ProfileID: record.ProfileID, ProfileVersion: record.ProfileVersion, Observation: observation, Detection: detection, Qualification: qualification, ExpectedReplay: expected}
@@ -1043,7 +1047,7 @@ func preflightFixtureExpectedReplayJSON(data []byte) error {
 		return nil
 	}
 	return preflightFixtureArrayJSON(rawWords, func(words []byte) error {
-		return preflightFixtureArrayJSONWithLimit(words, MaxRawWords, nil)
+		return preflightFixtureArrayJSONWithLimit(words, modbusreg.MaxRawWords, nil)
 	})
 }
 
@@ -1080,19 +1084,19 @@ func preflightFixtureDetectionEvidenceJSON(data []byte) error {
 }
 
 type fixtureReportDTO struct {
-	SchemaVersion Version                  `json:"schema_version"`
+	SchemaVersion modbusreg.Version        `json:"schema_version"`
 	Metadata      SanitizedFixtureMetadata `json:"metadata"`
 	Records       []fixtureReportRecordDTO `json:"records"`
 }
 type fixtureDependencyFactDTO struct {
 	Ordinal    uint32                   `json:"ordinal"`
-	Function   FunctionCode             `json:"function"`
-	Table      LogicalTable             `json:"table"`
+	Function   modbusreg.FunctionCode   `json:"function"`
+	Table      modbusreg.LogicalTable   `json:"table"`
 	UnitID     byte                     `json:"unit_id"`
 	Normalized uint16                   `json:"normalized_address"`
 	RawWords   []uint16                 `json:"raw_words"`
 	Logical    []uint16                 `json:"logical_slice"`
-	Source     SourceTimeSpec           `json:"source_time"`
+	Source     modbusreg.SourceTimeSpec `json:"source_time"`
 	Wire       FixtureWireProvenance    `json:"wire"`
 	View       FixtureLogicalProvenance `json:"logical"`
 	Sample     FixtureSampleProvenance  `json:"sample"`
@@ -1100,11 +1104,11 @@ type fixtureDependencyFactDTO struct {
 type fixtureReportRecordDTO struct {
 	RecordID       string                          `json:"record_id"`
 	ProfileID      string                          `json:"profile_id"`
-	ProfileVersion Version                         `json:"profile_version"`
+	ProfileVersion modbusreg.Version               `json:"profile_version"`
 	Outcome        FixtureReplayOutcome            `json:"outcome"`
 	Reason         FixtureReplayReason             `json:"reason"`
-	Function       FunctionCode                    `json:"function"`
-	Table          LogicalTable                    `json:"table"`
+	Function       modbusreg.FunctionCode          `json:"function"`
+	Table          modbusreg.LogicalTable          `json:"table"`
 	UnitID         byte                            `json:"unit_id"`
 	Normalized     uint16                          `json:"normalized_address"`
 	RawWords       [][]uint16                      `json:"raw_words,omitempty"`
@@ -1113,7 +1117,7 @@ type fixtureReportRecordDTO struct {
 	Wire           FixtureWireProvenance           `json:"wire"`
 	Logical        FixtureLogicalProvenance        `json:"logical"`
 	Sample         FixtureSampleProvenance         `json:"sample"`
-	Source         SourceTimeSpec                  `json:"source_time"`
+	Source         modbusreg.SourceTimeSpec        `json:"source_time"`
 	Qualification  FixtureQualificationDisposition `json:"qualification"`
 	Detection      detectionDecisionDTO            `json:"detection"`
 }
@@ -1123,7 +1127,7 @@ func (corpus *FixtureConformanceCorpus) MarshalBoundedReport() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	dto := fixtureReportDTO{SchemaVersion: CurrentSchemaVersion(), Metadata: report.metadata, Records: make([]fixtureReportRecordDTO, len(report.records))}
+	dto := fixtureReportDTO{SchemaVersion: modbusreg.CurrentSchemaVersion(), Metadata: report.metadata, Records: make([]fixtureReportRecordDTO, len(report.records))}
 	for i, record := range report.records {
 		slices := make([][]uint16, len(record.slices))
 		for index, slice := range record.slices {
@@ -1136,7 +1140,7 @@ func (corpus *FixtureConformanceCorpus) MarshalBoundedReport() ([]byte, error) {
 		}
 		dto.Records[i] = fixtureReportRecordDTO{RecordID: record.recordID, ProfileID: record.profileID, ProfileVersion: record.profileVersion, Outcome: record.replay.actual.outcome, Reason: record.replay.actual.reason, Function: record.function, Table: record.table, UnitID: record.unit, Normalized: record.normalized, RawWords: cloneWordSets(record.replay.actual.rawWords), LogicalSlices: slices, Dependencies: dependencies, Wire: record.wire, Logical: record.logical, Sample: record.sample, Source: record.source, Qualification: record.qualification, Detection: decision}
 	}
-	encoded, err := MarshalBounded(dto)
+	encoded, err := modbusreg.MarshalBounded(dto)
 	if err != nil {
 		return nil, err
 	}

@@ -5,15 +5,16 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 )
 
 func TestU23ProbePlanAggregateWordBoundary(t *testing.T) {
-	spec := reg.ProbePlanSpec{
+	spec := detection.ProbePlanSpec{
 		Version: reg.MustParseVersion("1.0.0"),
-		Declarations: []reg.ProbeDeclarationSpec{
-			{ID: "u23-manufacturer", Function: reg.ProbeReadHoldingRegisters, Address: 100, WordCount: 2, IdentityField: reg.ProbeIdentityManufacturer, Encoding: reg.ProbeIdentityASCII},
-			{ID: "u23-model", Function: reg.ProbeReadHoldingRegisters, Address: 110, WordCount: 3, IdentityField: reg.ProbeIdentityModel, Encoding: reg.ProbeIdentityASCII},
-			{ID: "u23-firmware", Function: reg.ProbeReadHoldingRegisters, Address: 120, WordCount: 4, IdentityField: reg.ProbeIdentityFirmware, Encoding: reg.ProbeIdentityASCII},
+		Declarations: []detection.ProbeDeclarationSpec{
+			{ID: "u23-manufacturer", Function: detection.ProbeReadHoldingRegisters, Address: 100, WordCount: 2, IdentityField: detection.ProbeIdentityManufacturer, Encoding: detection.ProbeIdentityASCII},
+			{ID: "u23-model", Function: detection.ProbeReadHoldingRegisters, Address: 110, WordCount: 3, IdentityField: detection.ProbeIdentityModel, Encoding: detection.ProbeIdentityASCII},
+			{ID: "u23-firmware", Function: detection.ProbeReadHoldingRegisters, Address: 120, WordCount: 4, IdentityField: detection.ProbeIdentityFirmware, Encoding: detection.ProbeIdentityASCII},
 		},
 	}
 	for _, tc := range []struct {
@@ -25,9 +26,9 @@ func TestU23ProbePlanAggregateWordBoundary(t *testing.T) {
 		{name: "third_declaration_crosses_eight", limit: 8, wantErr: "probe plan exceeds the aggregate word bound"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			limits := reg.DefaultDetectionLimits()
+			limits := detection.DefaultDetectionLimits()
 			limits.MaxTotalWords = tc.limit
-			plan, err := reg.NewProbePlan(spec, limits)
+			plan, err := detection.NewProbePlan(spec, limits)
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Fatalf("NewProbePlan aggregate limit %d: error = %v, want %q", tc.limit, err, tc.wantErr)
@@ -54,13 +55,13 @@ func TestU23ProbePlanLastAddressBoundary(t *testing.T) {
 		{name: "forged_start_ends_at_65536", address: 65535, wantErr: "probe declaration range overflows"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			spec := reg.ProbePlanSpec{
+			spec := detection.ProbePlanSpec{
 				Version: reg.MustParseVersion("1.0.0"),
-				Declarations: []reg.ProbeDeclarationSpec{
-					{ID: "u23-last-address", Function: reg.ProbeReadInputRegisters, Address: tc.address, WordCount: 2, IdentityField: reg.ProbeIdentityManufacturer, Encoding: reg.ProbeIdentityASCII},
+				Declarations: []detection.ProbeDeclarationSpec{
+					{ID: "u23-last-address", Function: detection.ProbeReadInputRegisters, Address: tc.address, WordCount: 2, IdentityField: detection.ProbeIdentityManufacturer, Encoding: detection.ProbeIdentityASCII},
 				},
 			}
-			plan, err := reg.NewProbePlan(spec, reg.DefaultDetectionLimits())
+			plan, err := detection.NewProbePlan(spec, detection.DefaultDetectionLimits())
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Fatalf("NewProbePlan start %d, width 2: error = %v, want %q", tc.address, err, tc.wantErr)

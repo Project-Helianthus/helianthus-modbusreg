@@ -1,9 +1,11 @@
-package modbusreg
+package detection
 
 import (
 	"context"
 	"reflect"
 	"testing"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
 // Word-count overflow uses the internal seam: a locally valid plan cannot
@@ -58,29 +60,29 @@ func TestU25DetectRevalidatesEvidenceID(t *testing.T) {
 				u25Result(t, []uint16{0x4344, 0, 0}, ids[1]),
 				u25Result(t, []uint16{0x312e, 0x302e, 0x3000}, ids[2]),
 			}}
-			decision, err := detector.Detect(context.Background(), reader, DetectionOptions{})
+			decision, err := detector.Detect(context.Background(), reader, Options{})
 			if err != nil {
 				t.Fatal(err)
 			}
 			order := []string{"manufacturer", "family", "firmware"}
 			if tc.excessiveIndex >= 0 {
 				order = order[:tc.excessiveIndex+1]
-				if decision.Outcome() != DetectionNoMatch || decision.Reason() != DetectionReasonInvalidProbeResult ||
-					decision.SelectedProfileID() != "" || decision.SelectedProfileVersion() != (Version{}) {
+				if decision.Outcome() != NoMatch || decision.Reason() != ReasonInvalidProbeResult ||
+					decision.SelectedProfileID() != "" || decision.SelectedProfileVersion() != (modbusreg.Version{}) {
 					t.Fatalf("excessive result: outcome=%s reason=%s selected=%q version=%v", decision.Outcome(), decision.Reason(), decision.SelectedProfileID(), decision.SelectedProfileVersion())
 				}
 				for _, evidence := range decision.Evidence() {
-					if evidence.Reason != DetectionReasonInvalidProbeResult || len(evidence.MatchedGates) != 0 || len(evidence.ProbeEvidenceIDs) != 0 {
+					if evidence.Reason != ReasonInvalidProbeResult || len(evidence.MatchedGates) != 0 || len(evidence.ProbeEvidenceIDs) != 0 {
 						t.Fatalf("excessive result reached candidate evaluation: %+v", evidence)
 					}
 				}
 			} else {
-				if decision.Outcome() != DetectionMatched || decision.Reason() != DetectionReasonSelected ||
+				if decision.Outcome() != Matched || decision.Reason() != ReasonSelected ||
 					decision.SelectedProfileID() != profile.ID() || decision.SelectedProfileVersion() != profile.Version() {
 					t.Fatalf("bounded result: outcome=%s reason=%s selected=%q", decision.Outcome(), decision.Reason(), decision.SelectedProfileID())
 				}
 				evidence := decision.Evidence()
-				if len(evidence) != 1 || evidence[0].Reason != DetectionReasonSelected ||
+				if len(evidence) != 1 || evidence[0].Reason != ReasonSelected ||
 					!reflect.DeepEqual(evidence[0].ProbeEvidenceIDs, ids) ||
 					!reflect.DeepEqual(evidence[0].MatchedGates, []ProbeIdentityField{ProbeIdentityManufacturer, ProbeIdentityModel, ProbeIdentityFirmware}) {
 					t.Fatalf("bounded result provenance = %+v", evidence)
@@ -125,52 +127,52 @@ func u25Result(t *testing.T, words []uint16, id string) ProbeReadResult {
 	return result
 }
 
-func u25Detector(t *testing.T, limits DetectionLimits) (*ProfileDetector, ProfileDescriptor) {
+func u25Detector(t *testing.T, limits Limits) (*ProfileDetector, modbusreg.ProfileDescriptor) {
 	t.Helper()
-	v := MustParseVersion("1.0.0")
-	codec, err := NewCodec(CodecSpec{
+	v := modbusreg.MustParseVersion("1.0.0")
+	codec, err := modbusreg.NewCodec(modbusreg.CodecSpec{
 		ID: "u25-word", Version: v, RawWordCount: 1, WordPermutation: []uint16{0},
-		IntraWordByteOrder: ByteOrderModbus, Representation: RepresentationUnsignedInteger,
-		Scale:  ScaleSpec{Source: ScaleConstant, ApplicationOrder: ScaleAfterRepresentation, Numerator: 1, Denominator: 1},
-		String: StringSpec{Applicability: StringNotApplicable}, OutputProfileType: "integer", ValidityBehavior: ValidityRejectSentinel,
+		IntraWordByteOrder: modbusreg.ByteOrderModbus, Representation: modbusreg.RepresentationUnsignedInteger,
+		Scale:  modbusreg.ScaleSpec{Source: modbusreg.ScaleConstant, ApplicationOrder: modbusreg.ScaleAfterRepresentation, Numerator: 1, Denominator: 1},
+		String: modbusreg.StringSpec{Applicability: modbusreg.StringNotApplicable}, OutputProfileType: "integer", ValidityBehavior: modbusreg.ValidityRejectSentinel,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	dependency, err := NewDependency(DependencySpec{
-		ID: "u25-value", Version: v, Table: InputRegisters, WordCount: 1, CodecID: codec.ID(), CodecVersion: v,
-		Normalization:  AddressNormalizationSpec{Version: v, SourceLocator: "https://example.com/synthetic/probe-local-limit-map", DocumentaryNotation: "zero-based register", DocumentaryBase: AddressBaseZeroBased, AddressSpaceLabel: "input_registers", DocumentaryAddress: 1, Transformation: TransformIdentity, ResolvedPDUOffset: 1},
+	dependency, err := modbusreg.NewDependency(modbusreg.DependencySpec{
+		ID: "u25-value", Version: v, Table: modbusreg.InputRegisters, WordCount: 1, CodecID: codec.ID(), CodecVersion: v,
+		Normalization:  modbusreg.AddressNormalizationSpec{Version: v, SourceLocator: "https://example.com/synthetic/probe-local-limit-map", DocumentaryNotation: "zero-based register", DocumentaryBase: modbusreg.AddressBaseZeroBased, AddressSpaceLabel: "input_registers", DocumentaryAddress: 1, Transformation: modbusreg.TransformIdentity, ResolvedPDUOffset: 1},
 		CoherenceGroup: "sample", EvidenceReferences: []string{"u25-evidence"}, ApplicabilityRefs: []string{"synthetic-family"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	dependencies, err := NewDependencySet(v, []Dependency{dependency})
+	dependencies, err := modbusreg.NewDependencySet(v, []modbusreg.Dependency{dependency})
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := NewProfileDescriptor(ProfileDescriptorSpec{
-		SchemaVersion: v, ID: "example.standard.u25", Version: v, Kind: ProfileStandardFamily,
+	profile, err := modbusreg.NewProfileDescriptor(modbusreg.ProfileDescriptorSpec{
+		SchemaVersion: v, ID: "example.standard.u25", Version: v, Kind: modbusreg.ProfileStandardFamily,
 		StandardApplicability:  []string{"synthetic-family"},
 		ModelApplicability:     []string{},
 		KnownExclusions:        []string{},
 		RuntimeContractVersion: v, DetectorVersion: v, CodecContractVersion: v, NormalizationVersion: v, CoherenceVersion: v, QualificationVersion: v,
-		Codecs: []Codec{codec}, Dependencies: dependencies,
-		Coherence: CoherencePolicySpec{Version: v, Mode: CoherenceSingleWireResponse, AcquisitionOrder: AcquisitionOrderNotApplicable, RetrySetBehavior: RetrySetNotApplicable},
-		Evidence:  []EvidenceReference{{ID: "u25-evidence", PublicationDisposition: PublicationMetadataOnly}},
-		Maturity:  MaturityQualified, State: ProfileActive, DefaultEnabled: true,
+		Codecs: []modbusreg.Codec{codec}, Dependencies: dependencies,
+		Coherence: modbusreg.CoherencePolicySpec{Version: v, Mode: modbusreg.CoherenceSingleWireResponse, AcquisitionOrder: modbusreg.AcquisitionOrderNotApplicable, RetrySetBehavior: modbusreg.RetrySetNotApplicable},
+		Evidence:  []modbusreg.EvidenceReference{{ID: "u25-evidence", PublicationDisposition: modbusreg.PublicationMetadataOnly}},
+		Maturity:  modbusreg.MaturityQualified, State: modbusreg.ProfileActive, DefaultEnabled: true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := NewCatalog(profile)
+	catalog, err := modbusreg.NewCatalog(profile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidate, err := NewDetectionCandidate(DetectionCandidateSpec{
+	candidate, err := NewCandidate(CandidateSpec{
 		ProfileID: profile.ID(), ProfileVersion: v, Score: 1, Enabled: true,
 		Manufacturer: IdentityStringGateSpec{Expected: "AB"}, Model: IdentityStringGateSpec{Expected: "CD"},
-		Firmware: FirmwareGateSpec{MinimumInclusive: v, MaximumExclusive: MustParseVersion("2.0.0")},
+		Firmware: FirmwareGateSpec{MinimumInclusive: v, MaximumExclusive: modbusreg.MustParseVersion("2.0.0")},
 	}, limits)
 	if err != nil {
 		t.Fatal(err)
@@ -183,7 +185,7 @@ func u25Detector(t *testing.T, limits DetectionLimits) (*ProfileDetector, Profil
 	if err != nil {
 		t.Fatal(err)
 	}
-	detector, err := NewProfileDetector(ProfileDetectorSpec{DetectorVersion: v, Plan: plan, Catalog: catalog, Candidates: []DetectionCandidate{candidate}, Limits: limits})
+	detector, err := NewProfileDetector(ProfileDetectorSpec{DetectorVersion: v, Plan: plan, Catalog: catalog, Candidates: []Candidate{candidate}, Limits: limits})
 	if err != nil {
 		t.Fatal(err)
 	}
