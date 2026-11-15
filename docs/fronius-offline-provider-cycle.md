@@ -16,27 +16,27 @@ hold; this link does not assert that the companion is already published.
 
 ## Local API
 
-`FroniusOfflineProvider` has a usable zero value and must not be copied after
-use. It contains one `FroniusRetainedCommit`, with no second store or parser.
+`OfflineProvider` has a usable zero value and must not be copied after
+use. It contains one `RetainedCommit`, with no second store or parser.
 
 `Run(ctx, registry, request, reader) error` synchronously runs one attempt.
-`FroniusOfflineRequest` contains `Key FroniusRetainedKey`, `PollGeneration` and
+`OfflineRequest` contains `Key RetainedKey`, `PollGeneration` and
 `DeadlineIdentity` (`uint64`), and `MaxWords`, `MaxOccurrences` and
 `MaxSourceViews` (`uint32`). The context must have a future finite deadline.
 The bounds must be positive and no greater than the existing card limits:
 512 words, 64 occurrences and 512 source views. A smaller bound is permitted
 and rejects a larger result. These are input/work limits, not read authority.
 
-`FroniusOfflineReader` has signature
-`func(context.Context, FroniusOfflineReadRequest) (FroniusOfflineReadResult, error)`.
-It receives the original context, one `Attempt FroniusRetainedAttempt`, and
+`OfflineReader` has signature
+`func(context.Context, OfflineReadRequest) (OfflineReadResult, error)`.
+It receives the original context, one `Attempt RetainedAttempt`, and
 the three caller bounds. It is invoked exactly once for valid input and must
 cooperate with cancellation and the finite bounds. It supplies an existing
 `SunSpecQualificationObservation` from offline native records; it performs
 no live I/O. The provider starts no goroutine, retry or timeout worker and
 cannot forcibly stop a callback that ignores its context.
 
-`FroniusOfflineReadResult` contains `Attempt FroniusRetainedAttempt` and
+`OfflineReadResult` contains `Attempt RetainedAttempt` and
 `Observation SunSpecQualificationObservation`. The callback must echo the
 attempt exactly, including its opaque token and original deadline. An error
 discards even a valid returned observation; caller error text is not retained.
@@ -44,9 +44,9 @@ The post-reader context fence wraps the caller context error for `errors.Is`.
 Inputs and returned observations must remain immutable during `Run`. Retained
 results and subsequent views are detached from caller slices.
 
-`Cancel(token FroniusRetainedToken) error` delegates to the retained owner.
+`Cancel(token RetainedToken) error` delegates to the retained owner.
 The callback's supplied attempt exposes the token to a caller coordinating
-cancellation. `View() FroniusRetainedView` delegates to the owner's detached,
+cancellation. `View() RetainedView` delegates to the owner's detached,
 atomic envelope/latest-attempt view. There is no global provider interface.
 
 ## Identity and transitions
@@ -94,7 +94,7 @@ is outside this slice. Existing eBUS MCP behavior is untouched. Later bindings
 must preserve MCP/GraphQL parity and explicit projection loss; eeBUS output
 remains driver-owned. No runtime or hardware acceptance is established here.
 
-Focused command: `go test . -run '^TestFroniusOfflineProvider' -count=1`.
+Focused command: `go test ./fronius -run '^TestFroniusOfflineProvider' -count=1`.
 Documentation acceptance is manual source, claim, transition, loss-state,
 example and public-link review. Companion reconciliation, independent review
 and full committed-head gates remain required before merge.

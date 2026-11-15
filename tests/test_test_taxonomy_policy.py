@@ -7,8 +7,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_FILES = (
-    "outback_axs_flavor_contract_test.go",
-    "outback_axs_sunspec_observation_test.go",
+    "outback/outback_axs_flavor_contract_test.go",
+    "outback/outback_axs_sunspec_observation_test.go",
     "profile_codec_contract_test.go",
     "profile_coherence_contract_test.go",
     "registry_chronology_contract_test.go",
@@ -25,6 +25,7 @@ class TestTaxonomyPolicy(unittest.TestCase):
             )
             for name in REQUIRED_FILES:
                 if name != missing:
+                    (root / name).parent.mkdir(parents=True, exist_ok=True)
                     (root / name).write_text("package modbusreg\n", encoding="utf-8")
             if missing != REQUIRED_FILES[-1]:
                 (root / REQUIRED_FILES[-1]).write_text(

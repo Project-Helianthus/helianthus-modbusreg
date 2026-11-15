@@ -799,452 +799,452 @@
       "category": "test"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "I25Cancel",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "I25FroniusAdapter",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "I25FroniusLifetime",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "I25FroniusProvider",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "I25FroniusView",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "I25Lifetime",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "I25Native",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "I25NewFroniusAdapter",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "I25Retire",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "I25Retired",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "I25Run",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "I25View",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Card",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Check",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Ctx",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Err",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25FroniusIdentity",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Identity",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Lifetime",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25MaxOccurrences",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25MaxSourceViews",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25MaxWords",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Mu",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Native",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25P",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Present",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Read",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Reader",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Registry",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Request",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Retired",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25Token",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port.go",
+      "path": "fronius/fronius_provider_port.go",
       "symbol": "i25View",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "TestI25Identity",
       "category": "test"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "TestI25KeyFences",
       "category": "test"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "TestI25Lifecycle",
       "category": "test"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "TestI25RefreshAndDetachment",
       "category": "test"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "TestI25Refusals",
       "category": "test"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "TestI25ReplacementAndNativeRevision",
       "category": "test"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25A",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Attempt",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Axes",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Axis",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25BeforeRetire",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Block",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25C",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Callback",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Calls",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Cancel",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Candidate",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Card",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Change",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Context",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Ctx",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Deadline",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Definition",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Done",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Entered",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Err",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Expected",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Got",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Index",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Interface",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Key",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Life",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Mode",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Name",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25New",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25O",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Observation",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Original",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25P",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Pending",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Port",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25R",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Read",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25ReadErr",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Reader",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25ReaderValue",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Registry",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Release",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Req",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Request",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25RequestValue",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25S",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Snapshot",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25T",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25View",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25W",
       "category": "identifier"
     },
     {
-      "path": "fronius_provider_port_test.go",
+      "path": "fronius/fronius_provider_port_test.go",
       "symbol": "i25Winner",
       "category": "identifier"
     },
@@ -6044,362 +6044,362 @@
       "category": "filename"
     },
     {
-      "path": "outback_axs_sunspec.go",
-      "symbol": "OutBackAXSApplicationNoteRev5InterfaceCandidateWords",
+      "path": "outback/outback_axs_sunspec.go",
+      "symbol": "AXSApplicationNoteRev5InterfaceCandidateWords",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "ErrI27OutBackBusy",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "I27Cycle",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "I27MaxBytes",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "I27MaxWork",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "I27NewOutBackAdapter",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "I27OutBackAdapter",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "I27OutBackConfig",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "I27OutBackProvider",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "I27Replace",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "I27Retire",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "I27Snapshot",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "I27Source",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "I27Supplier",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "i27Config",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "i27Ctx",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "i27Current",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "i27CycleMu",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "i27Err",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "i27Generation",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "i27Mu",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "i27Native",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "i27P",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "i27ReceivedAt",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "i27Snapshot",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port.go",
+      "path": "outback/outback_provider_port.go",
       "symbol": "i27Source",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "TestI27AssociationAxes",
       "category": "test"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "TestI27CallbackFences",
       "category": "test"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "TestI27Detachment",
       "category": "test"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "TestI27Refusals",
       "category": "test"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "TestI27RetentionAndReplacement",
       "category": "test"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27After",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Attempt",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Before",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27C",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Calls",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Cancel",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Change",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Changes",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Config",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Ctx",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Current",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Denied",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Done",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Entered",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Err",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Event",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Expected",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27ExpectedStatus",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Failure",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Got",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Input",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27InputValue",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Kind",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Name",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Nil",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27OK",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27P",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Partial",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Provider",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Record",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Release",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Replacement",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27S",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Source",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Status",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Supplier",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27T",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Value",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Views",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Want",
       "category": "identifier"
     },
     {
-      "path": "outback_provider_port_test.go",
+      "path": "outback/outback_provider_port_test.go",
       "symbol": "i27Zero",
       "category": "identifier"
     },
@@ -8019,157 +8019,157 @@
       "category": "test"
     },
     {
-      "path": "sunspec_fronius.go",
-      "symbol": "FroniusEvaluateObservedFlavorV11",
+      "path": "fronius/sunspec_fronius.go",
+      "symbol": "EvaluateObservedFlavorV11",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius.go",
-      "symbol": "FroniusEvaluateObservedFlavorV12",
+      "path": "fronius/sunspec_fronius.go",
+      "symbol": "EvaluateObservedFlavorV12",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius.go",
+      "path": "fronius/sunspec_fronius.go",
       "symbol": "SunSpecFroniusObservedFlavorV11ID",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius.go",
+      "path": "fronius/sunspec_fronius.go",
       "symbol": "SunSpecFroniusObservedFlavorV12ID",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius.go",
+      "path": "fronius/sunspec_fronius.go",
       "symbol": "froniusObservedChainV1",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius.go",
+      "path": "fronius/sunspec_fronius.go",
       "symbol": "froniusObservedChainV11",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius.go",
+      "path": "fronius/sunspec_fronius.go",
       "symbol": "froniusObservedChainV12",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius.go",
+      "path": "fronius/sunspec_fronius.go",
       "symbol": "froniusObservedFlavorV1",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius.go",
+      "path": "fronius/sunspec_fronius.go",
       "symbol": "froniusObservedFlavorV11",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius.go",
+      "path": "fronius/sunspec_fronius.go",
       "symbol": "froniusObservedFlavorV12",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius_audit_test.go",
+      "path": "fronius/sunspec_fronius_audit_test.go",
       "symbol": "readFroniusV11Fixture",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius_flavor_v12_test.go",
+      "path": "fronius/sunspec_fronius_flavor_v12_test.go",
       "symbol": "TestFroniusObservedFlavorV12AdmitsTheCurrentExactTuple",
       "category": "test"
     },
     {
-      "path": "sunspec_fronius_flavor_v12_test.go",
+      "path": "fronius/sunspec_fronius_flavor_v12_test.go",
       "symbol": "TestFroniusObservedFlavorV12FixtureIsExactAndNonActionable",
       "category": "test"
     },
     {
-      "path": "sunspec_fronius_flavor_v12_test.go",
+      "path": "fronius/sunspec_fronius_flavor_v12_test.go",
       "symbol": "TestFroniusObservedFlavorV12IgnoresOptionsSerialAndDeviceAddress",
       "category": "test"
     },
     {
-      "path": "sunspec_fronius_flavor_v12_test.go",
+      "path": "fronius/sunspec_fronius_flavor_v12_test.go",
       "symbol": "TestFroniusObservedFlavorV12VariesEveryIdentityField",
       "category": "test"
     },
     {
-      "path": "sunspec_fronius_flavor_v12_test.go",
+      "path": "fronius/sunspec_fronius_flavor_v12_test.go",
       "symbol": "TestFroniusQualificationCardRemainsBoundToV11ForTheCurrentTuple",
       "category": "test"
     },
     {
-      "path": "sunspec_fronius_flavor_v12_test.go",
+      "path": "fronius/sunspec_fronius_flavor_v12_test.go",
       "symbol": "TestSunSpecQualificationObservationAdmitsAndSerializesV12",
       "category": "test"
     },
     {
-      "path": "sunspec_fronius_flavor_v12_test.go",
+      "path": "fronius/sunspec_fronius_flavor_v12_test.go",
       "symbol": "froniusObservedSnapshotV12",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius_flavor_v12_test.go",
+      "path": "fronius/sunspec_fronius_flavor_v12_test.go",
       "symbol": "froniusTestFirmwareV1",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius_flavor_v12_test.go",
+      "path": "fronius/sunspec_fronius_flavor_v12_test.go",
       "symbol": "froniusTestFirmwareV12",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius_flavor_v12_test.go",
+      "path": "fronius/sunspec_fronius_flavor_v12_test.go",
       "symbol": "sunspec_fronius_flavor_v12_test.go",
       "category": "filename"
     },
     {
-      "path": "sunspec_fronius_qualification_card.go",
+      "path": "fronius/sunspec_fronius_qualification_card.go",
       "symbol": "sunSpecFroniusQualificationResultV1",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius_test.go",
+      "path": "fronius/sunspec_fronius_test.go",
       "symbol": "TestFroniusFlavorDecisionZeroValuePreservesV1Identity",
       "category": "test"
     },
     {
-      "path": "sunspec_fronius_test.go",
+      "path": "fronius/sunspec_fronius_test.go",
       "symbol": "TestFroniusObservedFlavorV11FixtureIsExactAndNonActionable",
       "category": "test"
     },
     {
-      "path": "sunspec_fronius_test.go",
+      "path": "fronius/sunspec_fronius_test.go",
       "symbol": "TestFroniusObservedFlavorV11MatchesOnlyTheModel123Chain",
       "category": "test"
     },
     {
-      "path": "sunspec_fronius_test.go",
+      "path": "fronius/sunspec_fronius_test.go",
       "symbol": "froniusObservedSnapshotV11",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius_test.go",
+      "path": "fronius/sunspec_fronius_test.go",
       "symbol": "v1",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius_test.go",
+      "path": "fronius/sunspec_fronius_test.go",
       "symbol": "v11",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius_test.go",
+      "path": "fronius/sunspec_fronius_test.go",
       "symbol": "v11OnV1",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius_test.go",
+      "path": "fronius/sunspec_fronius_test.go",
       "symbol": "v11Snapshot",
       "category": "identifier"
     },
     {
-      "path": "sunspec_fronius_test.go",
+      "path": "fronius/sunspec_fronius_test.go",
       "symbol": "v1Snapshot",
       "category": "identifier"
     },
@@ -8474,12 +8474,12 @@
       "category": "filename"
     },
     {
-      "path": "sunspec_qualification_observation_test.go",
+      "path": "fronius/sunspec_qualification_observation_test.go",
       "symbol": "TestSunSpecQualificationObservationDerivesAndRetainsExactV11Evidence",
       "category": "test"
     },
     {
-      "path": "sunspec_qualification_observation_test.go",
+      "path": "fronius/sunspec_qualification_observation_test.go",
       "symbol": "v11",
       "category": "identifier"
     },

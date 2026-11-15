@@ -1,5 +1,75 @@
 # Changelog
 
+## Fronius and OutBack packages (#377)
+
+The Fronius and OutBack overlays of the SunSpec standard family move from the module root to packages `github.com/Project-Helianthus/helianthus-modbusreg/fronius` and `github.com/Project-Helianthus/helianthus-modbusreg/outback`. Exported names that began with `Fronius` or `OutBack` lose that prefix and constructors follow their types; other exported names, such as the `SunSpecFronius` flavor and qualification names, change only their qualifier; methods, fields, wire values, JSON keys and behavior are unchanged. No alias or forwarding declaration remains in the root package. Both overlays read SunSpec state only through the exported SunSpec names of the root package, and neither imports the other. Consumers replace each previous name with the current one:
+
+| Previous name | Current name |
+| --- | --- |
+| `modbusreg.FroniusEvaluateObservedFlavor` | `fronius.EvaluateObservedFlavor` |
+| `modbusreg.FroniusEvaluateObservedFlavorV11` | `fronius.EvaluateObservedFlavorV11` |
+| `modbusreg.FroniusEvaluateObservedFlavorV12` | `fronius.EvaluateObservedFlavorV12` |
+| `modbusreg.FroniusOfflineProvider` | `fronius.OfflineProvider` |
+| `modbusreg.FroniusOfflineReadRequest` | `fronius.OfflineReadRequest` |
+| `modbusreg.FroniusOfflineReadResult` | `fronius.OfflineReadResult` |
+| `modbusreg.FroniusOfflineReader` | `fronius.OfflineReader` |
+| `modbusreg.FroniusOfflineRequest` | `fronius.OfflineRequest` |
+| `modbusreg.FroniusRetainedAttempt` | `fronius.RetainedAttempt` |
+| `modbusreg.FroniusRetainedCancelled` | `fronius.RetainedCancelled` |
+| `modbusreg.FroniusRetainedCommit` | `fronius.RetainedCommit` |
+| `modbusreg.FroniusRetainedEnvelope` | `fronius.RetainedEnvelope` |
+| `modbusreg.FroniusRetainedFailed` | `fronius.RetainedFailed` |
+| `modbusreg.FroniusRetainedKey` | `fronius.RetainedKey` |
+| `modbusreg.FroniusRetainedOutcome` | `fronius.RetainedOutcome` |
+| `modbusreg.FroniusRetainedPending` | `fronius.RetainedPending` |
+| `modbusreg.FroniusRetainedSucceeded` | `fronius.RetainedSucceeded` |
+| `modbusreg.FroniusRetainedToken` | `fronius.RetainedToken` |
+| `modbusreg.FroniusRetainedView` | `fronius.RetainedView` |
+| `modbusreg.FroniusSelectObservedFlavor` | `fronius.SelectObservedFlavor` |
+
+| Previous name | Current name |
+| --- | --- |
+| `modbusreg.NewOutBackAXSReadOnlyDecoder` | `outback.NewAXSReadOnlyDecoder` |
+| `modbusreg.NewOutBackDetachedRecord` | `outback.NewDetachedRecord` |
+| `modbusreg.NewOutBackOfflineProvider` | `outback.NewOfflineProvider` |
+| `modbusreg.OutBackAXSApplicationNoteRev5InterfaceCandidateWords` | `outback.AXSApplicationNoteRev5InterfaceCandidateWords` |
+| `modbusreg.OutBackAXSChargeModelWords` | `outback.AXSChargeModelWords` |
+| `modbusreg.OutBackAXSInterfaceModelWords` | `outback.AXSInterfaceModelWords` |
+| `modbusreg.OutBackAXSModelChargeControl` | `outback.AXSModelChargeControl` |
+| `modbusreg.OutBackAXSModelInterface` | `outback.AXSModelInterface` |
+| `modbusreg.OutBackAXSOwnerManualRevCInterfaceCandidateWords` | `outback.AXSOwnerManualRevCInterfaceCandidateWords` |
+| `modbusreg.OutBackAXSReadOnlyDecoder` | `outback.AXSReadOnlyDecoder` |
+| `modbusreg.OutBackAXSReadOnlyFlavorDecision` | `outback.AXSReadOnlyFlavorDecision` |
+| `modbusreg.OutBackAXSReadOnlyFlavorID` | `outback.AXSReadOnlyFlavorID` |
+| `modbusreg.OutBackAXSReadOnlyFlavorReason` | `outback.AXSReadOnlyFlavorReason` |
+| `modbusreg.OutBackAXSReadOnlyFlavorReasonCommonNotAdmitted` | `outback.AXSReadOnlyFlavorReasonCommonNotAdmitted` |
+| `modbusreg.OutBackAXSReadOnlyFlavorReasonInterfaceAbsent` | `outback.AXSReadOnlyFlavorReasonInterfaceAbsent` |
+| `modbusreg.OutBackAXSReadOnlyFlavorReasonInterfaceAmbiguous` | `outback.AXSReadOnlyFlavorReasonInterfaceAmbiguous` |
+| `modbusreg.OutBackAXSReadOnlyFlavorReasonInterfaceWrongLength` | `outback.AXSReadOnlyFlavorReasonInterfaceWrongLength` |
+| `modbusreg.OutBackAXSReadOnlyFlavorReasonInvalidChain` | `outback.AXSReadOnlyFlavorReasonInvalidChain` |
+| `modbusreg.OutBackAXSReadOnlyFlavorReasonMatched` | `outback.AXSReadOnlyFlavorReasonMatched` |
+| `modbusreg.OutBackAXSReadOnlyFlavorReasonSourceNotQualified` | `outback.AXSReadOnlyFlavorReasonSourceNotQualified` |
+| `modbusreg.OutBackAssociationCurrent` | `outback.AssociationCurrent` |
+| `modbusreg.OutBackAssociationDisposition` | `outback.AssociationDisposition` |
+| `modbusreg.OutBackAssociationHistorical` | `outback.AssociationHistorical` |
+| `modbusreg.OutBackDetachedOccurrence` | `outback.DetachedOccurrence` |
+| `modbusreg.OutBackDetachedRecord` | `outback.DetachedRecord` |
+| `modbusreg.OutBackDetachedRecordInput` | `outback.DetachedRecordInput` |
+| `modbusreg.OutBackDiagnosticSupplier` | `outback.DiagnosticSupplier` |
+| `modbusreg.OutBackOfflineAttempt` | `outback.OfflineAttempt` |
+| `modbusreg.OutBackOfflineCanceled` | `outback.OfflineCanceled` |
+| `modbusreg.OutBackOfflineFailed` | `outback.OfflineFailed` |
+| `modbusreg.OutBackOfflineIdle` | `outback.OfflineIdle` |
+| `modbusreg.OutBackOfflineImported` | `outback.OfflineImported` |
+| `modbusreg.OutBackOfflineIncomplete` | `outback.OfflineIncomplete` |
+| `modbusreg.OutBackOfflineProvider` | `outback.OfflineProvider` |
+| `modbusreg.OutBackOfflineRetired` | `outback.OfflineRetired` |
+| `modbusreg.OutBackOfflineRunning` | `outback.OfflineRunning` |
+| `modbusreg.OutBackOfflineSnapshot` | `outback.OfflineSnapshot` |
+| `modbusreg.OutBackOfflineStatus` | `outback.OfflineStatus` |
+| `modbusreg.OutBackSourceAssociation` | `outback.SourceAssociation` |
+| `modbusreg.OutBackWordSpan` | `outback.WordSpan` |
+
 ## SunSpec surface for the Fronius and OutBack overlays (#377)
 
 The Fronius and OutBack overlays no longer reach unexported SunSpec declarations or fields; they read SunSpec state only through exported, documented names, and no SunSpec declaration refers to a Fronius one. Nothing moves between packages. Wire values, JSON keys, serialized records and behavior are unchanged, and no field becomes exported or writable. The four Fronius flavor methods on `SunSpecDecoderRegistry` become functions that take the registry; no method, alias or forwarding declaration remains. Consumers replace each previous call with the current one:

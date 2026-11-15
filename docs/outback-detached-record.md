@@ -33,7 +33,7 @@ completeness and retention. Synthetic tests establish no device support.
 
 ## API and bound
 
-`NewOutBackDetachedRecord(input, maxBytes)` accepts a positive finite `uint64`
+`NewDetachedRecord(input, maxBytes)` accepts a positive finite `uint64`
 byte bound for this single record. It checks the whole input before copying;
 zero or insufficient bounds return `nil, ErrOutBackDetachedRecordBound`.
 There is no partial receipt, replacement, padding, deduplication or layout
@@ -57,7 +57,7 @@ arithmetic wraparound. Go allocation overhead is additional and proportional to
 the bounded evidence. Callers must choose a practical bound; this is no promise
 of accepting all representable bounds under available memory.
 
-`OutBackDetachedRecordInput` contains raw `Words`, `DeclaredWords`, `Present`,
+`DetachedRecordInput` contains raw `Words`, `DeclaredWords`, `Present`,
 `Missing`, `Occurrences` and `Source`. Raw words are exactly the supplied
 sequence. Occurrence `Words` are payload words without a synthesized header;
 `WireKey` preserves the supplied native identifier and declared payload length.
@@ -78,7 +78,7 @@ words are never allocated. Unavailable string metadata remains empty, not guesse
 
 ## Association and evaluation
 
-`OutBackSourceAssociation` freezes source key, revision, public locator, content
+`SourceAssociation` freezes source key, revision, public locator, content
 identity, declared layout, source-set revision, selector inputs and availability.
 Strings are opaque exact values. `Association(current)` is a pure comparison:
 all fields must match and both descriptors must be available for `current`.
@@ -112,7 +112,7 @@ observation lifecycle, before or with merge. This application API material
 belongs outside `protocols/` and `types/`.
 
 The focused test command is
-`go test . -run '^TestOutbackDetachedRecord' -count=1`.
+`go test ./outback -run '^TestOutbackDetachedRecord' -count=1`.
 It proves local synthetic behavior only. Provider lifecycle, concurrent source-set
 replacement and publication fencing, retention policy, public qualification,
 transport conformance, runtime integration, consumer validation and hardware

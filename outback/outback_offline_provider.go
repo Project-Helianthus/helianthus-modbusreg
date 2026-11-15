@@ -1,4 +1,4 @@
-package modbusreg
+package outback
 
 import (
 	"context"
@@ -7,22 +7,22 @@ import (
 	"time"
 )
 
-// OutBackOfflineAttempt separates local publication context from native identity.
+// OfflineAttempt separates local publication context from native identity.
 // Source is the frozen caller declaration, without verification or admission.
-type OutBackOfflineAttempt struct {
+type OfflineAttempt struct {
 	Generation, Number uint64
-	Source             OutBackSourceAssociation
+	Source             SourceAssociation
 }
 
-// OutBackDiagnosticSupplier imports supplied records; it must honor ctx and its
+// DiagnosticSupplier imports supplied records; it must honor ctx and its
 // deadline and bound its own work and allocations. It performs no acquisition.
 // Returned buffers must remain untouched until Cycle returns.
-type OutBackDiagnosticSupplier func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error)
+type DiagnosticSupplier func(context.Context, OfflineAttempt) (DetachedRecordInput, error)
 
-// OutBackOfflineStatus is the status of the latest Cycle attempt; it is
+// OfflineStatus is the status of the latest Cycle attempt; it is
 // independent of the retained record. See
 // https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/outback-offline-provider-cycle.md.
-type OutBackOfflineStatus string
+type OfflineStatus string
 
 // Attempt statuses. Idle: no attempt since construction or Replace. Running: a
 // supplier call is in progress. Imported: a complete record was retained.
@@ -31,13 +31,13 @@ type OutBackOfflineStatus string
 // error. Canceled: the caller context or work deadline ended. Retired: Retire was
 // called.
 const (
-	OutBackOfflineIdle       OutBackOfflineStatus = "idle"
-	OutBackOfflineRunning    OutBackOfflineStatus = "running"
-	OutBackOfflineImported   OutBackOfflineStatus = "imported"
-	OutBackOfflineIncomplete OutBackOfflineStatus = "incomplete"
-	OutBackOfflineFailed     OutBackOfflineStatus = "failed"
-	OutBackOfflineCanceled   OutBackOfflineStatus = "canceled"
-	OutBackOfflineRetired    OutBackOfflineStatus = "retired"
+	OfflineIdle       OfflineStatus = "idle"
+	OfflineRunning    OfflineStatus = "running"
+	OfflineImported   OfflineStatus = "imported"
+	OfflineIncomplete OfflineStatus = "incomplete"
+	OfflineFailed     OfflineStatus = "failed"
+	OfflineCanceled   OfflineStatus = "canceled"
+	OfflineRetired    OfflineStatus = "retired"
 )
 
 // OutBack offline provider errors. ErrOutBackOfflineInput: invalid construction
@@ -53,48 +53,48 @@ var (
 	ErrOutBackOfflineRetired     = errors.New("OutBack offline provider: retired")
 )
 
-// OutBackOfflineSnapshot contains one immutable retained record and the latest
+// OfflineSnapshot contains one immutable retained record and the latest
 // attempt status. An incomplete attempt may leave an earlier complete record.
 // RetainedAt is caller-supplied receipt metadata, never qualification/freshness.
-type OutBackOfflineSnapshot struct {
-	Record                         *OutBackDetachedRecord
+type OfflineSnapshot struct {
+	Record                         *DetachedRecord
 	RetainedAt                     time.Time
-	RetainedAttempt, LatestAttempt OutBackOfflineAttempt
-	Status                         OutBackOfflineStatus
-	Association                    OutBackAssociationDisposition
+	RetainedAttempt, LatestAttempt OfflineAttempt
+	Status                         OfflineStatus
+	Association                    AssociationDisposition
 }
 
-// OutBackOfflineProvider is a family-local offline holder, not a gateway
+// OfflineProvider is a family-local offline holder, not a gateway
 // Provider registration or acquisition owner. Its zero value fails closed.
 // Do not copy a provider after first use.
-type OutBackOfflineProvider struct {
+type OfflineProvider struct {
 	mu                  sync.Mutex
 	maxBytes            uint64
 	maxWork             time.Duration
-	supplier            OutBackDiagnosticSupplier
-	source              OutBackSourceAssociation
+	supplier            DiagnosticSupplier
+	source              SourceAssociation
 	generation, attempt uint64
 	retired             bool
 	cancel              context.CancelFunc
-	state               OutBackOfflineSnapshot
+	state               OfflineSnapshot
 }
 
-// NewOutBackOfflineProvider requires positive practical record/work bounds and
+// NewOfflineProvider requires positive practical record/work bounds and
 // a nonnil cooperative supplier. Source metadata is byte-checked and detached.
-func NewOutBackOfflineProvider(source OutBackSourceAssociation, maxBytes uint64, maxWork time.Duration, supplier OutBackDiagnosticSupplier) (*OutBackOfflineProvider, error) {
+func NewOfflineProvider(source SourceAssociation, maxBytes uint64, maxWork time.Duration, supplier DiagnosticSupplier) (*OfflineProvider, error) {
 	if maxBytes == 0 || maxWork <= 0 || supplier == nil {
 		return nil, ErrOutBackOfflineInput
 	}
-	r, err := NewOutBackDetachedRecord(OutBackDetachedRecordInput{Source: source}, maxBytes)
+	r, err := NewDetachedRecord(DetachedRecordInput{Source: source}, maxBytes)
 	if err != nil {
 		return nil, err
 	}
-	return &OutBackOfflineProvider{maxBytes: maxBytes, maxWork: maxWork, supplier: supplier, source: r.SourceAssociation(), generation: 1, state: OutBackOfflineSnapshot{Status: OutBackOfflineIdle}}, nil
+	return &OfflineProvider{maxBytes: maxBytes, maxWork: maxWork, supplier: supplier, source: r.SourceAssociation(), generation: 1, state: OfflineSnapshot{Status: OfflineIdle}}, nil
 }
 
 // Replace advances local generation even for equal native metadata, fences all
 // in-flight work and retains evidence under its original association and age.
-func (p *OutBackOfflineProvider) Replace(source OutBackSourceAssociation) error {
+func (p *OfflineProvider) Replace(source SourceAssociation) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.retired {
@@ -103,7 +103,7 @@ func (p *OutBackOfflineProvider) Replace(source OutBackSourceAssociation) error 
 	if p.supplier == nil || p.generation == ^uint64(0) {
 		return ErrOutBackOfflineInput
 	}
-	r, err := NewOutBackDetachedRecord(OutBackDetachedRecordInput{Source: source}, p.maxBytes)
+	r, err := NewDetachedRecord(DetachedRecordInput{Source: source}, p.maxBytes)
 	if err != nil {
 		return err
 	}
@@ -113,12 +113,12 @@ func (p *OutBackOfflineProvider) Replace(source OutBackSourceAssociation) error 
 	}
 	p.generation++
 	p.source = r.SourceAssociation()
-	p.state.Status = OutBackOfflineIdle
+	p.state.Status = OfflineIdle
 	return nil
 }
 
 // Retire permanently fences this holder; historical evidence remains available.
-func (p *OutBackOfflineProvider) Retire() {
+func (p *OfflineProvider) Retire() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.retired = true
@@ -126,13 +126,13 @@ func (p *OutBackOfflineProvider) Retire() {
 		p.cancel()
 		p.cancel = nil
 	}
-	p.state.Status = OutBackOfflineRetired
+	p.state.Status = OfflineRetired
 }
 
 // Cycle calls the supplier synchronously once, under a deadline. There are no
 // background workers, retries, reads or inferred requests. A newer attempt,
 // replacement, retirement or cancellation fences publication after return.
-func (p *OutBackOfflineProvider) Cycle(ctx context.Context, receivedAt time.Time) error {
+func (p *OfflineProvider) Cycle(ctx context.Context, receivedAt time.Time) error {
 	if ctx == nil || receivedAt.IsZero() {
 		return ErrOutBackOfflineInput
 	}
@@ -152,11 +152,11 @@ func (p *OutBackOfflineProvider) Cycle(ctx context.Context, receivedAt time.Time
 		p.cancel()
 	}
 	p.attempt++
-	frozen := OutBackOfflineAttempt{Generation: p.generation, Number: p.attempt, Source: p.source}
+	frozen := OfflineAttempt{Generation: p.generation, Number: p.attempt, Source: p.source}
 	work, cancel := context.WithTimeout(ctx, p.maxWork)
 	p.cancel = cancel
 	p.state.LatestAttempt = frozen
-	p.state.Status = OutBackOfflineRunning
+	p.state.Status = OfflineRunning
 	p.mu.Unlock()
 	defer cancel()
 	input, err := p.supplier(work, frozen)
@@ -166,12 +166,12 @@ func (p *OutBackOfflineProvider) Cycle(ctx context.Context, receivedAt time.Time
 	} else if canceled = work.Err(); canceled != nil {
 		err = canceled
 	}
-	var record *OutBackDetachedRecord
+	var record *DetachedRecord
 	if err == nil {
 		if !outBackOfflineSameSource(input.Source, frozen.Source) {
 			err = ErrOutBackOfflineAssociation
 		} else {
-			record, err = NewOutBackDetachedRecord(input, p.maxBytes)
+			record, err = NewDetachedRecord(input, p.maxBytes)
 		}
 	}
 	p.mu.Lock()
@@ -187,15 +187,15 @@ func (p *OutBackOfflineProvider) Cycle(ctx context.Context, receivedAt time.Time
 	}
 	p.cancel = nil
 	if err != nil {
-		p.state.Status = OutBackOfflineFailed
+		p.state.Status = OfflineFailed
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			p.state.Status = OutBackOfflineCanceled
+			p.state.Status = OfflineCanceled
 		}
 		return err
 	}
-	p.state.Status = OutBackOfflineImported
+	p.state.Status = OfflineImported
 	if !record.Complete() {
-		p.state.Status = OutBackOfflineIncomplete
+		p.state.Status = OfflineIncomplete
 		if p.state.Record != nil && p.state.Record.Complete() {
 			return nil
 		}
@@ -209,11 +209,11 @@ func (p *OutBackOfflineProvider) Cycle(ctx context.Context, receivedAt time.Time
 // Snapshot compares retained provenance with a caller's current descriptor. A
 // source also must match the holder's current generation descriptor to be current.
 // Missing/conflicting metadata is historical; the record is never relabeled.
-func (p *OutBackOfflineProvider) Snapshot(current OutBackSourceAssociation) OutBackOfflineSnapshot {
+func (p *OfflineProvider) Snapshot(current SourceAssociation) OfflineSnapshot {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	s := p.state
-	s.Association = OutBackAssociationHistorical
+	s.Association = AssociationHistorical
 	if !p.retired && s.Record != nil && outBackOfflineSameSource(current, p.source) {
 		s.Association = s.Record.Association(current)
 	}
@@ -222,7 +222,7 @@ func (p *OutBackOfflineProvider) Snapshot(current OutBackSourceAssociation) OutB
 
 // Availability here compares declarations; current association separately
 // requires availability on both the original and current records.
-func outBackOfflineSameSource(a, b OutBackSourceAssociation) bool {
+func outBackOfflineSameSource(a, b SourceAssociation) bool {
 	return a.Key == b.Key && a.Revision == b.Revision &&
 		a.PublicLocator == b.PublicLocator && a.ContentIdentity == b.ContentIdentity &&
 		a.DeclaredLayout == b.DeclaredLayout && a.SourceSetRevision == b.SourceSetRevision &&

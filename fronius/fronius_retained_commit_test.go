@@ -1,4 +1,4 @@
-package modbusreg
+package fronius
 
 import (
 	"context"
@@ -6,13 +6,16 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/internal/sunspecfixture"
 )
 
-func retainedFixture(t *testing.T) (SunSpecDecoderRegistry, SunSpecQualificationObservation, FroniusRetainedKey) {
+func retainedFixture(t *testing.T) (modbusreg.SunSpecDecoderRegistry, SunSpecQualificationObservation, RetainedKey) {
 	t.Helper()
-	r := mustStandardSunSpecRegistry(t)
+	r := sunspecfixture.Registry(t)
 	card := NewSunSpecFroniusQualificationCard()
-	raw := rawWordsForOccurrences(froniusObservedSnapshotV11(t, r, card.Manufacturer(), card.Model(), card.Firmware()).Occurrences())
+	raw := sunspecfixture.RawWords(froniusObservedSnapshotV11(t, r, card.Manufacturer(), card.Model(), card.Firmware()).Occurrences())
 	s, err := replayFroniusQualificationCard(t, card, r, raw)
 	if err != nil {
 		t.Fatal(err)
@@ -22,10 +25,22 @@ func retainedFixture(t *testing.T) (SunSpecDecoderRegistry, SunSpecQualification
 		t.Fatal(err)
 	}
 	v := o.SourceViews()[0].Record()
-	return r, o, FroniusRetainedKey{RequestedFunction: v.RequestedFunction, ReceivedFunction: v.ReceivedFunction, Table: v.Table, UnitID: v.UnitID, Source: v.Endpoint, ConnectionID: v.ConnectionID, Transport: v.Transport, TransportGeneration: v.TransportGeneration, CardID: card.ID(), Schema: card.SchemaRevision()}
+	return r, o, RetainedKey{RequestedFunction: v.RequestedFunction, ReceivedFunction: v.ReceivedFunction, Table: v.Table, UnitID: v.UnitID, Source: v.Endpoint, ConnectionID: v.ConnectionID, Transport: v.Transport, TransportGeneration: v.TransportGeneration, CardID: card.ID(), Schema: card.SchemaRevision()}
 }
 
-func retainedBegin(t *testing.T, s *FroniusRetainedCommit, k FroniusRetainedKey, o SunSpecQualificationObservation) FroniusRetainedToken {
+// mutatedSnapshot returns snapshot rebuilt from its exported evidence with
+// its first raw word and the first word of its first source view incremented.
+// The SunSpec snapshot is immutable outside its package, so a caller can alter
+// retained evidence only by replacing the snapshot value.
+func mutatedSnapshot(t *testing.T, snapshot modbusreg.SunSpecChainSnapshot) modbusreg.SunSpecChainSnapshot {
+	t.Helper()
+	raw, records := snapshot.RawWords(), sunspecfixture.Records(snapshot)
+	raw[0]++
+	records[0].Words[0]++
+	return sunspecfixture.Assemble(t, raw, snapshot.Occurrences(), records)
+}
+
+func retainedBegin(t *testing.T, s *RetainedCommit, k RetainedKey, o SunSpecQualificationObservation) RetainedToken {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancel)
@@ -38,7 +53,7 @@ func retainedBegin(t *testing.T, s *FroniusRetainedCommit, k FroniusRetainedKey,
 
 func TestFroniusRetainedCommitLifecycle(t *testing.T) {
 	r, o, k := retainedFixture(t)
-	s := new(FroniusRetainedCommit)
+	s := new(RetainedCommit)
 	first := retainedBegin(t, s, k, o)
 	if s.View().Envelope != nil {
 		t.Fatal("observation before first success")
@@ -47,7 +62,7 @@ func TestFroniusRetainedCommitLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := s.View()
-	if original.Envelope == nil || original.Stale || original.Outcome != FroniusRetainedSucceeded {
+	if original.Envelope == nil || original.Stale || original.Outcome != RetainedSucceeded {
 		t.Fatal("missing fresh success")
 	}
 	if !reflect.DeepEqual(original.Envelope.Observation, o) {
@@ -61,15 +76,14 @@ func TestFroniusRetainedCommitLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := s.View()
-	if !got.Stale || got.Outcome != FroniusRetainedFailed || !reflect.DeepEqual(got.Envelope, original.Envelope) || got.Attempt.Token != token {
+	if !got.Stale || got.Outcome != RetainedFailed || !reflect.DeepEqual(got.Envelope, original.Envelope) || got.Attempt.Token != token {
 		t.Fatal("failed refresh changed original evidence/age/attempt")
 	}
-	got.Envelope.Observation.snapshot.raw[0] = 0
-	got.Envelope.Observation.snapshot.sources[0].Words[0] = 0
+	got.Envelope.Observation.snapshot = mutatedSnapshot(t, got.Envelope.Observation.snapshot)
 	if !reflect.DeepEqual(s.View().Envelope, original.Envelope) {
 		t.Fatal("view aliases storage")
 	}
-	o.snapshot.raw[0] = 0
+	o.snapshot = mutatedSnapshot(t, o.snapshot)
 	if !reflect.DeepEqual(s.View().Envelope, original.Envelope) {
 		t.Fatal("commit aliases input")
 	}
@@ -77,21 +91,21 @@ func TestFroniusRetainedCommitLifecycle(t *testing.T) {
 
 func TestFroniusRetainedCommitKeyAxes(t *testing.T) {
 	r, o, k := retainedFixture(t)
-	axes := map[string]func(*FroniusRetainedKey){
-		"requested function":   func(k *FroniusRetainedKey) { k.RequestedFunction++ },
-		"received function":    func(k *FroniusRetainedKey) { k.ReceivedFunction++ },
-		"table":                func(k *FroniusRetainedKey) { k.Table = InputRegisters },
-		"unit":                 func(k *FroniusRetainedKey) { k.UnitID++ },
-		"source":               func(k *FroniusRetainedKey) { k.Source = "other-synthetic-source" },
-		"connection":           func(k *FroniusRetainedKey) { k.ConnectionID++ },
-		"transport":            func(k *FroniusRetainedKey) { k.Transport = TransportRTU },
-		"transport generation": func(k *FroniusRetainedKey) { k.TransportGeneration++ },
-		"card":                 func(k *FroniusRetainedKey) { k.CardID = "other-card" },
-		"schema":               func(k *FroniusRetainedKey) { k.Schema = "other-schema" },
+	axes := map[string]func(*RetainedKey){
+		"requested function":   func(k *RetainedKey) { k.RequestedFunction++ },
+		"received function":    func(k *RetainedKey) { k.ReceivedFunction++ },
+		"table":                func(k *RetainedKey) { k.Table = modbusreg.InputRegisters },
+		"unit":                 func(k *RetainedKey) { k.UnitID++ },
+		"source":               func(k *RetainedKey) { k.Source = "other-synthetic-source" },
+		"connection":           func(k *RetainedKey) { k.ConnectionID++ },
+		"transport":            func(k *RetainedKey) { k.Transport = modbusreg.TransportRTU },
+		"transport generation": func(k *RetainedKey) { k.TransportGeneration++ },
+		"card":                 func(k *RetainedKey) { k.CardID = "other-card" },
+		"schema":               func(k *RetainedKey) { k.Schema = "other-schema" },
 	}
 	for name, change := range axes {
 		t.Run(name, func(t *testing.T) {
-			s := new(FroniusRetainedCommit)
+			s := new(RetainedCommit)
 			token := retainedBegin(t, s, k, o)
 			if err := s.Commit(token, r, o); err != nil {
 				t.Fatal(err)
@@ -123,7 +137,7 @@ func TestFroniusRetainedCommitAttemptAxes(t *testing.T) {
 	r, o, k := retainedFixture(t)
 	for _, axis := range []string{"cycle", "poll", "deadline"} {
 		t.Run(axis, func(t *testing.T) {
-			s := new(FroniusRetainedCommit)
+			s := new(RetainedCommit)
 			token := retainedBegin(t, s, k, o)
 			candidate := o
 			candidate.snapshot = cloneSunSpecQualificationSnapshot(o.snapshot)
@@ -159,13 +173,12 @@ func TestFroniusRetainedCommitRejectsIncompleteAndClosed(t *testing.T) {
 	r, o, k := retainedFixture(t)
 	for _, mode := range []string{"partial", "zero", "cancel", "context cancel", "expired", "expires while active", "superseded", "foreign"} {
 		t.Run(mode, func(t *testing.T) {
-			s := new(FroniusRetainedCommit)
+			s := new(RetainedCommit)
 			token := retainedBegin(t, s, k, o)
 			candidate := o
 			switch mode {
 			case "partial":
-				candidate.snapshot = cloneSunSpecQualificationSnapshot(o.snapshot)
-				candidate.snapshot.sources = candidate.snapshot.sources[:len(candidate.snapshot.sources)-1]
+				candidate.snapshot = sunspecfixture.KeepSourceViews(t, o.snapshot, o.snapshot.SourceViewCount()-1)
 			case "zero":
 				candidate = SunSpecQualificationObservation{}
 			case "cancel":
@@ -198,7 +211,7 @@ func TestFroniusRetainedCommitRejectsIncompleteAndClosed(t *testing.T) {
 			case "superseded":
 				retainedBegin(t, s, k, o)
 			case "foreign":
-				token = retainedBegin(t, new(FroniusRetainedCommit), k, o)
+				token = retainedBegin(t, new(RetainedCommit), k, o)
 			}
 			if err := s.Commit(token, r, candidate); err == nil {
 				t.Fatal("invalid candidate published")
@@ -208,7 +221,7 @@ func TestFroniusRetainedCommitRejectsIncompleteAndClosed(t *testing.T) {
 			}
 		})
 	}
-	s := new(FroniusRetainedCommit)
+	s := new(RetainedCommit)
 	if _, err := s.Begin(context.Background(), k, 1, 1); err == nil {
 		t.Fatal("unbounded context accepted")
 	}
@@ -224,7 +237,7 @@ func TestFroniusRetainedCommitRejectsIncompleteAndClosed(t *testing.T) {
 func TestFroniusRetainedCommitCancellationOrdering(t *testing.T) {
 	r, o, k := retainedFixture(t)
 	for i := 0; i < 20; i++ {
-		s := new(FroniusRetainedCommit)
+		s := new(RetainedCommit)
 		token := retainedBegin(t, s, k, o)
 		var wg sync.WaitGroup
 		wg.Add(2)
@@ -234,7 +247,7 @@ func TestFroniusRetainedCommitCancellationOrdering(t *testing.T) {
 		close(start)
 		wg.Wait()
 		v := s.View()
-		if (v.Envelope == nil && v.Outcome != FroniusRetainedCancelled) || (v.Envelope != nil && v.Outcome != FroniusRetainedSucceeded) {
+		if (v.Envelope == nil && v.Outcome != RetainedCancelled) || (v.Envelope != nil && v.Outcome != RetainedSucceeded) {
 			t.Fatal("torn envelope/outcome")
 		}
 		if err := s.Commit(token, r, o); err == nil {
@@ -245,17 +258,14 @@ func TestFroniusRetainedCommitCancellationOrdering(t *testing.T) {
 
 func TestFroniusRetainedCommitReplacementAndFailureControls(t *testing.T) {
 	r, o, k := retainedFixture(t)
-	s := new(FroniusRetainedCommit)
+	s := new(RetainedCommit)
 	first := retainedBegin(t, s, k, o)
 	if err := s.Commit(first, r, o); err != nil {
 		t.Fatal(err)
 	}
 	before := s.View()
 	// Detached replay with a new poll only; deadline identity stays unchanged.
-	snapshot := cloneSunSpecQualificationSnapshot(o.snapshot)
-	for i := range snapshot.sources {
-		snapshot.sources[i].PollGeneration++
-	}
+	snapshot := sunspecfixture.ShiftSampleIdentity(t, o.snapshot, 1, 0)
 	next, err := NewSunSpecFroniusQualificationCard().Qualify(r, snapshot)
 	if err != nil {
 		t.Fatal(err)
@@ -280,12 +290,11 @@ func TestFroniusRetainedCommitReplacementAndFailureControls(t *testing.T) {
 	// Reject a partial refresh while preserving the new complete envelope.
 	token = retainedBegin(t, s, k, next)
 	partial := next
-	partial.snapshot = cloneSunSpecQualificationSnapshot(next.snapshot)
-	partial.snapshot.sources = partial.snapshot.sources[:1]
+	partial.snapshot = sunspecfixture.KeepSourceViews(t, next.snapshot, 1)
 	if err := s.Commit(token, r, partial); err == nil {
 		t.Fatal("partial accepted")
 	}
-	if v := s.View(); !v.Stale || v.Outcome != FroniusRetainedFailed || !reflect.DeepEqual(v.Envelope, after.Envelope) {
+	if v := s.View(); !v.Stale || v.Outcome != RetainedFailed || !reflect.DeepEqual(v.Envelope, after.Envelope) {
 		t.Fatal("partial replaced history")
 	}
 	token = retainedBegin(t, s, k, next)
@@ -304,21 +313,23 @@ func TestFroniusRetainedCommitMixedViews(t *testing.T) {
 	r, o, k := retainedFixture(t)
 	for _, axis := range []string{"poll", "deadline", "connection", "generation"} {
 		t.Run(axis, func(t *testing.T) {
-			s := new(FroniusRetainedCommit)
+			s := new(RetainedCommit)
 			token := retainedBegin(t, s, k, o)
 			bad := o
-			bad.snapshot = cloneSunSpecQualificationSnapshot(o.snapshot)
-			v := &bad.snapshot.sources[len(bad.snapshot.sources)-1]
-			switch axis {
-			case "poll":
-				v.PollGeneration++
-			case "deadline":
-				v.DeadlineIdentity++
-			case "connection":
-				v.ConnectionID++
-			case "generation":
-				v.TransportGeneration++
-			}
+			bad.snapshot = sunspecfixture.WithRecords(t, o.snapshot, func(records []modbusreg.LogicalViewRecord) []modbusreg.LogicalViewRecord {
+				v := &records[len(records)-1]
+				switch axis {
+				case "poll":
+					v.PollGeneration++
+				case "deadline":
+					v.DeadlineIdentity++
+				case "connection":
+					v.ConnectionID++
+				case "generation":
+					v.TransportGeneration++
+				}
+				return records
+			})
 			if err := s.Commit(token, r, bad); err == nil {
 				t.Fatal("mixed native views accepted")
 			}

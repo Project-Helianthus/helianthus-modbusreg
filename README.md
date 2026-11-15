@@ -240,7 +240,7 @@ declares `64110/420`. Neither supplies the required public product/firmware
 binding and bounded read-operation contract. The historical 282-word constant
 is candidate evidence only, and no OutBack layout is registered for decoding.
 
-`NewOutBackAXSReadOnlyDecoder` creates an inert compatibility object. `Decode`
+`NewAXSReadOnlyDecoder` creates an inert compatibility object. `Decode`
 returns `ErrOutBackAXSSourceNotQualified` and an empty model for every input;
 `EvaluateSnapshot` returns `NO_GO`, no match, and no selected interface or typed
 model. Caller-supplied raw blocks and snapshots remain unchanged as evidence.

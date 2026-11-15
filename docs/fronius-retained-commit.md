@@ -7,7 +7,7 @@ and the existing qualification card. Nothing is stable before Helianthus 1.0.
 
 ## API and lifecycle
 
-`FroniusRetainedCommit` has a usable zero value and must not be copied after use.
+`RetainedCommit` has a usable zero value and must not be copied after use.
 It owns one eligible complete envelope and one latest-attempt diagnostic enum.
 It has no persistent history. `View` atomically returns a detached envelope,
 latest attempt, outcome and stale flag. Absence is a nil envelope, never zero
@@ -79,7 +79,7 @@ transport, integration, independent review and committed-head gates remain open.
 
 ## Focused evidence
 
-`go test . -run '^TestFroniusRetainedCommit' -count=1` selects the local suite.
+`go test ./fronius -run '^TestFroniusRetainedCommit' -count=1` selects the local suite.
 It independently varies each compatibility-key field, cycle token, poll and
 deadline identity. Controls cover complete replacement, partial and zero-value
 rejection, stale age preservation, detached inputs/views, mixed native source

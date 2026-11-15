@@ -1,4 +1,4 @@
-package modbusreg
+package fronius
 
 import (
 	"context"
@@ -6,85 +6,87 @@ import (
 	"reflect"
 	"sync"
 	"time"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
-// FroniusRetainedKey identifies compatible native evidence, not an admission.
+// RetainedKey identifies compatible native evidence, not an admission.
 // Source is an opaque caller identity, never a transport to open.
-type FroniusRetainedKey struct {
-	RequestedFunction   FunctionCode
-	ReceivedFunction    FunctionCode
-	Table               LogicalTable
+type RetainedKey struct {
+	RequestedFunction   modbusreg.FunctionCode
+	ReceivedFunction    modbusreg.FunctionCode
+	Table               modbusreg.LogicalTable
 	UnitID              byte
 	Source              string
 	ConnectionID        uint64
-	Transport           TransportFamily
+	Transport           modbusreg.TransportFamily
 	TransportGeneration uint64
 	CardID              string
-	Schema              SunSpecSchemaRevision
+	Schema              modbusreg.SunSpecSchemaRevision
 }
 
-// FroniusRetainedToken is an opaque store-local, single-use cycle identity.
-type FroniusRetainedToken struct{ cycle *froniusRetainedCycle }
+// RetainedToken is an opaque store-local, single-use cycle identity.
+type RetainedToken struct{ cycle *froniusRetainedCycle }
 type froniusRetainedCycle struct {
 	ctx context.Context
 }
 
-// FroniusRetainedAttempt preserves the original finite caller context identity.
-type FroniusRetainedAttempt struct {
-	Token            FroniusRetainedToken
-	Key              FroniusRetainedKey
+// RetainedAttempt preserves the original finite caller context identity.
+type RetainedAttempt struct {
+	Token            RetainedToken
+	Key              RetainedKey
 	PollGeneration   uint64
 	DeadlineIdentity uint64
 	Deadline         time.Time
 }
 
-// FroniusRetainedOutcome is the latest-attempt diagnostic of a
-// FroniusRetainedCommit. It never carries caller text, and only Succeeded
+// RetainedOutcome is the latest-attempt diagnostic of a
+// RetainedCommit. It never carries caller text, and only Succeeded
 // replaces the retained envelope; see
 // https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/fronius-retained-commit-implementation.md.
-type FroniusRetainedOutcome string
+type RetainedOutcome string
 
 // Latest-attempt outcomes. Pending is the only state in which a token can
 // still commit; Failed also records a rejected Begin or invalid candidate, and
 // Cancelled also records an expired or cancelled caller context.
 const (
-	FroniusRetainedPending   FroniusRetainedOutcome = "pending"
-	FroniusRetainedSucceeded FroniusRetainedOutcome = "succeeded"
-	FroniusRetainedFailed    FroniusRetainedOutcome = "failed"
-	FroniusRetainedCancelled FroniusRetainedOutcome = "cancelled"
+	RetainedPending   RetainedOutcome = "pending"
+	RetainedSucceeded RetainedOutcome = "succeeded"
+	RetainedFailed    RetainedOutcome = "failed"
+	RetainedCancelled RetainedOutcome = "cancelled"
 )
 
-// FroniusRetainedEnvelope contains only a complete exact-card offline result.
+// RetainedEnvelope contains only a complete exact-card offline result.
 // CommittedAt is local commit age, not a device capture timestamp.
-type FroniusRetainedEnvelope struct {
+type RetainedEnvelope struct {
 	Observation SunSpecQualificationObservation
-	Attempt     FroniusRetainedAttempt
+	Attempt     RetainedAttempt
 	CommittedAt time.Time
 }
 
-// FroniusRetainedView is detached. Attempt/Outcome describe the latest attempt;
+// RetainedView is detached. Attempt/Outcome describe the latest attempt;
 // Envelope keeps its own original attempt. Stale never implies live admission.
-type FroniusRetainedView struct {
-	Envelope *FroniusRetainedEnvelope
-	Attempt  FroniusRetainedAttempt
-	Outcome  FroniusRetainedOutcome
+type RetainedView struct {
+	Envelope *RetainedEnvelope
+	Attempt  RetainedAttempt
+	Outcome  RetainedOutcome
 	Stale    bool
 }
 
-// FroniusRetainedCommit is an explicitly called in-memory boundary. Its zero
+// RetainedCommit is an explicitly called in-memory boundary. Its zero
 // value is ready. Do not copy after use. It has no I/O, scheduler or persistence.
-type FroniusRetainedCommit struct {
+type RetainedCommit struct {
 	mu       sync.Mutex
 	active   *froniusRetainedCycle
-	key      FroniusRetainedKey
-	envelope *FroniusRetainedEnvelope
-	attempt  FroniusRetainedAttempt
-	outcome  FroniusRetainedOutcome
+	key      RetainedKey
+	envelope *RetainedEnvelope
+	attempt  RetainedAttempt
+	outcome  RetainedOutcome
 }
 
 // Begin supersedes the active cycle and irreversibly drops incompatible history.
 // A changed key fences history even if the new attempt context is invalid.
-func (s *FroniusRetainedCommit) Begin(ctx context.Context, key FroniusRetainedKey, pollGeneration, deadlineIdentity uint64) (FroniusRetainedToken, error) {
+func (s *RetainedCommit) Begin(ctx context.Context, key RetainedKey, pollGeneration, deadlineIdentity uint64) (RetainedToken, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.key != key {
@@ -92,37 +94,37 @@ func (s *FroniusRetainedCommit) Begin(ctx context.Context, key FroniusRetainedKe
 	}
 	s.key = key
 	s.active = nil
-	s.attempt = FroniusRetainedAttempt{Key: key, PollGeneration: pollGeneration, DeadlineIdentity: deadlineIdentity}
-	s.outcome = FroniusRetainedFailed
+	s.attempt = RetainedAttempt{Key: key, PollGeneration: pollGeneration, DeadlineIdentity: deadlineIdentity}
+	s.outcome = RetainedFailed
 	if ctx == nil {
-		return FroniusRetainedToken{}, fmt.Errorf("finite caller deadline required")
+		return RetainedToken{}, fmt.Errorf("finite caller deadline required")
 	}
 	deadline, ok := ctx.Deadline()
 	if !ok || deadline.IsZero() || !time.Now().Before(deadline) || ctx.Err() != nil || pollGeneration == 0 || deadlineIdentity == 0 {
-		return FroniusRetainedToken{}, fmt.Errorf("finite active deadline and nonzero attempt identity required")
+		return RetainedToken{}, fmt.Errorf("finite active deadline and nonzero attempt identity required")
 	}
 	if key.Source == "" || key.ConnectionID == 0 || key.TransportGeneration == 0 || key.CardID == "" || key.Schema == "" {
 		s.envelope = nil
-		return FroniusRetainedToken{}, fmt.Errorf("known source compatibility required")
+		return RetainedToken{}, fmt.Errorf("known source compatibility required")
 	}
 	cycle := &froniusRetainedCycle{ctx: ctx}
-	token := FroniusRetainedToken{cycle: cycle}
-	s.attempt = FroniusRetainedAttempt{Token: token, Key: key, PollGeneration: pollGeneration, DeadlineIdentity: deadlineIdentity, Deadline: deadline}
+	token := RetainedToken{cycle: cycle}
+	s.attempt = RetainedAttempt{Token: token, Key: key, PollGeneration: pollGeneration, DeadlineIdentity: deadlineIdentity, Deadline: deadline}
 	s.active = cycle
-	s.outcome = FroniusRetainedPending
+	s.outcome = RetainedPending
 	return token, nil
 }
 
 // Commit replays the complete supplied observation through the existing card.
 // Validation and publication serialize with Begin, Fail, Cancel and View.
 // Invalid active candidates close the attempt without replacing prior evidence.
-func (s *FroniusRetainedCommit) Commit(token FroniusRetainedToken, registry SunSpecDecoderRegistry, observation SunSpecQualificationObservation) error {
+func (s *RetainedCommit) Commit(token RetainedToken, registry modbusreg.SunSpecDecoderRegistry, observation SunSpecQualificationObservation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.checkActive(token); err != nil {
 		return err
 	}
-	reject := func(err error) error { s.active = nil; s.outcome = FroniusRetainedFailed; return err }
+	reject := func(err error) error { s.active = nil; s.outcome = RetainedFailed; return err }
 	card := NewSunSpecFroniusQualificationCard()
 	if s.key.CardID != card.ID() || s.key.Schema != card.SchemaRevision() {
 		return reject(fmt.Errorf("card/schema mismatch"))
@@ -140,7 +142,7 @@ func (s *FroniusRetainedCommit) Commit(token FroniusRetainedToken, registry SunS
 	}
 	for _, view := range validated.SourceViews() {
 		v := view.Record()
-		key := FroniusRetainedKey{RequestedFunction: v.RequestedFunction, ReceivedFunction: v.ReceivedFunction, Table: v.Table, UnitID: v.UnitID, Source: v.Endpoint, ConnectionID: v.ConnectionID, Transport: v.Transport, TransportGeneration: v.TransportGeneration, CardID: card.ID(), Schema: card.SchemaRevision()}
+		key := RetainedKey{RequestedFunction: v.RequestedFunction, ReceivedFunction: v.ReceivedFunction, Table: v.Table, UnitID: v.UnitID, Source: v.Endpoint, ConnectionID: v.ConnectionID, Transport: v.Transport, TransportGeneration: v.TransportGeneration, CardID: card.ID(), Schema: card.SchemaRevision()}
 		if key != s.key || v.PollGeneration != s.attempt.PollGeneration || v.DeadlineIdentity != s.attempt.DeadlineIdentity {
 			return reject(fmt.Errorf("source or attempt mismatch"))
 		}
@@ -149,58 +151,58 @@ func (s *FroniusRetainedCommit) Commit(token FroniusRetainedToken, registry SunS
 	if err := s.checkActive(token); err != nil {
 		return err
 	}
-	s.envelope = &FroniusRetainedEnvelope{Observation: validated, Attempt: s.attempt, CommittedAt: time.Now()}
+	s.envelope = &RetainedEnvelope{Observation: validated, Attempt: s.attempt, CommittedAt: time.Now()}
 	s.active = nil
-	s.outcome = FroniusRetainedSucceeded
+	s.outcome = RetainedSucceeded
 	return nil
 }
 
-func (s *FroniusRetainedCommit) checkActive(token FroniusRetainedToken) error {
+func (s *RetainedCommit) checkActive(token RetainedToken) error {
 	if token.cycle == nil || s.active != token.cycle {
 		return fmt.Errorf("inactive retained cycle")
 	}
 	if token.cycle.ctx.Err() != nil || !time.Now().Before(s.attempt.Deadline) {
 		s.active = nil
-		s.outcome = FroniusRetainedCancelled
+		s.outcome = RetainedCancelled
 		return fmt.Errorf("retained cycle cancelled or expired")
 	}
 	return nil
 }
 
 // Fail closes the attempt with a bounded diagnostic outcome, without caller text.
-func (s *FroniusRetainedCommit) Fail(token FroniusRetainedToken) error {
+func (s *RetainedCommit) Fail(token RetainedToken) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.checkActive(token); err != nil {
 		return err
 	}
 	s.active = nil
-	s.outcome = FroniusRetainedFailed
+	s.outcome = RetainedFailed
 	return nil
 }
 
 // Cancel wins against every subsequent completion for this token.
-func (s *FroniusRetainedCommit) Cancel(token FroniusRetainedToken) error {
+func (s *RetainedCommit) Cancel(token RetainedToken) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.checkActive(token); err != nil {
 		return err
 	}
 	s.active = nil
-	s.outcome = FroniusRetainedCancelled
+	s.outcome = RetainedCancelled
 	return nil
 }
 
 // View returns a detached copy of the retained envelope and the latest attempt.
 // An active attempt whose context has ended is closed as cancelled first. Stale
 // is true when an envelope exists but the latest attempt did not succeed.
-func (s *FroniusRetainedCommit) View() FroniusRetainedView {
+func (s *RetainedCommit) View() RetainedView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.active != nil {
-		_ = s.checkActive(FroniusRetainedToken{cycle: s.active})
+		_ = s.checkActive(RetainedToken{cycle: s.active})
 	}
-	result := FroniusRetainedView{Attempt: s.attempt, Outcome: s.outcome, Stale: s.envelope != nil && s.outcome != FroniusRetainedSucceeded}
+	result := RetainedView{Attempt: s.attempt, Outcome: s.outcome, Stale: s.envelope != nil && s.outcome != RetainedSucceeded}
 	if s.envelope != nil {
 		envelope := *s.envelope
 		envelope.Observation = cloneFroniusRetainedObservation(envelope.Observation)

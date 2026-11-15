@@ -151,8 +151,43 @@ var huaweiFiles = []string{
 	"naming_contract_test.go",
 }
 
-// families lists every vendor family. Families after Growatt select by file
-// stems until their own slice pins an exact list; -check reports what blocks
+// froniusFiles is the exact Fronius overlay move set: the production files and
+// the in-package tests, including the SunSpec-prefixed Fronius flavor,
+// qualification card and qualification observation files.
+var froniusFiles = []string{
+	"fronius_offline_provider.go",
+	"fronius_provider_port.go",
+	"fronius_retained_commit.go",
+	"sunspec_fronius.go",
+	"sunspec_fronius_qualification_card.go",
+	"sunspec_qualification_observation.go",
+	"fronius_offline_provider_test.go",
+	"fronius_provider_port_test.go",
+	"fronius_retained_commit_test.go",
+	"sunspec_fronius_audit_test.go",
+	"sunspec_fronius_flavor_v12_test.go",
+	"sunspec_fronius_qualification_card_test.go",
+	"sunspec_fronius_test.go",
+	"sunspec_qualification_observation_test.go",
+}
+
+// outbackFiles is the exact OutBack overlay move set: the production files and
+// the in-package tests, including the SunSpec-prefixed AXS flavor file.
+var outbackFiles = []string{
+	"outback_axs_sunspec.go",
+	"outback_detached_record.go",
+	"outback_offline_provider.go",
+	"outback_provider_port.go",
+	"sunspec_outback_axs_flavor.go",
+	"outback_axs_flavor_contract_test.go",
+	"outback_axs_sunspec_observation_test.go",
+	"outback_detached_record_test.go",
+	"outback_offline_provider_test.go",
+	"outback_provider_port_test.go",
+}
+
+// families lists every vendor family. Families without an exact list select
+// by file stems until their own slice pins one; -check reports what blocks
 // their move.
 var families = []family{
 	{name: "growatt", prefix: "Growatt", files: growattFiles, keep: []string{
@@ -163,8 +198,8 @@ var families = []family{
 	{name: "tesla", prefix: "Tesla", stems: []string{"tesla_"}},
 	{name: "huawei", prefix: "Huawei", files: huaweiFiles},
 	{name: "sunspec", prefix: "SunSpec", stems: []string{"sunspec_"}},
-	{name: "fronius", prefix: "Fronius", stems: []string{"fronius_"}},
-	{name: "outback", prefix: "OutBack", stems: []string{"outback_"}},
+	{name: "fronius", prefix: "Fronius", files: froniusFiles},
+	{name: "outback", prefix: "OutBack", files: outbackFiles},
 }
 
 func main() {

@@ -1,4 +1,4 @@
-package modbusreg
+package fronius
 
 import (
 	"encoding/json"
@@ -6,16 +6,19 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/internal/sunspecfixture"
 )
 
 func TestFroniusQualificationCardPinsBoundedReadOnlyObservedFlavor(t *testing.T) {
 	card := NewSunSpecFroniusQualificationCard()
 	if card.ID() != SunSpecFroniusQualificationCardID ||
 		card.FlavorID() != SunSpecFroniusObservedFlavorV11ID ||
-		card.SchemaRevision() != SunSpecModelsRevisionV1 ||
+		card.SchemaRevision() != modbusreg.SunSpecModelsRevisionV1 ||
 		card.Manufacturer() != "Fronius" || card.Model() != "Symo GEN24 10.0" ||
 		card.Firmware() != "1.41.11-1" || card.UnitID() != 1 ||
-		card.Function() != FunctionReadHoldingRegisters || !card.ReadOnly() {
+		card.Function() != modbusreg.FunctionReadHoldingRegisters || !card.ReadOnly() {
 		t.Fatalf("unexpected qualification card: %#v", card)
 	}
 	if card.LiveQualified() || card.AutomaticRuntimeAdmission() || card.WriteAuthority() {
@@ -24,7 +27,7 @@ func TestFroniusQualificationCardPinsBoundedReadOnlyObservedFlavor(t *testing.T)
 	if got := card.BaseCandidates(); !reflect.DeepEqual(got, []uint16{40000}) {
 		t.Fatalf("base candidates=%v", got)
 	}
-	if limits := card.Limits(); limits != (SunSpecChainLimits{MaxTotalWords: 512, MaxOccurrences: 64}) {
+	if limits := card.Limits(); limits != (modbusreg.SunSpecChainLimits{MaxTotalWords: 512, MaxOccurrences: 64}) {
 		t.Fatalf("limits=%#v", limits)
 	}
 	wantFacts := []string{
@@ -37,7 +40,7 @@ func TestFroniusQualificationCardPinsBoundedReadOnlyObservedFlavor(t *testing.T)
 		t.Fatalf("semantic candidates=%v", got)
 	}
 	got := card.ExpectedChain()
-	got[0] = SunSpecWireKey{}
+	got[0] = modbusreg.SunSpecWireKey{}
 	if !reflect.DeepEqual(card.ExpectedChain(), froniusObservedChainV11) {
 		t.Fatal("expected chain leaked mutation")
 	}
@@ -49,9 +52,9 @@ func TestFroniusQualificationCardPinsBoundedReadOnlyObservedFlavor(t *testing.T)
 }
 
 func TestFroniusQualificationCardReplaysCompleteSourceBackedChain(t *testing.T) {
-	registry := mustStandardSunSpecRegistry(t)
+	registry := sunspecfixture.Registry(t)
 	card := NewSunSpecFroniusQualificationCard()
-	raw := rawWordsForOccurrences(froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1").Occurrences())
+	raw := sunspecfixture.RawWords(froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1").Occurrences())
 	snapshot, err := replayFroniusQualificationCard(t, card, registry, raw)
 	if err != nil {
 		t.Fatalf("complete replay: %v", err)
@@ -77,38 +80,38 @@ func TestFroniusQualificationCardReplaysCompleteSourceBackedChain(t *testing.T) 
 }
 
 func TestFroniusQualificationCardCompleteChainNegativeControls(t *testing.T) {
-	registry := mustStandardSunSpecRegistry(t)
+	registry := sunspecfixture.Registry(t)
 	card := NewSunSpecFroniusQualificationCard()
 	baseOccurrences := froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1").Occurrences()
 
-	unknown := append([]SunSpecOccurrence(nil), baseOccurrences...)
-	unknown = append(unknown[:2], append([]SunSpecOccurrence{rawOccurrence(65000, 2, []uint16{0x1234, 0x5678})}, unknown[2:]...)...)
-	duplicate := append([]SunSpecOccurrence(nil), baseOccurrences...)
-	duplicate = append(duplicate[:3], append([]SunSpecOccurrence{duplicate[2]}, duplicate[3:]...)...)
-	unsupportedLength := append([]SunSpecOccurrence(nil), baseOccurrences...)
-	unsupportedLength[2] = rawOccurrence(120, 27, make([]uint16, 27))
-	sentinel := append([]SunSpecOccurrence(nil), baseOccurrences...)
-	sentinel[1] = inverterOccurrence(t, registry, 113, map[string][]uint16{"W": {uint16(math.Float32bits(float32(math.NaN())) >> 16), uint16(math.Float32bits(float32(math.NaN())))}}, 2)
+	unknown := append([]modbusreg.SunSpecOccurrence(nil), baseOccurrences...)
+	unknown = append(unknown[:2], append([]modbusreg.SunSpecOccurrence{rawOccurrence(t, registry, 65000, 2, []uint16{0x1234, 0x5678})}, unknown[2:]...)...)
+	duplicate := append([]modbusreg.SunSpecOccurrence(nil), baseOccurrences...)
+	duplicate = append(duplicate[:3], append([]modbusreg.SunSpecOccurrence{duplicate[2]}, duplicate[3:]...)...)
+	unsupportedLength := append([]modbusreg.SunSpecOccurrence(nil), baseOccurrences...)
+	unsupportedLength[2] = rawOccurrence(t, registry, 120, 27, make([]uint16, 27))
+	sentinel := append([]modbusreg.SunSpecOccurrence(nil), baseOccurrences...)
+	sentinel[1] = sunspecfixture.InverterOccurrence(t, registry, 113, map[string][]uint16{"W": {uint16(math.Float32bits(float32(math.NaN())) >> 16), uint16(math.Float32bits(float32(math.NaN())))}}, 2)
 	vendorNegative := froniusObservedSnapshotV11(t, registry, "Other", "Symo GEN24 10.0", "1.41.11-1").Occurrences()
 	firmwareNegative := froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-2").Occurrences()
 
 	tests := []struct {
 		name                string
-		occurrences         []SunSpecOccurrence
+		occurrences         []modbusreg.SunSpecOccurrence
 		capabilityAdmitted  bool
-		retainedDisposition SunSpecChainDisposition
+		retainedDisposition modbusreg.SunSpecChainDisposition
 		retainedModel       uint16
 	}{
-		{"unknown model retained", unknown, true, SunSpecChainDispositionUnknownModel, 65000},
-		{"duplicate model retained", duplicate, true, SunSpecChainDispositionAdmitted, 120},
-		{"unsupported length retained", unsupportedLength, true, SunSpecChainDispositionUnsupportedLength, 120},
+		{"unknown model retained", unknown, true, modbusreg.SunSpecChainDispositionUnknownModel, 65000},
+		{"duplicate model retained", duplicate, true, modbusreg.SunSpecChainDispositionAdmitted, 120},
+		{"unsupported length retained", unsupportedLength, true, modbusreg.SunSpecChainDispositionUnsupportedLength, 120},
 		{"required sentinel rejected", sentinel, false, "", 0},
 		{"vendor negative", vendorNegative, true, "", 0},
 		{"firmware negative", firmwareNegative, true, "", 0},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			snapshot, err := replayFroniusQualificationCard(t, card, registry, rawWordsForOccurrences(tc.occurrences))
+			snapshot, err := replayFroniusQualificationCard(t, card, registry, sunspecfixture.RawWords(tc.occurrences))
 			if err != nil {
 				t.Fatalf("replay: %v", err)
 			}
@@ -147,9 +150,9 @@ func TestFroniusQualificationCardCompleteChainNegativeControls(t *testing.T) {
 }
 
 func TestFroniusQualificationCardRejectsWrongAndExtraBaseAcquisition(t *testing.T) {
-	registry := mustStandardSunSpecRegistry(t)
+	registry := sunspecfixture.Registry(t)
 	card := NewSunSpecFroniusQualificationCard()
-	raw := rawWordsForOccurrences(froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1").Occurrences())
+	raw := sunspecfixture.RawWords(froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1").Occurrences())
 
 	for _, tc := range []struct {
 		name         string
@@ -160,7 +163,7 @@ func TestFroniusQualificationCardRejectsWrongAndExtraBaseAcquisition(t *testing.
 		{name: "extra scanned base", bases: []uint16{40000, 41000}, selectedBase: 40000},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+			plan, err := modbusreg.NewSunSpecChainPlan(modbusreg.SunSpecChainPlanSpec{
 				SchemaRevision: card.SchemaRevision(),
 				BaseCandidates: tc.bases,
 				Limits:         card.Limits(),
@@ -184,7 +187,7 @@ func TestFroniusQualificationCardRejectsWrongAndExtraBaseAcquisition(t *testing.
 }
 
 func TestFroniusQualificationCardRejectsMalformedLengthMissingChunkAndWrongUnit(t *testing.T) {
-	registry := mustStandardSunSpecRegistry(t)
+	registry := sunspecfixture.Registry(t)
 	card := NewSunSpecFroniusQualificationCard()
 
 	chain, err := card.NewReplayChain(registry)
@@ -192,14 +195,14 @@ func TestFroniusQualificationCardRejectsMalformedLengthMissingChunkAndWrongUnit(
 		t.Fatal(err)
 	}
 	id := uint64(1)
-	if _, err := admitNext(t, chain, &id, []uint16{sunSpecSignatureFirst, sunSpecSignatureSecond}); err != nil {
+	if _, err := sunspecfixture.AdmitNext(t, chain, &id, []uint16{sunspecfixture.SignatureFirst, sunspecfixture.SignatureSecond}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := admitNext(t, chain, &id, []uint16{120, 0}); err == nil || len(chain.NextRequests()) != 0 {
+	if _, err := sunspecfixture.AdmitNext(t, chain, &id, []uint16{120, 0}); err == nil || len(chain.NextRequests()) != 0 {
 		t.Fatal("malformed zero length did not terminally fail closed")
 	}
 
-	raw := rawWordsForOccurrences(froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1").Occurrences())
+	raw := sunspecfixture.RawWords(froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1").Occurrences())
 	partial := raw[:len(raw)-20]
 	snapshot, err := replayFroniusQualificationCard(t, card, registry, partial)
 	if err != nil {
@@ -213,7 +216,10 @@ func TestFroniusQualificationCardRejectsMalformedLengthMissingChunkAndWrongUnit(
 	if err != nil {
 		t.Fatal(err)
 	}
-	complete.sources[0].UnitID = 2
+	complete = sunspecfixture.WithRecords(t, complete, func(records []modbusreg.LogicalViewRecord) []modbusreg.LogicalViewRecord {
+		records[0].UnitID = 2
+		return records
+	})
 	if _, err := card.Qualify(registry, complete); err == nil {
 		t.Fatal("wrong unit qualified exact observed card")
 	}
@@ -224,7 +230,7 @@ func TestFroniusQualificationCardSanitizedExpectedResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := os.ReadFile("testdata/sunspec/qualification/fronius_gen24_float_v1_1_expected.json")
+	want, err := os.ReadFile("../testdata/sunspec/qualification/fronius_gen24_float_v1_1_expected.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,55 +246,58 @@ func TestFroniusQualificationCardSanitizedExpectedResult(t *testing.T) {
 	}
 }
 
-func rawOccurrence(modelID, length uint16, payload []uint16) SunSpecOccurrence {
+// rawOccurrence returns an occurrence whose words are the header of
+// modelID/length followed by payload; the replay uses only its words.
+func rawOccurrence(t *testing.T, registry modbusreg.SunSpecDecoderRegistry, modelID, length uint16, payload []uint16) modbusreg.SunSpecOccurrence {
+	t.Helper()
 	words := []uint16{modelID, length}
 	words = append(words, payload...)
-	return SunSpecOccurrence{words: words}
+	return sunspecfixture.Occurrence(t, registry, words, 0)
 }
 
-func replayFroniusQualificationCard(t *testing.T, card SunSpecFroniusQualificationCard, registry SunSpecDecoderRegistry, raw []uint16) (SunSpecChainSnapshot, error) {
+func replayFroniusQualificationCard(t *testing.T, card SunSpecFroniusQualificationCard, registry modbusreg.SunSpecDecoderRegistry, raw []uint16) (modbusreg.SunSpecChainSnapshot, error) {
 	t.Helper()
 	chain, err := card.NewReplayChain(registry)
 	if err != nil {
-		return SunSpecChainSnapshot{}, err
+		return modbusreg.SunSpecChainSnapshot{}, err
 	}
 	return replayFroniusQualificationChain(t, chain, raw, card.BaseCandidates()[0])
 }
 
-func replayFroniusQualificationPlan(t *testing.T, plan SunSpecChainPlan, raw []uint16, selectedBase uint16) (SunSpecChainSnapshot, error) {
+func replayFroniusQualificationPlan(t *testing.T, plan modbusreg.SunSpecChainPlan, raw []uint16, selectedBase uint16) (modbusreg.SunSpecChainSnapshot, error) {
 	t.Helper()
-	return replayFroniusQualificationChain(t, NewSunSpecChain(plan), raw, selectedBase)
+	return replayFroniusQualificationChain(t, modbusreg.NewSunSpecChain(plan), raw, selectedBase)
 }
 
-func replayFroniusQualificationChain(t *testing.T, chain *SunSpecChain, raw []uint16, selectedBase uint16) (SunSpecChainSnapshot, error) {
+func replayFroniusQualificationChain(t *testing.T, chain *modbusreg.SunSpecChain, raw []uint16, selectedBase uint16) (modbusreg.SunSpecChainSnapshot, error) {
 	t.Helper()
 	base := uint32(selectedBase)
 	viewID := uint64(1000)
 	for len(chain.NextRequests()) != 0 {
 		request := chain.NextRequests()[0]
-		if request.Purpose() == SunSpecReadSignature && request.Address() != selectedBase {
-			if _, err := chain.AdmitReplay(request, chainView(t, request, viewID, []uint16{0, 0}, "qualification-fixture")); err != nil {
-				return SunSpecChainSnapshot{}, err
+		if request.Purpose() == modbusreg.SunSpecReadSignature && request.Address() != selectedBase {
+			if _, err := chain.AdmitReplay(request, sunspecfixture.View(t, request, viewID, []uint16{0, 0}, "qualification-fixture")); err != nil {
+				return modbusreg.SunSpecChainSnapshot{}, err
 			}
 			viewID++
 			continue
 		}
 		if uint32(request.Address()) < base {
-			return SunSpecChainSnapshot{}, nil
+			return modbusreg.SunSpecChainSnapshot{}, nil
 		}
 		start := int(uint32(request.Address()) - base)
 		end := start + int(request.WordCount())
 		if start < 0 || end > len(raw) {
-			return SunSpecChainSnapshot{}, nil
+			return modbusreg.SunSpecChainSnapshot{}, nil
 		}
-		snapshot, err := chain.AdmitReplay(request, chainView(t, request, viewID, raw[start:end], "qualification-fixture"))
+		snapshot, err := chain.AdmitReplay(request, sunspecfixture.View(t, request, viewID, raw[start:end], "qualification-fixture"))
 		if err != nil {
-			return SunSpecChainSnapshot{}, err
+			return modbusreg.SunSpecChainSnapshot{}, err
 		}
 		viewID++
 		if len(snapshot.RawWords()) != 0 {
 			return snapshot, nil
 		}
 	}
-	return SunSpecChainSnapshot{}, nil
+	return modbusreg.SunSpecChainSnapshot{}, nil
 }

@@ -1,9 +1,11 @@
-package modbusreg
+package fronius
 
 import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
 const (
@@ -40,8 +42,8 @@ func (SunSpecFroniusQualificationCard) FlavorID() string {
 
 // SchemaRevision returns SunSpecModelsRevisionV1; the card accepts only a
 // registry of that revision.
-func (SunSpecFroniusQualificationCard) SchemaRevision() SunSpecSchemaRevision {
-	return SunSpecModelsRevisionV1
+func (SunSpecFroniusQualificationCard) SchemaRevision() modbusreg.SunSpecSchemaRevision {
+	return modbusreg.SunSpecModelsRevisionV1
 }
 
 // Manufacturer returns the exact Common manufacturer string the card expects.
@@ -58,8 +60,8 @@ func (SunSpecFroniusQualificationCard) UnitID() byte { return sunSpecFroniusQual
 
 // Function returns FunctionReadHoldingRegisters, the only function the card
 // reads with.
-func (SunSpecFroniusQualificationCard) Function() FunctionCode {
-	return FunctionReadHoldingRegisters
+func (SunSpecFroniusQualificationCard) Function() modbusreg.FunctionCode {
+	return modbusreg.FunctionReadHoldingRegisters
 }
 
 // ReadOnly always reports true.
@@ -84,33 +86,33 @@ func (SunSpecFroniusQualificationCard) BaseCandidates() []uint16 {
 
 // Limits returns the card's chain bounds: MaxSunSpecPhaseOneChainWords words
 // and 64 occurrences.
-func (SunSpecFroniusQualificationCard) Limits() SunSpecChainLimits {
-	return SunSpecChainLimits{
-		MaxTotalWords:  MaxSunSpecPhaseOneChainWords,
+func (SunSpecFroniusQualificationCard) Limits() modbusreg.SunSpecChainLimits {
+	return modbusreg.SunSpecChainLimits{
+		MaxTotalWords:  modbusreg.MaxSunSpecPhaseOneChainWords,
 		MaxOccurrences: sunSpecFroniusQualificationMaxModels,
 	}
 }
 
 // ExpectedChain returns a copy of the exact wire chain of the qualified
 // flavor, end marker included.
-func (SunSpecFroniusQualificationCard) ExpectedChain() []SunSpecWireKey {
-	return append([]SunSpecWireKey(nil), froniusObservedChainV11...)
+func (SunSpecFroniusQualificationCard) ExpectedChain() []modbusreg.SunSpecWireKey {
+	return append([]modbusreg.SunSpecWireKey(nil), froniusObservedChainV11...)
 }
 
 // SemanticCandidateFieldIDs lists the exact qualified native facts that may be
 // considered by a later semantic owner. It is not a promotion or publication
 // decision and does not expose facts from any other model in the retained chain.
 func (SunSpecFroniusQualificationCard) SemanticCandidateFieldIDs() []string {
-	return SunSpecThreePhaseMonitoringFieldIDs()
+	return modbusreg.SunSpecThreePhaseMonitoringFieldIDs()
 }
 
 // NewReplayChain returns a fresh stateful acquisition adapter for one replay.
 // Every request is FC03 and remains subject to the card's finite bounds.
-func (card SunSpecFroniusQualificationCard) NewReplayChain(registry SunSpecDecoderRegistry) (*SunSpecChain, error) {
+func (card SunSpecFroniusQualificationCard) NewReplayChain(registry modbusreg.SunSpecDecoderRegistry) (*modbusreg.SunSpecChain, error) {
 	if registry.SchemaRevision() != card.SchemaRevision() {
 		return nil, fmt.Errorf("qualification requires the pinned SunSpec V1 registry")
 	}
-	plan, err := NewSunSpecChainPlan(SunSpecChainPlanSpec{
+	plan, err := modbusreg.NewSunSpecChainPlan(modbusreg.SunSpecChainPlanSpec{
 		SchemaRevision: card.SchemaRevision(),
 		BaseCandidates: card.BaseCandidates(),
 		Limits:         card.Limits(),
@@ -119,12 +121,12 @@ func (card SunSpecFroniusQualificationCard) NewReplayChain(registry SunSpecDecod
 	if err != nil {
 		return nil, err
 	}
-	return NewSunSpecChain(plan), nil
+	return modbusreg.NewSunSpecChain(plan), nil
 }
 
 // Qualify derives the existing immutable qualification observation only after
 // the complete replay also matches the card's exact observed unit and flavor.
-func (card SunSpecFroniusQualificationCard) Qualify(registry SunSpecDecoderRegistry, snapshot SunSpecChainSnapshot) (SunSpecQualificationObservation, error) {
+func (card SunSpecFroniusQualificationCard) Qualify(registry modbusreg.SunSpecDecoderRegistry, snapshot modbusreg.SunSpecChainSnapshot) (SunSpecQualificationObservation, error) {
 	if registry.SchemaRevision() != card.SchemaRevision() {
 		return SunSpecQualificationObservation{}, fmt.Errorf("qualification requires the pinned SunSpec V1 registry")
 	}
@@ -139,7 +141,7 @@ func (card SunSpecFroniusQualificationCard) Qualify(registry SunSpecDecoderRegis
 	for _, view := range views {
 		record := view.Record()
 		if record.UnitID != card.UnitID() || record.RequestedFunction != card.Function() ||
-			record.ReceivedFunction != card.Function() || record.Table != HoldingRegisters {
+			record.ReceivedFunction != card.Function() || record.Table != modbusreg.HoldingRegisters {
 			return SunSpecQualificationObservation{}, fmt.Errorf("qualification source is outside the read-only card")
 		}
 	}
@@ -153,36 +155,36 @@ func (card SunSpecFroniusQualificationCard) Qualify(registry SunSpecDecoderRegis
 	return observation, nil
 }
 
-func (card SunSpecFroniusQualificationCard) replayExactAcquisition(registry SunSpecDecoderRegistry, input SunSpecChainSnapshot) (SunSpecChainSnapshot, error) {
+func (card SunSpecFroniusQualificationCard) replayExactAcquisition(registry modbusreg.SunSpecDecoderRegistry, input modbusreg.SunSpecChainSnapshot) (modbusreg.SunSpecChainSnapshot, error) {
 	chain, err := card.NewReplayChain(registry)
 	if err != nil {
-		return SunSpecChainSnapshot{}, err
+		return modbusreg.SunSpecChainSnapshot{}, err
 	}
 	views := input.SourceViews()
-	var terminal SunSpecChainSnapshot
+	var terminal modbusreg.SunSpecChainSnapshot
 	for index, view := range views {
 		requests := chain.NextRequests()
 		if len(requests) != 1 {
-			return SunSpecChainSnapshot{}, fmt.Errorf("qualification source sequence is outside the exact card plan")
+			return modbusreg.SunSpecChainSnapshot{}, fmt.Errorf("qualification source sequence is outside the exact card plan")
 		}
 		snapshot, err := chain.AdmitReplay(requests[0], view)
 		if err != nil {
-			return SunSpecChainSnapshot{}, fmt.Errorf("qualification source sequence is outside the exact card plan: %w", err)
+			return modbusreg.SunSpecChainSnapshot{}, fmt.Errorf("qualification source sequence is outside the exact card plan: %w", err)
 		}
 		if len(snapshot.RawWords()) != 0 {
 			if index != len(views)-1 {
-				return SunSpecChainSnapshot{}, fmt.Errorf("qualification source sequence continues after the terminal marker")
+				return modbusreg.SunSpecChainSnapshot{}, fmt.Errorf("qualification source sequence continues after the terminal marker")
 			}
 			terminal = snapshot
 		}
 	}
 	if len(terminal.RawWords()) == 0 || len(chain.NextRequests()) != 0 {
-		return SunSpecChainSnapshot{}, fmt.Errorf("qualification source sequence is incomplete")
+		return modbusreg.SunSpecChainSnapshot{}, fmt.Errorf("qualification source sequence is incomplete")
 	}
 	if !reflect.DeepEqual(terminal.RawWords(), input.RawWords()) ||
 		!reflect.DeepEqual(terminal.Occurrences(), input.Occurrences()) ||
 		!reflect.DeepEqual(terminal.SourceViews(), input.SourceViews()) {
-		return SunSpecChainSnapshot{}, fmt.Errorf("qualification snapshot differs from the exact card replay")
+		return modbusreg.SunSpecChainSnapshot{}, fmt.Errorf("qualification snapshot differs from the exact card replay")
 	}
 	return terminal, nil
 }
@@ -205,30 +207,30 @@ func (card SunSpecFroniusQualificationCard) ExpectedResult() SunSpecFroniusQuali
 func (result SunSpecFroniusQualificationExpectedResult) MarshalJSON() ([]byte, error) {
 	card := result.card
 	return json.Marshal(struct {
-		Schema                    string           `json:"schema"`
-		CardID                    string           `json:"card_id"`
-		Status                    string           `json:"status"`
-		CapabilityID              string           `json:"capability_id"`
-		FlavorID                  string           `json:"flavor_id"`
-		Manufacturer              string           `json:"manufacturer"`
-		Model                     string           `json:"model"`
-		Firmware                  string           `json:"firmware"`
-		Function                  string           `json:"function"`
-		UnitID                    byte             `json:"unit_id"`
-		PDUOffset                 uint16           `json:"pdu_offset"`
-		MaxTotalWords             uint32           `json:"max_total_words"`
-		MaxOccurrences            uint32           `json:"max_occurrences"`
-		Chain                     []SunSpecWireKey `json:"chain"`
-		SemanticCandidateFieldIDs []string         `json:"semantic_candidate_field_ids"`
-		RetainedEvidence          []string         `json:"retained_evidence"`
-		LiveQualified             bool             `json:"live_qualified"`
-		AutomaticRuntimeAdmission bool             `json:"automatic_runtime_admission"`
-		WriteAuthority            bool             `json:"write_authority"`
+		Schema                    string                     `json:"schema"`
+		CardID                    string                     `json:"card_id"`
+		Status                    string                     `json:"status"`
+		CapabilityID              string                     `json:"capability_id"`
+		FlavorID                  string                     `json:"flavor_id"`
+		Manufacturer              string                     `json:"manufacturer"`
+		Model                     string                     `json:"model"`
+		Firmware                  string                     `json:"firmware"`
+		Function                  string                     `json:"function"`
+		UnitID                    byte                       `json:"unit_id"`
+		PDUOffset                 uint16                     `json:"pdu_offset"`
+		MaxTotalWords             uint32                     `json:"max_total_words"`
+		MaxOccurrences            uint32                     `json:"max_occurrences"`
+		Chain                     []modbusreg.SunSpecWireKey `json:"chain"`
+		SemanticCandidateFieldIDs []string                   `json:"semantic_candidate_field_ids"`
+		RetainedEvidence          []string                   `json:"retained_evidence"`
+		LiveQualified             bool                       `json:"live_qualified"`
+		AutomaticRuntimeAdmission bool                       `json:"automatic_runtime_admission"`
+		WriteAuthority            bool                       `json:"write_authority"`
 	}{
 		Schema:                    sunSpecFroniusQualificationResultV1,
 		CardID:                    card.ID(),
 		Status:                    sunSpecFroniusOfflineReplayMatch,
-		CapabilityID:              SunSpecThreePhaseMonitoringCapabilityID,
+		CapabilityID:              modbusreg.SunSpecThreePhaseMonitoringCapabilityID,
 		FlavorID:                  card.FlavorID(),
 		Manufacturer:              card.Manufacturer(),
 		Model:                     card.Model(),
