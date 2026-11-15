@@ -207,9 +207,7 @@ type RestartState struct {
 // terminal sequence already covered by prior without contradicting any
 // overlapping retained history. History fully below restart's truncation
 // watermark is intentionally non-reconstructing and needs no comparison.
-func (restart RestartState) CoversTerminalWatermark(
-	prior RestartState,
-) bool {
+func (restart RestartState) CoversTerminalWatermark(prior RestartState) bool {
 	limits := maximumLedgerRestartValidationLimits()
 	if validateLedgerRestartState(restart, limits) != nil ||
 		validateLedgerRestartState(prior, limits) != nil {

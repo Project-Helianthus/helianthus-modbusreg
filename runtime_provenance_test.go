@@ -1339,9 +1339,7 @@ func TestAdmissionFailureTerminalPersistenceIsRetryable(t *testing.T) {
 	}
 }
 
-func TestRuntimeAttemptClaimsProducerCapabilitiesAndRetainsExactNormalization(
-	t *testing.T,
-) {
+func TestRuntimeAttemptClaimsProducerCapabilitiesAndRetainsExactNormalization(t *testing.T) {
 	profile := profileFixture(t)
 	source, views := runtimeSourceAndViews(t)
 	initial, err := ledger.EmptySampleLedgerState("runtime-ledger", profile)

@@ -5,7 +5,7 @@
       "path": "detection/fixture_conformance.go",
       "symbol": "$file",
       "metric": "file_lines",
-      "value": 1147
+      "value": 1146
     },
     {
       "path": "detection/fixture_conformance.go",
@@ -125,7 +125,7 @@
       "path": "ledger/runtime_ledger.go",
       "symbol": "$file",
       "metric": "file_lines",
-      "value": 2324
+      "value": 2323
     },
     {
       "path": "ledger/runtime_ledger.go",
@@ -137,7 +137,7 @@
       "path": "runtime_provenance_test.go",
       "symbol": "$file",
       "metric": "file_lines",
-      "value": 2481
+      "value": 2480
     },
     {
       "path": "runtime_provenance_test.go",
