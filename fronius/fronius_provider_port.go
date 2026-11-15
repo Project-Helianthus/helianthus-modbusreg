@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 // I25FroniusProvider is a family-local port over supplied offline evidence.
@@ -36,7 +36,7 @@ type I25FroniusAdapter struct {
 	i25Mu                                             sync.Mutex
 	i25Lifetime                                       I25FroniusLifetime
 	i25Retired                                        bool
-	i25Registry                                       modbusreg.SunSpecDecoderRegistry
+	i25Registry                                       sunspec.DecoderRegistry
 	i25MaxWords, i25MaxOccurrences, i25MaxSourceViews uint32
 	i25Reader                                         OfflineReader
 	i25Native                                         OfflineProvider
@@ -45,9 +45,9 @@ type I25FroniusAdapter struct {
 // I25NewFroniusAdapter accepts an existing registry and finite per-run ceilings.
 // It copies the registry and invokes no supplier. Native validation still owns
 // exact-card acceptance; these ceilings confer no acquisition authority.
-func I25NewFroniusAdapter(i25Registry modbusreg.SunSpecDecoderRegistry, i25MaxWords, i25MaxOccurrences, i25MaxSourceViews uint32, i25Reader OfflineReader) (*I25FroniusAdapter, error) {
+func I25NewFroniusAdapter(i25Registry sunspec.DecoderRegistry, i25MaxWords, i25MaxOccurrences, i25MaxSourceViews uint32, i25Reader OfflineReader) (*I25FroniusAdapter, error) {
 	i25Card := NewSunSpecFroniusQualificationCard()
-	if i25Reader == nil || i25Registry.SchemaRevision() != i25Card.SchemaRevision() || i25Registry.DefinitionCount() == 0 || i25MaxWords == 0 || i25MaxWords > i25Card.Limits().MaxTotalWords || i25MaxOccurrences == 0 || i25MaxOccurrences > i25Card.Limits().MaxOccurrences || i25MaxSourceViews == 0 || i25MaxSourceViews > modbusreg.MaxSunSpecPhaseOneChainWords {
+	if i25Reader == nil || i25Registry.SchemaRevision() != i25Card.SchemaRevision() || i25Registry.DefinitionCount() == 0 || i25MaxWords == 0 || i25MaxWords > i25Card.Limits().MaxTotalWords || i25MaxOccurrences == 0 || i25MaxOccurrences > i25Card.Limits().MaxOccurrences || i25MaxSourceViews == 0 || i25MaxSourceViews > sunspec.MaxSunSpecPhaseOneChainWords {
 		return nil, fmt.Errorf("invalid I25 registry, reader or finite bounds")
 	}
 	return &I25FroniusAdapter{i25Lifetime: I25FroniusLifetime{&i25FroniusIdentity{true}}, i25Registry: i25Registry.Clone(), i25MaxWords: i25MaxWords, i25MaxOccurrences: i25MaxOccurrences, i25MaxSourceViews: i25MaxSourceViews, i25Reader: i25Reader}, nil

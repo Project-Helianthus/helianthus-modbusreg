@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 func offlineInput() DetachedRecordInput {
 	return DetachedRecordInput{Words: []uint16{7, 8}, DeclaredWords: 2, Present: []WordSpan{{0, 2}}, Source: SourceAssociation{Key: "family-source", Revision: "one", PublicLocator: "public/source", ContentIdentity: "synthetic-content", DeclaredLayout: "opaque", SourceSetRevision: "set-one", SelectorInputs: "synthetic", Available: true}, Occurrences: []DetachedOccurrence{
-		{Ordinal: 3, WireKey: modbusreg.SunSpecWireKey{ModelID: 64111, ModelLength: 1}, Words: []uint16{7}, Present: []WordSpan{{0, 1}}},
-		{Ordinal: 5, WireKey: modbusreg.SunSpecWireKey{ModelID: 64111, ModelLength: 1}, Offset: 1, Words: []uint16{8}, Present: []WordSpan{{0, 1}}},
+		{Ordinal: 3, WireKey: sunspec.WireKey{ModelID: 64111, ModelLength: 1}, Words: []uint16{7}, Present: []WordSpan{{0, 1}}},
+		{Ordinal: 5, WireKey: sunspec.WireKey{ModelID: 64111, ModelLength: 1}, Offset: 1, Words: []uint16{8}, Present: []WordSpan{{0, 1}}},
 	}}
 }
 func outBackOfflineProvider(t *testing.T, supplier DiagnosticSupplier) *OfflineProvider {

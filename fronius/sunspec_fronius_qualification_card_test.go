@@ -9,13 +9,14 @@ import (
 
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/internal/sunspecfixture"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 func TestFroniusQualificationCardPinsBoundedReadOnlyObservedFlavor(t *testing.T) {
 	card := NewSunSpecFroniusQualificationCard()
 	if card.ID() != SunSpecFroniusQualificationCardID ||
 		card.FlavorID() != SunSpecFroniusObservedFlavorV11ID ||
-		card.SchemaRevision() != modbusreg.SunSpecModelsRevisionV1 ||
+		card.SchemaRevision() != sunspec.ModelsRevisionV1 ||
 		card.Manufacturer() != "Fronius" || card.Model() != "Symo GEN24 10.0" ||
 		card.Firmware() != "1.41.11-1" || card.UnitID() != 1 ||
 		card.Function() != modbusreg.FunctionReadHoldingRegisters || !card.ReadOnly() {
@@ -27,7 +28,7 @@ func TestFroniusQualificationCardPinsBoundedReadOnlyObservedFlavor(t *testing.T)
 	if got := card.BaseCandidates(); !reflect.DeepEqual(got, []uint16{40000}) {
 		t.Fatalf("base candidates=%v", got)
 	}
-	if limits := card.Limits(); limits != (modbusreg.SunSpecChainLimits{MaxTotalWords: 512, MaxOccurrences: 64}) {
+	if limits := card.Limits(); limits != (sunspec.ChainLimits{MaxTotalWords: 512, MaxOccurrences: 64}) {
 		t.Fatalf("limits=%#v", limits)
 	}
 	wantFacts := []string{
@@ -40,7 +41,7 @@ func TestFroniusQualificationCardPinsBoundedReadOnlyObservedFlavor(t *testing.T)
 		t.Fatalf("semantic candidates=%v", got)
 	}
 	got := card.ExpectedChain()
-	got[0] = modbusreg.SunSpecWireKey{}
+	got[0] = sunspec.WireKey{}
 	if !reflect.DeepEqual(card.ExpectedChain(), froniusObservedChainV11) {
 		t.Fatal("expected chain leaked mutation")
 	}
@@ -84,27 +85,27 @@ func TestFroniusQualificationCardCompleteChainNegativeControls(t *testing.T) {
 	card := NewSunSpecFroniusQualificationCard()
 	baseOccurrences := froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1").Occurrences()
 
-	unknown := append([]modbusreg.SunSpecOccurrence(nil), baseOccurrences...)
-	unknown = append(unknown[:2], append([]modbusreg.SunSpecOccurrence{rawOccurrence(t, registry, 65000, 2, []uint16{0x1234, 0x5678})}, unknown[2:]...)...)
-	duplicate := append([]modbusreg.SunSpecOccurrence(nil), baseOccurrences...)
-	duplicate = append(duplicate[:3], append([]modbusreg.SunSpecOccurrence{duplicate[2]}, duplicate[3:]...)...)
-	unsupportedLength := append([]modbusreg.SunSpecOccurrence(nil), baseOccurrences...)
+	unknown := append([]sunspec.Occurrence(nil), baseOccurrences...)
+	unknown = append(unknown[:2], append([]sunspec.Occurrence{rawOccurrence(t, registry, 65000, 2, []uint16{0x1234, 0x5678})}, unknown[2:]...)...)
+	duplicate := append([]sunspec.Occurrence(nil), baseOccurrences...)
+	duplicate = append(duplicate[:3], append([]sunspec.Occurrence{duplicate[2]}, duplicate[3:]...)...)
+	unsupportedLength := append([]sunspec.Occurrence(nil), baseOccurrences...)
 	unsupportedLength[2] = rawOccurrence(t, registry, 120, 27, make([]uint16, 27))
-	sentinel := append([]modbusreg.SunSpecOccurrence(nil), baseOccurrences...)
+	sentinel := append([]sunspec.Occurrence(nil), baseOccurrences...)
 	sentinel[1] = sunspecfixture.InverterOccurrence(t, registry, 113, map[string][]uint16{"W": {uint16(math.Float32bits(float32(math.NaN())) >> 16), uint16(math.Float32bits(float32(math.NaN())))}}, 2)
 	vendorNegative := froniusObservedSnapshotV11(t, registry, "Other", "Symo GEN24 10.0", "1.41.11-1").Occurrences()
 	firmwareNegative := froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-2").Occurrences()
 
 	tests := []struct {
 		name                string
-		occurrences         []modbusreg.SunSpecOccurrence
+		occurrences         []sunspec.Occurrence
 		capabilityAdmitted  bool
-		retainedDisposition modbusreg.SunSpecChainDisposition
+		retainedDisposition sunspec.ChainDisposition
 		retainedModel       uint16
 	}{
-		{"unknown model retained", unknown, true, modbusreg.SunSpecChainDispositionUnknownModel, 65000},
-		{"duplicate model retained", duplicate, true, modbusreg.SunSpecChainDispositionAdmitted, 120},
-		{"unsupported length retained", unsupportedLength, true, modbusreg.SunSpecChainDispositionUnsupportedLength, 120},
+		{"unknown model retained", unknown, true, sunspec.ChainDispositionUnknownModel, 65000},
+		{"duplicate model retained", duplicate, true, sunspec.ChainDispositionAdmitted, 120},
+		{"unsupported length retained", unsupportedLength, true, sunspec.ChainDispositionUnsupportedLength, 120},
 		{"required sentinel rejected", sentinel, false, "", 0},
 		{"vendor negative", vendorNegative, true, "", 0},
 		{"firmware negative", firmwareNegative, true, "", 0},
@@ -163,7 +164,7 @@ func TestFroniusQualificationCardRejectsWrongAndExtraBaseAcquisition(t *testing.
 		{name: "extra scanned base", bases: []uint16{40000, 41000}, selectedBase: 40000},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			plan, err := modbusreg.NewSunSpecChainPlan(modbusreg.SunSpecChainPlanSpec{
+			plan, err := sunspec.NewChainPlan(sunspec.ChainPlanSpec{
 				SchemaRevision: card.SchemaRevision(),
 				BaseCandidates: tc.bases,
 				Limits:         card.Limits(),
@@ -248,56 +249,56 @@ func TestFroniusQualificationCardSanitizedExpectedResult(t *testing.T) {
 
 // rawOccurrence returns an occurrence whose words are the header of
 // modelID/length followed by payload; the replay uses only its words.
-func rawOccurrence(t *testing.T, registry modbusreg.SunSpecDecoderRegistry, modelID, length uint16, payload []uint16) modbusreg.SunSpecOccurrence {
+func rawOccurrence(t *testing.T, registry sunspec.DecoderRegistry, modelID, length uint16, payload []uint16) sunspec.Occurrence {
 	t.Helper()
 	words := []uint16{modelID, length}
 	words = append(words, payload...)
 	return sunspecfixture.Occurrence(t, registry, words, 0)
 }
 
-func replayFroniusQualificationCard(t *testing.T, card SunSpecFroniusQualificationCard, registry modbusreg.SunSpecDecoderRegistry, raw []uint16) (modbusreg.SunSpecChainSnapshot, error) {
+func replayFroniusQualificationCard(t *testing.T, card SunSpecFroniusQualificationCard, registry sunspec.DecoderRegistry, raw []uint16) (sunspec.ChainSnapshot, error) {
 	t.Helper()
 	chain, err := card.NewReplayChain(registry)
 	if err != nil {
-		return modbusreg.SunSpecChainSnapshot{}, err
+		return sunspec.ChainSnapshot{}, err
 	}
 	return replayFroniusQualificationChain(t, chain, raw, card.BaseCandidates()[0])
 }
 
-func replayFroniusQualificationPlan(t *testing.T, plan modbusreg.SunSpecChainPlan, raw []uint16, selectedBase uint16) (modbusreg.SunSpecChainSnapshot, error) {
+func replayFroniusQualificationPlan(t *testing.T, plan sunspec.ChainPlan, raw []uint16, selectedBase uint16) (sunspec.ChainSnapshot, error) {
 	t.Helper()
-	return replayFroniusQualificationChain(t, modbusreg.NewSunSpecChain(plan), raw, selectedBase)
+	return replayFroniusQualificationChain(t, sunspec.NewChain(plan), raw, selectedBase)
 }
 
-func replayFroniusQualificationChain(t *testing.T, chain *modbusreg.SunSpecChain, raw []uint16, selectedBase uint16) (modbusreg.SunSpecChainSnapshot, error) {
+func replayFroniusQualificationChain(t *testing.T, chain *sunspec.Chain, raw []uint16, selectedBase uint16) (sunspec.ChainSnapshot, error) {
 	t.Helper()
 	base := uint32(selectedBase)
 	viewID := uint64(1000)
 	for len(chain.NextRequests()) != 0 {
 		request := chain.NextRequests()[0]
-		if request.Purpose() == modbusreg.SunSpecReadSignature && request.Address() != selectedBase {
+		if request.Purpose() == sunspec.ReadSignature && request.Address() != selectedBase {
 			if _, err := chain.AdmitReplay(request, sunspecfixture.View(t, request, viewID, []uint16{0, 0}, "qualification-fixture")); err != nil {
-				return modbusreg.SunSpecChainSnapshot{}, err
+				return sunspec.ChainSnapshot{}, err
 			}
 			viewID++
 			continue
 		}
 		if uint32(request.Address()) < base {
-			return modbusreg.SunSpecChainSnapshot{}, nil
+			return sunspec.ChainSnapshot{}, nil
 		}
 		start := int(uint32(request.Address()) - base)
 		end := start + int(request.WordCount())
 		if start < 0 || end > len(raw) {
-			return modbusreg.SunSpecChainSnapshot{}, nil
+			return sunspec.ChainSnapshot{}, nil
 		}
 		snapshot, err := chain.AdmitReplay(request, sunspecfixture.View(t, request, viewID, raw[start:end], "qualification-fixture"))
 		if err != nil {
-			return modbusreg.SunSpecChainSnapshot{}, err
+			return sunspec.ChainSnapshot{}, err
 		}
 		viewID++
 		if len(snapshot.RawWords()) != 0 {
 			return snapshot, nil
 		}
 	}
-	return modbusreg.SunSpecChainSnapshot{}, nil
+	return sunspec.ChainSnapshot{}, nil
 }

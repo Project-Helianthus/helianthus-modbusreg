@@ -1,5 +1,115 @@
 # Changelog
 
+## SunSpec package (#377)
+
+The SunSpec standard family moves from the module root to package `github.com/Project-Helianthus/helianthus-modbusreg/sunspec`. Exported names that began with `SunSpec` lose that prefix and constructors follow their types; other exported names, such as `NewStandardSunSpecDecoderRegistry`, `NewSunSpecPhaseOneProfile` and `MaxSunSpecPhaseOneChainWords`, change only their qualifier; methods, fields, wire values, JSON keys, serialized records and behavior are unchanged. No alias or forwarding declaration remains in the root package. The package depends only on the contracts of the root package; the Fronius and OutBack overlays import it and no other vendor package. Consumers replace each previous name with the current one:
+
+| Previous name | Current name |
+| --- | --- |
+| `modbusreg.NewSunSpecChain` | `sunspec.NewChain` |
+| `modbusreg.NewSunSpecChainPlan` | `sunspec.NewChainPlan` |
+| `modbusreg.NewSunSpecChainSnapshot` | `sunspec.NewChainSnapshot` |
+| `modbusreg.NewSunSpecFactPath` | `sunspec.NewFactPath` |
+| `modbusreg.NewSunSpecOccurrenceSourceRange` | `sunspec.NewOccurrenceSourceRange` |
+| `modbusreg.NewSunSpecPhaseOneDecoder` | `sunspec.NewPhaseOneDecoder` |
+| `modbusreg.SunSpecCanonicalBitfield` | `sunspec.CanonicalBitfield` |
+| `modbusreg.SunSpecCanonicalEnum` | `sunspec.CanonicalEnum` |
+| `modbusreg.SunSpecCanonicalNumber` | `sunspec.CanonicalNumber` |
+| `modbusreg.SunSpecCanonicalValue` | `sunspec.CanonicalValue` |
+| `modbusreg.SunSpecCanonicalValueKind` | `sunspec.CanonicalValueKind` |
+| `modbusreg.SunSpecCapabilityDecision` | `sunspec.CapabilityDecision` |
+| `modbusreg.SunSpecCapabilityFact` | `sunspec.CapabilityFact` |
+| `modbusreg.SunSpecCapabilityReason` | `sunspec.CapabilityReason` |
+| `modbusreg.SunSpecCapabilityReasonAdmitted` | `sunspec.CapabilityReasonAdmitted` |
+| `modbusreg.SunSpecCapabilityReasonAmbiguousSource` | `sunspec.CapabilityReasonAmbiguousSource` |
+| `modbusreg.SunSpecCapabilityReasonInvalidChain` | `sunspec.CapabilityReasonInvalidChain` |
+| `modbusreg.SunSpecCapabilityReasonInvalidRequiredFact` | `sunspec.CapabilityReasonInvalidRequiredFact` |
+| `modbusreg.SunSpecCapabilityReasonSourceAbsent` | `sunspec.CapabilityReasonSourceAbsent` |
+| `modbusreg.SunSpecCapabilityReasonSourceUnsupported` | `sunspec.CapabilityReasonSourceUnsupported` |
+| `modbusreg.SunSpecChain` | `sunspec.Chain` |
+| `modbusreg.SunSpecChainDisposition` | `sunspec.ChainDisposition` |
+| `modbusreg.SunSpecChainDispositionAdmitted` | `sunspec.ChainDispositionAdmitted` |
+| `modbusreg.SunSpecChainDispositionUnknown` | `sunspec.ChainDispositionUnknown` |
+| `modbusreg.SunSpecChainDispositionUnknownModel` | `sunspec.ChainDispositionUnknownModel` |
+| `modbusreg.SunSpecChainDispositionUnsupportedLength` | `sunspec.ChainDispositionUnsupportedLength` |
+| `modbusreg.SunSpecChainLimits` | `sunspec.ChainLimits` |
+| `modbusreg.SunSpecChainPlan` | `sunspec.ChainPlan` |
+| `modbusreg.SunSpecChainPlanSpec` | `sunspec.ChainPlanSpec` |
+| `modbusreg.SunSpecChainSnapshot` | `sunspec.ChainSnapshot` |
+| `modbusreg.SunSpecCloneSourceViews` | `sunspec.CloneSourceViews` |
+| `modbusreg.SunSpecCommonModel` | `sunspec.CommonModel` |
+| `modbusreg.SunSpecDecimal` | `sunspec.Decimal` |
+| `modbusreg.SunSpecDecodedChain` | `sunspec.DecodedChain` |
+| `modbusreg.SunSpecDecodedModel` | `sunspec.DecodedModel` |
+| `modbusreg.SunSpecDecoderKey` | `sunspec.DecoderKey` |
+| `modbusreg.SunSpecDecoderRegistry` | `sunspec.DecoderRegistry` |
+| `modbusreg.SunSpecDiscoveryRequest` | `sunspec.DiscoveryRequest` |
+| `modbusreg.SunSpecEndModelID` | `sunspec.EndModelID` |
+| `modbusreg.SunSpecFact` | `sunspec.Fact` |
+| `modbusreg.SunSpecFactPath` | `sunspec.FactPath` |
+| `modbusreg.SunSpecFactPathSegment` | `sunspec.FactPathSegment` |
+| `modbusreg.SunSpecInverterModel` | `sunspec.InverterModel` |
+| `modbusreg.SunSpecModelOccurrence` | `sunspec.ModelOccurrence` |
+| `modbusreg.SunSpecModelsRevisionV1` | `sunspec.ModelsRevisionV1` |
+| `modbusreg.SunSpecModelsRevisionV2` | `sunspec.ModelsRevisionV2` |
+| `modbusreg.SunSpecOccurrence` | `sunspec.Occurrence` |
+| `modbusreg.SunSpecOccurrenceSourceRange` | `sunspec.OccurrenceSourceRange` |
+| `modbusreg.SunSpecPhaseOneActivation` | `sunspec.PhaseOneActivation` |
+| `modbusreg.SunSpecPhaseOneCapture` | `sunspec.PhaseOneCapture` |
+| `modbusreg.SunSpecPhaseOneChain` | `sunspec.PhaseOneChain` |
+| `modbusreg.SunSpecPhaseOneDecoder` | `sunspec.PhaseOneDecoder` |
+| `modbusreg.SunSpecPhaseOneModel` | `sunspec.PhaseOneModel` |
+| `modbusreg.SunSpecPhaseOneObservation` | `sunspec.PhaseOneObservation` |
+| `modbusreg.SunSpecPhaseOneVersions` | `sunspec.PhaseOneVersions` |
+| `modbusreg.SunSpecPointType` | `sunspec.PointType` |
+| `modbusreg.SunSpecReadHeader` | `sunspec.ReadHeader` |
+| `modbusreg.SunSpecReadPayload` | `sunspec.ReadPayload` |
+| `modbusreg.SunSpecReadPurpose` | `sunspec.ReadPurpose` |
+| `modbusreg.SunSpecReadRequest` | `sunspec.ReadRequest` |
+| `modbusreg.SunSpecReadSignature` | `sunspec.ReadSignature` |
+| `modbusreg.SunSpecSameProvenance` | `sunspec.SameProvenance` |
+| `modbusreg.SunSpecScaledValue` | `sunspec.ScaledValue` |
+| `modbusreg.SunSpecSchemaRevision` | `sunspec.SchemaRevision` |
+| `modbusreg.SunSpecSourceSpan` | `sunspec.SourceSpan` |
+| `modbusreg.SunSpecStructuralProjection` | `sunspec.StructuralProjection` |
+| `modbusreg.SunSpecThreePhaseMonitoringCapabilityID` | `sunspec.ThreePhaseMonitoringCapabilityID` |
+| `modbusreg.SunSpecThreePhaseMonitoringFieldIDs` | `sunspec.ThreePhaseMonitoringFieldIDs` |
+| `modbusreg.SunSpecTopology` | `sunspec.Topology` |
+| `modbusreg.SunSpecTopologyNone` | `sunspec.TopologyNone` |
+| `modbusreg.SunSpecTopologySinglePhase` | `sunspec.TopologySinglePhase` |
+| `modbusreg.SunSpecTopologySplitPhase` | `sunspec.TopologySplitPhase` |
+| `modbusreg.SunSpecTopologyThreePhase` | `sunspec.TopologyThreePhase` |
+| `modbusreg.SunSpecTypeAccumulator32` | `sunspec.TypeAccumulator32` |
+| `modbusreg.SunSpecTypeAccumulator64` | `sunspec.TypeAccumulator64` |
+| `modbusreg.SunSpecTypeBitfield16` | `sunspec.TypeBitfield16` |
+| `modbusreg.SunSpecTypeBitfield32` | `sunspec.TypeBitfield32` |
+| `modbusreg.SunSpecTypeCount` | `sunspec.TypeCount` |
+| `modbusreg.SunSpecTypeEnum16` | `sunspec.TypeEnum16` |
+| `modbusreg.SunSpecTypeFloat32` | `sunspec.TypeFloat32` |
+| `modbusreg.SunSpecTypeInt16` | `sunspec.TypeInt16` |
+| `modbusreg.SunSpecTypeInt32` | `sunspec.TypeInt32` |
+| `modbusreg.SunSpecTypePad` | `sunspec.TypePad` |
+| `modbusreg.SunSpecTypeScaleFactor` | `sunspec.TypeScaleFactor` |
+| `modbusreg.SunSpecTypeString` | `sunspec.TypeString` |
+| `modbusreg.SunSpecTypeUint16` | `sunspec.TypeUint16` |
+| `modbusreg.SunSpecTypeUint32` | `sunspec.TypeUint32` |
+| `modbusreg.SunSpecTypeUint64` | `sunspec.TypeUint64` |
+| `modbusreg.SunSpecUnsignedDecimal` | `sunspec.UnsignedDecimal` |
+| `modbusreg.SunSpecValue` | `sunspec.Value` |
+| `modbusreg.SunSpecValueInvalidEncoding` | `sunspec.ValueInvalidEncoding` |
+| `modbusreg.SunSpecValueNotAccumulated` | `sunspec.ValueNotAccumulated` |
+| `modbusreg.SunSpecValueNotImplemented` | `sunspec.ValueNotImplemented` |
+| `modbusreg.SunSpecValueState` | `sunspec.ValueState` |
+| `modbusreg.SunSpecValueValid` | `sunspec.ValueValid` |
+| `modbusreg.SunSpecVendorDecoderNamespace` | `sunspec.VendorDecoderNamespace` |
+| `modbusreg.SunSpecWireKey` | `sunspec.WireKey` |
+
+New exported root names, each previously an unexported constructor or field read used by the SunSpec family; nothing becomes writable and no validation is added or removed:
+
+- `NewObservation` builds an `Observation` from an `ObservationSpec` against a `ProfileDescriptor` with the same validation as before and returns no observation on error.
+- `LogicalViewSnapshot.Valid` reports whether the snapshot passed `NewLogicalViewSnapshot`.
+- `LogicalViewSnapshot.Clone` returns a copy that shares no storage and keeps the validity; the zero value stays invalid.
+
 ## Contract surface for detection and the ledger (#377)
 
 The root package exports the contract rules and constructors that profile detection and the sample ledger use, so both can leave the root package without reaching unexported state. No name is removed or renamed; behavior, wire output and every serialized value are unchanged. The new names are:

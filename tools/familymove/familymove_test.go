@@ -243,7 +243,8 @@ func TestApplyMovesFamilyAndRewritesEveryReference(t *testing.T) {
 
 // TestCheckAfterMoveReportsEachLeftover changes one thing at a time after a
 // finished move: a selected file back at the root, a root declaration of an
-// old name and a root selector of an old name.
+// old name, a root selector of an old name and a selector of an old name in a
+// module package outside the root.
 func TestCheckAfterMoveReportsEachLeftover(t *testing.T) {
 	for name, test := range map[string]struct{ path, text, want string }{
 		"file left at the root": {"zeta_profile.go", "package synthreg\n", "left at the root: zeta_profile.go"},
@@ -251,11 +252,16 @@ func TestCheckAfterMoveReportsEachLeftover(t *testing.T) {
 			"contract_extra.go declares family name ZetaLimit"},
 		"root selects old name": {"root_extra_test.go", "package synthreg_test\n\nimport reg \"example.com/synthreg\"\n\nvar _ = reg.NewZetaProfile\n",
 			"root_extra_test.go refers to synthreg.NewZetaProfile"},
+		"outside package selects old name": {"overlay/old.go", "package overlay\n\nimport reg \"example.com/synthreg\"\n\nvar _ = reg.ZetaLimit\n",
+			"overlay/old.go refers to synthreg.ZetaLimit"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := writeModule(t, syntheticModule())
 			if code, _, stderr := runTool(root, "-apply"); code != 0 {
 				t.Fatal(stderr)
+			}
+			if err := os.MkdirAll(filepath.Dir(filepath.Join(root, test.path)), 0o755); err != nil {
+				t.Fatal(err)
 			}
 			if err := os.WriteFile(filepath.Join(root, test.path), []byte(test.text), 0o644); err != nil {
 				t.Fatal(err)
@@ -299,8 +305,8 @@ func TestCheckReportsEachBlockerAndApplyRefuses(t *testing.T) {
 			moved: []string{"zeta_extra.go"}, want: "zeta_extra.go declares Profile; it would shadow a renamed declaration"},
 		"import name taken": {files: map[string]string{"zeta_extra.go": "package synthreg\n\nfunc zetaTaken() int {\n\tsynthreg := Decode(nil)\n\treturn synthreg\n}\n"},
 			moved: []string{"zeta_extra.go"}, want: "zeta_extra.go declares synthreg, which the added import needs"},
-		"module package outside the root": {files: map[string]string{"tools/use/main.go": "package main\n\nimport reg \"example.com/synthreg\"\n\nvar _ = reg.NewZetaProfile\n\nfunc main() {}\n"},
-			want: "tools/use/main.go refers to synthreg.NewZetaProfile; packages outside the root are not rewritten"},
+		"outside import name taken": {files: map[string]string{"tools/use/main.go": "package main\n\nimport reg \"example.com/synthreg\"\n\nvar _ = reg.NewZetaProfile\n\nfunc main() {\n\tzeta := 1\n\t_ = zeta\n}\n"},
+			want: "tools/use/main.go declares zeta, which the added import needs"},
 		"embedded data path": {files: map[string]string{"zeta_extra.go": "package synthreg\n\nimport _ \"embed\"\n\n//go:embed testdata/zeta.txt\nvar zetaData string\n"},
 			moved: []string{"zeta_extra.go"}, want: "zeta_extra.go: go:embed paths are not relocated"},
 	} {
@@ -480,5 +486,132 @@ func TestCheckAnotherFamilyAfterOneMoved(t *testing.T) {
 	code := run([]string{"-family", "omega", "-check", "-dir", root}, &stdout, &stderr, []family{zetaFamily, omega})
 	if code != 0 || stdout.String() != "family omega: not moved, 0 findings\n" {
 		t.Fatalf("exit=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+}
+
+// overlayFiles are module files outside the root before the move: a file
+// that keeps a root selector, a test whose every root selector moves, a file
+// without a moved selector and a local that shadows the root import name.
+func overlayFiles() map[string]string {
+	return map[string]string{
+		"overlay/overlay.go": `// Package overlay extends the zeta family.
+package overlay
+
+import (
+	"errors"
+
+	reg "example.com/synthreg"
+)
+
+// Wrap returns a reg.ZetaProfile bounded by ZetaLimit; reg.Words stays.
+func Wrap(words reg.Words) (*reg.ZetaProfile, error) {
+	if len(words) > reg.ZetaLimit {
+		return nil, errors.New("overlay")
+	}
+	return reg.NewZetaProfile(words)
+}
+
+func shadow() int {
+	reg := struct{ ZetaLimit int }{ZetaLimit: 1}
+	return reg.ZetaLimit
+}
+
+var _ = shadow
+`,
+		"overlay/limit_test.go": `package overlay_test
+
+import (
+	"testing"
+
+	"example.com/synthreg"
+)
+
+func TestLimit(t *testing.T) {
+	if synthreg.ZetaLimit != 4 {
+		t.Fatal(synthreg.ErrZetaInvalid)
+	}
+}
+`,
+		"overlay/plain.go": "package overlay\n\nimport reg \"example.com/synthreg\"\n\n// Plain keeps reg.Words.\nvar Plain = reg.Words{1}\n",
+	}
+}
+
+// TestApplyRequalifiesModulePackagesOutsideTheRoot compares each module file
+// outside the root with its expected text after the move, then builds, vets
+// and tests the module.
+func TestApplyRequalifiesModulePackagesOutsideTheRoot(t *testing.T) {
+	files := syntheticModule()
+	for path, text := range overlayFiles() {
+		files[path] = text
+	}
+	root := writeModule(t, files)
+	code, stdout, stderr := runTool(root, "-apply")
+	if code != 0 {
+		t.Fatalf("apply exit=%d stderr=%s", code, stderr)
+	}
+	for _, line := range []string{"overlay/overlay.go: re-qualified", "overlay/limit_test.go: re-qualified"} {
+		if !strings.Contains(stdout, line+"\n") {
+			t.Errorf("summary lacks %q:\n%s", line, stdout)
+		}
+	}
+	if strings.Contains(stdout, "overlay/plain.go") {
+		t.Errorf("summary names an unchanged file:\n%s", stdout)
+	}
+	want := map[string]string{
+		"overlay/overlay.go": `// Package overlay extends the zeta family.
+package overlay
+
+import (
+	"errors"
+
+	reg "example.com/synthreg"
+	"example.com/synthreg/zeta"
+)
+
+// Wrap returns a zeta.Profile bounded by zeta.Limit; reg.Words stays.
+func Wrap(words reg.Words) (*zeta.Profile, error) {
+	if len(words) > zeta.Limit {
+		return nil, errors.New("overlay")
+	}
+	return zeta.NewProfile(words)
+}
+
+func shadow() int {
+	reg := struct{ ZetaLimit int }{ZetaLimit: 1}
+	return reg.ZetaLimit
+}
+
+var _ = shadow
+`,
+		"overlay/limit_test.go": `package overlay_test
+
+import (
+	"testing"
+
+	"example.com/synthreg/zeta"
+)
+
+func TestLimit(t *testing.T) {
+	if zeta.Limit != 4 {
+		t.Fatal(zeta.ErrZetaInvalid)
+	}
+}
+`,
+		"overlay/plain.go": overlayFiles()["overlay/plain.go"],
+	}
+	for path, text := range want {
+		if got := readFile(t, root, path); got != text {
+			t.Errorf("%s:\n%s\nwant:\n%s", path, got, text)
+		}
+	}
+	for _, args := range [][]string{{"vet", "./..."}, {"test", "-count=1", "./..."}} {
+		command := exec.Command("go", args...)
+		command.Dir = root
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("go %v: %v\n%s", args, err, output)
+		}
+	}
+	if code, stdout, _ := runTool(root, "-check"); code != 0 || !strings.Contains(stdout, "family zeta: moved, 0 findings") {
+		t.Fatalf("moved check exit=%d:\n%s", code, stdout)
 	}
 }

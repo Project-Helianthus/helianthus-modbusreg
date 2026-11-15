@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 func TestH03FixturesDecodeStrictlyRoundTripAndRebuildWire(t *testing.T) {
@@ -549,13 +550,13 @@ func TestH03NegativeOverlapMatrixIsExecutable(t *testing.T) {
 	}
 }
 
-func h03SunSpecDecoder(t testing.TB) modbusreg.SunSpecPhaseOneDecoder {
+func h03SunSpecDecoder(t testing.TB) sunspec.PhaseOneDecoder {
 	t.Helper()
-	profile, err := modbusreg.NewSunSpecPhaseOneProfile(modbusreg.SunSpecPhaseOneVersions{Profile: modbusreg.CurrentSchemaVersion(), Codec: modbusreg.CurrentCodecContractVersion()})
+	profile, err := sunspec.NewSunSpecPhaseOneProfile(sunspec.PhaseOneVersions{Profile: modbusreg.CurrentSchemaVersion(), Codec: modbusreg.CurrentCodecContractVersion()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoder, err := modbusreg.NewSunSpecPhaseOneDecoder(profile)
+	decoder, err := sunspec.NewPhaseOneDecoder(profile)
 	if err != nil {
 		t.Fatal(err)
 	}

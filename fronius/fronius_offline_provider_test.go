@@ -9,6 +9,7 @@ import (
 
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/internal/sunspecfixture"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 func offlineRequest(k RetainedKey, o SunSpecQualificationObservation) OfflineRequest {
@@ -267,7 +268,7 @@ func TestFroniusOfflineProviderInvalidBeforeReader(t *testing.T) {
 			case "sources high":
 				req.MaxSourceViews = 513
 			case "registry":
-				registry = modbusreg.SunSpecDecoderRegistry{}
+				registry = sunspec.DecoderRegistry{}
 			case "nil reader":
 				reader = nil
 			}

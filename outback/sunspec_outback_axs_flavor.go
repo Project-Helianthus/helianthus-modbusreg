@@ -1,6 +1,6 @@
 package outback
 
-import modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+import "github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 
 // AXSReadOnlyFlavorID identifies the OutBack AXS read-only SunSpec
 // flavor. Every decision reports it, matched or not. See
@@ -45,24 +45,24 @@ func (d AXSReadOnlyFlavorDecision) Reason() AXSReadOnlyFlavorReason {
 func (AXSReadOnlyFlavorDecision) FlavorID() string { return AXSReadOnlyFlavorID }
 
 // Chain returns nil: a rejected decision carries no matched chain.
-func (AXSReadOnlyFlavorDecision) Chain() []modbusreg.SunSpecWireKey { return nil }
+func (AXSReadOnlyFlavorDecision) Chain() []sunspec.WireKey { return nil }
 
 // InterfaceOccurrence reports false: a rejected decision carries no interface
 // occurrence.
-func (AXSReadOnlyFlavorDecision) InterfaceOccurrence() (modbusreg.SunSpecOccurrence, bool) {
-	return modbusreg.SunSpecOccurrence{}, false
+func (AXSReadOnlyFlavorDecision) InterfaceOccurrence() (sunspec.Occurrence, bool) {
+	return sunspec.Occurrence{}, false
 }
 
 // InterfaceModel reports false: a rejected decision carries no decoded
 // interface model.
-func (AXSReadOnlyFlavorDecision) InterfaceModel() (modbusreg.SunSpecDecodedModel, bool) {
-	return modbusreg.SunSpecDecodedModel{}, false
+func (AXSReadOnlyFlavorDecision) InterfaceModel() (sunspec.DecodedModel, bool) {
+	return sunspec.DecodedModel{}, false
 }
 
 // EvaluateSnapshot rejects every snapshot while the source selector is NO_GO.
 // A complete Common Model and either documented length are structural evidence,
 // not product/firmware qualification or an admitted read operation. The caller's
 // immutable raw snapshot remains available; no acquisition request is created.
-func (AXSReadOnlyDecoder) EvaluateSnapshot(_ modbusreg.SunSpecChainSnapshot) AXSReadOnlyFlavorDecision {
+func (AXSReadOnlyDecoder) EvaluateSnapshot(_ sunspec.ChainSnapshot) AXSReadOnlyFlavorDecision {
 	return AXSReadOnlyFlavorDecision{reason: AXSReadOnlyFlavorReasonSourceNotQualified}
 }

@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/internal/sunspecfixture"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 type sunSpecFroniusAuditDisposition struct {
@@ -23,10 +23,10 @@ type sunSpecFroniusAuditDisposition struct {
 	Milestone string `json:"milestone"`
 	Outcome   string `json:"outcome"`
 	Docs      struct {
-		MergeSHA         string                          `json:"merge_sha"`
-		LogicalSchemaID  modbusreg.SunSpecSchemaRevision `json:"logical_schema_id"`
-		RegistryRevision modbusreg.SunSpecSchemaRevision `json:"registry_revision"`
-		SourceCommit     string                          `json:"source_commit"`
+		MergeSHA         string                 `json:"merge_sha"`
+		LogicalSchemaID  sunspec.SchemaRevision `json:"logical_schema_id"`
+		RegistryRevision sunspec.SchemaRevision `json:"registry_revision"`
+		SourceCommit     string                 `json:"source_commit"`
 	} `json:"docs"`
 	Registry struct {
 		BaseSHA                   string   `json:"base_sha"`
@@ -38,17 +38,17 @@ type sunSpecFroniusAuditDisposition struct {
 		ExecutableEvidence        []string `json:"executable_evidence"`
 	} `json:"registry"`
 	Fronius struct {
-		FlavorID                    string                     `json:"flavor_id"`
-		Manufacturer                string                     `json:"manufacturer"`
-		Model                       string                     `json:"model"`
-		Firmware                    string                     `json:"firmware"`
-		Chain                       []modbusreg.SunSpecWireKey `json:"chain"`
-		OfflineFixture              string                     `json:"offline_fixture"`
-		OfflineClassifierExecutable bool                       `json:"offline_classifier_executable"`
-		AutomaticRuntimeAdmission   bool                       `json:"automatic_runtime_admission"`
-		LiveQualified               bool                       `json:"live_qualified"`
-		WriteAuthority              bool                       `json:"write_authority"`
-		SupportClaim                bool                       `json:"support_claim"`
+		FlavorID                    string            `json:"flavor_id"`
+		Manufacturer                string            `json:"manufacturer"`
+		Model                       string            `json:"model"`
+		Firmware                    string            `json:"firmware"`
+		Chain                       []sunspec.WireKey `json:"chain"`
+		OfflineFixture              string            `json:"offline_fixture"`
+		OfflineClassifierExecutable bool              `json:"offline_classifier_executable"`
+		AutomaticRuntimeAdmission   bool              `json:"automatic_runtime_admission"`
+		LiveQualified               bool              `json:"live_qualified"`
+		WriteAuthority              bool              `json:"write_authority"`
+		SupportClaim                bool              `json:"support_claim"`
 	} `json:"fronius"`
 }
 
@@ -127,12 +127,12 @@ func declaredGoTests(t *testing.T) map[string]bool {
 }
 
 func readFroniusV11Fixture(t *testing.T, path string) struct {
-	Schema       string                     `json:"schema"`
-	FlavorID     string                     `json:"flavor_id"`
-	Manufacturer string                     `json:"manufacturer"`
-	Model        string                     `json:"model"`
-	Firmware     string                     `json:"firmware"`
-	Chain        []modbusreg.SunSpecWireKey `json:"chain"`
+	Schema       string            `json:"schema"`
+	FlavorID     string            `json:"flavor_id"`
+	Manufacturer string            `json:"manufacturer"`
+	Model        string            `json:"model"`
+	Firmware     string            `json:"firmware"`
+	Chain        []sunspec.WireKey `json:"chain"`
 	Observation  struct {
 		Function  string `json:"function"`
 		UnitID    uint16 `json:"unit_id"`
@@ -146,12 +146,12 @@ func readFroniusV11Fixture(t *testing.T, path string) struct {
 		t.Fatal(err)
 	}
 	var fixture struct {
-		Schema       string                     `json:"schema"`
-		FlavorID     string                     `json:"flavor_id"`
-		Manufacturer string                     `json:"manufacturer"`
-		Model        string                     `json:"model"`
-		Firmware     string                     `json:"firmware"`
-		Chain        []modbusreg.SunSpecWireKey `json:"chain"`
+		Schema       string            `json:"schema"`
+		FlavorID     string            `json:"flavor_id"`
+		Manufacturer string            `json:"manufacturer"`
+		Model        string            `json:"model"`
+		Firmware     string            `json:"firmware"`
+		Chain        []sunspec.WireKey `json:"chain"`
 		Observation  struct {
 			Function  string `json:"function"`
 			UnitID    uint16 `json:"unit_id"`
@@ -179,7 +179,7 @@ func TestSunSpecFroniusAuditClosesAgainstPinnedRegistry(t *testing.T) {
 	}
 	if disposition.Docs.MergeSHA != "2abcb26a06ffa71149177de2cc2817a24d82081f" ||
 		disposition.Docs.LogicalSchemaID != "sunspec.models.v1" ||
-		disposition.Docs.RegistryRevision != modbusreg.SunSpecModelsRevisionV1 ||
+		disposition.Docs.RegistryRevision != sunspec.ModelsRevisionV1 ||
 		disposition.Docs.SourceCommit != "7abdf8982d5364f8ae916deee18aac86c11be36d" {
 		t.Fatalf("unexpected docs binding: %#v", disposition.Docs)
 	}

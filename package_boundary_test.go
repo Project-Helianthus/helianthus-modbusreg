@@ -21,18 +21,20 @@ import (
 // may also import the standard family it extends, and a standard family never
 // imports a vendor package. The data package profiles imports no module
 // package; a vendor package may import it for the committed data it embeds.
-// A test-support package under internal/ imports at most the root, and only
-// where its row allows it. The Fronius and OutBack overlays import only the
-// root while the SunSpec standard family is still part of it.
+// A test-support package under internal/ imports at most the root and the
+// standard family it supports, and only where its row allows it. The SunSpec
+// standard family imports only the root; the Fronius and OutBack overlays
+// may import the root and the SunSpec standard family.
 var packageImportRules = map[string][]string{
 	".":                              {},
-	"fronius":                        {"."},
+	"fronius":                        {".", "sunspec"},
 	"growatt":                        {"."},
 	"huawei":                         {".", "profiles"},
 	"internal/qualifiedfunctiontest": {},
-	"internal/sunspecfixture":        {"."},
-	"outback":                        {"."},
+	"internal/sunspecfixture":        {".", "sunspec"},
+	"outback":                        {".", "sunspec"},
 	"profiles":                       {},
+	"sunspec":                        {"."},
 	"tesla":                          {"."},
 }
 

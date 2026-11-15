@@ -7879,142 +7879,142 @@
       "category": "identifier"
     },
     {
-      "path": "sunspec_accumulator_scale_boundary_test.go",
+      "path": "sunspec/sunspec_accumulator_scale_boundary_test.go",
       "symbol": "TestU26Accumulator64SignedScaleBoundary",
       "category": "test"
     },
     {
-      "path": "sunspec_bitfield_sentinel_residuals_test.go",
+      "path": "sunspec/sunspec_bitfield_sentinel_residuals_test.go",
       "symbol": "TestU12BitfieldSentinelResiduals",
       "category": "test"
     },
     {
-      "path": "sunspec_bitfield_symbol_order_test.go",
+      "path": "sunspec/sunspec_bitfield_symbol_order_test.go",
       "symbol": "TestS26BitfieldOneHotAttribution",
       "category": "test"
     },
     {
-      "path": "sunspec_bitfield_symbol_order_test.go",
+      "path": "sunspec/sunspec_bitfield_symbol_order_test.go",
       "symbol": "TestS26BitfieldSymbolOrderAndOwnership",
       "category": "test"
     },
     {
-      "path": "sunspec_capability_test.go",
+      "path": "sunspec/sunspec_capability_test.go",
       "symbol": "TestThreePhaseMonitoringNormalizesEquivalent103And113Values",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainKeepsCompatibilityAndDERBlocksOpaque",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainKeepsWrongBESSBankGeometryOpaque",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainKeepsWrongBESSStringGeometryOpaque",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainKeepsWrongDERPortGeometryOpaque",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainRetainsDistinctBESSBankOccurrences",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainRetainsDistinctBESSStringOccurrences",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainRetainsFixedBESSBaseBlock",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainRetainsFixedBESSModuleBlock",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainRetainsFixedControlObservabilityBlocks",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainRetainsFixedFlowBatteryBlock",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainRetainsFixedFlowBatteryModuleBlock",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainRetainsFixedFlowBatteryStackBlock",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_plan_test.go",
+      "path": "sunspec/sunspec_chain_plan_test.go",
       "symbol": "TestSunSpecV2ChainRetainsFixedFlowBatteryStringBlock",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_test.go",
+      "path": "sunspec/sunspec_chain_test.go",
       "symbol": "TestSunSpecV2StructuralCandidateDoesNotChangeChainBehaviorOrActivateModels",
       "category": "test"
     },
     {
-      "path": "sunspec_chain_test.go",
+      "path": "sunspec/sunspec_chain_test.go",
       "symbol": "c1",
       "category": "identifier"
     },
     {
-      "path": "sunspec_chain_test.go",
+      "path": "sunspec/sunspec_chain_test.go",
       "symbol": "c2",
       "category": "identifier"
     },
     {
-      "path": "sunspec_chain_test.go",
+      "path": "sunspec/sunspec_chain_test.go",
       "symbol": "runV2StructuralCandidateChain",
       "category": "identifier"
     },
     {
-      "path": "sunspec_decoder_test.go",
+      "path": "sunspec/sunspec_decoder_test.go",
       "symbol": "TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated",
       "category": "test"
     },
     {
-      "path": "sunspec_decoder_test.go",
+      "path": "sunspec/sunspec_decoder_test.go",
       "symbol": "v2Keys",
       "category": "identifier"
     },
     {
-      "path": "sunspec_decoder_test.go",
+      "path": "sunspec/sunspec_decoder_test.go",
       "symbol": "wantV2Static",
       "category": "identifier"
     },
     {
-      "path": "sunspec_extreme_scale_residuals_test.go",
+      "path": "sunspec/sunspec_extreme_scale_residuals_test.go",
       "symbol": "TestU13ExtremeScaleResiduals",
       "category": "test"
     },
     {
-      "path": "sunspec_float_bit_boundaries_test.go",
+      "path": "sunspec/sunspec_float_bit_boundaries_test.go",
       "symbol": "TestU22Float32FiniteBoundaryBits",
       "category": "test"
     },
     {
-      "path": "sunspec_float_bit_boundaries_test.go",
+      "path": "sunspec/sunspec_float_bit_boundaries_test.go",
       "symbol": "TestU22Float32NonfiniteStates",
       "category": "test"
     },
@@ -8174,292 +8174,292 @@
       "category": "identifier"
     },
     {
-      "path": "sunspec_model_catalog.go",
-      "symbol": "SunSpecModelsRevisionV1",
+      "path": "sunspec/sunspec_model_catalog.go",
+      "symbol": "ModelsRevisionV1",
       "category": "identifier"
     },
     {
-      "path": "sunspec_model_catalog.go",
-      "symbol": "SunSpecModelsRevisionV2",
+      "path": "sunspec/sunspec_model_catalog.go",
+      "symbol": "ModelsRevisionV2",
       "category": "identifier"
     },
     {
-      "path": "sunspec_model_catalog.go",
+      "path": "sunspec/sunspec_model_catalog.go",
       "symbol": "standardSunSpecModelDefinitionsV1",
       "category": "identifier"
     },
     {
-      "path": "sunspec_model_catalog.go",
+      "path": "sunspec/sunspec_model_catalog.go",
       "symbol": "standardSunSpecModelDefinitionsV2",
       "category": "identifier"
     },
     {
-      "path": "sunspec_model_catalog_test.go",
+      "path": "sunspec/sunspec_model_catalog_test.go",
       "symbol": "TestSunSpecV2CatalogContainsOnlyCurrentAdmittedModels",
       "category": "test"
     },
     {
-      "path": "sunspec_model_catalog_test.go",
+      "path": "sunspec/sunspec_model_catalog_test.go",
       "symbol": "l65",
       "category": "identifier"
     },
     {
-      "path": "sunspec_model_catalog_test.go",
+      "path": "sunspec/sunspec_model_catalog_test.go",
       "symbol": "l66",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_common_test.go",
+      "path": "sunspec/sunspec_models_common_test.go",
       "symbol": "TestSunSpecCommonL66AndL65DecodeOnlyByExactKey",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "bessBankV2SunSpecDefinition",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "bessBaseV2SunSpecPoints",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "bessModuleV2SunSpecPoints",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "bessStringV2SunSpecDefinition",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "buildDERTripLVV2NestedLayout",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "buildDERTripLVV2StructuralProjectionLayout",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "derCapacityV2SunSpecPoints",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "derControlV2SunSpecPoints",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "derDCMeasureV2SunSpecDefinition",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "derEnterServiceV2SunSpecPoints",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "derMeasureACV2SunSpecPoints",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "derStorageCapacityV2SunSpecPoints",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "derTripLVV2NestedTemplate",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "derTripLVV2StructuralProjectionTemplate",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "flowBatteryModuleV2SunSpecPoints",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "flowBatteryStackV2SunSpecPoints",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "flowBatteryStringV2SunSpecPoints",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "flowBatteryV2SunSpecPoints",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "sunSpecV2DERTripLVStructuralCandidate",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "sunspec_models_der_v2.go",
       "category": "filename"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "v2DERPoint",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "v2DERPointWords",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2.go",
+      "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "v2DERStringPoint",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2BESSBankRequiresExactDynamicDefinitions",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2BESSBankRetainsPinnedPointOrderTypesAndScales",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2BESSBaseRetainsPinnedPointOrderTypesAndScales",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2BESSModuleRetainsPinnedPointOrderTypesAndScales",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2BESSStringDecodesFullMaximumOfflineOccurrence",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2BESSStringRequiresExactDynamicDefinitions",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2BESSStringRetainsPinnedPointOrderTypesAndScales",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2ControlObservabilityDecodesStateOnly",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2DERDefinitionsAndApacheNotice",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2DERMeasurePreservesScaledUnsignedCounter",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2DERPortGeometryIsBoundedAndRawOnlyOnMismatch",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2DERStoragePreservesValueOrderAndScale",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2DERTripStructuralCandidateRequiresOptInAndExactGeometry",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2FlowBatteryModuleRetainsObservedStaticBase",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2FlowBatteryRetainsStructuralObservedState",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2FlowBatteryStackRetainsObservedStaticBase",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2FlowBatteryStringRetainsObservedStaticBase",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "TestSunSpecV2QuarantinesNestedDERTripBlocks",
       "category": "test"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "sunspec_models_der_v2_test.go",
       "category": "filename"
     },
     {
-      "path": "sunspec_models_der_v2_test.go",
+      "path": "sunspec/sunspec_models_der_v2_test.go",
       "symbol": "v2DERModelWords",
       "category": "identifier"
     },
     {
-      "path": "sunspec_models_environmental_test.go",
+      "path": "sunspec/sunspec_models_environmental_test.go",
       "symbol": "TestSunSpecEnvironmentalInt32AndStringPacking",
       "category": "test"
     },
     {
-      "path": "sunspec_models_equivalence_test.go",
+      "path": "sunspec/sunspec_models_equivalence_test.go",
       "symbol": "TestSunSpecModels103And113CanonicalEquivalence",
       "category": "test"
     },
     {
-      "path": "sunspec_phase1.go",
+      "path": "sunspec/sunspec_phase1.go",
       "symbol": "Acc32",
       "category": "identifier"
     },
     {
-      "path": "sunspec_phase1.go",
+      "path": "sunspec/sunspec_phase1.go",
       "symbol": "Int16",
       "category": "identifier"
     },
     {
-      "path": "sunspec_phase1.go",
+      "path": "sunspec/sunspec_phase1.go",
       "symbol": "sunspec_phase1.go",
       "category": "filename"
     },
     {
-      "path": "sunspec_phase1_compat_test.go",
+      "path": "sunspec/sunspec_phase1_compat_test.go",
       "symbol": "sunspec_phase1_compat_test.go",
       "category": "filename"
     },
@@ -8484,37 +8484,37 @@
       "category": "identifier"
     },
     {
-      "path": "sunspec_r3_test_helpers_test.go",
+      "path": "sunspec/sunspec_r3_test_helpers_test.go",
       "symbol": "sunspec_r3_test_helpers_test.go",
       "category": "filename"
     },
     {
-      "path": "sunspec_scale_boundary_matrix_test.go",
+      "path": "sunspec/sunspec_scale_boundary_matrix_test.go",
       "symbol": "TestS27ScaleBoundaryDependencyMatrix",
       "category": "test"
     },
     {
-      "path": "sunspec_sentinel_neighbor_matrix_test.go",
+      "path": "sunspec/sunspec_sentinel_neighbor_matrix_test.go",
       "symbol": "TestQ29SunSpecSentinelNeighborMatrix",
       "category": "test"
     },
     {
-      "path": "sunspec_string_padding_matrix_test.go",
+      "path": "sunspec/sunspec_string_padding_matrix_test.go",
       "symbol": "TestS25SunSpecStringPaddingMatrix",
       "category": "test"
     },
     {
-      "path": "sunspec_value.go",
-      "symbol": "SunSpecTypeInt16",
+      "path": "sunspec/sunspec_value.go",
+      "symbol": "TypeInt16",
       "category": "identifier"
     },
     {
-      "path": "sunspec_value.go",
-      "symbol": "SunSpecTypeInt32",
+      "path": "sunspec/sunspec_value.go",
+      "symbol": "TypeInt32",
       "category": "identifier"
     },
     {
-      "path": "sunspec_value_int32_test.go",
+      "path": "sunspec/sunspec_value_int32_test.go",
       "symbol": "TestSunSpecInt32UsesNetworkWordOrderAndExactSentinel",
       "category": "test"
     },

@@ -5,6 +5,6 @@
 // spans, and the offline provider cycle with its provider port.
 //
 // The package reads SunSpec chains and occurrences only through the exported
-// SunSpec surface of the module root package, depends on no other module
-// package and imports no other vendor package.
+// surface of the SunSpec standard-family package sunspec, depends on no other
+// module package and imports no other vendor package.
 package outback

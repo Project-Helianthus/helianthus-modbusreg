@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 func detachedInput() DetachedRecordInput {
@@ -14,8 +14,8 @@ func detachedInput() DetachedRecordInput {
 		Words: []uint16{11, 22, 33}, DeclaredWords: 5,
 		Present: []WordSpan{{0, 3}}, Missing: []WordSpan{{3, 2}},
 		Occurrences: []DetachedOccurrence{
-			{Ordinal: 7, WireKey: modbusreg.SunSpecWireKey{ModelID: 64110, ModelLength: 282}, Offset: 0, Words: []uint16{11, 22}, Present: []WordSpan{{0, 2}}, Missing: []WordSpan{{2, 280}}},
-			{Ordinal: 9, WireKey: modbusreg.SunSpecWireKey{ModelID: 64110, ModelLength: 420}, Offset: 2, Words: []uint16{33}, Present: []WordSpan{{0, 1}}, Missing: []WordSpan{{1, 419}}},
+			{Ordinal: 7, WireKey: sunspec.WireKey{ModelID: 64110, ModelLength: 282}, Offset: 0, Words: []uint16{11, 22}, Present: []WordSpan{{0, 2}}, Missing: []WordSpan{{2, 280}}},
+			{Ordinal: 9, WireKey: sunspec.WireKey{ModelID: 64110, ModelLength: 420}, Offset: 2, Words: []uint16{33}, Present: []WordSpan{{0, 1}}, Missing: []WordSpan{{1, 419}}},
 		},
 		Source: SourceAssociation{Key: "synthetic-source", Revision: "R1", PublicLocator: "https://example.org/public-source", ContentIdentity: fmt.Sprintf("%x", sha256.Sum256([]byte("synthetic source"))), DeclaredLayout: "candidate-A", Available: true, SourceSetRevision: "set-A", SelectorInputs: "unknown applicability"},
 	}
@@ -171,7 +171,7 @@ func TestOutbackDetachedRecordAssociation(t *testing.T) {
 }
 
 func TestOutbackDetachedRecordNoGo(t *testing.T) {
-	for _, key := range []modbusreg.SunSpecWireKey{{ModelID: 64110, ModelLength: 282}, {ModelID: 64110, ModelLength: 420}, {ModelID: 64111, ModelLength: 23}, {ModelID: 64111, ModelLength: 26}} {
+	for _, key := range []sunspec.WireKey{{ModelID: 64110, ModelLength: 282}, {ModelID: 64110, ModelLength: 420}, {ModelID: 64111, ModelLength: 23}, {ModelID: 64111, ModelLength: 26}} {
 		t.Run(fmt.Sprint(key), func(t *testing.T) {
 			words := make([]uint16, key.ModelLength)
 			for i := range words {
@@ -211,7 +211,7 @@ func TestOutbackDetachedRecordNoGo(t *testing.T) {
 
 func TestOutbackDetachedRecordCompleteness(t *testing.T) {
 	base := func() DetachedRecordInput {
-		return DetachedRecordInput{Words: []uint16{4, 5}, DeclaredWords: 2, Present: []WordSpan{{0, 1}, {1, 1}}, Occurrences: []DetachedOccurrence{{WireKey: modbusreg.SunSpecWireKey{ModelID: 64111, ModelLength: 2}, Words: []uint16{4, 5}, Present: []WordSpan{{0, 2}}}}}
+		return DetachedRecordInput{Words: []uint16{4, 5}, DeclaredWords: 2, Present: []WordSpan{{0, 1}, {1, 1}}, Occurrences: []DetachedOccurrence{{WireKey: sunspec.WireKey{ModelID: 64111, ModelLength: 2}, Words: []uint16{4, 5}, Present: []WordSpan{{0, 2}}}}}
 	}
 	for name, change := range map[string]func(*DetachedRecordInput){
 		"declared extent":    func(i *DetachedRecordInput) { i.DeclaredWords = 3 },

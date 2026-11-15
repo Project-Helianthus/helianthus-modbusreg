@@ -9,6 +9,7 @@ import (
 
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/internal/sunspecfixture"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 func i25Context(i25T *testing.T) context.Context {
@@ -28,7 +29,7 @@ func i25Reader(i25Observation SunSpecQualificationObservation) OfflineReader {
 	}
 }
 
-func i25Port(i25T *testing.T, i25Registry modbusreg.SunSpecDecoderRegistry, i25Reader OfflineReader) *I25FroniusAdapter {
+func i25Port(i25T *testing.T, i25Registry sunspec.DecoderRegistry, i25Reader OfflineReader) *I25FroniusAdapter {
 	i25T.Helper()
 	i25Port, i25Err := I25NewFroniusAdapter(i25Registry, 512, 64, 512, i25Reader)
 	if i25Err != nil {
@@ -88,7 +89,7 @@ func TestI25RefreshAndDetachment(i25T *testing.T) {
 	i25View := i25Port.I25View()
 	i25View.I25Native.Envelope.Observation.snapshot = mutatedSnapshot(i25T, i25View.I25Native.Envelope.Observation.snapshot)
 	i25Observation.snapshot = mutatedSnapshot(i25T, i25Observation.snapshot)
-	i25Candidate.snapshot = modbusreg.SunSpecChainSnapshot{}
+	i25Candidate.snapshot = sunspec.ChainSnapshot{}
 	if !reflect.DeepEqual(i25Port.I25View().I25Native.Envelope, i25Original) {
 		i25T.Fatal("input/output aliases receipt")
 	}
@@ -176,9 +177,9 @@ func TestI25Refusals(i25T *testing.T) {
 			i25Callback := i25ReaderValue
 			switch i25Mode {
 			case "registry":
-				i25R = modbusreg.SunSpecDecoderRegistry{}
+				i25R = sunspec.DecoderRegistry{}
 			case "schema":
-				i25R = sunspecfixture.RevisionRegistry(i25T, modbusreg.SunSpecModelsRevisionV2)
+				i25R = sunspecfixture.RevisionRegistry(i25T, sunspec.ModelsRevisionV2)
 			case "reader":
 				i25Callback = nil
 			case "words zero":
@@ -440,7 +441,7 @@ func TestI25ReplacementAndNativeRevision(i25T *testing.T) {
 					originalSpans := originalOccurrence.SourceSpans()
 					otherKey := originalKey
 					otherKey.SchemaRevision = "other-schema"
-					walkedOccurrence := sunspecfixture.WalkWords(i25T, modbusreg.SunSpecChainPlanSpec{SchemaRevision: otherKey.SchemaRevision, DecoderKeys: []modbusreg.SunSpecDecoderKey{otherKey}}, func(walkStep int, viewRecord *modbusreg.LogicalViewRecord) {
+					walkedOccurrence := sunspecfixture.WalkWords(i25T, sunspec.ChainPlanSpec{SchemaRevision: otherKey.SchemaRevision, DecoderKeys: []sunspec.DecoderKey{otherKey}}, func(walkStep int, viewRecord *modbusreg.LogicalViewRecord) {
 						if walkStep >= 1 && walkStep <= len(originalSpans) {
 							viewRecord.LogicalViewID = originalSpans[walkStep-1].LogicalViewID
 						} else {

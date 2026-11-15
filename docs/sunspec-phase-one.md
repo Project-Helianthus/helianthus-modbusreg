@@ -7,7 +7,7 @@ product, unit-identity, endpoint, or transport-family decision.
 ## API and compatibility
 
 `NewSunSpecPhaseOneProfile` accepts only profile and codec version `1.0.0` and
-returns an immutable `ProfileDescriptor`. `NewSunSpecPhaseOneDecoder` accepts
+returns an immutable `ProfileDescriptor`. `NewPhaseOneDecoder` accepts
 only that standard-family profile. `DiscoveryRequest` describes FC03 holding
 register discovery at PDU offset `40000`, the normalized form of documentary
 register `40001`. No write or control operation is exported.
@@ -32,7 +32,7 @@ words and model extent but is not published as a typed value. Inverter models
 with the high word first, and `WH_SF 24`. No legacy offset fallback is applied.
 
 `Activate` is stateless across polls. Each call takes a
-`SunSpecPhaseOneCapture` containing ordered `LogicalViewSnapshot` source views,
+`PhaseOneCapture` containing ordered `LogicalViewSnapshot` source views,
 derives the exact raw chain from contiguous FC03 views beginning at offset
 `40000`, and requires the observation dependency to be the exact captured base
 view. It then passes the caller-provided `ObservationSpec` into the existing

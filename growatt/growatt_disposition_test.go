@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 func TestGrowattProtocolIIDispositionAdmitsOnlyOfflineIdentity(t *testing.T) {
@@ -37,11 +37,11 @@ func TestGrowattProtocolIIDispositionAdmitsOnlyOfflineIdentity(t *testing.T) {
 			Purpose          string
 			Executable       bool
 		} `json:"candidate_operations"`
-		Unresolved        []string                      `json:"unresolved"`
-		DecoderKeys       []modbusreg.SunSpecDecoderKey `json:"decoder_keys"`
-		CatalogRegistered bool                          `json:"catalog_registered"`
-		SupportClaim      bool                          `json:"support_claim"`
-		ReopenRequires    []string                      `json:"reopen_requires"`
+		Unresolved        []string             `json:"unresolved"`
+		DecoderKeys       []sunspec.DecoderKey `json:"decoder_keys"`
+		CatalogRegistered bool                 `json:"catalog_registered"`
+		SupportClaim      bool                 `json:"support_claim"`
+		ReopenRequires    []string             `json:"reopen_requires"`
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()

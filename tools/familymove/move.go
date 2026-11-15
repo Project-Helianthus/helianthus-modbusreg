@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/build"
+	"go/format"
 	"go/importer"
 	"go/parser"
 	"go/token"
@@ -15,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -58,6 +60,7 @@ type plan struct {
 	movedNames             map[string]bool   // exported package-level names of moved files
 	tests                  map[string]bool   // test function -> declared in a moved file
 	blockers               map[string]bool
+	outside                []*source // re-qualified module files outside the root
 }
 
 // listing is the go list record of the root package.
@@ -497,4 +500,102 @@ func (p *plan) embedded(s *source, node *ast.StructType) {
 			}
 		}
 	}
+}
+
+// requalify rewrites one module file outside the root: each selector of a
+// moved name through the root import names the family package, comments
+// follow, and the family import is added, or replaces the root import when
+// every root selector of the file moved.
+func (p *plan) requalify(s *source) {
+	var rootSpec, familySpec *ast.ImportSpec
+	for _, spec := range s.file.Imports {
+		switch path, _ := strconv.Unquote(spec.Path.Value); path {
+		case p.module:
+			rootSpec = spec
+		case p.module + "/" + p.fam.name:
+			familySpec = spec
+		}
+	}
+	family := p.fam.name
+	if familySpec != nil && familySpec.Name != nil {
+		family = familySpec.Name.Name
+	}
+	if rootSpec != nil {
+		local := p.rootName
+		if rootSpec.Name != nil {
+			local = rootSpec.Name.Name
+		}
+		ast.Inspect(s.file, func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok && id.Obj != nil {
+				s.locals[id.Name] = true
+			}
+			selector, ok := n.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			if x, ok := selector.X.(*ast.Ident); !ok || x.Name != local || x.Obj != nil {
+				return true
+			}
+			s.rootUses++
+			if p.movedNames[selector.Sel.Name] {
+				s.redirect++
+				s.edits = append(s.edits, edit{p.offset(selector.Pos()), p.offset(selector.End()), family + "." + p.finalName(selector.Sel.Name)})
+			}
+			return false
+		})
+	}
+	for _, group := range s.file.Comments {
+		for _, comment := range group.List {
+			if text := p.renameText(comment.Text, family+".", family+".", p.rootNames(s)); text != comment.Text {
+				s.edits = append(s.edits, edit{p.offset(comment.Pos()), p.offset(comment.End()), text})
+			}
+		}
+	}
+	if s.redirect == 0 || familySpec != nil {
+		return
+	}
+	if s.locals[family] {
+		p.block("%s declares %s, which the added import needs", s.name, family)
+	}
+	path := p.module + "/" + p.fam.name
+	if s.rootUses == s.redirect {
+		s.edits = append(s.edits, edit{p.offset(rootSpec.Pos()), p.offset(rootSpec.End()), importSpec(path, family)})
+		return
+	}
+	s.edits = append(s.edits, p.importEdit(s, path, family))
+}
+
+// outsideOutputs applies and formats the edits of the re-qualified module
+// files outside the root without writing them.
+func (p *plan) outsideOutputs() ([]output, error) {
+	outputs := make([]output, 0, len(p.outside))
+	for _, s := range p.outside {
+		edited, err := applyEdits(s.text, s.edits)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %v", s.name, err)
+		}
+		formatted, err := format.Source(edited)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %v", s.name, err)
+		}
+		outputs = append(outputs, output{path: s.name, from: s.name, data: formatted, note: "re-qualified"})
+	}
+	return outputs, nil
+}
+
+// writeOutside writes prepared outputs in place, keeping each file mode, and
+// appends one summary line per file.
+func writeOutside(root string, outputs []output, summary []string) ([]string, error) {
+	for _, out := range outputs {
+		target := filepath.Join(root, filepath.FromSlash(out.path))
+		info, err := os.Stat(target)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(target, out.data, info.Mode().Perm()); err != nil {
+			return nil, err
+		}
+		summary = append(summary, out.path+": "+out.note)
+	}
+	return summary, nil
 }

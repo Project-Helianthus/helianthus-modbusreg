@@ -7,10 +7,11 @@ import (
 	"testing"
 
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 // Revision is the schema revision of every fixture registry and chain.
-const Revision = modbusreg.SunSpecModelsRevisionV1
+const Revision = sunspec.ModelsRevisionV1
 
 // SignatureFirst and SignatureSecond are the two words of the SunSpec
 // signature "SunS" that open every chain image.
@@ -27,9 +28,9 @@ const Base uint16 = 40000
 const FirstLogicalViewID uint64 = 1000
 
 // Registry returns the standard decoder registry of Revision.
-func Registry(t testing.TB) modbusreg.SunSpecDecoderRegistry {
+func Registry(t testing.TB) sunspec.DecoderRegistry {
 	t.Helper()
-	registry, err := modbusreg.NewStandardSunSpecDecoderRegistry(Revision)
+	registry, err := sunspec.NewStandardSunSpecDecoderRegistry(Revision)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,9 +38,9 @@ func Registry(t testing.TB) modbusreg.SunSpecDecoderRegistry {
 }
 
 // RevisionRegistry returns the standard decoder registry of revision.
-func RevisionRegistry(t testing.TB, revision modbusreg.SunSpecSchemaRevision) modbusreg.SunSpecDecoderRegistry {
+func RevisionRegistry(t testing.TB, revision sunspec.SchemaRevision) sunspec.DecoderRegistry {
 	t.Helper()
-	registry, err := modbusreg.NewStandardSunSpecDecoderRegistry(revision)
+	registry, err := sunspec.NewStandardSunSpecDecoderRegistry(revision)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +85,7 @@ func Model123Values() map[string][]uint16 {
 
 // CommonOccurrence returns an admitted Common Model occurrence with the given
 // identity strings and a sanitized serial number.
-func CommonOccurrence(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, manufacturer, model, firmware string, ordinal uint32) modbusreg.SunSpecOccurrence {
+func CommonOccurrence(t testing.TB, registry sunspec.DecoderRegistry, manufacturer, model, firmware string, ordinal uint32) sunspec.Occurrence {
 	t.Helper()
 	return Occurrence(t, registry, ModelWords(t, registry, 1, 65, map[string][]uint16{
 		"Mn": StringWords(manufacturer, 16), "Md": StringWords(model, 16), "Vr": StringWords(firmware, 8), "SN": StringWords("sanitized", 16),
@@ -95,7 +96,7 @@ func CommonOccurrence(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, m
 // occurrence of modelID with valid monitoring values, each overridden by
 // override. Model 113 uses its float layout of length 60; every other model
 // uses the integer layout of length 50.
-func InverterOccurrence(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, modelID uint16, override map[string][]uint16, ordinal uint32) modbusreg.SunSpecOccurrence {
+func InverterOccurrence(t testing.TB, registry sunspec.DecoderRegistry, modelID uint16, override map[string][]uint16, ordinal uint32) sunspec.Occurrence {
 	t.Helper()
 	length := uint16(50)
 	values := map[string][]uint16{
@@ -125,12 +126,12 @@ func InverterOccurrence(t testing.TB, registry modbusreg.SunSpecDecoderRegistry,
 // when registry holds the exact key, unsupported length when it holds the
 // model with another length, and unknown model otherwise. Snapshot and Walk
 // use only the words of an occurrence.
-func Occurrence(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, words []uint16, ordinal uint32) modbusreg.SunSpecOccurrence {
+func Occurrence(t testing.TB, registry sunspec.DecoderRegistry, words []uint16, ordinal uint32) sunspec.Occurrence {
 	t.Helper()
 	if len(words) < 2 || len(words) != int(words[1])+2 {
 		t.Fatalf("occurrence words=%d do not hold a complete model block", len(words))
 	}
-	walked := WalkWords(t, modbusreg.SunSpecChainPlanSpec{DecoderKeys: registry.DecoderKeys()}, nil, words)
+	walked := WalkWords(t, sunspec.ChainPlanSpec{DecoderKeys: registry.DecoderKeys()}, nil, words)
 	occurrences := walked.Occurrences()
 	if len(occurrences) != 1 {
 		t.Fatalf("occurrence walk produced %d occurrences", len(occurrences))
@@ -144,7 +145,7 @@ func Occurrence(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, words [
 // two header words, every point named in values at its catalog offset in every
 // repetition, and zero elsewhere. A value whose length differs from its
 // point's size, or a model the registry does not decode, fails t.
-func ModelWords(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, id, length uint16, values map[string][]uint16) []uint16 {
+func ModelWords(t testing.TB, registry sunspec.DecoderRegistry, id, length uint16, values map[string][]uint16) []uint16 {
 	t.Helper()
 	words := make([]uint16, int(length)+2)
 	words[0], words[1] = id, length
@@ -175,7 +176,7 @@ type placement struct {
 
 // placementKey identifies one catalog layout.
 type placementKey struct {
-	revision   modbusreg.SunSpecSchemaRevision
+	revision   sunspec.SchemaRevision
 	id, length uint16
 }
 
@@ -186,7 +187,7 @@ var (
 
 // pointPlacements returns the catalog position of every point repetition of
 // id/length in registry, computed once per layout.
-func pointPlacements(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, id, length uint16) []placement {
+func pointPlacements(t testing.TB, registry sunspec.DecoderRegistry, id, length uint16) []placement {
 	t.Helper()
 	key := placementKey{registry.SchemaRevision(), id, length}
 	placementsMu.Lock()
@@ -209,7 +210,7 @@ func pointPlacements(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, id
 // length, is probed with every payload word set to one value from 0 to 255
 // until the geometry accepts it; the offsets then follow from the
 // catalog-ordered point sizes, which must cover the payload exactly.
-func probePlacements(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, id, length uint16) []placement {
+func probePlacements(t testing.TB, registry sunspec.DecoderRegistry, id, length uint16) []placement {
 	t.Helper()
 	probe := make([]uint16, int(length)+2)
 	probe[0], probe[1] = id, length
@@ -255,7 +256,7 @@ func probePlacements(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, id
 	return nil
 }
 
-func decode(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, words []uint16) modbusreg.SunSpecDecodedModel {
+func decode(t testing.TB, registry sunspec.DecoderRegistry, words []uint16) sunspec.DecodedModel {
 	t.Helper()
 	model, err := registry.DecodeOccurrence(Occurrence(t, registry, words, 1))
 	if err != nil {
@@ -266,24 +267,24 @@ func decode(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, words []uin
 
 // RawWords returns the chain image of occurrences: the signature, the words of
 // every occurrence in order and the end marker.
-func RawWords(occurrences []modbusreg.SunSpecOccurrence) []uint16 {
+func RawWords(occurrences []sunspec.Occurrence) []uint16 {
 	raw := []uint16{SignatureFirst, SignatureSecond}
 	for _, occurrence := range occurrences {
 		raw = append(raw, occurrence.Words()...)
 	}
-	return append(raw, modbusreg.SunSpecEndModelID, 0)
+	return append(raw, sunspec.EndModelID, 0)
 }
 
 // Snapshot returns the terminal snapshot of a chain walk over the words of
 // occurrences under every decoder key of registry.
-func Snapshot(t testing.TB, registry modbusreg.SunSpecDecoderRegistry, occurrences ...modbusreg.SunSpecOccurrence) modbusreg.SunSpecChainSnapshot {
+func Snapshot(t testing.TB, registry sunspec.DecoderRegistry, occurrences ...sunspec.Occurrence) sunspec.ChainSnapshot {
 	t.Helper()
 	return Walk(t, registry.DecoderKeys(), nil, occurrences...)
 }
 
 // SnapshotWithKeys returns the terminal snapshot of a chain walk over the
 // words of occurrences under decoderKeys.
-func SnapshotWithKeys(t testing.TB, decoderKeys []modbusreg.SunSpecDecoderKey, occurrences ...modbusreg.SunSpecOccurrence) modbusreg.SunSpecChainSnapshot {
+func SnapshotWithKeys(t testing.TB, decoderKeys []sunspec.DecoderKey, occurrences ...sunspec.Occurrence) sunspec.ChainSnapshot {
 	t.Helper()
 	return Walk(t, decoderKeys, nil, occurrences...)
 }
@@ -293,26 +294,26 @@ func SnapshotWithKeys(t testing.TB, decoderKeys []modbusreg.SunSpecDecoderKey, o
 // is terminal. Before each view is validated, edit, when not nil, may change
 // its record; step counts the views from zero. It returns the terminal
 // snapshot and fails t if any admission fails.
-func Walk(t testing.TB, decoderKeys []modbusreg.SunSpecDecoderKey, edit func(step int, record *modbusreg.LogicalViewRecord), occurrences ...modbusreg.SunSpecOccurrence) modbusreg.SunSpecChainSnapshot {
+func Walk(t testing.TB, decoderKeys []sunspec.DecoderKey, edit func(step int, record *modbusreg.LogicalViewRecord), occurrences ...sunspec.Occurrence) sunspec.ChainSnapshot {
 	t.Helper()
 	blocks := make([][]uint16, len(occurrences))
 	for index, occurrence := range occurrences {
 		blocks[index] = occurrence.Words()
 	}
-	return WalkWords(t, modbusreg.SunSpecChainPlanSpec{DecoderKeys: decoderKeys}, edit, blocks...)
+	return WalkWords(t, sunspec.ChainPlanSpec{DecoderKeys: decoderKeys}, edit, blocks...)
 }
 
 // WalkWords walks a chain as Walk does over the model blocks given as words,
 // under spec. An empty schema revision becomes Revision, empty base
 // candidates become Base, and zero limits become the exact size of the chain
 // image and the number of blocks.
-func WalkWords(t testing.TB, spec modbusreg.SunSpecChainPlanSpec, edit func(step int, record *modbusreg.LogicalViewRecord), blocks ...[]uint16) modbusreg.SunSpecChainSnapshot {
+func WalkWords(t testing.TB, spec sunspec.ChainPlanSpec, edit func(step int, record *modbusreg.LogicalViewRecord), blocks ...[]uint16) sunspec.ChainSnapshot {
 	t.Helper()
 	raw := []uint16{SignatureFirst, SignatureSecond}
 	for _, block := range blocks {
 		raw = append(raw, block...)
 	}
-	raw = append(raw, modbusreg.SunSpecEndModelID, 0)
+	raw = append(raw, sunspec.EndModelID, 0)
 	if spec.SchemaRevision == "" {
 		spec.SchemaRevision = Revision
 	}
@@ -322,14 +323,14 @@ func WalkWords(t testing.TB, spec modbusreg.SunSpecChainPlanSpec, edit func(step
 	if len(spec.BaseCandidates) != 1 {
 		t.Fatalf("fixture walk needs exactly one base candidate, got %d", len(spec.BaseCandidates))
 	}
-	if spec.Limits == (modbusreg.SunSpecChainLimits{}) {
-		spec.Limits = modbusreg.SunSpecChainLimits{MaxTotalWords: uint32(len(raw)), MaxOccurrences: uint32(max(len(blocks), 1))}
+	if spec.Limits == (sunspec.ChainLimits{}) {
+		spec.Limits = sunspec.ChainLimits{MaxTotalWords: uint32(len(raw)), MaxOccurrences: uint32(max(len(blocks), 1))}
 	}
-	plan, err := modbusreg.NewSunSpecChainPlan(spec)
+	plan, err := sunspec.NewChainPlan(spec)
 	if err != nil {
 		t.Fatal(err)
 	}
-	chain := modbusreg.NewSunSpecChain(plan)
+	chain := sunspec.NewChain(plan)
 	logicalViewID := FirstLogicalViewID
 	for step := 0; step < len(raw); step++ {
 		requests := chain.NextRequests()
@@ -360,13 +361,13 @@ func WalkWords(t testing.TB, spec modbusreg.SunSpecChainPlanSpec, edit func(step
 		}
 	}
 	t.Fatal("SunSpec chain did not reach its terminal snapshot")
-	return modbusreg.SunSpecChainSnapshot{}
+	return sunspec.ChainSnapshot{}
 }
 
 // Record returns the synthetic FC03 TCP logical-view record that answers
 // request with words: one physical read equal to the logical read, with
 // response and physical-request identifiers derived from id.
-func Record(request modbusreg.SunSpecReadRequest, id uint64, words []uint16, endpoint string) modbusreg.LogicalViewRecord {
+func Record(request sunspec.ReadRequest, id uint64, words []uint16, endpoint string) modbusreg.LogicalViewRecord {
 	return modbusreg.LogicalViewRecord{
 		LogicalViewID: id, WireResponseID: id + 100, PhysicalRequestID: id + 200,
 		Endpoint: endpoint, ConnectionID: 4, Transport: modbusreg.TransportTCP, TransportGeneration: 5, UnitID: 1,
@@ -379,7 +380,7 @@ func Record(request modbusreg.SunSpecReadRequest, id uint64, words []uint16, end
 
 // View returns the validated logical view of Record(request, id, words,
 // endpoint).
-func View(t testing.TB, request modbusreg.SunSpecReadRequest, id uint64, words []uint16, endpoint string) modbusreg.LogicalViewSnapshot {
+func View(t testing.TB, request sunspec.ReadRequest, id uint64, words []uint16, endpoint string) modbusreg.LogicalViewSnapshot {
 	t.Helper()
 	view, err := modbusreg.NewLogicalViewSnapshot(Record(request, id, words, endpoint))
 	if err != nil {
@@ -390,7 +391,7 @@ func View(t testing.TB, request modbusreg.SunSpecReadRequest, id uint64, words [
 
 // AdmitNext answers the first pending request of chain with words in a view
 // identified by *id, increments *id and returns the admission result.
-func AdmitNext(t testing.TB, chain *modbusreg.SunSpecChain, id *uint64, words []uint16) (modbusreg.SunSpecChainSnapshot, error) {
+func AdmitNext(t testing.TB, chain *sunspec.Chain, id *uint64, words []uint16) (sunspec.ChainSnapshot, error) {
 	t.Helper()
 	request := chain.NextRequests()[0]
 	view := View(t, request, *id, words, "fixture")
@@ -400,7 +401,7 @@ func AdmitNext(t testing.TB, chain *modbusreg.SunSpecChain, id *uint64, words []
 
 // Records returns copies of the source-view records of snapshot in admission
 // order.
-func Records(snapshot modbusreg.SunSpecChainSnapshot) []modbusreg.LogicalViewRecord {
+func Records(snapshot sunspec.ChainSnapshot) []modbusreg.LogicalViewRecord {
 	views := snapshot.SourceViews()
 	records := make([]modbusreg.LogicalViewRecord, len(views))
 	for index, view := range views {
@@ -409,10 +410,10 @@ func Records(snapshot modbusreg.SunSpecChainSnapshot) []modbusreg.LogicalViewRec
 	return records
 }
 
-// Assemble returns modbusreg.NewSunSpecChainSnapshot of raw, occurrences and
+// Assemble returns sunspec.NewChainSnapshot of raw, occurrences and
 // the validated views of records, failing t on any error. It assembles
 // snapshots that no chain walk produces, such as an inconsistent chain image.
-func Assemble(t testing.TB, raw []uint16, occurrences []modbusreg.SunSpecOccurrence, records []modbusreg.LogicalViewRecord) modbusreg.SunSpecChainSnapshot {
+func Assemble(t testing.TB, raw []uint16, occurrences []sunspec.Occurrence, records []modbusreg.LogicalViewRecord) sunspec.ChainSnapshot {
 	t.Helper()
 	snapshot, err := assemble(raw, occurrences, records)
 	if err != nil {
@@ -424,7 +425,7 @@ func Assemble(t testing.TB, raw []uint16, occurrences []modbusreg.SunSpecOccurre
 // WithRaw returns Assemble of the raw words edit returns for a copy of the
 // raw words of snapshot, with the occurrences and source views of snapshot.
 // A nil edit keeps the raw words.
-func WithRaw(t testing.TB, snapshot modbusreg.SunSpecChainSnapshot, edit func(raw []uint16) []uint16) modbusreg.SunSpecChainSnapshot {
+func WithRaw(t testing.TB, snapshot sunspec.ChainSnapshot, edit func(raw []uint16) []uint16) sunspec.ChainSnapshot {
 	t.Helper()
 	raw := snapshot.RawWords()
 	if edit != nil {
@@ -436,7 +437,7 @@ func WithRaw(t testing.TB, snapshot modbusreg.SunSpecChainSnapshot, edit func(ra
 // WithRecords returns Assemble of the raw words and occurrences of snapshot
 // with the source-view records edit returns for copies of the records of
 // snapshot. A nil edit keeps the records.
-func WithRecords(t testing.TB, snapshot modbusreg.SunSpecChainSnapshot, edit func(records []modbusreg.LogicalViewRecord) []modbusreg.LogicalViewRecord) modbusreg.SunSpecChainSnapshot {
+func WithRecords(t testing.TB, snapshot sunspec.ChainSnapshot, edit func(records []modbusreg.LogicalViewRecord) []modbusreg.LogicalViewRecord) sunspec.ChainSnapshot {
 	t.Helper()
 	records := Records(snapshot)
 	if edit != nil {
@@ -447,7 +448,7 @@ func WithRecords(t testing.TB, snapshot modbusreg.SunSpecChainSnapshot, edit fun
 
 // KeepSourceViews returns Assemble of the raw words and occurrences of
 // snapshot with only its first count source views.
-func KeepSourceViews(t testing.TB, snapshot modbusreg.SunSpecChainSnapshot, count int) modbusreg.SunSpecChainSnapshot {
+func KeepSourceViews(t testing.TB, snapshot sunspec.ChainSnapshot, count int) sunspec.ChainSnapshot {
 	t.Helper()
 	records := Records(snapshot)
 	if count < 0 || count > len(records) {
@@ -459,7 +460,7 @@ func KeepSourceViews(t testing.TB, snapshot modbusreg.SunSpecChainSnapshot, coun
 // ShiftSampleIdentity returns Assemble of snapshot with poll added to the
 // poll generation and deadline added to the deadline identity of every source
 // view.
-func ShiftSampleIdentity(t testing.TB, snapshot modbusreg.SunSpecChainSnapshot, poll, deadline uint64) modbusreg.SunSpecChainSnapshot {
+func ShiftSampleIdentity(t testing.TB, snapshot sunspec.ChainSnapshot, poll, deadline uint64) sunspec.ChainSnapshot {
 	t.Helper()
 	records := Records(snapshot)
 	for index := range records {
@@ -469,22 +470,22 @@ func ShiftSampleIdentity(t testing.TB, snapshot modbusreg.SunSpecChainSnapshot, 
 	return Assemble(t, snapshot.RawWords(), snapshot.Occurrences(), records)
 }
 
-// AssembleError returns the error modbusreg.NewSunSpecChainSnapshot reports
+// AssembleError returns the error sunspec.NewChainSnapshot reports
 // for raw, occurrences and records, or the error of the first record that is
 // not a valid logical view.
-func AssembleError(raw []uint16, occurrences []modbusreg.SunSpecOccurrence, records []modbusreg.LogicalViewRecord) error {
+func AssembleError(raw []uint16, occurrences []sunspec.Occurrence, records []modbusreg.LogicalViewRecord) error {
 	_, err := assemble(raw, occurrences, records)
 	return err
 }
 
-func assemble(raw []uint16, occurrences []modbusreg.SunSpecOccurrence, records []modbusreg.LogicalViewRecord) (modbusreg.SunSpecChainSnapshot, error) {
+func assemble(raw []uint16, occurrences []sunspec.Occurrence, records []modbusreg.LogicalViewRecord) (sunspec.ChainSnapshot, error) {
 	views := make([]modbusreg.LogicalViewSnapshot, len(records))
 	for index, record := range records {
 		view, err := modbusreg.NewLogicalViewSnapshot(record)
 		if err != nil {
-			return modbusreg.SunSpecChainSnapshot{}, err
+			return sunspec.ChainSnapshot{}, err
 		}
 		views[index] = view
 	}
-	return modbusreg.NewSunSpecChainSnapshot(raw, occurrences, views)
+	return sunspec.NewChainSnapshot(raw, occurrences, views)
 }

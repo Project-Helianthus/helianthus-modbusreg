@@ -4,6 +4,8 @@ import "slices"
 
 import modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 
+import "github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
+
 // Fronius observed flavor identifiers, one per immutable flavor version. Each
 // version pins one Common identity, one exact firmware string and one exact
 // model chain; a different firmware or chain needs a new version. See
@@ -39,8 +41,8 @@ type SunSpecFroniusFlavorDecision struct {
 	flavorID   string
 	matched    bool
 	reason     SunSpecFroniusFlavorReason
-	capability modbusreg.SunSpecCapabilityDecision
-	chain      []modbusreg.SunSpecWireKey
+	capability sunspec.CapabilityDecision
+	chain      []sunspec.WireKey
 	views      []modbusreg.LogicalViewSnapshot
 }
 
@@ -61,23 +63,23 @@ func (d SunSpecFroniusFlavorDecision) FlavorID() string {
 
 // Capability returns a copy of the three-phase monitoring decision the
 // evaluation was based on.
-func (d SunSpecFroniusFlavorDecision) Capability() modbusreg.SunSpecCapabilityDecision {
+func (d SunSpecFroniusFlavorDecision) Capability() sunspec.CapabilityDecision {
 	return d.capability.Clone()
 }
 
 // Chain returns a copy of the matched wire chain, end marker included; it is
 // empty unless matched.
-func (d SunSpecFroniusFlavorDecision) Chain() []modbusreg.SunSpecWireKey {
-	return append([]modbusreg.SunSpecWireKey(nil), d.chain...)
+func (d SunSpecFroniusFlavorDecision) Chain() []sunspec.WireKey {
+	return append([]sunspec.WireKey(nil), d.chain...)
 }
 
 // SourceViews returns copies of the snapshot's source views; it is empty
 // unless matched.
 func (d SunSpecFroniusFlavorDecision) SourceViews() []modbusreg.LogicalViewSnapshot {
-	return modbusreg.SunSpecCloneSourceViews(d.views)
+	return sunspec.CloneSourceViews(d.views)
 }
 
-var froniusObservedChainV1 = []modbusreg.SunSpecWireKey{
+var froniusObservedChainV1 = []sunspec.WireKey{
 	{ModelID: 1, ModelLength: 65},
 	{ModelID: 113, ModelLength: 60},
 	{ModelID: 120, ModelLength: 26},
@@ -85,22 +87,10 @@ var froniusObservedChainV1 = []modbusreg.SunSpecWireKey{
 	{ModelID: 122, ModelLength: 44},
 	{ModelID: 160, ModelLength: 88},
 	{ModelID: 124, ModelLength: 24},
-	{ModelID: modbusreg.SunSpecEndModelID, ModelLength: 0},
+	{ModelID: sunspec.EndModelID, ModelLength: 0},
 }
 
-var froniusObservedChainV11 = []modbusreg.SunSpecWireKey{
-	{ModelID: 1, ModelLength: 65},
-	{ModelID: 113, ModelLength: 60},
-	{ModelID: 120, ModelLength: 26},
-	{ModelID: 121, ModelLength: 30},
-	{ModelID: 122, ModelLength: 44},
-	{ModelID: 123, ModelLength: 24},
-	{ModelID: 160, ModelLength: 88},
-	{ModelID: 124, ModelLength: 24},
-	{ModelID: modbusreg.SunSpecEndModelID, ModelLength: 0},
-}
-
-var froniusObservedChainV12 = []modbusreg.SunSpecWireKey{
+var froniusObservedChainV11 = []sunspec.WireKey{
 	{ModelID: 1, ModelLength: 65},
 	{ModelID: 113, ModelLength: 60},
 	{ModelID: 120, ModelLength: 26},
@@ -109,7 +99,19 @@ var froniusObservedChainV12 = []modbusreg.SunSpecWireKey{
 	{ModelID: 123, ModelLength: 24},
 	{ModelID: 160, ModelLength: 88},
 	{ModelID: 124, ModelLength: 24},
-	{ModelID: modbusreg.SunSpecEndModelID, ModelLength: 0},
+	{ModelID: sunspec.EndModelID, ModelLength: 0},
+}
+
+var froniusObservedChainV12 = []sunspec.WireKey{
+	{ModelID: 1, ModelLength: 65},
+	{ModelID: 113, ModelLength: 60},
+	{ModelID: 120, ModelLength: 26},
+	{ModelID: 121, ModelLength: 30},
+	{ModelID: 122, ModelLength: 44},
+	{ModelID: 123, ModelLength: 24},
+	{ModelID: 160, ModelLength: 88},
+	{ModelID: 124, ModelLength: 24},
+	{ModelID: sunspec.EndModelID, ModelLength: 0},
 }
 
 // sunSpecFroniusFlavorDefinition is one immutable observed flavor. Each version
@@ -118,7 +120,7 @@ var froniusObservedChainV12 = []modbusreg.SunSpecWireKey{
 type sunSpecFroniusFlavorDefinition struct {
 	id       string
 	firmware string
-	chain    []modbusreg.SunSpecWireKey
+	chain    []sunspec.WireKey
 }
 
 var (
@@ -183,27 +185,27 @@ func (s SunSpecFroniusFlavorSelection) Evaluations() []SunSpecFroniusFlavorDecis
 // an admitted three-phase monitoring capability, then the flavor's exact Common
 // manufacturer and model, its exact firmware string and its exact wire chain.
 // It never returns an error; the reason names the first failed check.
-func EvaluateObservedFlavor(registry modbusreg.SunSpecDecoderRegistry, snapshot modbusreg.SunSpecChainSnapshot) SunSpecFroniusFlavorDecision {
+func EvaluateObservedFlavor(registry sunspec.DecoderRegistry, snapshot sunspec.ChainSnapshot) SunSpecFroniusFlavorDecision {
 	return evaluateFroniusObservedFlavor(registry, snapshot, froniusObservedFlavorV1)
 }
 
 // EvaluateObservedFlavorV11 applies the checks of
 // EvaluateObservedFlavor for flavor version 1.1.0
 // (SunSpecFroniusObservedFlavorV11ID).
-func EvaluateObservedFlavorV11(registry modbusreg.SunSpecDecoderRegistry, snapshot modbusreg.SunSpecChainSnapshot) SunSpecFroniusFlavorDecision {
+func EvaluateObservedFlavorV11(registry sunspec.DecoderRegistry, snapshot sunspec.ChainSnapshot) SunSpecFroniusFlavorDecision {
 	return evaluateFroniusObservedFlavor(registry, snapshot, froniusObservedFlavorV11)
 }
 
 // EvaluateObservedFlavorV12 applies the checks of
 // EvaluateObservedFlavor for flavor version 1.2.0
 // (SunSpecFroniusObservedFlavorV12ID).
-func EvaluateObservedFlavorV12(registry modbusreg.SunSpecDecoderRegistry, snapshot modbusreg.SunSpecChainSnapshot) SunSpecFroniusFlavorDecision {
+func EvaluateObservedFlavorV12(registry sunspec.DecoderRegistry, snapshot sunspec.ChainSnapshot) SunSpecFroniusFlavorDecision {
 	return evaluateFroniusObservedFlavor(registry, snapshot, froniusObservedFlavorV12)
 }
 
 // SelectObservedFlavor evaluates every Fronius flavor version against
 // snapshot with registry and selects one only when exactly one matches.
-func SelectObservedFlavor(registry modbusreg.SunSpecDecoderRegistry, snapshot modbusreg.SunSpecChainSnapshot) SunSpecFroniusFlavorSelection {
+func SelectObservedFlavor(registry sunspec.DecoderRegistry, snapshot sunspec.ChainSnapshot) SunSpecFroniusFlavorSelection {
 	return selectSunSpecFroniusFlavor([]SunSpecFroniusFlavorDecision{
 		EvaluateObservedFlavor(registry, snapshot),
 		EvaluateObservedFlavorV11(registry, snapshot),
@@ -211,12 +213,12 @@ func SelectObservedFlavor(registry modbusreg.SunSpecDecoderRegistry, snapshot mo
 	})
 }
 
-func evaluateFroniusObservedFlavor(registry modbusreg.SunSpecDecoderRegistry, snapshot modbusreg.SunSpecChainSnapshot, definition sunSpecFroniusFlavorDefinition) SunSpecFroniusFlavorDecision {
+func evaluateFroniusObservedFlavor(registry sunspec.DecoderRegistry, snapshot sunspec.ChainSnapshot, definition sunSpecFroniusFlavorDefinition) SunSpecFroniusFlavorDecision {
 	capability := registry.EvaluateThreePhaseMonitoring(snapshot)
 	rejected := func(reason SunSpecFroniusFlavorReason) SunSpecFroniusFlavorDecision {
 		return SunSpecFroniusFlavorDecision{flavorID: definition.id, reason: reason, capability: capability}
 	}
-	if capability.Reason() == modbusreg.SunSpecCapabilityReasonAmbiguousSource {
+	if capability.Reason() == sunspec.CapabilityReasonAmbiguousSource {
 		return rejected(SunSpecFroniusFlavorReasonAmbiguousSource)
 	}
 	if !capability.Admitted() {
@@ -279,8 +281,8 @@ func selectSunSpecFroniusFlavor(evaluations []SunSpecFroniusFlavorDecision) SunS
 
 func cloneSunSpecFroniusFlavorDecision(decision SunSpecFroniusFlavorDecision) SunSpecFroniusFlavorDecision {
 	decision.capability = decision.capability.Clone()
-	decision.chain = append([]modbusreg.SunSpecWireKey(nil), decision.chain...)
-	decision.views = modbusreg.SunSpecCloneSourceViews(decision.views)
+	decision.chain = append([]sunspec.WireKey(nil), decision.chain...)
+	decision.views = sunspec.CloneSourceViews(decision.views)
 	return decision
 }
 

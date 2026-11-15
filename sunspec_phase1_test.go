@@ -6,11 +6,12 @@ import (
 	"time"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 func TestSunSpecPhaseOneProfileIsVersionGatedAndReadOnly(t *testing.T) {
-	profile, err := reg.NewSunSpecPhaseOneProfile(
-		reg.SunSpecPhaseOneVersions{Profile: version(t, "1.0.0"), Codec: version(t, "1.0.0")},
+	profile, err := sunspec.NewSunSpecPhaseOneProfile(
+		sunspec.PhaseOneVersions{Profile: version(t, "1.0.0"), Codec: version(t, "1.0.0")},
 	)
 	if err != nil {
 		t.Fatalf("NewSunSpecPhaseOneProfile(v1): %v", err)
@@ -21,11 +22,11 @@ func TestSunSpecPhaseOneProfileIsVersionGatedAndReadOnly(t *testing.T) {
 	if profile.CodecContractVersion() != version(t, "1.0.0") {
 		t.Fatalf("codec contract version = %s", profile.CodecContractVersion())
 	}
-	for _, unsupported := range []reg.SunSpecPhaseOneVersions{
+	for _, unsupported := range []sunspec.PhaseOneVersions{
 		{Profile: version(t, "2.0.0"), Codec: version(t, "1.0.0")},
 		{Profile: version(t, "1.0.0"), Codec: version(t, "2.0.0")},
 	} {
-		if _, err := reg.NewSunSpecPhaseOneProfile(unsupported); err == nil {
+		if _, err := sunspec.NewSunSpecPhaseOneProfile(unsupported); err == nil {
 			t.Fatalf("unsupported versions accepted: %#v", unsupported)
 		}
 	}
@@ -35,11 +36,11 @@ func TestSunSpecPhaseOneProfileIsVersionGatedAndReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewProfileDescriptor(altered): %v", err)
 	}
-	if _, err := reg.NewSunSpecPhaseOneDecoder(otherProfile); err == nil {
+	if _, err := sunspec.NewPhaseOneDecoder(otherProfile); err == nil {
 		t.Fatal("decoder accepted a same-ID profile with altered applicability")
 	}
 
-	decoder, err := reg.NewSunSpecPhaseOneDecoder(profile)
+	decoder, err := sunspec.NewPhaseOneDecoder(profile)
 	if err != nil {
 		t.Fatalf("NewSunSpecPhaseOneDecoder: %v", err)
 	}
@@ -60,10 +61,10 @@ func TestSunSpecPhaseOneProfileIsVersionGatedAndReadOnly(t *testing.T) {
 }
 
 func TestSunSpecPhaseOneChainIsBoundedAndSupportsOnlyIntScaleModels(t *testing.T) {
-	profile, _ := reg.NewSunSpecPhaseOneProfile(reg.SunSpecPhaseOneVersions{
+	profile, _ := sunspec.NewSunSpecPhaseOneProfile(sunspec.PhaseOneVersions{
 		Profile: version(t, "1.0.0"), Codec: version(t, "1.0.0"),
 	})
-	decoder, err := reg.NewSunSpecPhaseOneDecoder(profile)
+	decoder, err := sunspec.NewPhaseOneDecoder(profile)
 	if err != nil {
 		t.Fatalf("NewSunSpecPhaseOneDecoder: %v", err)
 	}
@@ -94,10 +95,10 @@ func TestSunSpecPhaseOneChainIsBoundedAndSupportsOnlyIntScaleModels(t *testing.T
 }
 
 func TestSunSpecPhaseOneDecodingAndObservationActivationPreserveProvenance(t *testing.T) {
-	profile, _ := reg.NewSunSpecPhaseOneProfile(reg.SunSpecPhaseOneVersions{
+	profile, _ := sunspec.NewSunSpecPhaseOneProfile(sunspec.PhaseOneVersions{
 		Profile: version(t, "1.0.0"), Codec: version(t, "1.0.0"),
 	})
-	decoder, err := reg.NewSunSpecPhaseOneDecoder(profile)
+	decoder, err := sunspec.NewPhaseOneDecoder(profile)
 	if err != nil {
 		t.Fatalf("NewSunSpecPhaseOneDecoder: %v", err)
 	}
@@ -128,7 +129,7 @@ func TestSunSpecPhaseOneDecodingAndObservationActivationPreserveProvenance(t *te
 		t.Fatalf("Parse: %v", err)
 	}
 	capture, observationSpec := reviewCapture(t, profile, raw, 77, 5000, reg.TransportTCP)
-	activation := reg.SunSpecPhaseOneActivation{Chain: chain, RawWords: raw, Capture: capture, Observation: observationSpec}
+	activation := sunspec.PhaseOneActivation{Chain: chain, RawWords: raw, Capture: capture, Observation: observationSpec}
 	observation, err := decoder.Activate(activation)
 	if err != nil {
 		t.Fatalf("Activate: %v", err)
@@ -154,7 +155,7 @@ func sunSpecWords(headers ...uint16) []uint16 {
 	return words
 }
 
-func modelIDs(models []reg.SunSpecPhaseOneModel) []uint16 {
+func modelIDs(models []sunspec.PhaseOneModel) []uint16 {
 	ids := make([]uint16, len(models))
 	for index, model := range models {
 		ids[index] = model.ID()
