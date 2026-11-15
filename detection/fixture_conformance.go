@@ -1,12 +1,9 @@
 package detection
 
 import (
-	"bytes"
-	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -17,6 +14,8 @@ import (
 // FixtureMutationReason is the closed construction/decoding rejection set.
 type FixtureMutationReason string
 
+// The fixture mutation reasons. Construction, decoding and bounded report
+// encoding reject with exactly one of them; IsFixtureMutationReason tests it.
 const (
 	FixtureMutationReasonMissing       FixtureMutationReason = "missing"
 	FixtureMutationReasonUnknown       FixtureMutationReason = "unknown"
@@ -50,13 +49,6 @@ func defaultFixtureConformanceLimits() FixtureConformanceLimits {
 	return FixtureConformanceLimits{MaxRecords: reg.MaxProfileDependencies, MaxReportBytes: reg.MaxSerializedContractBytes}
 }
 
-func validateFixtureConformanceLimits(limits FixtureConformanceLimits) error {
-	if limits.MaxRecords <= 0 || limits.MaxRecords > reg.MaxProfileDependencies || limits.MaxReportBytes <= 0 || limits.MaxReportBytes > reg.MaxSerializedContractBytes {
-		return fixtureMutationError{FixtureMutationReasonOversized}
-	}
-	return nil
-}
-
 // SanitizedFixtureMetadata is deliberately limited to public corpus identity.
 type SanitizedFixtureMetadata struct {
 	CorpusID          string `json:"corpus_id"`
@@ -73,15 +65,21 @@ type FixtureDetectorDeclarationSpec struct {
 	Limits          Limits          `json:"limits"`
 }
 
+// FixtureProbeInput is one recorded probe read, bound to a probe declaration of
+// the detector plan by DeclarationID.
 type FixtureProbeInput struct {
 	DeclarationID string              `json:"declaration_id"`
 	Result        ProbeReadResultSpec `json:"result"`
 }
 
+// FixtureDetectorInput is the recorded probe set the fixture detector reads
+// instead of a device. It must answer every plan declaration exactly once.
 type FixtureDetectorInput struct {
 	Probes []FixtureProbeInput `json:"probes"`
 }
 
+// FixtureDetectionEvidenceExpectation is the expected evidence row of one
+// candidate in a recorded detection decision.
 type FixtureDetectionEvidenceExpectation struct {
 	ProfileID            string               `json:"profile_id"`
 	ProfileVersion       reg.Version          `json:"profile_version"`
@@ -93,6 +91,8 @@ type FixtureDetectionEvidenceExpectation struct {
 	QualificationVersion reg.Version          `json:"qualification_version"`
 }
 
+// FixtureDetectionExpectation is the complete expected detection decision,
+// including the ordered evidence rows.
 type FixtureDetectionExpectation struct {
 	Outcome                Outcome                               `json:"outcome"`
 	Reason                 Reason                                `json:"reason"`
@@ -101,32 +101,44 @@ type FixtureDetectionExpectation struct {
 	Evidence               []FixtureDetectionEvidenceExpectation `json:"evidence"`
 }
 
+// FixtureDetectionCaseSpec pairs a detector declaration and its recorded probe
+// input with the decision the replay must reproduce.
 type FixtureDetectionCaseSpec struct {
 	Declaration FixtureDetectorDeclarationSpec `json:"declaration"`
 	Input       FixtureDetectorInput           `json:"input"`
 	Expected    FixtureDetectionExpectation    `json:"expected"`
 }
 
+// FixtureQualificationDisposition is the recorded qualification expectation of
+// one fixture record. It is carried verbatim and does not qualify a profile.
 type FixtureQualificationDisposition string
 
+// The fixture qualification dispositions.
 const (
 	FixtureQualificationDispositionQualified FixtureQualificationDisposition = "qualified"
 	FixtureQualificationDispositionRejected  FixtureQualificationDisposition = "rejected"
 )
 
+// FixtureQualificationExpectation wraps the expected qualification disposition.
 type FixtureQualificationExpectation struct {
 	Expected FixtureQualificationDisposition `json:"expected"`
 }
 
+// FixtureReplayOutcome is the replay verdict for one fixture observation.
 type FixtureReplayOutcome string
 
+// The fixture replay outcomes.
 const (
 	FixtureReplayAccepted FixtureReplayOutcome = "accepted"
 	FixtureReplayRejected FixtureReplayOutcome = "rejected"
 )
 
+// FixtureReplayReason is the closed set of replay verdict reasons. An accepted
+// replay always carries FixtureReplayReasonAccepted; every other reason names
+// the first observation fact that rejected the replay.
 type FixtureReplayReason string
 
+// The fixture replay reasons.
 const (
 	FixtureReplayReasonAccepted              FixtureReplayReason = "accepted"
 	FixtureReplayReasonUnitMismatch          FixtureReplayReason = "unit_mismatch"
@@ -140,12 +152,17 @@ const (
 	FixtureReplayReasonObservationRejected   FixtureReplayReason = "observation_rejected"
 )
 
+// FixtureReplayExpectation is the recorded replay verdict. ExpectedRawWords is
+// compared only for an accepted outcome, one word set per dependency.
 type FixtureReplayExpectation struct {
 	Outcome          FixtureReplayOutcome `json:"outcome"`
 	Reason           FixtureReplayReason  `json:"reason"`
 	ExpectedRawWords [][]uint16           `json:"expected_raw_words,omitempty"`
 }
 
+// FixtureConformanceRecordSpec is one fixture record: an observation for a
+// profile of the corpus, its detection case, and the recorded qualification
+// and replay expectations.
 type FixtureConformanceRecordSpec struct {
 	RecordID       string                          `json:"record_id"`
 	ProfileID      string                          `json:"profile_id"`
@@ -156,6 +173,9 @@ type FixtureConformanceRecordSpec struct {
 	ExpectedReplay FixtureReplayExpectation        `json:"expected_replay"`
 }
 
+// FixtureConformanceCorpusSpec is the complete serializable corpus declaration.
+// It needs at least one profile and one record, and its metadata must be
+// sanitized public corpus identity.
 type FixtureConformanceCorpusSpec struct {
 	SchemaVersion reg.Version                    `json:"schema_version"`
 	Metadata      SanitizedFixtureMetadata       `json:"metadata"`
@@ -163,6 +183,9 @@ type FixtureConformanceCorpusSpec struct {
 	Records       []FixtureConformanceRecordSpec `json:"records"`
 }
 
+// FixtureConformanceCorpus is an admitted, immutable fixture corpus with its
+// profile catalog. Records are held sorted by record identity; replay reads no
+// device.
 type FixtureConformanceCorpus struct {
 	spec    FixtureConformanceCorpusSpec
 	catalog reg.Catalog
@@ -206,42 +229,15 @@ func cloneWordSets(values [][]uint16) [][]uint16 {
 	return result
 }
 
-func validFixtureIdentity(value string) bool {
-	return reg.ValidIdentity(value) && (strings.HasPrefix(value, "fixture-") || strings.HasPrefix(value, "fixture:"))
-}
-
-func validateSanitizedMetadata(metadata SanitizedFixtureMetadata) error {
-	if reg.ValidateBoundedString("fixture corpus ID", metadata.CorpusID, true) != nil ||
-		reg.ValidateBoundedString("fixture license expression", metadata.LicenseExpression, true) != nil ||
-		reg.ValidateBoundedString("fixture provenance", metadata.Provenance, true) != nil {
-		return fixtureMutationError{FixtureMutationReasonOversized}
-	}
-	if !reg.ValidIdentity(metadata.CorpusID) || metadata.LicenseExpression != "CC0-1.0" || metadata.Provenance != "public synthetic fixture" {
-		return fixtureMutationError{FixtureMutationReasonUnsanitized}
-	}
-	return nil
-}
-
-func validateFixtureSanitization(record FixtureConformanceRecordSpec) error {
-	if !validFixtureIdentity(record.Observation.Endpoint) {
-		return fixtureMutationError{FixtureMutationReasonUnsanitized}
-	}
-	for _, dependency := range record.Observation.Dependencies {
-		if !validFixtureIdentity(dependency.View.Record().Endpoint) {
-			return fixtureMutationError{FixtureMutationReasonUnsanitized}
-		}
-		if dependency.View.Record().Endpoint != record.Observation.Endpoint && (record.ExpectedReplay.Outcome != FixtureReplayRejected || record.ExpectedReplay.Reason != FixtureReplayReasonSourceMismatch) {
-			return fixtureMutationError{FixtureMutationReasonUnsanitized}
-		}
-	}
-	return nil
-}
-
 // NewFixtureConformanceCorpus constructs immutable offline evidence only.
 func NewFixtureConformanceCorpus(spec FixtureConformanceCorpusSpec) (*FixtureConformanceCorpus, error) {
 	return NewFixtureConformanceCorpusWithLimits(spec, defaultFixtureConformanceLimits())
 }
 
+// NewFixtureConformanceCorpusWithLimits admits spec under limits, which may only
+// tighten the default bounds. It fails closed with a fixture mutation reason
+// for an oversized, malformed, duplicate or unsanitized corpus, and keeps an
+// independent copy of spec.
 func NewFixtureConformanceCorpusWithLimits(spec FixtureConformanceCorpusSpec, limits FixtureConformanceLimits) (*FixtureConformanceCorpus, error) {
 	if err := validateFixtureConformanceLimits(limits); err != nil {
 		return nil, err
@@ -292,63 +288,8 @@ func NewFixtureConformanceCorpusWithLimits(spec FixtureConformanceCorpusSpec, li
 	return &FixtureConformanceCorpus{spec: copy, catalog: catalog, limits: limits}, nil
 }
 
-func validateFixtureRecordDeclaration(catalog reg.Catalog, profile reg.ProfileDescriptor, record FixtureConformanceRecordSpec) error {
-	detector, err := newFixtureDetector(catalog, record.Detection.Declaration)
-	if err != nil {
-		return fixtureMutationError{FixtureMutationReasonMalformed}
-	}
-	if err := validateFixtureProbeSet(record.Detection.Input, record.Detection.Declaration.Plan); err != nil {
-		return fixtureMutationError{FixtureMutationReasonMalformed}
-	}
-	reader, err := fixtureReader(record.Detection.Input)
-	if err != nil {
-		return fixtureMutationError{FixtureMutationReasonMalformed}
-	}
-	decision, err := detector.Detect(context.Background(), reader, Options{})
-	if err != nil || !(FixtureDetectionResult{Actual: decision, expected: record.Detection.Expected}).MatchesExpected() {
-		return fixtureMutationError{FixtureMutationReasonContradictory}
-	}
-	switch record.Qualification.Expected {
-	case FixtureQualificationDispositionQualified:
-		if profile.Spec().Maturity != reg.MaturityQualified || decision.Outcome() != Matched {
-			return fixtureMutationError{FixtureMutationReasonContradictory}
-		}
-	case FixtureQualificationDispositionRejected:
-		if profile.Spec().Maturity == reg.MaturityQualified || decision.Outcome() != NoMatch || decision.Reason() != ReasonProfileUnqualified {
-			return fixtureMutationError{FixtureMutationReasonContradictory}
-		}
-	default:
-		return fixtureMutationError{FixtureMutationReasonMalformed}
-	}
-	if record.ExpectedReplay.Outcome != FixtureReplayAccepted && record.ExpectedReplay.Outcome != FixtureReplayRejected {
-		return fixtureMutationError{FixtureMutationReasonMalformed}
-	}
-	replay, err := actualFixtureReplay(profile, record.Observation)
-	if err != nil {
-		return fixtureMutationError{FixtureMutationReasonMalformed}
-	}
-	if !(FixtureReplayResult{actual: replay, expected: record.ExpectedReplay}).MatchesExpected() {
-		return fixtureMutationError{FixtureMutationReasonContradictory}
-	}
-	return nil
-}
-
-func newFixtureDetector(catalog reg.Catalog, declaration FixtureDetectorDeclarationSpec) (*ProfileDetector, error) {
-	plan, err := NewProbePlan(declaration.Plan, declaration.Limits)
-	if err != nil {
-		return nil, err
-	}
-	candidates := make([]Candidate, len(declaration.Candidates))
-	for index, spec := range declaration.Candidates {
-		candidate, candidateErr := NewCandidate(spec, declaration.Limits)
-		if candidateErr != nil {
-			return nil, candidateErr
-		}
-		candidates[index] = candidate
-	}
-	return NewProfileDetector(ProfileDetectorSpec{DetectorVersion: declaration.DetectorVersion, Plan: plan, Catalog: catalog, Candidates: candidates, Limits: declaration.Limits})
-}
-
+// Spec returns an independent copy of the admitted corpus declaration, or the
+// zero value for a nil corpus.
 func (corpus *FixtureConformanceCorpus) Spec() FixtureConformanceCorpusSpec {
 	if corpus == nil {
 		return FixtureConformanceCorpusSpec{}
@@ -356,206 +297,55 @@ func (corpus *FixtureConformanceCorpus) Spec() FixtureConformanceCorpusSpec {
 	return cloneFixtureCorpusSpec(corpus.spec)
 }
 
-type fixtureProbeReader struct{ results map[string]ProbeReadResult }
-
-func (reader fixtureProbeReader) ReadProbe(_ context.Context, request ProbeReadRequest) (ProbeReadResult, error) {
-	result, ok := reader.results[request.DeclarationID()]
-	if !ok {
-		return ProbeReadResult{}, fmt.Errorf("fixture probe absent")
-	}
-	return result, nil
-}
-
-func fixtureReader(input FixtureDetectorInput) (fixtureProbeReader, error) {
-	reader := fixtureProbeReader{results: make(map[string]ProbeReadResult, len(input.Probes))}
-	for _, probe := range input.Probes {
-		if _, exists := reader.results[probe.DeclarationID]; exists {
-			return fixtureProbeReader{}, fmt.Errorf("duplicate fixture probe")
-		}
-		result, err := NewProbeReadResult(probe.Result)
-		if err != nil {
-			return fixtureProbeReader{}, err
-		}
-		reader.results[probe.DeclarationID] = result
-	}
-	return reader, nil
-}
-
-func validateFixtureProbeSet(input FixtureDetectorInput, plan ProbePlanSpec) error {
-	if len(input.Probes) != len(plan.Declarations) {
-		return fmt.Errorf("fixture probe set is incomplete")
-	}
-	expected := make(map[string]struct{}, len(plan.Declarations))
-	for _, declaration := range plan.Declarations {
-		expected[declaration.ID] = struct{}{}
-	}
-	for _, probe := range input.Probes {
-		if _, ok := expected[probe.DeclarationID]; !ok {
-			return fmt.Errorf("fixture probe is undeclared")
-		}
-		delete(expected, probe.DeclarationID)
-	}
-	if len(expected) != 0 {
-		return fmt.Errorf("fixture probe set is incomplete")
-	}
-	return nil
-}
-
-func classifyFixtureObservation(profile reg.ProfileDescriptor, spec reg.ObservationSpec) FixtureReplayReason {
-	if fixtureObservationAdmitted(profile, spec) {
-		return FixtureReplayReasonAccepted
-	}
-	declarations := profile.Dependencies().Dependencies()
-	if len(spec.Dependencies) != len(declarations) {
-		return FixtureReplayReasonObservationRejected
-	}
-	policy := profile.Spec().Coherence
-	firstView := spec.Dependencies[0].View.Record()
-	for i, dependency := range spec.Dependencies {
-		view := dependency.View.Record()
-		if dependency.Status == reg.DependencyReadTorn {
-			return FixtureReplayReasonTornRead
-		}
-		if dependency.NormalizationVersion != declarations[i].Normalization().Spec().Version {
-			return FixtureReplayReasonNormalizationMismatch
-		}
-		if view.UnitID != spec.UnitID {
-			return FixtureReplayReasonUnitMismatch
-		}
-		if policy.Mode == reg.CoherenceBoundedMultiResponse &&
-			(view.Endpoint != firstView.Endpoint ||
-				view.ConnectionID != firstView.ConnectionID ||
-				view.Transport != firstView.Transport ||
-				(policy.RequireGenerationEquality && view.TransportGeneration != firstView.TransportGeneration)) {
-			return FixtureReplayReasonSourceMismatch
-		}
-		if view.PollGeneration != spec.PollGenerationID {
-			return FixtureReplayReasonGenerationMismatch
-		}
-		if view.DeadlineIdentity != spec.Dependencies[0].View.Record().DeadlineIdentity {
-			return FixtureReplayReasonDeadlineMismatch
-		}
-		if view.Table != declarations[i].Table() || (view.Table == reg.HoldingRegisters && view.RequestedFunction != reg.FunctionReadHoldingRegisters) || (view.Table == reg.InputRegisters && view.RequestedFunction != reg.FunctionReadInputRegisters) || view.RequestedFunction != view.ReceivedFunction {
-			return FixtureReplayReasonTableAccessMismatch
-		}
-		if policy.Mode == reg.CoherenceSingleWireResponse {
-			if dependency.SourceTime.State != reg.SourceTimeUnavailableState || !dependency.SourceTime.Time.IsZero() {
-				return FixtureReplayReasonSourceMismatch
-			}
-		}
-		if policy.Mode == reg.CoherenceBoundedMultiResponse &&
-			policy.DocumentaryConsistencyMarker != "" &&
-			dependency.DocumentaryConsistencyMarker != policy.DocumentaryConsistencyMarker {
-			return FixtureReplayReasonCoherenceMismatch
-		}
-	}
-	return FixtureReplayReasonObservationRejected
-}
-
-func fixtureObservationAdmitted(profile reg.ProfileDescriptor, spec reg.ObservationSpec) bool {
-	encoded, err := reg.MarshalFixtureSpec(spec)
-	if err != nil {
-		return false
-	}
-	replayer, err := NewFixtureReplayer(profile)
-	if err != nil {
-		return false
-	}
-	_, err = replayer.Replay(encoded)
-	return err == nil
-}
-
-func actualFixtureReplay(profile reg.ProfileDescriptor, spec reg.ObservationSpec) (FixtureReplayActual, error) {
-	reason := classifyFixtureObservation(profile, spec)
-	actual := FixtureReplayActual{
-		outcome:  FixtureReplayRejected,
-		reason:   reason,
-		rawWords: make([][]uint16, len(spec.Dependencies)),
-	}
-	for index, dependency := range spec.Dependencies {
-		actual.rawWords[index] = dependency.View.Record().Words
-	}
-	if reason != FixtureReplayReasonAccepted {
-		return actual, nil
-	}
-	encoded, err := reg.MarshalFixtureSpec(spec)
-	if err != nil {
-		return FixtureReplayActual{}, err
-	}
-	replayer, err := NewFixtureReplayer(profile)
-	if err != nil {
-		return FixtureReplayActual{}, err
-	}
-	replay, err := replayer.Replay(encoded)
-	if err != nil {
-		return FixtureReplayActual{}, err
-	}
-	dependencies := replay.Replay()
-	if len(dependencies) != len(actual.rawWords) {
-		return FixtureReplayActual{}, fmt.Errorf("fixture replay dependency count changed")
-	}
-	actual.outcome = FixtureReplayAccepted
-	for index, dependency := range dependencies {
-		actual.rawWords[index] = dependency.RawWords()
-	}
-	return actual, nil
-}
-
+// FixtureReplayActual is the replay verdict actually reached for one record.
 type FixtureReplayActual struct {
 	outcome  FixtureReplayOutcome
 	reason   FixtureReplayReason
 	rawWords [][]uint16
 }
 
+// Outcome returns the actual replay outcome.
 func (actual FixtureReplayActual) Outcome() FixtureReplayOutcome { return actual.outcome }
-func (actual FixtureReplayActual) Reason() FixtureReplayReason   { return actual.reason }
 
+// Reason returns the actual replay reason.
+func (actual FixtureReplayActual) Reason() FixtureReplayReason { return actual.reason }
+
+// FixtureReplayResult pairs the actual replay verdict with the recorded
+// expectation.
 type FixtureReplayResult struct {
 	actual   FixtureReplayActual
 	expected FixtureReplayExpectation
 }
 
+// Actual returns an independent copy of the actual replay verdict.
 func (result FixtureReplayResult) Actual() FixtureReplayActual {
 	actual := result.actual
 	actual.rawWords = cloneWordSets(actual.rawWords)
 	return actual
 }
+
+// Expected returns an independent copy of the recorded replay expectation.
 func (result FixtureReplayResult) Expected() FixtureReplayExpectation {
 	expected := result.expected
 	expected.ExpectedRawWords = cloneWordSets(expected.ExpectedRawWords)
 	return expected
 }
+
+// MatchesExpected reports whether outcome and reason match and, for an
+// accepted replay, every dependency's raw words match exactly.
 func (result FixtureReplayResult) MatchesExpected() bool {
 	return result.actual.outcome == result.expected.Outcome && result.actual.reason == result.expected.Reason && (result.actual.outcome == FixtureReplayRejected || reflectWordSetsEqual(result.actual.rawWords, result.expected.ExpectedRawWords))
 }
-func reflectWordSetsEqual(first, second [][]uint16) bool {
-	if len(first) != len(second) {
-		return false
-	}
-	for i := range first {
-		if !slicesEqual(first[i], second[i]) {
-			return false
-		}
-	}
-	return true
-}
-func slicesEqual(first, second []uint16) bool {
-	if len(first) != len(second) {
-		return false
-	}
-	for i := range first {
-		if first[i] != second[i] {
-			return false
-		}
-	}
-	return true
-}
 
+// FixtureDetectionResult pairs the decision the fixture detector reached with
+// the recorded expectation.
 type FixtureDetectionResult struct {
 	Actual   Decision
 	expected FixtureDetectionExpectation
 }
 
+// MatchesExpected reports whether the decision matches the expectation field by
+// field, including every evidence row in order.
 func (result FixtureDetectionResult) MatchesExpected() bool {
 	if result.Actual.Outcome() != result.expected.Outcome || result.Actual.Reason() != result.expected.Reason || result.Actual.SelectedProfileID() != result.expected.SelectedProfileID || result.Actual.SelectedProfileVersion() != result.expected.SelectedProfileVersion {
 		return false
@@ -572,34 +362,21 @@ func (result FixtureDetectionResult) MatchesExpected() bool {
 	}
 	return true
 }
-func probeFieldsEqual(first, second []ProbeIdentityField) bool {
-	if len(first) != len(second) {
-		return false
-	}
-	for i := range first {
-		if first[i] != second[i] {
-			return false
-		}
-	}
-	return true
-}
-func stringSlicesEqual(first, second []string) bool {
-	if len(first) != len(second) {
-		return false
-	}
-	for i := range first {
-		if first[i] != second[i] {
-			return false
-		}
-	}
-	return true
-}
 
+// FixtureWireProvenance names the physical wire response a fact came from.
 type FixtureWireProvenance struct{ WireResponseID uint64 }
+
+// FixtureLogicalProvenance names the logical view a fact came from.
 type FixtureLogicalProvenance struct{ LogicalViewID uint64 }
+
+// FixtureSampleProvenance names the poll generation of the sample.
 type FixtureSampleProvenance struct{ PollGenerationID uint64 }
+
+// FixtureLogicalSlice is the replayed word slice of one dependency.
 type FixtureLogicalSlice struct{ words []uint16 }
 
+// CanonicalBytes returns the slice as big-endian bytes, two per word, in wire
+// order.
 func (slice FixtureLogicalSlice) CanonicalBytes() []byte {
 	result := make([]byte, len(slice.words)*2)
 	for i, word := range slice.words {
@@ -625,22 +402,46 @@ type FixtureDependencyFact struct {
 	sample     FixtureSampleProvenance
 }
 
-func (fact FixtureDependencyFact) Ordinal() uint32                { return fact.ordinal }
+// Ordinal returns the zero-based dependency position in the observation.
+func (fact FixtureDependencyFact) Ordinal() uint32 { return fact.ordinal }
+
+// FunctionCode returns the Modbus function the dependency was read with.
 func (fact FixtureDependencyFact) FunctionCode() reg.FunctionCode { return fact.function }
-func (fact FixtureDependencyFact) Table() reg.LogicalTable        { return fact.table }
-func (fact FixtureDependencyFact) UnitID() byte                   { return fact.unit }
-func (fact FixtureDependencyFact) NormalizedAddress() uint16      { return fact.normalized }
-func (fact FixtureDependencyFact) RawWords() []uint16             { return append([]uint16(nil), fact.rawWords...) }
+
+// Table returns the logical table of the dependency.
+func (fact FixtureDependencyFact) Table() reg.LogicalTable { return fact.table }
+
+// UnitID returns the unit identifier recorded on the dependency view.
+func (fact FixtureDependencyFact) UnitID() byte { return fact.unit }
+
+// NormalizedAddress returns the zero-based logical offset of the dependency.
+func (fact FixtureDependencyFact) NormalizedAddress() uint16 { return fact.normalized }
+
+// RawWords returns an independent copy of the replayed raw words.
+func (fact FixtureDependencyFact) RawWords() []uint16 { return append([]uint16(nil), fact.rawWords...) }
+
+// LogicalSlice returns an independent copy of the replayed slice.
 func (fact FixtureDependencyFact) LogicalSlice() FixtureLogicalSlice {
 	return FixtureLogicalSlice{words: append([]uint16(nil), fact.slice.words...)}
 }
-func (fact FixtureDependencyFact) SourceTime() reg.SourceTimeSpec        { return fact.source }
+
+// SourceTime returns the dependency's source-time fact.
+func (fact FixtureDependencyFact) SourceTime() reg.SourceTimeSpec { return fact.source }
+
+// WireProvenance returns the dependency's wire response identity.
 func (fact FixtureDependencyFact) WireProvenance() FixtureWireProvenance { return fact.wire }
+
+// LogicalProvenance returns the dependency's logical view identity.
 func (fact FixtureDependencyFact) LogicalProvenance() FixtureLogicalProvenance {
 	return fact.logical
 }
+
+// SampleProvenance returns the poll generation recorded on the dependency view.
 func (fact FixtureDependencyFact) SampleProvenance() FixtureSampleProvenance { return fact.sample }
 
+// FixtureConformanceRecord is the replayed result of one fixture record. The
+// record-level function, table, address, wire, logical-view and raw-word facts
+// describe the first dependency; DependencyFacts lists every dependency.
 type FixtureConformanceRecord struct {
 	recordID, profileID string
 	profileVersion      reg.Version
@@ -660,24 +461,50 @@ type FixtureConformanceRecord struct {
 	replay              FixtureReplayResult
 }
 
-func (record FixtureConformanceRecord) RecordID() string               { return record.recordID }
-func (record FixtureConformanceRecord) ProfileID() string              { return record.profileID }
-func (record FixtureConformanceRecord) ProfileVersion() reg.Version    { return record.profileVersion }
+// RecordID returns the fixture record identity.
+func (record FixtureConformanceRecord) RecordID() string { return record.recordID }
+
+// ProfileID returns the identity of the profile the record replays against.
+func (record FixtureConformanceRecord) ProfileID() string { return record.profileID }
+
+// ProfileVersion returns the exact profile version of the record.
+func (record FixtureConformanceRecord) ProfileVersion() reg.Version { return record.profileVersion }
+
+// FunctionCode returns the requested function of the first dependency.
 func (record FixtureConformanceRecord) FunctionCode() reg.FunctionCode { return record.function }
-func (record FixtureConformanceRecord) Table() reg.LogicalTable        { return record.table }
-func (record FixtureConformanceRecord) UnitID() byte                   { return record.unit }
-func (record FixtureConformanceRecord) NormalizedAddress() uint16      { return record.normalized }
+
+// Table returns the logical table of the first dependency.
+func (record FixtureConformanceRecord) Table() reg.LogicalTable { return record.table }
+
+// UnitID returns the observation's unit identifier.
+func (record FixtureConformanceRecord) UnitID() byte { return record.unit }
+
+// NormalizedAddress returns the logical offset of the first dependency.
+func (record FixtureConformanceRecord) NormalizedAddress() uint16 { return record.normalized }
+
+// RawWords returns an independent copy of the first dependency's replayed words.
 func (record FixtureConformanceRecord) RawWords() []uint16 {
 	return append([]uint16(nil), record.rawWords...)
 }
-func (record FixtureConformanceRecord) SourceTime() reg.SourceTimeSpec        { return record.source }
+
+// SourceTime returns the observation's source-time fact.
+func (record FixtureConformanceRecord) SourceTime() reg.SourceTimeSpec { return record.source }
+
+// WireProvenance returns the wire response identity of the first dependency.
 func (record FixtureConformanceRecord) WireProvenance() FixtureWireProvenance { return record.wire }
+
+// LogicalProvenance returns the logical view identity of the first dependency.
 func (record FixtureConformanceRecord) LogicalProvenance() FixtureLogicalProvenance {
 	return record.logical
 }
+
+// SampleProvenance returns the observation's poll generation.
 func (record FixtureConformanceRecord) SampleProvenance() FixtureSampleProvenance {
 	return record.sample
 }
+
+// LogicalSlices returns independent copies of every dependency's replayed slice
+// in declaration order.
 func (record FixtureConformanceRecord) LogicalSlices() []FixtureLogicalSlice {
 	result := make([]FixtureLogicalSlice, len(record.slices))
 	for i := range record.slices {
@@ -685,6 +512,9 @@ func (record FixtureConformanceRecord) LogicalSlices() []FixtureLogicalSlice {
 	}
 	return result
 }
+
+// DependencyFacts returns independent copies of every dependency fact in
+// declaration order.
 func (record FixtureConformanceRecord) DependencyFacts() []FixtureDependencyFact {
 	result := make([]FixtureDependencyFact, len(record.dependencies))
 	for i := range record.dependencies {
@@ -694,22 +524,37 @@ func (record FixtureConformanceRecord) DependencyFacts() []FixtureDependencyFact
 	}
 	return result
 }
+
+// Detection returns the detection decision and its expectation.
 func (record FixtureConformanceRecord) Detection() FixtureDetectionResult { return record.detection }
+
+// Qualification returns the recorded qualification disposition.
 func (record FixtureConformanceRecord) Qualification() FixtureQualificationDisposition {
 	return record.qualification
 }
+
+// Replay returns the replay verdict and its expectation.
 func (record FixtureConformanceRecord) Replay() FixtureReplayResult { return record.replay }
 
+// FixtureConformanceReport is the replay result of a whole corpus, with records
+// sorted by record identity.
 type FixtureConformanceReport struct {
 	metadata SanitizedFixtureMetadata
 	records  []FixtureConformanceRecord
 }
 
+// Metadata returns the sanitized corpus metadata.
 func (report FixtureConformanceReport) Metadata() SanitizedFixtureMetadata { return report.metadata }
+
+// Records returns the replayed records in record-identity order.
 func (report FixtureConformanceReport) Records() []FixtureConformanceRecord {
 	return append([]FixtureConformanceRecord(nil), report.records...)
 }
+
+// RecordCount returns the number of replayed records.
 func (report FixtureConformanceReport) RecordCount() int { return len(report.records) }
+
+// RejectedCount returns the number of records whose actual replay was rejected.
 func (report FixtureConformanceReport) RejectedCount() int {
 	count := 0
 	for _, record := range report.records {
@@ -720,6 +565,10 @@ func (report FixtureConformanceReport) RejectedCount() int {
 	return count
 }
 
+// Replay replays every record offline: the observation against its profile and
+// the detection case against the recorded probe input. A rejected replay is a
+// record verdict, not an error; an error means the corpus could not be
+// replayed at all, and a nil corpus fails as malformed.
 func (corpus *FixtureConformanceCorpus) Replay() (FixtureConformanceReport, error) {
 	if corpus == nil {
 		return FixtureConformanceReport{}, fixtureMutationError{FixtureMutationReasonMalformed}
@@ -738,40 +587,6 @@ func (corpus *FixtureConformanceCorpus) Replay() (FixtureConformanceReport, erro
 	}
 	sort.Slice(records, func(i, j int) bool { return records[i].recordID < records[j].recordID })
 	return FixtureConformanceReport{metadata: corpus.spec.Metadata, records: records}, nil
-}
-
-func replayFixtureRecord(catalog reg.Catalog, profile reg.ProfileDescriptor, spec FixtureConformanceRecordSpec) (FixtureConformanceRecord, error) {
-	actual, err := actualFixtureReplay(profile, spec.Observation)
-	if err != nil {
-		return FixtureConformanceRecord{}, err
-	}
-	detector, err := newFixtureDetector(catalog, spec.Detection.Declaration)
-	if err != nil {
-		return FixtureConformanceRecord{}, err
-	}
-	reader, err := fixtureReader(spec.Detection.Input)
-	if err != nil {
-		return FixtureConformanceRecord{}, err
-	}
-	decision, err := detector.Detect(context.Background(), reader, Options{})
-	if err != nil {
-		return FixtureConformanceRecord{}, err
-	}
-	view := spec.Observation.Dependencies[0].View.Record()
-	result := FixtureConformanceRecord{recordID: spec.RecordID, profileID: spec.ProfileID, profileVersion: spec.ProfileVersion, function: view.RequestedFunction, table: view.Table, unit: spec.Observation.UnitID, normalized: view.LogicalOffset, rawWords: append([]uint16(nil), view.Words...), source: spec.Observation.SourceTime, wire: FixtureWireProvenance{view.WireResponseID}, logical: FixtureLogicalProvenance{view.LogicalViewID}, sample: FixtureSampleProvenance{PollGenerationID: spec.Observation.PollGenerationID}, detection: FixtureDetectionResult{Actual: decision, expected: spec.Detection.Expected}, qualification: spec.Qualification.Expected, replay: FixtureReplayResult{actual: actual, expected: spec.ExpectedReplay}}
-	result.dependencies = make([]FixtureDependencyFact, len(spec.Observation.Dependencies))
-	for index, dependency := range spec.Observation.Dependencies {
-		dependencyView := dependency.View.Record()
-		result.dependencies[index] = FixtureDependencyFact{ordinal: uint32(index), function: dependencyView.RequestedFunction, table: dependencyView.Table, unit: dependencyView.UnitID, normalized: dependencyView.LogicalOffset, rawWords: append([]uint16(nil), actual.rawWords[index]...), slice: FixtureLogicalSlice{words: append([]uint16(nil), actual.rawWords[index]...)}, source: dependency.SourceTime, wire: FixtureWireProvenance{dependencyView.WireResponseID}, logical: FixtureLogicalProvenance{dependencyView.LogicalViewID}, sample: FixtureSampleProvenance{PollGenerationID: dependencyView.PollGeneration}}
-	}
-	result.slices = make([]FixtureLogicalSlice, len(actual.rawWords))
-	for index, words := range actual.rawWords {
-		result.slices[index] = FixtureLogicalSlice{words: append([]uint16(nil), words...)}
-	}
-	if len(actual.rawWords) != 0 {
-		result.rawWords = append([]uint16(nil), actual.rawWords[0]...)
-	}
-	return result, nil
 }
 
 // ErrFixtureConformanceNondeterministic is used by callers detecting a broken report invariant.
@@ -793,6 +608,9 @@ type fixtureRecordDTO struct {
 	ExpectedReplay json.RawMessage `json:"expected_replay"`
 }
 
+// MarshalFixtureConformanceCorpusSpec admits spec under the default limits and
+// encodes its canonical bounded JSON form, with profiles and records sorted by
+// identity.
 func MarshalFixtureConformanceCorpusSpec(spec FixtureConformanceCorpusSpec) ([]byte, error) {
 	corpus, err := NewFixtureConformanceCorpus(spec)
 	if err != nil {
@@ -837,125 +655,9 @@ func MarshalFixtureConformanceCorpusSpec(spec FixtureConformanceCorpusSpec) ([]b
 	return reg.MarshalBounded(dto)
 }
 
-func preflightFixtureCorpusJSON(data []byte) error {
-	if len(data) == 0 {
-		return fixtureMutationError{FixtureMutationReasonMalformed}
-	}
-	if len(data) > reg.MaxSerializedContractBytes {
-		return fixtureMutationError{FixtureMutationReasonOversized}
-	}
-	fields, err := preflightFixtureObjectJSON(data, "schema_version", "metadata", "profiles", "records")
-	if err != nil {
-		return err
-	}
-	if _, err := preflightFixtureObjectJSON(fields["metadata"], "corpus_id", "license_expression", "provenance"); err != nil {
-		return err
-	}
-	if err := preflightFixtureArrayJSON(fields["profiles"], nil); err != nil {
-		return err
-	}
-	if err := preflightFixtureArrayJSON(fields["records"], preflightFixtureRecordJSON); err != nil {
-		return err
-	}
-	return nil
-}
-
-// preflightFixtureObjectJSON classifies every M2-03-owned object boundary
-// before the strict DTO decode. The DTO decode remains the authority for types
-// and canonical construction; this pass only preserves the closed mutation
-// reason contract without retaining unbounded object graphs.
-func preflightFixtureObjectJSON(data []byte, keys ...string) (map[string]json.RawMessage, error) {
-	return preflightFixtureObjectJSONOptional(data, nil, keys...)
-}
-
-func preflightFixtureObjectJSONOptional(data []byte, optional []string, keys ...string) (map[string]json.RawMessage, error) {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	token, err := decoder.Token()
-	if err != nil || token != json.Delim('{') {
-		return nil, fixtureMutationError{FixtureMutationReasonMalformed}
-	}
-	expected := make(map[string]struct{}, len(keys))
-	for _, key := range keys {
-		expected[key] = struct{}{}
-	}
-	fields := make(map[string]json.RawMessage, len(keys))
-	for decoder.More() {
-		token, err := decoder.Token()
-		key, ok := token.(string)
-		if err != nil || !ok {
-			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
-		}
-		folded := strings.ToLower(key)
-		if _, duplicate := fields[folded]; duplicate {
-			if key == strings.ToLower(key) {
-				return nil, fixtureMutationError{FixtureMutationReasonDuplicate}
-			}
-			return nil, fixtureMutationError{FixtureMutationReasonCaseFolded}
-		}
-		if _, known := expected[key]; !known {
-			if _, foldedKnown := expected[folded]; foldedKnown {
-				return nil, fixtureMutationError{FixtureMutationReasonCaseFolded}
-			}
-			return nil, fixtureMutationError{FixtureMutationReasonUnknown}
-		}
-		var value json.RawMessage
-		if err := decoder.Decode(&value); err != nil {
-			return nil, fixtureMutationError{FixtureMutationReasonMalformed}
-		}
-		fields[folded] = value
-	}
-	closing, err := decoder.Token()
-	if err != nil || closing != json.Delim('}') {
-		return nil, fixtureMutationError{FixtureMutationReasonMalformed}
-	}
-	optionalKeys := make(map[string]struct{}, len(optional))
-	for _, key := range optional {
-		optionalKeys[key] = struct{}{}
-	}
-	for key := range expected {
-		if _, isOptional := optionalKeys[key]; isOptional {
-			continue
-		}
-		if _, present := fields[key]; !present {
-			return nil, fixtureMutationError{FixtureMutationReasonMissing}
-		}
-	}
-	return fields, nil
-}
-
-func preflightFixtureArrayJSON(data []byte, element func([]byte) error) error {
-	return preflightFixtureArrayJSONWithLimit(data, reg.MaxProfileDependencies, element)
-}
-
-func preflightFixtureArrayJSONWithLimit(data []byte, limit int, element func([]byte) error) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	token, err := decoder.Token()
-	if err != nil || token != json.Delim('[') {
-		return fixtureMutationError{FixtureMutationReasonMalformed}
-	}
-	count := 0
-	for decoder.More() {
-		if count == limit {
-			return fixtureMutationError{FixtureMutationReasonOversized}
-		}
-		var value json.RawMessage
-		if err := decoder.Decode(&value); err != nil {
-			return fixtureMutationError{FixtureMutationReasonMalformed}
-		}
-		if element != nil {
-			if err := element(value); err != nil {
-				return err
-			}
-		}
-		count++
-	}
-	closing, err := decoder.Token()
-	if err != nil || closing != json.Delim(']') {
-		return fixtureMutationError{FixtureMutationReasonMalformed}
-	}
-	return nil
-}
-
+// UnmarshalFixtureConformanceCorpus decodes a corpus strictly. Missing, unknown,
+// duplicate or case-folded keys and oversized values fail with their fixture
+// mutation reason before the corpus is admitted as by NewFixtureConformanceCorpus.
 func UnmarshalFixtureConformanceCorpus(data []byte) (*FixtureConformanceCorpus, error) {
 	if err := preflightFixtureCorpusJSON(data); err != nil {
 		return nil, err
@@ -1018,66 +720,6 @@ func UnmarshalFixtureConformanceCorpus(data []byte) (*FixtureConformanceCorpus, 
 	return corpus, nil
 }
 
-func preflightFixtureRecordJSON(data []byte) error {
-	fields, err := preflightFixtureObjectJSON(data, "record_id", "profile_id", "profile_version", "observation", "detection", "qualification", "expected_replay")
-	if err != nil {
-		return err
-	}
-	if err := preflightFixtureDetectionJSON(fields["detection"]); err != nil {
-		return err
-	}
-	if _, err := preflightFixtureObjectJSON(fields["qualification"], "expected"); err != nil {
-		return err
-	}
-	return preflightFixtureExpectedReplayJSON(fields["expected_replay"])
-}
-
-func preflightFixtureExpectedReplayJSON(data []byte) error {
-	fields, err := preflightFixtureObjectJSONOptional(data, []string{"expected_raw_words"}, "outcome", "reason", "expected_raw_words")
-	if err != nil {
-		return err
-	}
-	rawWords, present := fields["expected_raw_words"]
-	if !present {
-		return nil
-	}
-	return preflightFixtureArrayJSON(rawWords, func(words []byte) error {
-		return preflightFixtureArrayJSONWithLimit(words, reg.MaxRawWords, nil)
-	})
-}
-
-func preflightFixtureDetectionJSON(data []byte) error {
-	fields, err := preflightFixtureObjectJSON(data, "declaration", "input", "expected")
-	if err != nil {
-		return err
-	}
-	if _, err := preflightFixtureObjectJSON(fields["declaration"], "detector_version", "plan", "candidates", "limits"); err != nil {
-		return err
-	}
-	input, err := preflightFixtureObjectJSON(fields["input"], "probes")
-	if err != nil {
-		return err
-	}
-	if err := preflightFixtureArrayJSON(input["probes"], preflightFixtureProbeJSON); err != nil {
-		return err
-	}
-	expected, err := preflightFixtureObjectJSON(fields["expected"], "outcome", "reason", "selected_profile_id", "selected_profile_version", "evidence")
-	if err != nil {
-		return err
-	}
-	return preflightFixtureArrayJSON(expected["evidence"], preflightFixtureDetectionEvidenceJSON)
-}
-
-func preflightFixtureProbeJSON(data []byte) error {
-	_, err := preflightFixtureObjectJSON(data, "declaration_id", "result")
-	return err
-}
-
-func preflightFixtureDetectionEvidenceJSON(data []byte) error {
-	_, err := preflightFixtureObjectJSON(data, "profile_id", "profile_version", "score", "reason", "matched_gates", "probe_evidence_ids", "detector_version", "qualification_version")
-	return err
-}
-
 type fixtureReportDTO struct {
 	SchemaVersion reg.Version              `json:"schema_version"`
 	Metadata      SanitizedFixtureMetadata `json:"metadata"`
@@ -1117,6 +759,9 @@ type fixtureReportRecordDTO struct {
 	Detection      detectionDecisionDTO            `json:"detection"`
 }
 
+// MarshalBoundedReport replays the corpus and encodes the report as bounded
+// JSON. It fails as oversized when the encoding exceeds the corpus report-byte
+// limit.
 func (corpus *FixtureConformanceCorpus) MarshalBoundedReport() ([]byte, error) {
 	report, err := corpus.Replay()
 	if err != nil {
