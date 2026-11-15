@@ -2,18 +2,6 @@
   "version": 1,
   "violations": [
     {
-      "path": "detection/fixture_conformance.go",
-      "symbol": "$file",
-      "metric": "file_lines",
-      "value": 1146
-    },
-    {
-      "path": "detection/fixture_conformance.go",
-      "symbol": "$file",
-      "metric": "functions_per_file",
-      "value": 83
-    },
-    {
       "path": "fixture_conformance_rejection_test.go",
       "symbol": "$file",
       "metric": "functions_per_file",
@@ -81,21 +69,9 @@
     },
     {
       "path": "observation.go",
-      "symbol": "$file",
-      "metric": "file_lines",
-      "value": 1012
-    },
-    {
-      "path": "observation.go",
       "symbol": "validateObservationCoherence",
       "metric": "function_lines",
       "value": 200
-    },
-    {
-      "path": "profile.go",
-      "symbol": "$file",
-      "metric": "file_lines",
-      "value": 1456
     },
     {
       "path": "profile.go",
@@ -113,13 +89,7 @@
       "path": "ledger/runtime_ledger.go",
       "symbol": "$file",
       "metric": "file_lines",
-      "value": 2323
-    },
-    {
-      "path": "ledger/runtime_ledger.go",
-      "symbol": "$file",
-      "metric": "functions_per_file",
-      "value": 64
+      "value": 1394
     },
     {
       "path": "runtime_provenance_test.go",
