@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
@@ -39,14 +40,20 @@ func (version Version) String() string {
 	return version.value
 }
 
-func (version Version) valid() bool {
+// Valid reports whether version is a contract version: the strict
+// major.minor.patch form ParseVersion accepts, at most MaxContractStringBytes
+// bytes long. The zero Version is not valid.
+func (version Version) Valid() bool {
 	return len(version.value) <= MaxContractStringBytes &&
 		versionPattern.MatchString(version.value)
 }
 
+// valid is Valid for the root contract files that call the unexported name.
+func (version Version) valid() bool { return version.Valid() }
+
 // MarshalText preserves versions as strings in deterministic records.
 func (version Version) MarshalText() ([]byte, error) {
-	if !version.valid() {
+	if !version.Valid() {
 		return nil, fmt.Errorf("invalid zero contract version")
 	}
 	return []byte(version.value), nil
@@ -54,7 +61,7 @@ func (version Version) MarshalText() ([]byte, error) {
 
 // MarshalJSON preserves the public serialized schema.
 func (version Version) MarshalJSON() ([]byte, error) {
-	if !version.valid() {
+	if !version.Valid() {
 		return nil, fmt.Errorf("invalid zero contract version")
 	}
 	return json.Marshal(version.value)
@@ -96,11 +103,44 @@ func PinnedRuntimeContractVersion() Version {
 	return runtimeContractVersionV1
 }
 
-func cloneStrings(values []string) []string {
-	if values == nil {
-		return nil
+// CompareVersions orders two contract versions numerically by major, minor
+// and patch component and returns -1, 0 or +1. An invalid version, including
+// the zero Version, orders before every valid version and equal to any other
+// invalid version.
+func CompareVersions(first, second Version) int {
+	switch firstValid, secondValid := first.Valid(), second.Valid(); {
+	case !firstValid && !secondValid:
+		return 0
+	case !firstValid:
+		return -1
+	case !secondValid:
+		return 1
 	}
-	return append([]string{}, values...)
+	firstParts := strings.Split(first.String(), ".")
+	secondParts := strings.Split(second.String(), ".")
+	for index := 0; index < 3; index++ {
+		firstPart := strings.TrimLeft(firstParts[index], "0")
+		secondPart := strings.TrimLeft(secondParts[index], "0")
+		if firstPart == "" {
+			firstPart = "0"
+		}
+		if secondPart == "" {
+			secondPart = "0"
+		}
+		if len(firstPart) < len(secondPart) {
+			return -1
+		}
+		if len(firstPart) > len(secondPart) {
+			return 1
+		}
+		if firstPart < secondPart {
+			return -1
+		}
+		if firstPart > secondPart {
+			return 1
+		}
+	}
+	return 0
 }
 
 // ValidIdentity reports whether value is a contract identity: a non-empty
@@ -124,7 +164,9 @@ func ValidIdentity(value string) bool {
 	return true
 }
 
-func validDependencySetID(value string) bool {
+// ValidDependencySetID reports whether value is a dependency-set identity:
+// "sha256:" followed by 64 lower-case hexadecimal digits.
+func ValidDependencySetID(value string) bool {
 	return len(value) == len("sha256:")+64 &&
 		dependencySetIDPattern.MatchString(value)
 }
@@ -144,7 +186,7 @@ func stringsDeclared(values []string) bool {
 	}
 	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
-		if validateBoundedString("string collection", value, true) != nil {
+		if ValidateBoundedString("string collection", value, true) != nil {
 			return false
 		}
 		if _, exists := seen[value]; exists {

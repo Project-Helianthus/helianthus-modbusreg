@@ -19,11 +19,11 @@ func fixtureFactoryWithLedger(
 	trustedMinimumRevision uint64,
 ) (*fixtureValidationFactory, *reg.SampleLedger) {
 	t.Helper()
-	ledger, err := reg.NewSampleLedger(state, trustedMinimumRevision)
+	sampleLedger, err := reg.NewSampleLedger(state, trustedMinimumRevision)
 	if err != nil {
 		t.Fatalf("NewSampleLedger: %v", err)
 	}
-	return newFixtureValidationFactory(t, profile), ledger
+	return newFixtureValidationFactory(t, profile), sampleLedger
 }
 
 func emptyFixtureLedgerState(
@@ -523,7 +523,7 @@ func TestJSONPreflightRejectsDuplicateAndCaseFoldedKeys(t *testing.T) {
 func TestAdmissionCanonicalizesTimestamps(t *testing.T) {
 	profile := profileFixture(t)
 	state := emptyFixtureLedgerState(t, profile)
-	factory, ledger := fixtureFactoryWithLedger(t, profile, state, 0)
+	factory, sampleLedger := fixtureFactoryWithLedger(t, profile, state, 0)
 	spec := successfulObservationSpec(t, profile)
 	spec.LocalReceiptTime = time.Date(
 		10000,
@@ -538,7 +538,7 @@ func TestAdmissionCanonicalizesTimestamps(t *testing.T) {
 	if _, err := replayWithFactory(factory, spec); err == nil {
 		t.Fatal("RFC3339-inexpressible year was admitted")
 	}
-	if ledger.ExportState().HighWater != 0 {
+	if sampleLedger.ExportState().HighWater != 0 {
 		t.Fatal("failed timestamp validation consumed a sample identity")
 	}
 
@@ -644,12 +644,12 @@ func TestPersistedSampleGenerationCoversEveryCommittedRevision(t *testing.T) {
 		NextTerminalSequence:     5,
 		TruncatedThroughSequence: 4,
 	}
-	if ledger, err := reg.NewSampleLedgerFromRestart(
+	if sampleLedger, err := reg.NewSampleLedgerFromRestart(
 		state,
 		2,
 		reg.DefaultLedgerLimits(),
 		restart,
-	); err == nil || ledger != nil {
+	); err == nil || sampleLedger != nil {
 		t.Fatal("committed revision count exceeded its poll generation")
 	}
 	if encoded, err := reg.MarshalSampleLedgerState(state); err == nil || encoded != nil {
@@ -709,7 +709,7 @@ func TestSerializationRoundTripsNewFields(t *testing.T) {
 		reg.AcquisitionOrderDependencyDeclaration,
 	)
 	state := emptyFixtureLedgerState(t, profile)
-	factory, ledger := fixtureFactoryWithLedger(t, profile, state, 0)
+	factory, sampleLedger := fixtureFactoryWithLedger(t, profile, state, 0)
 	encoded, err := reg.MarshalFixtureSpec(spec)
 	if err != nil {
 		t.Fatalf("MarshalFixtureSpec: %v", err)
@@ -745,7 +745,7 @@ func TestSerializationRoundTripsNewFields(t *testing.T) {
 	}
 
 	ledgerBytes, err := reg.MarshalSampleLedgerState(
-		ledger.ExportState(),
+		sampleLedger.ExportState(),
 	)
 	if err != nil {
 		t.Fatalf("MarshalSampleLedgerState: %v", err)

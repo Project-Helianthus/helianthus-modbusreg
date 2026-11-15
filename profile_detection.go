@@ -57,19 +57,19 @@ func NewDetectionCandidate(
 	if err := validateDetectionLimits(limits); err != nil {
 		return DetectionCandidate{}, err
 	}
-	if !ValidIdentity(spec.ProfileID) || !spec.ProfileVersion.valid() ||
+	if !ValidIdentity(spec.ProfileID) || !spec.ProfileVersion.Valid() ||
 		spec.Score == 0 ||
 		!validExpectedIdentity(spec.Manufacturer.Expected, limits.MaxIdentityBytes) ||
 		!validExpectedIdentity(spec.Model.Expected, limits.MaxIdentityBytes) ||
-		!spec.Firmware.MinimumInclusive.valid() ||
-		!spec.Firmware.MaximumExclusive.valid() ||
-		compareVersion(
+		!spec.Firmware.MinimumInclusive.Valid() ||
+		!spec.Firmware.MaximumExclusive.Valid() ||
+		CompareVersions(
 			spec.Firmware.MinimumInclusive,
 			spec.Firmware.MaximumExclusive,
 		) >= 0 {
 		return DetectionCandidate{}, fmt.Errorf("detection candidate is invalid")
 	}
-	if err := preflightAggregate(spec); err != nil {
+	if err := PreflightAggregate(spec); err != nil {
 		return DetectionCandidate{}, err
 	}
 	return DetectionCandidate{spec: spec}, nil
@@ -136,7 +136,7 @@ func NewProfileDetector(spec ProfileDetectorSpec) (*ProfileDetector, error) {
 	if err := validateDetectionLimits(spec.Limits); err != nil {
 		return nil, err
 	}
-	if !spec.DetectorVersion.valid() || len(spec.Candidates) == 0 ||
+	if !spec.DetectorVersion.Valid() || len(spec.Candidates) == 0 ||
 		len(spec.Candidates) > MaxProfileDependencies {
 		return nil, fmt.Errorf("profile detector declaration is invalid")
 	}
@@ -184,7 +184,7 @@ func NewProfileDetector(spec ProfileDetectorSpec) (*ProfileDetector, error) {
 			return nil, fmt.Errorf("detection candidate profile binding is absent")
 		}
 		if profile.DetectorVersion() != spec.DetectorVersion ||
-			!profile.QualificationVersion().valid() {
+			!profile.QualificationVersion().Valid() {
 			return nil, fmt.Errorf("detection candidate contract versions disagree")
 		}
 		seen[candidateSpec.ProfileID] = struct{}{}
@@ -199,7 +199,7 @@ func NewProfileDetector(spec ProfileDetectorSpec) (*ProfileDetector, error) {
 		if firstProfile.ID() != secondProfile.ID() {
 			return firstProfile.ID() < secondProfile.ID()
 		}
-		return compareVersion(firstProfile.Version(), secondProfile.Version()) < 0
+		return CompareVersions(firstProfile.Version(), secondProfile.Version()) < 0
 	})
 	if err := detectionDecisionUpperBound(bound, plan, spec.Limits); err != nil {
 		return nil, err
@@ -404,7 +404,7 @@ func candidateEligibilityReason(
 	candidate DetectionCandidateSpec,
 	options DetectionOptions,
 ) DetectionReason {
-	switch profile.spec.State {
+	switch profile.State() {
 	case ProfileRevoked:
 		return DetectionReasonProfileRevoked
 	case ProfileSuperseded:
@@ -413,10 +413,10 @@ func candidateEligibilityReason(
 	default:
 		return DetectionReasonInvalidIdentity
 	}
-	if profile.spec.Maturity != MaturityQualified {
+	if profile.Maturity() != MaturityQualified {
 		return DetectionReasonProfileUnqualified
 	}
-	if !profile.spec.DefaultEnabled {
+	if !profile.DefaultEnabled() {
 		return DetectionReasonProfileDefaultOff
 	}
 	if !candidate.Enabled {
@@ -465,8 +465,8 @@ func evaluateCandidate(
 		evidence.Reason = DetectionReasonInvalidIdentity
 		return evidence
 	}
-	if compareVersion(firmwareVersion, spec.Firmware.MinimumInclusive) < 0 ||
-		compareVersion(firmwareVersion, spec.Firmware.MaximumExclusive) >= 0 {
+	if CompareVersions(firmwareVersion, spec.Firmware.MinimumInclusive) < 0 ||
+		CompareVersions(firmwareVersion, spec.Firmware.MaximumExclusive) >= 0 {
 		evidence.Reason = DetectionReasonFirmwareMismatch
 		return evidence
 	}

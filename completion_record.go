@@ -84,9 +84,9 @@ func NewFMV3M303CompletionRecord(spec CompletionRecordSpec) (CompletionRecord, e
 	if err := validateFMV3M303CompletionRecord(spec); err != nil {
 		return CompletionRecord{}, err
 	}
-	spec.Applicability = cloneStrings(spec.Applicability)
-	spec.Limitations = cloneStrings(spec.Limitations)
-	spec.InvalidationRollback = cloneStrings(spec.InvalidationRollback)
+	spec.Applicability = slices.Clone(spec.Applicability)
+	spec.Limitations = slices.Clone(spec.Limitations)
+	spec.InvalidationRollback = slices.Clone(spec.InvalidationRollback)
 	return CompletionRecord{spec: spec}, nil
 }
 
@@ -109,9 +109,9 @@ func NewCurrentFMV3M303CompletionRecord() (CompletionRecord, error) {
 		AutomaticProductQualification: false,
 		StandardProfileID:             fmv3M303StandardProfileID,
 		StandardProfileVersion:        fmv3M303StandardProfileVersion,
-		Applicability:                 cloneStrings(fmv3M303CanonicalApplicability),
-		Limitations:                   cloneStrings(fmv3M303CanonicalLimitations),
-		InvalidationRollback:          cloneStrings(fmv3M303CanonicalInvalidationRollback),
+		Applicability:                 slices.Clone(fmv3M303CanonicalApplicability),
+		Limitations:                   slices.Clone(fmv3M303CanonicalLimitations),
+		InvalidationRollback:          slices.Clone(fmv3M303CanonicalInvalidationRollback),
 	})
 }
 
@@ -154,9 +154,9 @@ func validateFMV3M303CompletionRecord(spec CompletionRecordSpec) error {
 // Spec returns a defensive-copy construction view of the record.
 func (record CompletionRecord) Spec() CompletionRecordSpec {
 	spec := record.spec
-	spec.Applicability = cloneStrings(spec.Applicability)
-	spec.Limitations = cloneStrings(spec.Limitations)
-	spec.InvalidationRollback = cloneStrings(spec.InvalidationRollback)
+	spec.Applicability = slices.Clone(spec.Applicability)
+	spec.Limitations = slices.Clone(spec.Limitations)
+	spec.InvalidationRollback = slices.Clone(spec.InvalidationRollback)
 	return spec
 }
 
@@ -205,15 +205,15 @@ func (record CompletionRecord) StandardProfileVersion() string {
 
 // Applicability returns an independent copy of the applicability statements.
 func (record CompletionRecord) Applicability() []string {
-	return cloneStrings(record.spec.Applicability)
+	return slices.Clone(record.spec.Applicability)
 }
 
 // Limitations returns an independent copy of the limitation statements; UNKNOWN
 // marks a family the evidence does not cover.
-func (record CompletionRecord) Limitations() []string { return cloneStrings(record.spec.Limitations) }
+func (record CompletionRecord) Limitations() []string { return slices.Clone(record.spec.Limitations) }
 
 // InvalidationRollback returns an independent copy of the invalidation and
 // rollback rules.
 func (record CompletionRecord) InvalidationRollback() []string {
-	return cloneStrings(record.spec.InvalidationRollback)
+	return slices.Clone(record.spec.InvalidationRollback)
 }

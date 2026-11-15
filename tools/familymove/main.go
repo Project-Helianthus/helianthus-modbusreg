@@ -186,9 +186,35 @@ var outbackFiles = []string{
 	"outback_provider_port_test.go",
 }
 
-// families lists every vendor family. Families without an exact list select
-// by file stems until their own slice pins one; -check reports what blocks
-// their move.
+// detectionFiles is the exact detection move set: profile detection, its
+// decision serialization, the read plan, the fixture conformance and replay
+// runners and the in-package tests. The external detection tests share root
+// external fixtures and stay at the root.
+var detectionFiles = []string{
+	"decision_serialization.go",
+	"fixture_conformance.go",
+	"fixture_replay.go",
+	"profile_detection.go",
+	"read_plan.go",
+	"detection_json_unicode_test.go",
+	"detection_reason_precedence_test.go",
+	"probe_ascii_byte_boundaries_test.go",
+	"probe_local_limit_revalidation_test.go",
+}
+
+// ledgerFiles is the exact ledger move set: the completion record, its
+// serialization, the runtime ledger and the in-package test. The external
+// ledger tests share root external fixtures and stay at the root.
+var ledgerFiles = []string{
+	"completion_record.go",
+	"completion_record_serialization.go",
+	"runtime_ledger.go",
+	"runtime_ledger_internal_test.go",
+}
+
+// families lists every vendor family and the detection and ledger owners.
+// Families without an exact list select by file stems until their own slice
+// pins one; -check reports what blocks their move.
 var families = []family{
 	{name: "growatt", prefix: "Growatt", files: growattFiles, keep: []string{
 		"growatt_exact_profile_negative_test.go",
@@ -200,6 +226,8 @@ var families = []family{
 	{name: "sunspec", prefix: "SunSpec", stems: []string{"sunspec_"}},
 	{name: "fronius", prefix: "Fronius", files: froniusFiles},
 	{name: "outback", prefix: "OutBack", files: outbackFiles},
+	{name: "detection", prefix: "Detection", files: detectionFiles},
+	{name: "ledger", prefix: "Ledger", files: ledgerFiles},
 }
 
 func main() {

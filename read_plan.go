@@ -137,12 +137,12 @@ func NewProbePlan(spec ProbePlanSpec, limits DetectionLimits) (ProbePlan, error)
 	if err := validateDetectionLimits(limits); err != nil {
 		return ProbePlan{}, err
 	}
-	if !spec.Version.valid() || len(spec.Declarations) == 0 ||
+	if !spec.Version.Valid() || len(spec.Declarations) == 0 ||
 		len(spec.Declarations) > limits.MaxPlanDeclarations ||
 		len(spec.Declarations) > limits.MaxReads {
 		return ProbePlan{}, fmt.Errorf("probe plan cardinality is invalid")
 	}
-	if err := preflightAggregate(spec); err != nil {
+	if err := PreflightAggregate(spec); err != nil {
 		return ProbePlan{}, err
 	}
 	seenIDs := make(map[string]struct{}, len(spec.Declarations))
@@ -278,7 +278,7 @@ func NewProbeReadResult(spec ProbeReadResultSpec) (ProbeReadResult, error) {
 	default:
 		return ProbeReadResult{}, fmt.Errorf("probe result status is invalid")
 	}
-	if err := preflightAggregate(spec); err != nil {
+	if err := PreflightAggregate(spec); err != nil {
 		return ProbeReadResult{}, err
 	}
 	return ProbeReadResult{

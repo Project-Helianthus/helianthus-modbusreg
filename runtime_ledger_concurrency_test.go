@@ -126,9 +126,9 @@ func twoSealedRuntimeAttempts(
 ) (*serialPublicationCommitter, *reg.ObservationAttempt, *reg.ObservationAttempt, *reg.SampleLedger) {
 	t.Helper()
 	profile := profileFixture(t)
-	initial, ledger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
+	initial, sampleLedger := runtimeLedgerForTest(t, profile, reg.DefaultLedgerLimits())
 	committer := newSerialPublicationCommitter(initial)
-	factory, err := reg.NewObservationFactory(profile, ledger, committer)
+	factory, err := reg.NewObservationFactory(profile, sampleLedger, committer)
 	if err != nil {
 		t.Fatalf("NewObservationFactory: %v", err)
 	}
@@ -146,7 +146,7 @@ func twoSealedRuntimeAttempts(
 		}
 		return attempt
 	}
-	return committer, seal("serial-a", 41), seal("serial-b", 42), ledger
+	return committer, seal("serial-a", 41), seal("serial-b", 42), sampleLedger
 }
 
 func waitPublicationBeforeRelease(
@@ -192,7 +192,7 @@ func waitAttemptPhase(
 
 func TestQueuedPublicationCancellationDoesNotWaitForCommitSlot(t *testing.T) {
 	t.Run("attempt cancellation", func(t *testing.T) {
-		committer, first, second, ledger := twoSealedRuntimeAttempts(t)
+		committer, first, second, sampleLedger := twoSealedRuntimeAttempts(t)
 		firstResult := make(chan publicationResult, 1)
 		go func() {
 			observation, err := first.Publish(context.Background())
@@ -222,15 +222,15 @@ func TestQueuedPublicationCancellationDoesNotWaitForCommitSlot(t *testing.T) {
 			t.Fatalf("first Publish: %v", result.err)
 		}
 		calls, effects := committer.counts()
-		snapshot := ledger.Snapshot()
-		if calls != 1 || effects != 1 || ledger.ExportState().Revision != 1 ||
+		snapshot := sampleLedger.Snapshot()
+		if calls != 1 || effects != 1 || sampleLedger.ExportState().Revision != 1 ||
 			snapshot.RetainedAttempts != 0 || snapshot.RetainedClaimEntries != 0 {
-			t.Fatalf("committer calls=%d effects=%d state=%+v", calls, effects, ledger.ExportState())
+			t.Fatalf("committer calls=%d effects=%d state=%+v", calls, effects, sampleLedger.ExportState())
 		}
 	})
 
 	t.Run("parent context", func(t *testing.T) {
-		committer, first, second, ledger := twoSealedRuntimeAttempts(t)
+		committer, first, second, sampleLedger := twoSealedRuntimeAttempts(t)
 		firstResult := make(chan publicationResult, 1)
 		go func() {
 			observation, err := first.Publish(context.Background())
@@ -254,10 +254,10 @@ func TestQueuedPublicationCancellationDoesNotWaitForCommitSlot(t *testing.T) {
 			t.Fatalf("first Publish: %v", result.err)
 		}
 		calls, effects := committer.counts()
-		snapshot := ledger.Snapshot()
-		if calls != 1 || effects != 1 || ledger.ExportState().Revision != 1 ||
+		snapshot := sampleLedger.Snapshot()
+		if calls != 1 || effects != 1 || sampleLedger.ExportState().Revision != 1 ||
 			snapshot.RetainedAttempts != 0 || snapshot.RetainedClaimEntries != 0 {
-			t.Fatalf("committer calls=%d effects=%d state=%+v", calls, effects, ledger.ExportState())
+			t.Fatalf("committer calls=%d effects=%d state=%+v", calls, effects, sampleLedger.ExportState())
 		}
 	})
 }
@@ -265,7 +265,7 @@ func TestQueuedPublicationCancellationDoesNotWaitForCommitSlot(t *testing.T) {
 func TestProducerRestartRetirementRacingCancellationIsBenign(t *testing.T) {
 	for iteration := 0; iteration < 10; iteration++ {
 		committer := newArbitrationPublicationCommitter(reg.SampleLedgerState{})
-		attempt, ledger, source := sealedRuntimeAttemptForTest(t, committer)
+		attempt, sampleLedger, source := sealedRuntimeAttemptForTest(t, committer)
 		start := make(chan struct{})
 		exportResult := make(chan error, 1)
 		cancelResult := make(chan cancellationOutcome, 1)
@@ -288,7 +288,7 @@ func TestProducerRestartRetirementRacingCancellationIsBenign(t *testing.T) {
 			attempt.Phase() != reg.AttemptCancelled {
 			t.Fatalf("iteration %d Cancel=(%q, %v), phase=%q", iteration, cancelled.result, cancelled.err, attempt.Phase())
 		}
-		if snapshot := ledger.Snapshot(); snapshot.RetainedAttempts != 0 ||
+		if snapshot := sampleLedger.Snapshot(); snapshot.RetainedAttempts != 0 ||
 			snapshot.RetainedClaimEntries != 0 {
 			t.Fatalf("iteration %d retained state: %+v", iteration, snapshot)
 		}

@@ -125,15 +125,15 @@ func TestS07RestartStateBoundaries(t *testing.T) {
 				}
 			})
 			t.Run("restore", func(t *testing.T) {
-				ledger, err := reg.NewSampleLedgerFromRestart(initial, 0, reg.DefaultLedgerLimits(), test.restart)
+				sampleLedger, err := reg.NewSampleLedgerFromRestart(initial, 0, reg.DefaultLedgerLimits(), test.restart)
 				checkError(t, err)
 				if test.wantErr != "" {
-					if ledger != nil {
+					if sampleLedger != nil {
 						t.Fatal("invalid restart returned a ledger")
 					}
 					return
 				}
-				got, err := ledger.ExportRestartState()
+				got, err := sampleLedger.ExportRestartState()
 				if err != nil || !sameState(got, test.restart) {
 					t.Fatalf("restored restart = %+v, %v; want %+v", got, err, test.restart)
 				}

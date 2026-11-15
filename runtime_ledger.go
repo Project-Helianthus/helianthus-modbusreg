@@ -76,7 +76,6 @@ type LedgerAuditTombstone struct {
 }
 
 const maxLedgerAuditTombstoneJSONBytes = 256
-const maxLedgerRestartAuditTombstones = MaxSerializedContractBytes / 64
 
 type attemptAuditTombstoneDTO struct {
 	SchemaVersion    int                   `json:"schema_version"`
@@ -160,7 +159,7 @@ func (tombstone *LedgerAuditTombstone) UnmarshalJSON(data []byte) error {
 	switch discriminator.ObjectKind {
 	case LedgerAuditAttempt:
 		var record attemptAuditTombstoneDTO
-		if err := decodeStrict(data, &record); err != nil {
+		if err := DecodeStrict(data, &record); err != nil {
 			return err
 		}
 		decoded = LedgerAuditTombstone{
@@ -172,7 +171,7 @@ func (tombstone *LedgerAuditTombstone) UnmarshalJSON(data []byte) error {
 		}
 	case LedgerAuditClaim:
 		var record claimAuditTombstoneDTO
-		if err := decodeStrict(data, &record); err != nil {
+		if err := DecodeStrict(data, &record); err != nil {
 			return err
 		}
 		decoded = LedgerAuditTombstone{
@@ -249,7 +248,7 @@ type ledgerRestartStateDTO struct {
 func maximumLedgerRestartValidationLimits() LedgerLimits {
 	limits := DefaultLedgerLimits()
 	limits.MaxClaimEntriesPerAttempt = MaxProfileDependencies
-	limits.AuditTombstoneLimit = maxLedgerRestartAuditTombstones
+	limits.AuditTombstoneLimit = MaxLedgerRestartAuditTombstones
 	limits.AuditTombstoneMaxEncodedBytes = MaxSerializedContractBytes
 	return limits
 }
@@ -262,7 +261,7 @@ func (restart LedgerRestartState) MarshalJSON() ([]byte, error) {
 	); err != nil {
 		return nil, err
 	}
-	return marshalBounded(ledgerRestartStateDTO{
+	return MarshalBounded(ledgerRestartStateDTO{
 		SchemaVersion:            restart.SchemaVersion,
 		NextTerminalSequence:     restart.NextTerminalSequence,
 		SequenceExhausted:        restart.SequenceExhausted,
@@ -277,7 +276,7 @@ func (restart *LedgerRestartState) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("ledger restart state target is nil")
 	}
 	var record ledgerRestartStateDTO
-	if err := decodeStrict(data, &record); err != nil {
+	if err := DecodeStrict(data, &record); err != nil {
 		return err
 	}
 	decoded := LedgerRestartState{
@@ -370,7 +369,7 @@ func selectLedgerLimits(configured []LedgerLimits) (LedgerLimits, error) {
 	if len(configured) == 1 {
 		limits = configured[0]
 	}
-	if err := validateLedgerLimits(limits); err != nil {
+	if err := ValidateLedgerLimits(limits); err != nil {
 		return LedgerLimits{}, err
 	}
 	return limits, nil
@@ -382,7 +381,7 @@ func newSampleLedger(
 	limits LedgerLimits,
 	restart *LedgerRestartState,
 ) (*SampleLedger, error) {
-	if err := validateLedgerLimits(limits); err != nil {
+	if err := ValidateLedgerLimits(limits); err != nil {
 		return nil, err
 	}
 	const restartEnvelopeBudget = 512
@@ -482,16 +481,51 @@ func validateSampleRestartRelationship(
 	return nil
 }
 
+// SampleLedgerState is the O(1) explicit restart and CAS boundary of one
+// issuer domain, profile and dependency set: the CAS revision, the high-water
+// mark of issued sample IDs and the last committed attempt.
+type SampleLedgerState struct {
+	SchemaVersion        Version
+	IssuerDomain         string
+	ProfileID            string
+	ProfileVersion       Version
+	DependencySetID      string
+	Revision             uint64
+	HighWater            uint64
+	LastCommittedAttempt AttemptIdentity
+}
+
+// EmptySampleLedgerState creates a new issuer/profile/dependency-set domain.
+func EmptySampleLedgerState(
+	issuerDomain string,
+	profile ProfileDescriptor,
+) (SampleLedgerState, error) {
+	if profile.ID() == "" {
+		return SampleLedgerState{}, fmt.Errorf("sample ledger profile is invalid")
+	}
+	state := SampleLedgerState{
+		SchemaVersion:   CurrentSchemaVersion(),
+		IssuerDomain:    issuerDomain,
+		ProfileID:       profile.ID(),
+		ProfileVersion:  profile.Version(),
+		DependencySetID: profile.Dependencies().ID(),
+	}
+	if err := validateSampleLedgerState(state, 0); err != nil {
+		return SampleLedgerState{}, err
+	}
+	return state, nil
+}
+
 func validateSampleLedgerState(
 	state SampleLedgerState,
 	trustedMinimumRevision uint64,
 ) error {
 	initialAttemptState := state.LastCommittedAttempt == (AttemptIdentity{})
-	if state.SchemaVersion != schemaVersionV1 ||
+	if state.SchemaVersion != CurrentSchemaVersion() ||
 		!validIssuerDomain(state.IssuerDomain) ||
 		!ValidIdentity(state.ProfileID) ||
-		!state.ProfileVersion.valid() ||
-		!validDependencySetID(state.DependencySetID) ||
+		!state.ProfileVersion.Valid() ||
+		!ValidDependencySetID(state.DependencySetID) ||
 		state.Revision != state.HighWater ||
 		state.Revision < trustedMinimumRevision ||
 		(state.Revision == 0 && !initialAttemptState) ||
@@ -655,7 +689,7 @@ func validateLedgerRestartState(
 			return fmt.Errorf("ledger restart claim exceeds its reservation")
 		}
 	}
-	if _, err := marshalBounded(ledgerRestartStateDTO{
+	if _, err := MarshalBounded(ledgerRestartStateDTO{
 		SchemaVersion:            restart.SchemaVersion,
 		NextTerminalSequence:     restart.NextTerminalSequence,
 		SequenceExhausted:        restart.SequenceExhausted,
@@ -706,7 +740,7 @@ func (ledger *SampleLedger) Limits() LedgerLimits {
 
 func (ledger *SampleLedger) stateLocked() SampleLedgerState {
 	return SampleLedgerState{
-		SchemaVersion:        schemaVersionV1,
+		SchemaVersion:        CurrentSchemaVersion(),
 		IssuerDomain:         ledger.issuerDomain,
 		ProfileID:            ledger.profileID,
 		ProfileVersion:       ledger.profileVersion,
@@ -951,7 +985,7 @@ func NewObservationFactoryWithOptions(
 	if err != nil {
 		return nil, fmt.Errorf("observation factory profile: %w", err)
 	}
-	if copy.spec.Kind != ProfileStandardFamily {
+	if copy.Kind() != ProfileStandardFamily {
 		return nil, fmt.Errorf("vendor overlay requires M3 resolution")
 	}
 	state := ledger.ExportState()
@@ -960,7 +994,7 @@ func NewObservationFactoryWithOptions(
 		return nil, fmt.Errorf("observation factory persistence domain disagrees")
 	}
 	if state.Revision > 0 {
-		switch copy.spec.Coherence.Mode {
+		switch copy.Coherence().Mode {
 		case CoherenceSingleWireResponse:
 			if state.LastCommittedAttempt.RetryOrdinal != 0 {
 				return nil, fmt.Errorf("persisted attempt disagrees with profile mode")
@@ -995,7 +1029,7 @@ func encodeRuntimeDependencySet(
 	maximum int,
 ) ([]byte, string, error) {
 	dependencies := set.Dependencies()
-	if set.ID() == "" || !set.Version().valid() || len(dependencies) == 0 || maximum <= 0 {
+	if set.ID() == "" || !set.Version().Valid() || len(dependencies) == 0 || maximum <= 0 {
 		return nil, "", fmt.Errorf("runtime dependency set is empty")
 	}
 	// Canonical v1 encoding is the domain, a big-endian uint64 count, then each
@@ -1269,10 +1303,7 @@ func (attempt *ObservationAttempt) Admit() error {
 			state.factory.ledger.issuerDomain,
 			uint64(math.MaxUint64),
 		)
-		validationErr = validateDurableObservationEnvelope(
-			template,
-			maximumSampleID,
-		)
+		_, validationErr = template.WithSampleID(maximumSampleID)
 	}
 	if validationErr == nil {
 		state.acquisitions = retained
@@ -1322,7 +1353,7 @@ func (factory *ObservationFactory) validateAttemptIdentity(identity AttemptIdent
 	if identity.PollGenerationID == 0 {
 		return fmt.Errorf("attempt poll generation is absent")
 	}
-	switch factory.profile.spec.Coherence.Mode {
+	switch factory.profile.Coherence().Mode {
 	case CoherenceSingleWireResponse:
 		if identity.RetryOrdinal != 0 {
 			return fmt.Errorf("single-wire retry identity is not applicable")
@@ -1361,34 +1392,34 @@ func validateRuntimeAttemptFacts(request RuntimeAttemptRequest) error {
 	default:
 		return fmt.Errorf("runtime observation source validity is unknown")
 	}
-	if err := validateSourceTime(request.Observation.SourceTime); err != nil {
+	if err := ValidateSourceTime(request.Observation.SourceTime); err != nil {
 		return fmt.Errorf("runtime observation source time: %w", err)
 	}
-	if _, err := canonicalRequiredTime(
+	if _, err := CanonicalRequiredTime(
 		request.Observation.LocalReceiptTime,
 		request.Observation.LocalReceiptTimePresent,
 	); err != nil {
 		return fmt.Errorf("runtime observation receipt time: %w", err)
 	}
-	if err := preflightAggregate(request.Dependencies); err != nil {
+	if err := PreflightAggregate(request.Dependencies); err != nil {
 		return fmt.Errorf("runtime dependency facts: %w", err)
 	}
 	for index, facts := range request.Dependencies {
-		if err := validateSourceTime(facts.SourceTime); err != nil {
+		if err := ValidateSourceTime(facts.SourceTime); err != nil {
 			return fmt.Errorf("runtime dependency %d source time: %w", index, err)
 		}
-		if hasLocalReceiptTime(
+		if HasLocalReceiptTime(
 			facts.LocalReceiptTime,
 			facts.LocalReceiptTimePresent,
 		) {
-			if _, err := canonicalRequiredTime(
+			if _, err := CanonicalRequiredTime(
 				facts.LocalReceiptTime,
 				facts.LocalReceiptTimePresent,
 			); err != nil {
 				return fmt.Errorf("runtime dependency %d receipt time: %w", index, err)
 			}
 		}
-		if err := validateBoundedString(
+		if err := ValidateBoundedString(
 			"runtime dependency consistency marker",
 			facts.DocumentaryConsistencyMarker,
 			false,
@@ -1425,7 +1456,7 @@ func (factory *ObservationFactory) buildRuntimeObservation(
 			return Observation{}, fmt.Errorf("runtime normalization %d exceeds byte bound", index)
 		}
 		fields := normalization.Fields()
-		if err := matchRuntimeNormalization(declaration, fields); err != nil {
+		if err := MatchRuntimeNormalization(declaration, fields); err != nil {
 			return Observation{}, fmt.Errorf("runtime normalization %d: %w", index, err)
 		}
 		provenance := acquisition.Provenance()
@@ -1474,13 +1505,10 @@ func (factory *ObservationFactory) buildRuntimeObservation(
 			Status:                       DependencyReadSuccessful,
 			View:                         snapshot,
 			SourceTime:                   facts.SourceTime,
-			LocalReceiptTime:             facts.LocalReceiptTime,
 			DocumentaryConsistencyMarker: facts.DocumentaryConsistencyMarker,
 			AcquisitionOrdinal:           facts.AcquisitionOrdinal,
 			RetryOrdinal:                 request.Identity.RetryOrdinal,
-			localReceiptTimePresent: facts.LocalReceiptTimePresent ||
-				!facts.LocalReceiptTime.IsZero(),
-		}
+		}.WithLocalReceiptTime(facts.LocalReceiptTime, facts.LocalReceiptTimePresent)
 		runtimeBytes[index] = append([]byte(nil), encoded...)
 		runtimeFields[index] = fields
 		if index == 0 {
@@ -1489,7 +1517,7 @@ func (factory *ObservationFactory) buildRuntimeObservation(
 		}
 	}
 	spec := ObservationSpec{
-		SchemaVersion:          schemaVersionV1,
+		SchemaVersion:          CurrentSchemaVersion(),
 		RuntimeContractVersion: factory.profile.RuntimeContractVersion(),
 		ProfileID:              factory.profile.ID(),
 		ProfileVersion:         factory.profile.Version(),
@@ -1504,46 +1532,14 @@ func (factory *ObservationFactory) buildRuntimeObservation(
 		DependencySetVersion:   factory.profile.Dependencies().Version(),
 		SourceValidity:         request.Observation.SourceValidity,
 		SourceTime:             request.Observation.SourceTime,
-		LocalReceiptTime:       request.Observation.LocalReceiptTime,
 		Endpoint:               endpoint,
 		UnitID:                 unitID,
 		Dependencies:           results,
-		localReceiptTimePresent: request.Observation.LocalReceiptTimePresent ||
-			!request.Observation.LocalReceiptTime.IsZero(),
-	}
-	validated, err := buildObservation(factory.profile, spec)
-	if err != nil {
-		return Observation{}, err
-	}
-	for index := range validated.replayed {
-		validated.replayed[index].runtimeNormalizationBytes = runtimeBytes[index]
-		validated.replayed[index].runtimeNormalizationFields = runtimeFields[index]
-	}
-	return validated, nil
-}
-
-func matchRuntimeNormalization(
-	declaration Dependency,
-	fields modbus.RuntimeNormalizationFields,
-) error {
-	normalization := declaration.Normalization().Spec()
-	expectedFunction := modbus.FunctionReadHoldingRegisters
-	if declaration.Table() == InputRegisters {
-		expectedFunction = modbus.FunctionReadInputRegisters
-	}
-	if fields.SchemaVersion != 1 ||
-		fields.SourceKind != modbus.RuntimeAcquisitionSourceRuntime ||
-		fields.SourceEvidenceID != normalization.SourceLocator ||
-		fields.DocumentaryNotation != normalization.DocumentaryNotation ||
-		fields.DocumentaryAddress != normalization.DocumentaryAddress ||
-		fields.DocumentaryAddressBase != string(normalization.DocumentaryBase) ||
-		fields.FunctionCode != expectedFunction ||
-		fields.LogicalTable != declaration.Table() ||
-		fields.NormalizedZeroBasedPDUOffset != normalization.ResolvedPDUOffset ||
-		fields.WordCount != declaration.WordCount() {
-		return fmt.Errorf("producer fields disagree with the declared dependency")
-	}
-	return nil
+	}.WithLocalReceiptTime(
+		request.Observation.LocalReceiptTime,
+		request.Observation.LocalReceiptTimePresent,
+	)
+	return NewRuntimeObservation(factory.profile, spec, runtimeBytes, runtimeFields)
 }
 
 // Phase returns the shared attempt lifecycle state.
@@ -1886,9 +1882,13 @@ func (attempt *ObservationAttempt) Publish(
 		releaseCommitSerial()
 		return attempt.failPublication(fmt.Errorf("publication restart state: %w", restartErr))
 	}
-	observation := state.template
-	observation.spec.SampleID = fmt.Sprintf("%s:%d", ledger.issuerDomain, next.HighWater)
-	observationBytes, err := MarshalObservation(observation)
+	observation, err := state.template.WithSampleID(
+		fmt.Sprintf("%s:%d", ledger.issuerDomain, next.HighWater),
+	)
+	var observationBytes []byte
+	if err == nil {
+		observationBytes, err = MarshalObservation(observation)
+	}
 	if err != nil {
 		releaseCommitSerial()
 		return attempt.failPublication(fmt.Errorf("final publication observation: %w", err))

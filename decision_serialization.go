@@ -89,11 +89,11 @@ func validateDetectionEvidence(
 	limits DetectionLimits,
 ) error {
 	if !ValidIdentity(evidence.ProfileID) ||
-		!evidence.ProfileVersion.valid() ||
+		!evidence.ProfileVersion.Valid() ||
 		evidence.Score == 0 ||
 		!validDetectionReason(evidence.Reason) ||
-		!evidence.DetectorVersion.valid() ||
-		!evidence.QualificationVersion.valid() ||
+		!evidence.DetectorVersion.Valid() ||
+		!evidence.QualificationVersion.Valid() ||
 		len(evidence.MatchedGates) > limits.MaxPlanDeclarations ||
 		len(evidence.ProbeEvidenceIDs) != len(evidence.MatchedGates) {
 		return fmt.Errorf("detection candidate evidence is invalid")
@@ -193,7 +193,7 @@ func validateDetectionDecision(
 	case DetectionMatched:
 		if decision.reason != DetectionReasonSelected ||
 			!ValidIdentity(decision.selectedProfileID) ||
-			!decision.selectedProfileVersion.valid() ||
+			!decision.selectedProfileVersion.Valid() ||
 			selectedCount != 1 || equalBestCount != 0 || multipleMatchCount != 0 {
 			return fmt.Errorf("matched detection decision is inconsistent")
 		}
@@ -215,7 +215,7 @@ func validateDetectionDecision(
 		}
 	case DetectionAmbiguous:
 		if decision.selectedProfileID != "" ||
-			decision.selectedProfileVersion.valid() || selectedCount != 0 {
+			decision.selectedProfileVersion.Valid() || selectedCount != 0 {
 			return fmt.Errorf("ambiguous detection decision is inconsistent")
 		}
 		switch decision.reason {
@@ -242,7 +242,7 @@ func validateDetectionDecision(
 			decision.reason == DetectionReasonMultipleMatches ||
 			decision.reason == DetectionReasonLowerScore ||
 			decision.selectedProfileID != "" ||
-			decision.selectedProfileVersion.valid() ||
+			decision.selectedProfileVersion.Valid() ||
 			selectedCount != 0 || equalBestCount != 0 || multipleMatchCount != 0 || lowerScoreCount != 0 ||
 			!overallReasonPresent {
 			return fmt.Errorf("no-match detection decision is inconsistent")
@@ -270,11 +270,11 @@ func detectionDecisionToDTO(
 		}
 	}
 	selectedVersion := ""
-	if decision.selectedProfileVersion.valid() {
+	if decision.selectedProfileVersion.Valid() {
 		selectedVersion = decision.selectedProfileVersion.String()
 	}
 	return detectionDecisionDTO{
-		SchemaVersion:          schemaVersionV1.String(),
+		SchemaVersion:          CurrentSchemaVersion().String(),
 		Outcome:                decision.outcome,
 		Reason:                 decision.reason,
 		SelectedProfileID:      decision.selectedProfileID,
@@ -292,7 +292,7 @@ func MarshalDetectionDecision(decision DetectionDecision) ([]byte, error) {
 	if err := validateDetectionDecision(decision, limits); err != nil {
 		return nil, err
 	}
-	encoded, err := marshalBounded(detectionDecisionToDTO(decision))
+	encoded, err := MarshalBounded(detectionDecisionToDTO(decision))
 	if err != nil {
 		return nil, err
 	}
@@ -305,15 +305,15 @@ func MarshalDetectionDecision(decision DetectionDecision) ([]byte, error) {
 func detectionEvidenceFromDTO(
 	record detectionCandidateEvidenceDTO,
 ) (DetectionCandidateEvidence, error) {
-	profileVersion, err := parseRequiredVersion("profile_version", record.ProfileVersion)
+	profileVersion, err := ParseRequiredVersion("profile_version", record.ProfileVersion)
 	if err != nil {
 		return DetectionCandidateEvidence{}, err
 	}
-	detectorVersion, err := parseRequiredVersion("detector_version", record.DetectorVersion)
+	detectorVersion, err := ParseRequiredVersion("detector_version", record.DetectorVersion)
 	if err != nil {
 		return DetectionCandidateEvidence{}, err
 	}
-	qualificationVersion, err := parseRequiredVersion(
+	qualificationVersion, err := ParseRequiredVersion(
 		"qualification_version",
 		record.QualificationVersion,
 	)
@@ -336,16 +336,16 @@ func detectionEvidenceFromDTO(
 // decision. Unknown, missing, duplicate, and case-folded keys are rejected.
 func UnmarshalDetectionDecision(data []byte) (DetectionDecision, error) {
 	var record detectionDecisionDTO
-	if err := decodeStrict(data, &record); err != nil {
+	if err := DecodeStrict(data, &record); err != nil {
 		return DetectionDecision{}, err
 	}
-	schemaVersion, err := parseRequiredVersion("schema_version", record.SchemaVersion)
-	if err != nil || schemaVersion != schemaVersionV1 {
+	schemaVersion, err := ParseRequiredVersion("schema_version", record.SchemaVersion)
+	if err != nil || schemaVersion != CurrentSchemaVersion() {
 		return DetectionDecision{}, fmt.Errorf("detection decision schema is incompatible")
 	}
 	selectedVersion := Version{}
 	if record.SelectedProfileVersion != "" {
-		selectedVersion, err = parseRequiredVersion(
+		selectedVersion, err = ParseRequiredVersion(
 			"selected_profile_version",
 			record.SelectedProfileVersion,
 		)
@@ -364,7 +364,7 @@ func UnmarshalDetectionDecision(data []byte) (DetectionDecision, error) {
 		if evidence[first].ProfileID != evidence[second].ProfileID {
 			return evidence[first].ProfileID < evidence[second].ProfileID
 		}
-		return compareVersion(
+		return CompareVersions(
 			evidence[first].ProfileVersion,
 			evidence[second].ProfileVersion,
 		) < 0

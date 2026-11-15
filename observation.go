@@ -83,7 +83,7 @@ func NewLogicalViewSnapshot(
 		},
 	}
 	for _, field := range stringFields {
-		if err := validateBoundedString(field.name, field.value, true); err != nil {
+		if err := ValidateBoundedString(field.name, field.value, true); err != nil {
 			return LogicalViewSnapshot{}, err
 		}
 	}
@@ -148,6 +148,9 @@ func (snapshot LogicalViewSnapshot) Record() LogicalViewRecord {
 	return record
 }
 
+// Valid reports whether NewLogicalViewSnapshot validated snapshot; the zero snapshot is not valid.
+func (snapshot LogicalViewSnapshot) Valid() bool { return snapshot.valid }
+
 // DependencyReadStatus classifies terminal dependency inputs.
 type DependencyReadStatus string
 
@@ -205,18 +208,23 @@ func canonicalObservedTime(value time.Time) (time.Time, error) {
 	return decoded, nil
 }
 
-func hasLocalReceiptTime(value time.Time, present bool) bool {
+// HasLocalReceiptTime reports whether value is non-zero or present marks a zero receipt time.
+func HasLocalReceiptTime(value time.Time, present bool) bool {
 	return present || !value.IsZero()
 }
 
-func canonicalRequiredTime(value time.Time, present bool) (time.Time, error) {
-	if !hasLocalReceiptTime(value, present) {
+// CanonicalRequiredTime returns a recorded local receipt time in canonical UTC
+// form; it fails without one or outside the RFC 3339 nanosecond range.
+func CanonicalRequiredTime(value time.Time, present bool) (time.Time, error) {
+	if !HasLocalReceiptTime(value, present) {
 		return time.Time{}, fmt.Errorf("timestamp is outside RFC3339Nano range")
 	}
 	return canonicalObservedTime(value)
 }
 
-func validateSourceTime(sourceTime SourceTimeSpec) error {
+// ValidateSourceTime accepts an observed time in the RFC 3339 nanosecond range
+// or an unavailable source time without a time, and no other state.
+func ValidateSourceTime(sourceTime SourceTimeSpec) error {
 	switch sourceTime.State {
 	case SourceTimeObservedState:
 		if _, err := canonicalObservedTime(sourceTime.Time); err != nil {
@@ -269,6 +277,14 @@ func NewDependencyResult(spec DependencyResult) (DependencyResult, error) {
 	return spec, nil
 }
 
+// WithLocalReceiptTime returns a copy of result receiving value; present also
+// records a zero value as an observed receipt time.
+func (result DependencyResult) WithLocalReceiptTime(value time.Time, present bool) DependencyResult {
+	result.LocalReceiptTime = value
+	result.localReceiptTimePresent = present || !value.IsZero()
+	return result
+}
+
 // AttemptIdentity is the deterministic capture identity for one poll retry.
 // RetryOrdinal is zero only when retry identity is not applicable.
 type AttemptIdentity struct {
@@ -301,20 +317,31 @@ type ObservationSpec struct {
 	localReceiptTimePresent bool
 }
 
+// WithLocalReceiptTime returns a copy of spec receiving value; present also
+// records a zero value as an observed receipt time.
+func (spec ObservationSpec) WithLocalReceiptTime(value time.Time, present bool) ObservationSpec {
+	spec.LocalReceiptTime = value
+	spec.localReceiptTimePresent = present || !value.IsZero()
+	return spec
+}
+
 // Observation is an immutable coherent profile sample.
 type Observation struct {
 	spec     ObservationSpec
 	replayed []ReplayedDependency
 }
 
-func buildObservation(
+// NewObservation validates spec against profile (envelope identity and
+// versions, a contract-identity SampleID when set, dependency snapshots,
+// provenance and coherence); it attaches no runtime normalization record.
+func NewObservation(
 	profile ProfileDescriptor,
 	spec ObservationSpec,
 ) (Observation, error) {
 	if err := preflightObservationSpec(spec); err != nil {
 		return Observation{}, err
 	}
-	spec = cloneObservationSpec(spec)
+	spec = CloneObservationSpec(spec)
 	if err := canonicalizeObservationTimes(&spec); err != nil {
 		return Observation{}, err
 	}
@@ -332,7 +359,7 @@ func buildObservation(
 		spec.DependencySetID != profile.Dependencies().ID() ||
 		spec.DependencySetVersion != profile.Dependencies().Version() ||
 		spec.Endpoint == "" || spec.UnitID == 0 || spec.UnitID > 247 ||
-		!hasLocalReceiptTime(
+		!HasLocalReceiptTime(
 			spec.LocalReceiptTime,
 			spec.localReceiptTimePresent,
 		) {
@@ -343,7 +370,7 @@ func buildObservation(
 	default:
 		return Observation{}, fmt.Errorf("source validity is unknown")
 	}
-	if err := validateSourceTime(spec.SourceTime); err != nil {
+	if err := ValidateSourceTime(spec.SourceTime); err != nil {
 		return Observation{}, err
 	}
 	declarations := profile.Dependencies().Dependencies()
@@ -390,14 +417,19 @@ func buildObservation(
 	if err := validateObservationCoherence(profile.spec.Coherence, spec, replayed); err != nil {
 		return Observation{}, err
 	}
-	return Observation{spec: cloneObservationSpec(spec), replayed: replayed}, nil
+	return Observation{spec: CloneObservationSpec(spec), replayed: replayed}, nil
+}
+
+// buildObservation is NewObservation for root family files calling this name.
+func buildObservation(profile ProfileDescriptor, spec ObservationSpec) (Observation, error) {
+	return NewObservation(profile, spec)
 }
 
 func preflightObservationSpec(spec ObservationSpec) error {
 	if len(spec.Dependencies) > MaxProfileDependencies {
 		return fmt.Errorf("observation dependencies exceed the contract maximum")
 	}
-	if err := preflightAggregate(spec); err != nil {
+	if err := PreflightAggregate(spec); err != nil {
 		return err
 	}
 	stringFields := []struct {
@@ -410,7 +442,7 @@ func preflightObservationSpec(spec ObservationSpec) error {
 		{name: "endpoint", value: spec.Endpoint},
 	}
 	for _, field := range stringFields {
-		if err := validateBoundedString(field.name, field.value, false); err != nil {
+		if err := ValidateBoundedString(field.name, field.value, false); err != nil {
 			return err
 		}
 	}
@@ -427,7 +459,7 @@ func preflightObservationSpec(spec ObservationSpec) error {
 			},
 		}
 		for _, field := range dependencyFields {
-			if err := validateBoundedString(field.name, field.value, false); err != nil {
+			if err := ValidateBoundedString(field.name, field.value, false); err != nil {
 				return err
 			}
 		}
@@ -438,14 +470,14 @@ func preflightObservationSpec(spec ObservationSpec) error {
 			return err
 		}
 	}
-	if spec.DependencySetID != "" && !validDependencySetID(spec.DependencySetID) {
+	if spec.DependencySetID != "" && !ValidDependencySetID(spec.DependencySetID) {
 		return fmt.Errorf("dependency-set ID is malformed")
 	}
 	return nil
 }
 
 func preflightDependencyResult(result DependencyResult) error {
-	return preflightAggregate(result)
+	return PreflightAggregate(result)
 }
 
 func canonicalizeObservationTimes(spec *ObservationSpec) error {
@@ -459,7 +491,7 @@ func canonicalizeObservationTimes(spec *ObservationSpec) error {
 			return err
 		}
 	}
-	spec.LocalReceiptTime, err = canonicalRequiredTime(
+	spec.LocalReceiptTime, err = CanonicalRequiredTime(
 		spec.LocalReceiptTime,
 		spec.localReceiptTimePresent,
 	)
@@ -476,11 +508,11 @@ func canonicalizeObservationTimes(spec *ObservationSpec) error {
 				return fmt.Errorf("dependency %d source time: %w", index, err)
 			}
 		}
-		if hasLocalReceiptTime(
+		if HasLocalReceiptTime(
 			dependency.LocalReceiptTime,
 			dependency.localReceiptTimePresent,
 		) {
-			dependency.LocalReceiptTime, err = canonicalRequiredTime(
+			dependency.LocalReceiptTime, err = CanonicalRequiredTime(
 				dependency.LocalReceiptTime,
 				dependency.localReceiptTimePresent,
 			)
@@ -522,7 +554,7 @@ func validateObservationCoherence(
 				result.AcquisitionOrdinal != 0 ||
 				result.SourceTime.State != SourceTimeUnavailableState ||
 				!result.SourceTime.Time.IsZero() ||
-				hasLocalReceiptTime(
+				HasLocalReceiptTime(
 					result.LocalReceiptTime,
 					result.localReceiptTimePresent,
 				) {
@@ -557,8 +589,8 @@ func validateObservationCoherence(
 		for index := range dependencies {
 			result := spec.Dependencies[index]
 			record := dependencies[index].view.record
-			if err := validateSourceTime(result.SourceTime); err != nil ||
-				!hasLocalReceiptTime(
+			if err := ValidateSourceTime(result.SourceTime); err != nil ||
+				!HasLocalReceiptTime(
 					result.LocalReceiptTime,
 					result.localReceiptTimePresent,
 				) ||
@@ -674,7 +706,7 @@ func validateObservationCoherence(
 				)) {
 			return fmt.Errorf("bounded response exceeds declared skew")
 		}
-		if !hasLocalReceiptTime(
+		if !HasLocalReceiptTime(
 			spec.LocalReceiptTime,
 			spec.localReceiptTimePresent,
 		) ||
@@ -851,7 +883,8 @@ func validateWireResponseGroups(dependencies []ReplayedDependency) error {
 	return nil
 }
 
-func cloneObservationSpec(spec ObservationSpec) ObservationSpec {
+// CloneObservationSpec returns a copy of spec sharing no dependency, word or byte.
+func CloneObservationSpec(spec ObservationSpec) ObservationSpec {
 	spec.Dependencies = append([]DependencyResult(nil), spec.Dependencies...)
 	for index := range spec.Dependencies {
 		spec.Dependencies[index] = cloneDependencyResult(spec.Dependencies[index])
@@ -965,45 +998,12 @@ func (observation Observation) Replay() []ReplayedDependency {
 
 // Spec returns an independent complete source-observation envelope.
 func (observation Observation) Spec() ObservationSpec {
-	return cloneObservationSpec(observation.spec)
+	return CloneObservationSpec(observation.spec)
 }
 
 // SampleID returns the opaque coherent sample identity.
 func (observation Observation) SampleID() string {
 	return observation.spec.SampleID
-}
-
-// SampleLedgerState is the O(1) explicit restart and CAS boundary.
-type SampleLedgerState struct {
-	SchemaVersion        Version
-	IssuerDomain         string
-	ProfileID            string
-	ProfileVersion       Version
-	DependencySetID      string
-	Revision             uint64
-	HighWater            uint64
-	LastCommittedAttempt AttemptIdentity
-}
-
-// EmptySampleLedgerState creates a new issuer/profile/dependency-set domain.
-func EmptySampleLedgerState(
-	issuerDomain string,
-	profile ProfileDescriptor,
-) (SampleLedgerState, error) {
-	if profile.ID() == "" {
-		return SampleLedgerState{}, fmt.Errorf("sample ledger profile is invalid")
-	}
-	state := SampleLedgerState{
-		SchemaVersion:   schemaVersionV1,
-		IssuerDomain:    issuerDomain,
-		ProfileID:       profile.ID(),
-		ProfileVersion:  profile.Version(),
-		DependencySetID: profile.Dependencies().ID(),
-	}
-	if err := validateSampleLedgerState(state, 0); err != nil {
-		return SampleLedgerState{}, err
-	}
-	return state, nil
 }
 
 // OwnershipBoundary documents that this package records source facts only.

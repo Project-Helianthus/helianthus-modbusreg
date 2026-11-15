@@ -88,7 +88,7 @@ func TestQ26DecisionUnicodeLexicalControls(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			data := q26DecisionWithProfile(t, []byte(test.value))
 			var record detectionDecisionDTO
-			if err := decodeStrict(data, &record); err != nil {
+			if err := DecodeStrict(data, &record); err != nil {
 				t.Fatalf("lexically valid production DTO rejected: %v", err)
 			}
 			if len(record.Evidence) != 1 || record.Evidence[0].ProfileID != test.want {
