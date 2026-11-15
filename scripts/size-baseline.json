@@ -164,12 +164,6 @@
       "value": 157
     },
     {
-      "path": "tesla/tesla_gen3_read_acquisition.go",
-      "symbol": "$file",
-      "metric": "file_lines",
-      "value": 1025
-    },
-    {
       "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "$file",
       "metric": "functions_per_file",
