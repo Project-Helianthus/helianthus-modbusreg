@@ -1,4 +1,4 @@
-package modbusreg
+package fronius
 
 import (
 	"bytes"
@@ -7,10 +7,15 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/internal/sunspecfixture"
 )
 
 type sunSpecFroniusAuditDisposition struct {
@@ -18,10 +23,10 @@ type sunSpecFroniusAuditDisposition struct {
 	Milestone string `json:"milestone"`
 	Outcome   string `json:"outcome"`
 	Docs      struct {
-		MergeSHA         string                `json:"merge_sha"`
-		LogicalSchemaID  SunSpecSchemaRevision `json:"logical_schema_id"`
-		RegistryRevision SunSpecSchemaRevision `json:"registry_revision"`
-		SourceCommit     string                `json:"source_commit"`
+		MergeSHA         string                          `json:"merge_sha"`
+		LogicalSchemaID  modbusreg.SunSpecSchemaRevision `json:"logical_schema_id"`
+		RegistryRevision modbusreg.SunSpecSchemaRevision `json:"registry_revision"`
+		SourceCommit     string                          `json:"source_commit"`
 	} `json:"docs"`
 	Registry struct {
 		BaseSHA                   string   `json:"base_sha"`
@@ -33,17 +38,17 @@ type sunSpecFroniusAuditDisposition struct {
 		ExecutableEvidence        []string `json:"executable_evidence"`
 	} `json:"registry"`
 	Fronius struct {
-		FlavorID                    string           `json:"flavor_id"`
-		Manufacturer                string           `json:"manufacturer"`
-		Model                       string           `json:"model"`
-		Firmware                    string           `json:"firmware"`
-		Chain                       []SunSpecWireKey `json:"chain"`
-		OfflineFixture              string           `json:"offline_fixture"`
-		OfflineClassifierExecutable bool             `json:"offline_classifier_executable"`
-		AutomaticRuntimeAdmission   bool             `json:"automatic_runtime_admission"`
-		LiveQualified               bool             `json:"live_qualified"`
-		WriteAuthority              bool             `json:"write_authority"`
-		SupportClaim                bool             `json:"support_claim"`
+		FlavorID                    string                     `json:"flavor_id"`
+		Manufacturer                string                     `json:"manufacturer"`
+		Model                       string                     `json:"model"`
+		Firmware                    string                     `json:"firmware"`
+		Chain                       []modbusreg.SunSpecWireKey `json:"chain"`
+		OfflineFixture              string                     `json:"offline_fixture"`
+		OfflineClassifierExecutable bool                       `json:"offline_classifier_executable"`
+		AutomaticRuntimeAdmission   bool                       `json:"automatic_runtime_admission"`
+		LiveQualified               bool                       `json:"live_qualified"`
+		WriteAuthority              bool                       `json:"write_authority"`
+		SupportClaim                bool                       `json:"support_claim"`
 	} `json:"fronius"`
 }
 
@@ -62,7 +67,7 @@ type sunSpecFroniusPublicEvidence struct {
 
 func readSunSpecFroniusAuditDisposition(t *testing.T) sunSpecFroniusAuditDisposition {
 	t.Helper()
-	data, err := os.ReadFile("profiles/vendors/fronius/disposition.json")
+	data, err := os.ReadFile("../profiles/vendors/fronius/disposition.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,9 +84,28 @@ func readSunSpecFroniusAuditDisposition(t *testing.T) sunSpecFroniusAuditDisposi
 	return disposition
 }
 
+// declaredGoTests returns the test functions declared in every package
+// directory of the module, so that audit evidence held by the SunSpec tests of
+// another package is found as well as the Fronius tests of this one.
 func declaredGoTests(t *testing.T) map[string]bool {
 	t.Helper()
-	paths, err := filepath.Glob("*_test.go")
+	var paths []string
+	err := filepath.WalkDir("..", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		name := entry.Name()
+		if entry.IsDir() {
+			if path != ".." && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "testdata") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(name, "_test.go") {
+			paths = append(paths, path)
+		}
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,12 +127,12 @@ func declaredGoTests(t *testing.T) map[string]bool {
 }
 
 func readFroniusV11Fixture(t *testing.T, path string) struct {
-	Schema       string           `json:"schema"`
-	FlavorID     string           `json:"flavor_id"`
-	Manufacturer string           `json:"manufacturer"`
-	Model        string           `json:"model"`
-	Firmware     string           `json:"firmware"`
-	Chain        []SunSpecWireKey `json:"chain"`
+	Schema       string                     `json:"schema"`
+	FlavorID     string                     `json:"flavor_id"`
+	Manufacturer string                     `json:"manufacturer"`
+	Model        string                     `json:"model"`
+	Firmware     string                     `json:"firmware"`
+	Chain        []modbusreg.SunSpecWireKey `json:"chain"`
 	Observation  struct {
 		Function  string `json:"function"`
 		UnitID    uint16 `json:"unit_id"`
@@ -122,12 +146,12 @@ func readFroniusV11Fixture(t *testing.T, path string) struct {
 		t.Fatal(err)
 	}
 	var fixture struct {
-		Schema       string           `json:"schema"`
-		FlavorID     string           `json:"flavor_id"`
-		Manufacturer string           `json:"manufacturer"`
-		Model        string           `json:"model"`
-		Firmware     string           `json:"firmware"`
-		Chain        []SunSpecWireKey `json:"chain"`
+		Schema       string                     `json:"schema"`
+		FlavorID     string                     `json:"flavor_id"`
+		Manufacturer string                     `json:"manufacturer"`
+		Model        string                     `json:"model"`
+		Firmware     string                     `json:"firmware"`
+		Chain        []modbusreg.SunSpecWireKey `json:"chain"`
 		Observation  struct {
 			Function  string `json:"function"`
 			UnitID    uint16 `json:"unit_id"`
@@ -155,7 +179,7 @@ func TestSunSpecFroniusAuditClosesAgainstPinnedRegistry(t *testing.T) {
 	}
 	if disposition.Docs.MergeSHA != "2abcb26a06ffa71149177de2cc2817a24d82081f" ||
 		disposition.Docs.LogicalSchemaID != "sunspec.models.v1" ||
-		disposition.Docs.RegistryRevision != SunSpecModelsRevisionV1 ||
+		disposition.Docs.RegistryRevision != modbusreg.SunSpecModelsRevisionV1 ||
 		disposition.Docs.SourceCommit != "7abdf8982d5364f8ae916deee18aac86c11be36d" {
 		t.Fatalf("unexpected docs binding: %#v", disposition.Docs)
 	}
@@ -194,7 +218,8 @@ func TestSunSpecFroniusAuditClosesAgainstPinnedRegistry(t *testing.T) {
 		t.Fatalf("unexpected Fronius disposition: %#v", disposition.Fronius)
 	}
 
-	fixture := readFroniusV11Fixture(t, disposition.Fronius.OfflineFixture)
+	// The disposition names the fixture relative to the module root.
+	fixture := readFroniusV11Fixture(t, filepath.Join("..", disposition.Fronius.OfflineFixture))
 	if fixture.Schema != "helianthus-sunspec-fronius-observed-flavor/v1.1" ||
 		fixture.FlavorID != disposition.Fronius.FlavorID ||
 		fixture.Manufacturer != disposition.Fronius.Manufacturer || fixture.Model != disposition.Fronius.Model ||
@@ -204,9 +229,9 @@ func TestSunSpecFroniusAuditClosesAgainstPinnedRegistry(t *testing.T) {
 		t.Fatalf("fixture does not substantiate disposition: %#v", fixture)
 	}
 
-	registry := mustStandardSunSpecRegistry(t)
+	registry := sunspecfixture.Registry(t)
 	snapshot := froniusObservedSnapshotV11(t, registry, fixture.Manufacturer, fixture.Model, fixture.Firmware)
-	selection := FroniusSelectObservedFlavor(registry, snapshot)
+	selection := SelectObservedFlavor(registry, snapshot)
 	decision, ok := selection.Decision()
 	if !ok || !selection.Matched() || decision.FlavorID() != disposition.Fronius.FlavorID ||
 		!reflect.DeepEqual(decision.Chain(), disposition.Fronius.Chain) {
@@ -215,7 +240,7 @@ func TestSunSpecFroniusAuditClosesAgainstPinnedRegistry(t *testing.T) {
 }
 
 func TestSunSpecFroniusAuditUsesPublicProtocolEvidence(t *testing.T) {
-	data, err := os.ReadFile("profiles/vendors/fronius/evidence.json")
+	data, err := os.ReadFile("../profiles/vendors/fronius/evidence.json")
 	if err != nil {
 		t.Fatal(err)
 	}

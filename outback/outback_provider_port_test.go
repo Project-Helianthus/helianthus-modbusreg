@@ -1,4 +1,4 @@
-package modbusreg
+package outback
 
 import (
 	"context"
@@ -6,21 +6,23 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
-func i27Input() OutBackDetachedRecordInput {
-	return OutBackDetachedRecordInput{
-		Words: []uint16{17, 23}, DeclaredWords: 2, Present: []OutBackWordSpan{{0, 2}},
-		Source:      OutBackSourceAssociation{Key: "synthetic-family", Revision: "one", PublicLocator: "public/family", ContentIdentity: "synthetic-content", DeclaredLayout: "opaque", SourceSetRevision: "set-one", SelectorInputs: "selector-one", Available: true},
-		Occurrences: []OutBackDetachedOccurrence{{Ordinal: 2, WireKey: SunSpecWireKey{64111, 1}, Words: []uint16{17}, Present: []OutBackWordSpan{{0, 1}}}, {Ordinal: 4, WireKey: SunSpecWireKey{64111, 1}, Offset: 1, Words: []uint16{23}, Present: []OutBackWordSpan{{0, 1}}}},
+func i27Input() DetachedRecordInput {
+	return DetachedRecordInput{
+		Words: []uint16{17, 23}, DeclaredWords: 2, Present: []WordSpan{{0, 2}},
+		Source:      SourceAssociation{Key: "synthetic-family", Revision: "one", PublicLocator: "public/family", ContentIdentity: "synthetic-content", DeclaredLayout: "opaque", SourceSetRevision: "set-one", SelectorInputs: "selector-one", Available: true},
+		Occurrences: []DetachedOccurrence{{Ordinal: 2, WireKey: modbusreg.SunSpecWireKey{ModelID: 64111, ModelLength: 1}, Words: []uint16{17}, Present: []WordSpan{{0, 1}}}, {Ordinal: 4, WireKey: modbusreg.SunSpecWireKey{ModelID: 64111, ModelLength: 1}, Offset: 1, Words: []uint16{23}, Present: []WordSpan{{0, 1}}}},
 	}
 }
 
-func i27Config(i27Supplier OutBackDiagnosticSupplier) I27OutBackConfig {
+func i27Config(i27Supplier DiagnosticSupplier) I27OutBackConfig {
 	return I27OutBackConfig{I27Source: i27Input().Source, I27MaxBytes: 4096, I27MaxWork: time.Second, I27Supplier: i27Supplier}
 }
 
-func i27Provider(i27T *testing.T, i27Supplier OutBackDiagnosticSupplier) I27OutBackProvider {
+func i27Provider(i27T *testing.T, i27Supplier DiagnosticSupplier) I27OutBackProvider {
 	i27T.Helper()
 	i27P, i27Err := I27NewOutBackAdapter(i27Config(i27Supplier))
 	if i27Err != nil {
@@ -29,16 +31,16 @@ func i27Provider(i27T *testing.T, i27Supplier OutBackDiagnosticSupplier) I27OutB
 	return i27P
 }
 
-func i27Denied(i27T *testing.T, i27Record *OutBackDetachedRecord) {
+func i27Denied(i27T *testing.T, i27Record *DetachedRecord) {
 	i27T.Helper()
-	if i27Record.Evaluate().Matched() || i27Record.Evaluate().Reason() != OutBackAXSReadOnlyFlavorReasonSourceNotQualified || len(i27Record.Requests()) != 0 || len(i27Record.TypedFacts()) != 0 {
+	if i27Record.Evaluate().Matched() || i27Record.Evaluate().Reason() != AXSReadOnlyFlavorReasonSourceNotQualified || len(i27Record.Requests()) != 0 || len(i27Record.TypedFacts()) != 0 {
 		i27T.Fatal("opaque evidence admitted or send/facts exposed")
 	}
 }
 
 func TestI27Refusals(i27T *testing.T) {
 	i27Calls := 0
-	i27Supplier := func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	i27Supplier := func(context.Context, OfflineAttempt) (DetachedRecordInput, error) {
 		i27Calls++
 		return i27Input(), nil
 	}
@@ -94,23 +96,23 @@ func TestI27Refusals(i27T *testing.T) {
 		}
 		i27Zero.I27Retire()
 		i27S := i27Zero.I27Snapshot(i27Input().Source)
-		if i27S.Record != nil || i27S.Association != OutBackAssociationHistorical {
+		if i27S.Record != nil || i27S.Association != AssociationHistorical {
 			i27T.Fatal(i27S)
 		}
 		i27Denied(i27T, i27S.Record)
 	}
 }
 
-func i27Changes() map[string]func(*OutBackSourceAssociation) {
-	return map[string]func(*OutBackSourceAssociation){
-		"Key":               func(i27S *OutBackSourceAssociation) { i27S.Key = "other" },
-		"Revision":          func(i27S *OutBackSourceAssociation) { i27S.Revision = "two" },
-		"PublicLocator":     func(i27S *OutBackSourceAssociation) { i27S.PublicLocator = "public/other" },
-		"ContentIdentity":   func(i27S *OutBackSourceAssociation) { i27S.ContentIdentity = "other-content" },
-		"DeclaredLayout":    func(i27S *OutBackSourceAssociation) { i27S.DeclaredLayout = "other-layout" },
-		"SourceSetRevision": func(i27S *OutBackSourceAssociation) { i27S.SourceSetRevision = "set-two" },
-		"SelectorInputs":    func(i27S *OutBackSourceAssociation) { i27S.SelectorInputs = "selector-two" },
-		"Available":         func(i27S *OutBackSourceAssociation) { i27S.Available = false },
+func i27Changes() map[string]func(*SourceAssociation) {
+	return map[string]func(*SourceAssociation){
+		"Key":               func(i27S *SourceAssociation) { i27S.Key = "other" },
+		"Revision":          func(i27S *SourceAssociation) { i27S.Revision = "two" },
+		"PublicLocator":     func(i27S *SourceAssociation) { i27S.PublicLocator = "public/other" },
+		"ContentIdentity":   func(i27S *SourceAssociation) { i27S.ContentIdentity = "other-content" },
+		"DeclaredLayout":    func(i27S *SourceAssociation) { i27S.DeclaredLayout = "other-layout" },
+		"SourceSetRevision": func(i27S *SourceAssociation) { i27S.SourceSetRevision = "set-two" },
+		"SelectorInputs":    func(i27S *SourceAssociation) { i27S.SelectorInputs = "selector-two" },
+		"Available":         func(i27S *SourceAssociation) { i27S.Available = false },
 	}
 }
 
@@ -119,7 +121,7 @@ func TestI27AssociationAxes(i27T *testing.T) {
 		i27T.Run(i27Name, func(i27T *testing.T) {
 			i27InputValue := i27Input()
 			i27Calls := 0
-			i27P := i27Provider(i27T, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+			i27P := i27Provider(i27T, func(context.Context, OfflineAttempt) (DetachedRecordInput, error) {
 				i27Calls++
 				return i27InputValue, nil
 			})
@@ -129,10 +131,10 @@ func TestI27AssociationAxes(i27T *testing.T) {
 			i27Before := i27P.I27Snapshot(i27Input().Source)
 			i27Current := i27Input().Source
 			i27Change(&i27Current)
-			if i27Before.Record.Association(i27Current) != OutBackAssociationHistorical {
+			if i27Before.Record.Association(i27Current) != AssociationHistorical {
 				i27T.Fatal("retained native comparison omitted axis")
 			}
-			if i27S := i27P.I27Snapshot(i27Current); i27S.Association != OutBackAssociationHistorical || i27S.Record.SourceAssociation() != i27Input().Source {
+			if i27S := i27P.I27Snapshot(i27Current); i27S.Association != AssociationHistorical || i27S.Record.SourceAssociation() != i27Input().Source {
 				i27T.Fatal("comparison omitted axis or relabeled", i27S)
 			}
 			i27Change(&i27InputValue.Source)
@@ -140,35 +142,35 @@ func TestI27AssociationAxes(i27T *testing.T) {
 				i27T.Fatal("supplier axis accepted", i27Err)
 			}
 			i27After := i27P.I27Snapshot(i27Input().Source)
-			if i27After.Record != i27Before.Record || i27After.RetainedAt != time.Unix(1, 0) || i27After.RetainedAttempt != i27Before.RetainedAttempt || i27After.Status != OutBackOfflineFailed || i27After.Association != OutBackAssociationCurrent || i27Calls != 2 {
+			if i27After.Record != i27Before.Record || i27After.RetainedAt != time.Unix(1, 0) || i27After.RetainedAttempt != i27Before.RetainedAttempt || i27After.Status != OfflineFailed || i27After.Association != AssociationCurrent || i27Calls != 2 {
 				i27T.Fatal("failed same-source attempt changed retention", i27After)
 			}
 			if i27Err := i27P.I27Replace(i27Current); i27Err != nil {
 				i27T.Fatal(i27Err)
 			}
-			if i27P.I27Snapshot(i27Input().Source).Association != OutBackAssociationHistorical {
+			if i27P.I27Snapshot(i27Input().Source).Association != AssociationHistorical {
 				i27T.Fatal("old descriptor restored current history")
 			}
 			if i27Err := i27P.I27Cycle(context.Background(), time.Unix(3, 0)); i27Err != nil {
 				i27T.Fatal(i27Err)
 			}
 			i27Replacement := i27P.I27Snapshot(i27Current)
-			i27Expected := OutBackAssociationCurrent
+			i27Expected := AssociationCurrent
 			if !i27Current.Available {
-				i27Expected = OutBackAssociationHistorical
+				i27Expected = AssociationHistorical
 			}
 			if i27Replacement.Record.SourceAssociation() != i27Current || i27Replacement.RetainedAttempt.Generation != 2 || i27Replacement.RetainedAt != time.Unix(3, 0) || i27Replacement.Association != i27Expected || i27Replacement.Record == i27Before.Record || i27Calls != 3 {
 				i27T.Fatal("replacement import lost identity", i27Replacement)
 			}
-			if i27P.I27Snapshot(OutBackSourceAssociation{}).Association != OutBackAssociationHistorical {
+			if i27P.I27Snapshot(SourceAssociation{}).Association != AssociationHistorical {
 				i27T.Fatal("missing descriptor current")
 			}
 			if !i27Current.Available {
-				if i27Replacement.Record.Association(i27Current) != OutBackAssociationHistorical {
+				if i27Replacement.Record.Association(i27Current) != AssociationHistorical {
 					i27T.Fatal("unavailable original/current native association admitted")
 				}
 				i27Current.Available = true
-				if i27P.I27Snapshot(i27Current).Association != OutBackAssociationHistorical {
+				if i27P.I27Snapshot(i27Current).Association != AssociationHistorical {
 					i27T.Fatal("unavailable original restored by current availability")
 				}
 			}
@@ -185,7 +187,7 @@ func TestI27RetentionAndReplacement(i27T *testing.T) {
 	i27Value := i27Input()
 	var i27Failure error
 	i27Calls := 0
-	i27P := i27Provider(i27T, func(i27Ctx context.Context, i27Attempt OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	i27P := i27Provider(i27T, func(i27Ctx context.Context, i27Attempt OfflineAttempt) (DetachedRecordInput, error) {
 		i27Calls++
 		if _, i27OK := i27Ctx.Deadline(); !i27OK {
 			i27T.Error("no work deadline")
@@ -199,7 +201,7 @@ func TestI27RetentionAndReplacement(i27T *testing.T) {
 		i27T.Fatal(i27Err)
 	}
 	i27Before := i27P.I27Snapshot(i27Value.Source)
-	if i27Before.Association != OutBackAssociationCurrent || !i27Before.Record.Complete() || i27Before.Status != OutBackOfflineImported {
+	if i27Before.Association != AssociationCurrent || !i27Before.Record.Complete() || i27Before.Status != OfflineImported {
 		i27T.Fatal(i27Before)
 	}
 	for _, i27Kind := range []string{"failed", "oversize", "partial", "malformed"} {
@@ -211,14 +213,14 @@ func TestI27RetentionAndReplacement(i27T *testing.T) {
 		case "oversize":
 			i27Value.Words = make([]uint16, 4096)
 		case "partial":
-			i27Value.Missing = []OutBackWordSpan{{1, 1}}
+			i27Value.Missing = []WordSpan{{1, 1}}
 		case "malformed":
-			i27Value.Present = []OutBackWordSpan{{9, 2}}
+			i27Value.Present = []WordSpan{{9, 2}}
 		}
 		i27Err := i27P.I27Cycle(context.Background(), time.Unix(2, 0))
-		i27ExpectedStatus := OutBackOfflineIncomplete
+		i27ExpectedStatus := OfflineIncomplete
 		if i27Kind == "failed" || i27Kind == "oversize" {
-			i27ExpectedStatus = OutBackOfflineFailed
+			i27ExpectedStatus = OfflineFailed
 			if i27Err == nil {
 				i27T.Fatal("failure accepted")
 			}
@@ -226,7 +228,7 @@ func TestI27RetentionAndReplacement(i27T *testing.T) {
 			i27T.Fatal(i27Err)
 		}
 		i27S := i27P.I27Snapshot(i27Input().Source)
-		if i27S.Record != i27Before.Record || i27S.RetainedAt != time.Unix(1, 0) || i27S.RetainedAttempt != i27Before.RetainedAttempt || i27S.Status != i27ExpectedStatus || i27S.Association != OutBackAssociationCurrent {
+		if i27S.Record != i27Before.Record || i27S.RetainedAt != time.Unix(1, 0) || i27S.RetainedAttempt != i27Before.RetainedAttempt || i27S.Status != i27ExpectedStatus || i27S.Association != AssociationCurrent {
 			i27T.Fatal("retained record renewed/lost", i27Kind, i27S)
 		}
 	}
@@ -235,12 +237,12 @@ func TestI27RetentionAndReplacement(i27T *testing.T) {
 	}
 	i27Value = i27Input()
 	i27Failure = nil
-	for _, i27Source := range []OutBackSourceAssociation{i27Input().Source, {}, i27Input().Source} {
+	for _, i27Source := range []SourceAssociation{i27Input().Source, {}, i27Input().Source} {
 		if i27Err := i27P.I27Replace(i27Source); i27Err != nil {
 			i27T.Fatal(i27Err)
 		}
 		i27S := i27P.I27Snapshot(i27Input().Source)
-		if i27S.Association != OutBackAssociationHistorical || i27S.Record != i27Before.Record || i27S.RetainedAt != time.Unix(1, 0) || i27S.RetainedAttempt != i27Before.RetainedAttempt {
+		if i27S.Association != AssociationHistorical || i27S.Record != i27Before.Record || i27S.RetainedAt != time.Unix(1, 0) || i27S.RetainedAttempt != i27Before.RetainedAttempt {
 			i27T.Fatal("replacement resurrected/redated history", i27S)
 		}
 	}
@@ -248,11 +250,11 @@ func TestI27RetentionAndReplacement(i27T *testing.T) {
 		i27T.Fatal(i27Err)
 	}
 	i27After := i27P.I27Snapshot(i27Input().Source)
-	if i27After.Association != OutBackAssociationCurrent || i27After.RetainedAttempt.Generation != 4 || i27After.RetainedAt != time.Unix(3, 0) || i27After.Record == i27Before.Record {
+	if i27After.Association != AssociationCurrent || i27After.RetainedAttempt.Generation != 4 || i27After.RetainedAt != time.Unix(3, 0) || i27After.Record == i27Before.Record {
 		i27T.Fatal(i27After)
 	}
 	i27P.I27Retire()
-	if i27S := i27P.I27Snapshot(i27Input().Source); i27S.Association != OutBackAssociationHistorical || i27S.Record != i27After.Record || i27S.RetainedAt != time.Unix(3, 0) {
+	if i27S := i27P.I27Snapshot(i27Input().Source); i27S.Association != AssociationHistorical || i27S.Record != i27After.Record || i27S.RetainedAt != time.Unix(3, 0) {
 		i27T.Fatal(i27S)
 	}
 	i27Denied(i27T, i27After.Record)
@@ -262,15 +264,15 @@ func TestI27Detachment(i27T *testing.T) {
 	for _, i27Partial := range []bool{false, true} {
 		i27Value := i27Input()
 		if i27Partial {
-			i27Value.Missing = []OutBackWordSpan{{2, 1}}
-			i27Value.Occurrences[0].Missing = []OutBackWordSpan{{1, 1}}
+			i27Value.Missing = []WordSpan{{2, 1}}
+			i27Value.Occurrences[0].Missing = []WordSpan{{1, 1}}
 		}
 		i27Want := i27Input()
 		if i27Partial {
-			i27Want.Missing = []OutBackWordSpan{{2, 1}}
-			i27Want.Occurrences[0].Missing = []OutBackWordSpan{{1, 1}}
+			i27Want.Missing = []WordSpan{{2, 1}}
+			i27Want.Occurrences[0].Missing = []WordSpan{{1, 1}}
 		}
-		i27C := i27Config(func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) { return i27Value, nil })
+		i27C := i27Config(func(context.Context, OfflineAttempt) (DetachedRecordInput, error) { return i27Value, nil })
 		i27P, i27Err := I27NewOutBackAdapter(i27C)
 		if i27Err != nil {
 			i27T.Fatal(i27Err)
@@ -317,7 +319,7 @@ func TestI27CallbackFences(i27T *testing.T) {
 			i27Release := make(chan struct{})
 			i27Done := make(chan error, 1)
 			i27Calls := 0
-			i27P := i27Provider(i27T, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+			i27P := i27Provider(i27T, func(context.Context, OfflineAttempt) (DetachedRecordInput, error) {
 				i27Calls++
 				if i27Calls == 2 {
 					close(i27Entered)
@@ -360,12 +362,12 @@ func TestI27CallbackFences(i27T *testing.T) {
 				i27T.Fatal("callback completion watchdog")
 			}
 			i27After := i27P.I27Snapshot(i27Input().Source)
-			i27Status := OutBackOfflineCanceled
+			i27Status := OfflineCanceled
 			if i27Event == "replace" {
-				i27Status = OutBackOfflineIdle
+				i27Status = OfflineIdle
 			}
 			if i27Event == "retire" {
-				i27Status = OutBackOfflineRetired
+				i27Status = OfflineRetired
 			}
 			if i27After.Record != i27Before.Record || i27After.RetainedAt != time.Unix(1, 0) || i27After.RetainedAttempt != i27Before.RetainedAttempt || i27After.Status != i27Status || i27Calls != 2 {
 				i27T.Fatal("late result changed history/status", i27After)

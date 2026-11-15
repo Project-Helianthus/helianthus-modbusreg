@@ -35,22 +35,22 @@ are independent of structural completeness, association and receipt time.
 
 ## API and finite bounds
 
-Implementation: [provider](../outback_offline_provider.go),
-[synthetic tests](../outback_offline_provider_test.go), and
+Implementation: [provider](../outback/outback_offline_provider.go),
+[synthetic tests](../outback/outback_offline_provider_test.go), and
 [detached-record contract](outback-detached-record.md).
 
 ```go
-type OutBackDiagnosticSupplier func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error)
-func NewOutBackOfflineProvider(source OutBackSourceAssociation, maxBytes uint64, maxWork time.Duration, supplier OutBackDiagnosticSupplier) (*OutBackOfflineProvider, error)
-func (*OutBackOfflineProvider) Cycle(ctx context.Context, receivedAt time.Time) error
-func (*OutBackOfflineProvider) Replace(source OutBackSourceAssociation) error
-func (*OutBackOfflineProvider) Retire()
-func (*OutBackOfflineProvider) Snapshot(current OutBackSourceAssociation) OutBackOfflineSnapshot
+type DiagnosticSupplier func(context.Context, OfflineAttempt) (DetachedRecordInput, error)
+func NewOfflineProvider(source SourceAssociation, maxBytes uint64, maxWork time.Duration, supplier DiagnosticSupplier) (*OfflineProvider, error)
+func (*OfflineProvider) Cycle(ctx context.Context, receivedAt time.Time) error
+func (*OfflineProvider) Replace(source SourceAssociation) error
+func (*OfflineProvider) Retire()
+func (*OfflineProvider) Snapshot(current SourceAssociation) OfflineSnapshot
 ```
 
 Construction requires positive practical `maxBytes`, positive finite `maxWork`
 and a nonnil supplier. Source metadata is checked using the existing
-`NewOutBackDetachedRecord` accounting and detached before storage. Zero work,
+`NewDetachedRecord` accounting and detached before storage. Zero work,
 negative work, missing callback or unbounded/oversize metadata is rejected
 without invoking the supplier. Record/source byte failures return
 `ErrOutBackDetachedRecordBound`; invalid configuration returns
@@ -68,7 +68,7 @@ returned evidence before detachment; it is deterministic evidence accounting,
 not exact heap accounting. During replacement a candidate and retained record
 can coexist transiently, each subject to the same bound.
 
-`OutBackOfflineAttempt` contains `Generation`, `Number` and `Source`. Local
+`OfflineAttempt` contains `Generation`, `Number` and `Source`. Local
 counters start with generation one and attempt zero; valid cycles increment the
 attempt number. These counters are publication context, not native identity,
 source revisions or qualification. Source key, revision, public locator, content
@@ -87,7 +87,7 @@ No mutation changes the retained record's original association.
 
 ## Publication, retention and loss
 
-`OutBackOfflineSnapshot` exposes immutable `Record`, caller-supplied `RetainedAt`,
+`OfflineSnapshot` exposes immutable `Record`, caller-supplied `RetainedAt`,
 `RetainedAttempt`, `LatestAttempt`, `Status` and `Association`. Mutable record
 accessors return detached copies. Receipt time is opaque caller metadata; no
 age threshold, ordering, TTL or freshness verdict is inferred from it.
@@ -133,7 +133,7 @@ consumer parity, G5 integration, transport conformance, runtime, passive device
 observation or hardware acceptance is claimed. No authentication or authorization
 gate is introduced. The parent issue stays open.
 
-Focused verification is `go test . -run '^TestOutbackOfflineProvider' -count=1`.
+Focused verification is `go test ./outback -run '^TestOutbackOfflineProvider' -count=1`.
 Tests use synthetic records, barriers, invocation spies and logical receipt
 or expiry values. Offline evidence is not physical qualification. Independent
 review, the public companion comparison and complete committed-head gates remain

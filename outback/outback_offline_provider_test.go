@@ -1,4 +1,4 @@
-package modbusreg
+package outback
 
 import (
 	"context"
@@ -7,40 +7,42 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
-func offlineInput() OutBackDetachedRecordInput {
-	return OutBackDetachedRecordInput{Words: []uint16{7, 8}, DeclaredWords: 2, Present: []OutBackWordSpan{{0, 2}}, Source: OutBackSourceAssociation{Key: "family-source", Revision: "one", PublicLocator: "public/source", ContentIdentity: "synthetic-content", DeclaredLayout: "opaque", SourceSetRevision: "set-one", SelectorInputs: "synthetic", Available: true}, Occurrences: []OutBackDetachedOccurrence{
-		{Ordinal: 3, WireKey: SunSpecWireKey{64111, 1}, Words: []uint16{7}, Present: []OutBackWordSpan{{0, 1}}},
-		{Ordinal: 5, WireKey: SunSpecWireKey{64111, 1}, Offset: 1, Words: []uint16{8}, Present: []OutBackWordSpan{{0, 1}}},
+func offlineInput() DetachedRecordInput {
+	return DetachedRecordInput{Words: []uint16{7, 8}, DeclaredWords: 2, Present: []WordSpan{{0, 2}}, Source: SourceAssociation{Key: "family-source", Revision: "one", PublicLocator: "public/source", ContentIdentity: "synthetic-content", DeclaredLayout: "opaque", SourceSetRevision: "set-one", SelectorInputs: "synthetic", Available: true}, Occurrences: []DetachedOccurrence{
+		{Ordinal: 3, WireKey: modbusreg.SunSpecWireKey{ModelID: 64111, ModelLength: 1}, Words: []uint16{7}, Present: []WordSpan{{0, 1}}},
+		{Ordinal: 5, WireKey: modbusreg.SunSpecWireKey{ModelID: 64111, ModelLength: 1}, Offset: 1, Words: []uint16{8}, Present: []WordSpan{{0, 1}}},
 	}}
 }
-func outBackOfflineProvider(t *testing.T, supplier OutBackDiagnosticSupplier) *OutBackOfflineProvider {
+func outBackOfflineProvider(t *testing.T, supplier DiagnosticSupplier) *OfflineProvider {
 	t.Helper()
-	p, err := NewOutBackOfflineProvider(offlineInput().Source, 4096, time.Second, supplier)
+	p, err := NewOfflineProvider(offlineInput().Source, 4096, time.Second, supplier)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return p
 }
-func offlineNoGo(t *testing.T, r *OutBackDetachedRecord) {
+func offlineNoGo(t *testing.T, r *DetachedRecord) {
 	t.Helper()
-	if r.Evaluate().Matched() || r.Evaluate().Reason() != OutBackAXSReadOnlyFlavorReasonSourceNotQualified || len(r.TypedFacts()) != 0 || len(r.Requests()) != 0 {
+	if r.Evaluate().Matched() || r.Evaluate().Reason() != AXSReadOnlyFlavorReasonSourceNotQualified || len(r.TypedFacts()) != 0 || len(r.Requests()) != 0 {
 		t.Fatal("admission or output")
 	}
 }
 func TestOutbackOfflineProviderBounds(t *testing.T) {
 	calls := 0
-	supplier := func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	supplier := func(context.Context, OfflineAttempt) (DetachedRecordInput, error) {
 		calls++
 		return offlineInput(), nil
 	}
 	for _, c := range []struct {
 		bytes uint64
 		work  time.Duration
-		fn    OutBackDiagnosticSupplier
+		fn    DiagnosticSupplier
 	}{{0, time.Second, supplier}, {4096, 0, supplier}, {4096, -1, supplier}, {4096, time.Second, nil}, {1, time.Second, supplier}} {
-		if p, err := NewOutBackOfflineProvider(offlineInput().Source, c.bytes, c.work, c.fn); err == nil || p != nil {
+		if p, err := NewOfflineProvider(offlineInput().Source, c.bytes, c.work, c.fn); err == nil || p != nil {
 			t.Fatal("invalid configuration accepted")
 		}
 	}
@@ -76,7 +78,7 @@ func TestOutbackOfflineProviderBounds(t *testing.T) {
 func TestOutbackOfflineProviderRetention(t *testing.T) {
 	input := offlineInput()
 	var supplierErr error
-	p := outBackOfflineProvider(t, func(_ context.Context, a OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	p := outBackOfflineProvider(t, func(_ context.Context, a OfflineAttempt) (DetachedRecordInput, error) {
 		if a.Generation != 1 || a.Number == 0 || a.Source != offlineInput().Source {
 			t.Error("attempt not frozen")
 		}
@@ -87,7 +89,7 @@ func TestOutbackOfflineProviderRetention(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := p.Snapshot(input.Source)
-	if s.Record == nil || !s.Record.Complete() || s.Association != OutBackAssociationCurrent || s.Status != OutBackOfflineImported || s.RetainedAt != first {
+	if s.Record == nil || !s.Record.Complete() || s.Association != AssociationCurrent || s.Status != OfflineImported || s.RetainedAt != first {
 		t.Fatal(s)
 	}
 	want := offlineInput()
@@ -108,9 +110,9 @@ func TestOutbackOfflineProviderRetention(t *testing.T) {
 		case "oversize":
 			input.Words = make([]uint16, 4096)
 		case "incomplete":
-			input.Missing = []OutBackWordSpan{{1, 1}}
+			input.Missing = []WordSpan{{1, 1}}
 		case "malformed":
-			input.Present = []OutBackWordSpan{{^uint64(0), 2}}
+			input.Present = []WordSpan{{^uint64(0), 2}}
 		}
 		err := p.Cycle(context.Background(), time.Unix(20, 0))
 		if (kind == "error" || kind == "oversize") && err == nil {
@@ -123,10 +125,10 @@ func TestOutbackOfflineProviderRetention(t *testing.T) {
 		if got.Record != s.Record || got.RetainedAt != first || got.RetainedAttempt != s.RetainedAttempt || got.LatestAttempt.Number != s.LatestAttempt.Number+1 {
 			t.Fatal("failure/partial replaced record or renewed age", kind, got)
 		}
-		if (kind == "error" || kind == "oversize") && got.Status != OutBackOfflineFailed {
+		if (kind == "error" || kind == "oversize") && got.Status != OfflineFailed {
 			t.Fatal(got.Status)
 		}
-		if (kind == "incomplete" || kind == "malformed") && got.Status != OutBackOfflineIncomplete {
+		if (kind == "incomplete" || kind == "malformed") && got.Status != OfflineIncomplete {
 			t.Fatal(got.Status)
 		}
 		offlineNoGo(t, got.Record)
@@ -137,17 +139,17 @@ func TestOutbackOfflineProviderDiagnostic(t *testing.T) {
 	for _, malformed := range []bool{false, true} {
 		i := offlineInput()
 		i.DeclaredWords = 3
-		i.Missing = []OutBackWordSpan{{2, 1}}
-		i.Occurrences[0].Missing = []OutBackWordSpan{{1, 2}}
+		i.Missing = []WordSpan{{2, 1}}
+		i.Occurrences[0].Missing = []WordSpan{{1, 2}}
 		if malformed {
-			i.Present = []OutBackWordSpan{{^uint64(0), 2}}
+			i.Present = []WordSpan{{^uint64(0), 2}}
 		}
-		p := outBackOfflineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) { return i, nil })
+		p := outBackOfflineProvider(t, func(context.Context, OfflineAttempt) (DetachedRecordInput, error) { return i, nil })
 		if err := p.Cycle(context.Background(), time.Unix(1, 0)); err != nil {
 			t.Fatal(err)
 		}
 		s := p.Snapshot(i.Source)
-		if s.Status != OutBackOfflineIncomplete || s.Record == nil || s.Record.Complete() || !reflect.DeepEqual(s.Record.Occurrences(), i.Occurrences) || !reflect.DeepEqual(s.Record.MissingSpans(), i.Missing) || !reflect.DeepEqual(s.Record.PresentSpans(), i.Present) {
+		if s.Status != OfflineIncomplete || s.Record == nil || s.Record.Complete() || !reflect.DeepEqual(s.Record.Occurrences(), i.Occurrences) || !reflect.DeepEqual(s.Record.MissingSpans(), i.Missing) || !reflect.DeepEqual(s.Record.PresentSpans(), i.Present) {
 			t.Fatal("diagnostics lost")
 		}
 		i.Missing[0].Offset = 9
@@ -158,15 +160,15 @@ func TestOutbackOfflineProviderDiagnostic(t *testing.T) {
 		offlineNoGo(t, s.Record)
 	}
 }
-func offlineChanges() map[string]func(*OutBackSourceAssociation) {
-	return map[string]func(*OutBackSourceAssociation){
-		"Key": func(s *OutBackSourceAssociation) { s.Key = "other" }, "Revision": func(s *OutBackSourceAssociation) { s.Revision = "two" }, "PublicLocator": func(s *OutBackSourceAssociation) { s.PublicLocator = "public/other" }, "ContentIdentity": func(s *OutBackSourceAssociation) { s.ContentIdentity = "different-synthetic-content" }, "DeclaredLayout": func(s *OutBackSourceAssociation) { s.DeclaredLayout = "conflict" }, "SourceSetRevision": func(s *OutBackSourceAssociation) { s.SourceSetRevision = "set-two" }, "SelectorInputs": func(s *OutBackSourceAssociation) { s.SelectorInputs = "other" }, "Available": func(s *OutBackSourceAssociation) { s.Available = false },
+func offlineChanges() map[string]func(*SourceAssociation) {
+	return map[string]func(*SourceAssociation){
+		"Key": func(s *SourceAssociation) { s.Key = "other" }, "Revision": func(s *SourceAssociation) { s.Revision = "two" }, "PublicLocator": func(s *SourceAssociation) { s.PublicLocator = "public/other" }, "ContentIdentity": func(s *SourceAssociation) { s.ContentIdentity = "different-synthetic-content" }, "DeclaredLayout": func(s *SourceAssociation) { s.DeclaredLayout = "conflict" }, "SourceSetRevision": func(s *SourceAssociation) { s.SourceSetRevision = "set-two" }, "SelectorInputs": func(s *SourceAssociation) { s.SelectorInputs = "other" }, "Available": func(s *SourceAssociation) { s.Available = false },
 	}
 }
 func TestOutbackOfflineProviderAssociation(t *testing.T) {
 	for name, change := range offlineChanges() {
 		t.Run(name, func(t *testing.T) {
-			p := outBackOfflineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+			p := outBackOfflineProvider(t, func(context.Context, OfflineAttempt) (DetachedRecordInput, error) {
 				return offlineInput(), nil
 			})
 			if err := p.Cycle(context.Background(), time.Unix(1, 0)); err != nil {
@@ -175,7 +177,7 @@ func TestOutbackOfflineProviderAssociation(t *testing.T) {
 			current := offlineInput().Source
 			change(&current)
 			s := p.Snapshot(current)
-			if s.Association != OutBackAssociationHistorical || s.Record.SourceAssociation() != offlineInput().Source {
+			if s.Association != AssociationHistorical || s.Record.SourceAssociation() != offlineInput().Source {
 				t.Fatal("relabeled association")
 			}
 			if err := p.Replace(current); err != nil {
@@ -184,35 +186,35 @@ func TestOutbackOfflineProviderAssociation(t *testing.T) {
 			if p.Snapshot(current).LatestAttempt != s.LatestAttempt {
 				t.Fatal("replacement relabeled latest attempted context")
 			}
-			if p.Snapshot(offlineInput().Source).Association != OutBackAssociationHistorical {
+			if p.Snapshot(offlineInput().Source).Association != AssociationHistorical {
 				t.Fatal("previous descriptor still current after replacement")
 			}
 			if err := p.Cycle(context.Background(), time.Unix(2, 0)); !errors.Is(err, ErrOutBackOfflineAssociation) {
 				t.Fatal("mismatched supplier association accepted", err)
 			}
 			got := p.Snapshot(current)
-			if got.Record != s.Record || got.RetainedAt != s.RetainedAt || got.Status != OutBackOfflineFailed {
+			if got.Record != s.Record || got.RetainedAt != s.RetainedAt || got.Status != OfflineFailed {
 				t.Fatal("mismatch committed")
 			}
 		})
 	}
-	p := outBackOfflineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	p := outBackOfflineProvider(t, func(context.Context, OfflineAttempt) (DetachedRecordInput, error) {
 		return offlineInput(), nil
 	})
 	if err := p.Cycle(context.Background(), time.Unix(1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if p.Snapshot(OutBackSourceAssociation{}).Association != OutBackAssociationHistorical {
+	if p.Snapshot(SourceAssociation{}).Association != AssociationHistorical {
 		t.Fatal("missing source current")
 	}
 }
 func TestOutbackOfflineProviderFences(t *testing.T) {
 	for _, event := range []string{"generation", "attempt", "retire", "cancel", "deadline"} {
 		t.Run(event, func(t *testing.T) {
-			entered := make(chan OutBackOfflineAttempt, 1)
+			entered := make(chan OfflineAttempt, 1)
 			release := make(chan struct{})
 			done := make(chan error, 1)
-			p := outBackOfflineProvider(t, func(_ context.Context, a OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+			p := outBackOfflineProvider(t, func(_ context.Context, a OfflineAttempt) (DetachedRecordInput, error) {
 				if a.Number == 1 {
 					entered <- a
 					<-release
@@ -227,7 +229,7 @@ func TestOutbackOfflineProviderFences(t *testing.T) {
 				ctx = manual
 			}
 			go func() { done <- p.Cycle(ctx, time.Unix(1, 0)) }()
-			var frozen OutBackOfflineAttempt
+			var frozen OfflineAttempt
 			select {
 			case frozen = <-entered:
 			case <-time.After(2 * time.Second):
@@ -272,7 +274,7 @@ func TestOutbackOfflineProviderFences(t *testing.T) {
 				}
 			}
 			if event == "cancel" || event == "deadline" {
-				if after.Status != OutBackOfflineCanceled {
+				if after.Status != OfflineCanceled {
 					t.Fatal(after.Status)
 				}
 			}
@@ -303,7 +305,7 @@ func (c *offlineDeadlineContext) Err() error {
 
 func TestOutbackOfflineProviderSuccessfulReplacement(t *testing.T) {
 	input := offlineInput()
-	p := outBackOfflineProvider(t, func(ctx context.Context, a OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	p := outBackOfflineProvider(t, func(ctx context.Context, a OfflineAttempt) (DetachedRecordInput, error) {
 		if deadline, ok := ctx.Deadline(); !ok || deadline.After(time.Now().Add(time.Second)) {
 			t.Error("missing bounded work deadline")
 		}
@@ -326,12 +328,12 @@ func TestOutbackOfflineProviderSuccessfulReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := p.Snapshot(next)
-	if got.Record == old.Record || got.RetainedAt != time.Unix(2, 0) || got.Record.SourceAssociation() != next || got.RetainedAttempt.Generation != 2 || got.RetainedAttempt.Number != 2 || got.LatestAttempt != got.RetainedAttempt || got.Association != OutBackAssociationCurrent || !reflect.DeepEqual(got.Record.RawWords(), []uint16{9, 10}) {
+	if got.Record == old.Record || got.RetainedAt != time.Unix(2, 0) || got.Record.SourceAssociation() != next || got.RetainedAttempt.Generation != 2 || got.RetainedAttempt.Number != 2 || got.LatestAttempt != got.RetainedAttempt || got.Association != AssociationCurrent || !reflect.DeepEqual(got.Record.RawWords(), []uint16{9, 10}) {
 		t.Fatal(got)
 	}
 	p.Retire()
 	retired := p.Snapshot(next)
-	if retired.Record != got.Record || retired.RetainedAt != got.RetainedAt || retired.Association != OutBackAssociationHistorical {
+	if retired.Record != got.Record || retired.RetainedAt != got.RetainedAt || retired.Association != AssociationHistorical {
 		t.Fatal("retirement lost historical evidence")
 	}
 	offlineNoGo(t, got.Record)
@@ -339,7 +341,7 @@ func TestOutbackOfflineProviderSuccessfulReplacement(t *testing.T) {
 func TestOutbackOfflineProviderUnavailable(t *testing.T) {
 	input := offlineInput()
 	input.Source.Available = false
-	p, err := NewOutBackOfflineProvider(input.Source, 4096, time.Second, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) { return input, nil })
+	p, err := NewOfflineProvider(input.Source, 4096, time.Second, func(context.Context, OfflineAttempt) (DetachedRecordInput, error) { return input, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,13 +349,13 @@ func TestOutbackOfflineProviderUnavailable(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := p.Snapshot(input.Source)
-	if s.Record == nil || s.Association != OutBackAssociationHistorical || s.Record.SourceAssociation().Available {
+	if s.Record == nil || s.Association != AssociationHistorical || s.Record.SourceAssociation().Available {
 		t.Fatal(s)
 	}
 	offlineNoGo(t, s.Record)
 }
 func TestOutbackOfflineProviderZeroAndExhaustion(t *testing.T) {
-	var zero OutBackOfflineProvider
+	var zero OfflineProvider
 	if err := zero.Cycle(context.Background(), time.Unix(1, 0)); err == nil {
 		t.Fatal("zero cycle accepted")
 	}
@@ -361,12 +363,12 @@ func TestOutbackOfflineProviderZeroAndExhaustion(t *testing.T) {
 		t.Fatal("zero replacement accepted")
 	}
 	s := zero.Snapshot(offlineInput().Source)
-	if s.Record != nil || s.Association != OutBackAssociationHistorical {
+	if s.Record != nil || s.Association != AssociationHistorical {
 		t.Fatal(s)
 	}
 	offlineNoGo(t, s.Record)
 	calls := 0
-	p := outBackOfflineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	p := outBackOfflineProvider(t, func(context.Context, OfflineAttempt) (DetachedRecordInput, error) {
 		calls++
 		return offlineInput(), nil
 	})
@@ -399,7 +401,7 @@ func (c *offlinePublicationCancel) Err() error {
 }
 func TestOutbackOfflineProviderPublicationCancel(t *testing.T) {
 	ctx := &offlinePublicationCancel{Context: context.Background()}
-	p := outBackOfflineProvider(t, func(context.Context, OutBackOfflineAttempt) (OutBackDetachedRecordInput, error) {
+	p := outBackOfflineProvider(t, func(context.Context, OfflineAttempt) (DetachedRecordInput, error) {
 		ctx.armed = true
 		return offlineInput(), nil
 	})
@@ -407,7 +409,7 @@ func TestOutbackOfflineProviderPublicationCancel(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := p.Snapshot(offlineInput().Source)
-	if s.Record != nil || !s.RetainedAt.IsZero() || s.Status != OutBackOfflineCanceled {
+	if s.Record != nil || !s.RetainedAt.IsZero() || s.Status != OfflineCanceled {
 		t.Fatal("publication ignored cancellation", s)
 	}
 }
