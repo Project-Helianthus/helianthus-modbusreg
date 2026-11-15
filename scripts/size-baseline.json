@@ -62,18 +62,6 @@
       "value": 68
     },
     {
-      "path": "huawei/huawei_readonly_provider.go",
-      "symbol": "$file",
-      "metric": "file_lines",
-      "value": 1619
-    },
-    {
-      "path": "huawei/huawei_readonly_provider.go",
-      "symbol": "$file",
-      "metric": "functions_per_file",
-      "value": 62
-    },
-    {
       "path": "huawei/huawei_sdongle_observed_test.go",
       "symbol": "$file",
       "metric": "functions_per_file",
