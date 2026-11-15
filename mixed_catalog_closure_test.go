@@ -11,6 +11,7 @@ import (
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/fronius"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 type mixedCatalogClosure struct {
@@ -109,7 +110,7 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 	wantParticipants := []struct {
 		id, role, disposition, runtimeIdentity, dispositionFile string
 	}{
-		{"sunspec.direct-inverter", "PRIMARY", "CONDITIONAL_CAPABILITY", reg.SunSpecThreePhaseMonitoringCapabilityID, ""},
+		{"sunspec.direct-inverter", "PRIMARY", "CONDITIONAL_CAPABILITY", sunspec.ThreePhaseMonitoringCapabilityID, ""},
 		{"fronius.gen24", "POST_PRIMARY_FLAVOR", "QUALIFIED_FLAVOR_CLASSIFICATION", fronius.SunSpecFroniusObservedFlavorID + "," + fronius.SunSpecFroniusObservedFlavorV11ID, ""},
 		{"growatt.direct-inverter", "PRIMARY_CANDIDATE", "OFFLINE_IDENTITY_ADMITTED", "", "profiles/vendors/growatt/disposition.json"},
 		{"huawei.smartlogger", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendors/huawei/smartlogger-disposition.json"},

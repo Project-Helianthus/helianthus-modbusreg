@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 func TestSunSpecPhaseOneActivationBindsRawChainAndObservation(t *testing.T) {
@@ -16,7 +17,7 @@ func TestSunSpecPhaseOneActivationBindsRawChainAndObservation(t *testing.T) {
 		t.Fatalf("Parse: %v", err)
 	}
 	capture, observation := reviewCapture(t, profile, raw, 77, 900, reg.TransportTCP)
-	activated, err := decoder.Activate(reg.SunSpecPhaseOneActivation{
+	activated, err := decoder.Activate(sunspec.PhaseOneActivation{
 		Chain:       chain,
 		RawWords:    raw,
 		Capture:     capture,
@@ -32,37 +33,37 @@ func TestSunSpecPhaseOneActivationBindsRawChainAndObservation(t *testing.T) {
 
 	mutations := []struct {
 		name   string
-		mutate func(*reg.SunSpecPhaseOneActivation)
+		mutate func(*sunspec.PhaseOneActivation)
 	}{
-		{"unrelated raw words", func(a *reg.SunSpecPhaseOneActivation) { a.RawWords = reviewRawChain(102) }},
-		{"endpoint", func(a *reg.SunSpecPhaseOneActivation) { a.Observation.Endpoint = "fixture:other" }},
-		{"unit", func(a *reg.SunSpecPhaseOneActivation) { a.Observation.UnitID++ }},
-		{"poll generation", func(a *reg.SunSpecPhaseOneActivation) { a.Observation.PollGenerationID++ }},
-		{"dependency identity", func(a *reg.SunSpecPhaseOneActivation) { a.Observation.Dependencies[0].DependencyID = "other" }},
-		{"wire identity", func(a *reg.SunSpecPhaseOneActivation) {
+		{"unrelated raw words", func(a *sunspec.PhaseOneActivation) { a.RawWords = reviewRawChain(102) }},
+		{"endpoint", func(a *sunspec.PhaseOneActivation) { a.Observation.Endpoint = "fixture:other" }},
+		{"unit", func(a *sunspec.PhaseOneActivation) { a.Observation.UnitID++ }},
+		{"poll generation", func(a *sunspec.PhaseOneActivation) { a.Observation.PollGenerationID++ }},
+		{"dependency identity", func(a *sunspec.PhaseOneActivation) { a.Observation.Dependencies[0].DependencyID = "other" }},
+		{"wire identity", func(a *sunspec.PhaseOneActivation) {
 			record := a.Observation.Dependencies[0].View.Record()
 			record.WireResponseID++
 			a.Observation.Dependencies[0].View = snapshotFromRecord(t, record)
 		}},
-		{"physical identity", func(a *reg.SunSpecPhaseOneActivation) {
+		{"physical identity", func(a *sunspec.PhaseOneActivation) {
 			record := a.Observation.Dependencies[0].View.Record()
 			record.PhysicalRequestID++
 			a.Observation.Dependencies[0].View = snapshotFromRecord(t, record)
 		}},
-		{"logical identity", func(a *reg.SunSpecPhaseOneActivation) {
+		{"logical identity", func(a *sunspec.PhaseOneActivation) {
 			record := a.Observation.Dependencies[0].View.Record()
 			record.LogicalViewID++
 			a.Observation.Dependencies[0].View = snapshotFromRecord(t, record)
 		}},
-		{"torn generation", func(a *reg.SunSpecPhaseOneActivation) {
+		{"torn generation", func(a *sunspec.PhaseOneActivation) {
 			record := a.Observation.Dependencies[0].View.Record()
 			record.TransportGeneration++
 			a.Observation.Dependencies[0].View = snapshotFromRecord(t, record)
 		}},
-		{"reordered source views", func(a *reg.SunSpecPhaseOneActivation) {
+		{"reordered source views", func(a *sunspec.PhaseOneActivation) {
 			a.Capture.SourceViews[0], a.Capture.SourceViews[1] = a.Capture.SourceViews[1], a.Capture.SourceViews[0]
 		}},
-		{"mixed acquisition generation", func(a *reg.SunSpecPhaseOneActivation) {
+		{"mixed acquisition generation", func(a *sunspec.PhaseOneActivation) {
 			record := a.Capture.SourceViews[1].Record()
 			record.TransportGeneration++
 			a.Capture.SourceViews[1] = snapshotFromRecord(t, record)
@@ -70,7 +71,7 @@ func TestSunSpecPhaseOneActivationBindsRawChainAndObservation(t *testing.T) {
 	}
 	for _, test := range mutations {
 		t.Run(test.name, func(t *testing.T) {
-			activation := reg.SunSpecPhaseOneActivation{Chain: chain, RawWords: raw, Capture: capture, Observation: observation}
+			activation := sunspec.PhaseOneActivation{Chain: chain, RawWords: raw, Capture: capture, Observation: observation}
 			activation.Capture.SourceViews = append([]reg.LogicalViewSnapshot(nil), capture.SourceViews...)
 			test.mutate(&activation)
 			if _, err := decoder.Activate(activation); err == nil {
@@ -89,7 +90,7 @@ func TestSunSpecPhaseOneFreshActivationRequiresExactSourceViews(t *testing.T) {
 	}
 	capture, _ := reviewCapture(t, profile, raw, 81, 1000, reg.TransportTCP)
 	_, unrelated := reviewCapture(t, profile, raw, 82, 2000, reg.TransportTCP)
-	if _, err := decoder.Activate(reg.SunSpecPhaseOneActivation{
+	if _, err := decoder.Activate(sunspec.PhaseOneActivation{
 		Chain: chain, RawWords: raw, Capture: capture, Observation: unrelated,
 	}); err == nil {
 		t.Fatal("fresh decoder accepted an unrelated but internally valid observation")
@@ -107,7 +108,7 @@ func TestSunSpecPhaseOneIdenticalRawAllowsDistinctCoherentPolls(t *testing.T) {
 			}
 			for index, poll := range []uint64{91, 92} {
 				capture, observation := reviewCapture(t, profile, raw, poll, uint64(3000+index*100), transport)
-				activated, err := decoder.Activate(reg.SunSpecPhaseOneActivation{
+				activated, err := decoder.Activate(sunspec.PhaseOneActivation{
 					Chain: chain, RawWords: raw, Capture: capture, Observation: observation,
 				})
 				if err != nil {
@@ -240,13 +241,13 @@ func TestSunSpecPhaseOneRejectsTrailingWordsAndInvalidCommonOrder(t *testing.T) 
 	}
 }
 
-func reviewDecoder(t *testing.T) (reg.SunSpecPhaseOneDecoder, reg.ProfileDescriptor) {
+func reviewDecoder(t *testing.T) (sunspec.PhaseOneDecoder, reg.ProfileDescriptor) {
 	t.Helper()
-	profile, err := reg.NewSunSpecPhaseOneProfile(reg.SunSpecPhaseOneVersions{Profile: version(t, "1.0.0"), Codec: version(t, "1.0.0")})
+	profile, err := sunspec.NewSunSpecPhaseOneProfile(sunspec.PhaseOneVersions{Profile: version(t, "1.0.0"), Codec: version(t, "1.0.0")})
 	if err != nil {
 		t.Fatalf("NewSunSpecPhaseOneProfile: %v", err)
 	}
-	decoder, err := reg.NewSunSpecPhaseOneDecoder(profile)
+	decoder, err := sunspec.NewPhaseOneDecoder(profile)
 	if err != nil {
 		t.Fatalf("NewSunSpecPhaseOneDecoder: %v", err)
 	}
@@ -303,7 +304,7 @@ func reviewStringWords(value string, width int) []uint16 {
 	return words
 }
 
-func reviewCapture(t *testing.T, profile reg.ProfileDescriptor, raw []uint16, poll, base uint64, transport reg.TransportFamily) (reg.SunSpecPhaseOneCapture, reg.ObservationSpec) {
+func reviewCapture(t *testing.T, profile reg.ProfileDescriptor, raw []uint16, poll, base uint64, transport reg.TransportFamily) (sunspec.PhaseOneCapture, reg.ObservationSpec) {
 	t.Helper()
 	makeView := func(id uint64, offset uint16, words []uint16) reg.LogicalViewSnapshot {
 		record := logicalViewRecord(id, offset, 0, words)
@@ -326,7 +327,7 @@ func reviewCapture(t *testing.T, profile reg.ProfileDescriptor, raw []uint16, po
 	observation.SampleID = fmt.Sprintf("sunspec-sample-%d", poll)
 	observation.PollGenerationID, observation.Endpoint, observation.UnitID = poll, "fixture:source", 7
 	observation.Dependencies[0].View = first
-	return reg.SunSpecPhaseOneCapture{SourceViews: []reg.LogicalViewSnapshot{first, second}}, observation
+	return sunspec.PhaseOneCapture{SourceViews: []reg.LogicalViewSnapshot{first, second}}, observation
 }
 
 func modelIDsFromWords(words []uint16) []uint16 {

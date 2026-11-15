@@ -186,6 +186,68 @@ var outbackFiles = []string{
 	"outback_provider_port_test.go",
 }
 
+// sunspecFiles is the exact SunSpec standard-family move set: the production
+// files and the in-package tests. The two external phase-one tests in keep
+// share external fixtures with the root contract tests and stay at the root.
+var sunspecFiles = []string{
+	"sunspec_capability.go",
+	"sunspec_chain.go",
+	"sunspec_chain_plan.go",
+	"sunspec_core_types.go",
+	"sunspec_decoder.go",
+	"sunspec_model_catalog.go",
+	"sunspec_models_common.go",
+	"sunspec_models_controls.go",
+	"sunspec_models_der_v2.go",
+	"sunspec_models_environmental.go",
+	"sunspec_models_extended.go",
+	"sunspec_models_inverter.go",
+	"sunspec_models_meter.go",
+	"sunspec_models_mppt.go",
+	"sunspec_nested_layout.go",
+	"sunspec_nested_layout_builder.go",
+	"sunspec_phase1.go",
+	"sunspec_structural_projection.go",
+	"sunspec_value.go",
+	"sunspec_vendor_namespace.go",
+	"sunspec_accumulator_scale_boundary_test.go",
+	"sunspec_base_response_order_test.go",
+	"sunspec_bitfield_low_word_test.go",
+	"sunspec_bitfield_sentinel_residuals_test.go",
+	"sunspec_bitfield_symbol_order_test.go",
+	"sunspec_capability_test.go",
+	"sunspec_chain_chunk_boundaries_test.go",
+	"sunspec_chain_exact_budget_test.go",
+	"sunspec_chain_plan_test.go",
+	"sunspec_chain_provenance_axes_test.go",
+	"sunspec_chain_request_shape_test.go",
+	"sunspec_chain_test.go",
+	"sunspec_decoder_test.go",
+	"sunspec_extreme_scale_residuals_test.go",
+	"sunspec_float_bit_boundaries_test.go",
+	"sunspec_model_catalog_test.go",
+	"sunspec_models_common_test.go",
+	"sunspec_models_controls_test.go",
+	"sunspec_models_der_v2_test.go",
+	"sunspec_models_environmental_test.go",
+	"sunspec_models_equivalence_test.go",
+	"sunspec_models_extended_test.go",
+	"sunspec_models_inverter_test.go",
+	"sunspec_models_meter_test.go",
+	"sunspec_models_mppt_test.go",
+	"sunspec_nested_layout_builder_test.go",
+	"sunspec_nested_layout_test.go",
+	"sunspec_phase1_compat_test.go",
+	"sunspec_r3_test_helpers_test.go",
+	"sunspec_rejection_continuation_test.go",
+	"sunspec_scale_boundary_matrix_test.go",
+	"sunspec_sentinel_neighbor_matrix_test.go",
+	"sunspec_string_padding_matrix_test.go",
+	"sunspec_structural_projection_test.go",
+	"sunspec_value_int32_test.go",
+	"sunspec_value_test.go",
+}
+
 // detectionFiles is the exact detection move set: profile detection, its
 // decision serialization, the read plan, the fixture conformance and replay
 // runners and the in-package tests. The external detection tests share root
@@ -223,7 +285,10 @@ var families = []family{
 	}},
 	{name: "tesla", prefix: "Tesla", stems: []string{"tesla_"}},
 	{name: "huawei", prefix: "Huawei", files: huaweiFiles},
-	{name: "sunspec", prefix: "SunSpec", stems: []string{"sunspec_"}},
+	{name: "sunspec", prefix: "SunSpec", files: sunspecFiles, keep: []string{
+		"sunspec_phase1_review_test.go",
+		"sunspec_phase1_test.go",
+	}},
 	{name: "fronius", prefix: "Fronius", files: froniusFiles},
 	{name: "outback", prefix: "OutBack", files: outbackFiles},
 	{name: "detection", prefix: "Detection", files: detectionFiles},
@@ -353,7 +418,15 @@ func applyFamily(root string, f family, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "family %s: %d blockers, nothing moved\n", f.name, len(blockers))
 		return 1
 	}
+	outside, err := p.outsideOutputs()
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return 1
+	}
 	summary, err := p.write()
+	if err == nil {
+		summary, err = writeOutside(p.root, outside, summary)
+	}
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
 		return 1
@@ -382,8 +455,9 @@ func hasGoFiles(dir string) (bool, error) {
 }
 
 // movedFindings verifies a finished move: no selected file is left at the
-// root, every listed file is in the family directory, and no root file
-// declares a family name or reaches one through the root package.
+// root, every listed file is in the family directory, no root file declares a
+// family name, and no root file or module package outside the root reaches
+// one through the root package.
 func movedFindings(root string, f family) ([]string, error) {
 	listed, err := listRoot(root)
 	if err != nil {
@@ -409,16 +483,21 @@ func movedFindings(root string, f family) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	outside, err := outsideFiles(root, filepath.Join(root, f.name))
+	if err != nil {
+		return nil, err
+	}
 	sort.Strings(paths)
 	fset := token.NewFileSet()
-	for _, path := range paths {
-		file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+	for _, path := range append(paths, outside...) {
+		file, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {
 			return nil, err
 		}
-		name := filepath.Base(path)
+		rel, _ := filepath.Rel(root, path)
+		name := filepath.ToSlash(rel)
 		for _, declared := range declaredNames(file) {
-			if old[declared] {
+			if old[declared] && filepath.Dir(path) == root {
 				findings = append(findings, fmt.Sprintf("%s declares family name %s", name, declared))
 			}
 		}
@@ -491,7 +570,8 @@ func declaredNames(file *ast.File) []string {
 }
 
 // rootSelectors returns the names a file selects through its import of the
-// module root package.
+// module root package; a local that shadows the import name is not the
+// import, so a file parsed without object resolution counts it too.
 func rootSelectors(file *ast.File, module, rootName string) []string {
 	local := ""
 	for _, spec := range file.Imports {
@@ -505,7 +585,7 @@ func rootSelectors(file *ast.File, module, rootName string) []string {
 	var names []string
 	ast.Inspect(file, func(n ast.Node) bool {
 		if selector, ok := n.(*ast.SelectorExpr); ok && local != "" {
-			if x, ok := selector.X.(*ast.Ident); ok && x.Name == local {
+			if x, ok := selector.X.(*ast.Ident); ok && x.Name == local && x.Obj == nil {
 				names = append(names, selector.Sel.Name)
 			}
 		}
@@ -514,37 +594,56 @@ func rootSelectors(file *ast.File, module, rootName string) []string {
 	return names
 }
 
-// scanModule blocks references to moved names from module packages outside
-// the root directory; the move rewrites only the root package and its tests.
-func (p *plan) scanModule() error {
-	fset := token.NewFileSet()
-	family := filepath.Join(p.root, p.fam.name)
-	return filepath.WalkDir(p.root, func(path string, entry fs.DirEntry, err error) error {
+// outsideFiles lists the Go files of module packages outside the root and
+// family directories, skipping hidden, underscore and testdata directories.
+func outsideFiles(root, family string) ([]string, error) {
+	var paths []string
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		name := entry.Name()
 		if entry.IsDir() {
-			if path != p.root && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "testdata" || path == family) {
+			if path != root && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "testdata" || path == family) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if filepath.Dir(path) == p.root || !strings.HasSuffix(name, ".go") {
-			return nil
-		}
-		file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		if err != nil {
-			return err
-		}
-		for _, selected := range rootSelectors(file, p.module, p.rootName) {
-			if p.movedNames[selected] {
-				rel, _ := filepath.Rel(p.root, path)
-				p.block("%s refers to %s.%s; packages outside the root are not rewritten", filepath.ToSlash(rel), p.rootName, selected)
-			}
+		if filepath.Dir(path) != root && strings.HasSuffix(name, ".go") {
+			paths = append(paths, path)
 		}
 		return nil
 	})
+	return paths, err
+}
+
+// scanModule records the rewrite of every module package file outside the
+// root: a selector of a moved name through the root import names the family
+// package instead, and comments follow.
+func (p *plan) scanModule() error {
+	paths, err := outsideFiles(p.root, filepath.Join(p.root, p.fam.name))
+	if err != nil {
+		return err
+	}
+	for _, path := range paths {
+		text, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		file, err := parser.ParseFile(p.fset, path, text, parser.ParseComments)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(p.root, path)
+		if err != nil {
+			return err
+		}
+		s := &source{name: filepath.ToSlash(rel), file: file, text: text, locals: map[string]bool{}}
+		if p.requalify(s); len(s.edits) > 0 {
+			p.outside = append(p.outside, s)
+		}
+	}
+	return nil
 }
 
 // markdownOutputs rewrites README.md and docs/*.md: renamed identifiers,

@@ -9,6 +9,7 @@ import (
 
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/internal/sunspecfixture"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 // The qualification record is deliberately constructed from only a registry and
@@ -22,13 +23,13 @@ func TestSunSpecQualificationObservationDerivesAndRetainsExactV11Evidence(t *tes
 	if err != nil {
 		t.Fatalf("NewSunSpecQualificationObservation: %v", err)
 	}
-	if !observation.Capability().Admitted() || observation.Capability().Reason() != modbusreg.SunSpecCapabilityReasonAdmitted {
+	if !observation.Capability().Admitted() || observation.Capability().Reason() != sunspec.CapabilityReasonAdmitted {
 		t.Fatalf("capability=%#v", observation.Capability())
 	}
 	if !observation.Flavor().Matched() || observation.Flavor().FlavorID() != SunSpecFroniusObservedFlavorV11ID {
 		t.Fatalf("flavor=%#v", observation.Flavor())
 	}
-	wantChain := []modbusreg.SunSpecWireKey{{ModelID: 1, ModelLength: 65}, {ModelID: 113, ModelLength: 60}, {ModelID: 120, ModelLength: 26}, {ModelID: 121, ModelLength: 30}, {ModelID: 122, ModelLength: 44}, {ModelID: 123, ModelLength: 24}, {ModelID: 160, ModelLength: 88}, {ModelID: 124, ModelLength: 24}, {ModelID: modbusreg.SunSpecEndModelID, ModelLength: 0}}
+	wantChain := []sunspec.WireKey{{ModelID: 1, ModelLength: 65}, {ModelID: 113, ModelLength: 60}, {ModelID: 120, ModelLength: 26}, {ModelID: 121, ModelLength: 30}, {ModelID: 122, ModelLength: 44}, {ModelID: 123, ModelLength: 24}, {ModelID: 160, ModelLength: 88}, {ModelID: 124, ModelLength: 24}, {ModelID: sunspec.EndModelID, ModelLength: 0}}
 	if got := observation.Chain(); !reflect.DeepEqual(got, wantChain) {
 		t.Fatalf("chain=%#v want=%#v", got, wantChain)
 	}
@@ -51,11 +52,11 @@ func TestSunSpecQualificationObservationDerivesAndRetainsExactV11Evidence(t *tes
 		}
 	}
 	model123 := occurrences[5]
-	if model123.WireKey != (modbusreg.SunSpecWireKey{ModelID: 123, ModelLength: 24}) || model123.Disposition != modbusreg.SunSpecChainDispositionAdmitted {
+	if model123.WireKey != (sunspec.WireKey{ModelID: 123, ModelLength: 24}) || model123.Disposition != sunspec.ChainDispositionAdmitted {
 		t.Fatalf("model 123=%#v", model123)
 	}
 	key, ok := model123.DecoderKey()
-	if !ok || key != (modbusreg.SunSpecDecoderKey{ModelID: 123, ModelLength: 24, SchemaRevision: sunspecfixture.Revision}) || len(model123.SourceSpans()) == 0 || len(model123.Words()) != 26 {
+	if !ok || key != (sunspec.DecoderKey{ModelID: 123, ModelLength: 24, SchemaRevision: sunspecfixture.Revision}) || len(model123.SourceSpans()) == 0 || len(model123.Words()) != 26 {
 		t.Fatalf("model 123 key=%#v ok=%t spans=%#v raw=%#v", key, ok, model123.SourceSpans(), model123.Words())
 	}
 	if raw := observation.RawWords(); !reflect.DeepEqual(raw, snapshot.RawWords()) {
@@ -64,13 +65,13 @@ func TestSunSpecQualificationObservationDerivesAndRetainsExactV11Evidence(t *tes
 
 	// All getter results must remain detached from the immutable qualification.
 	chain, raw := observation.Chain(), observation.RawWords()
-	chain[0], raw[0] = modbusreg.SunSpecWireKey{}, 0
-	occurrences[5].WireKey = modbusreg.SunSpecWireKey{}
+	chain[0], raw[0] = sunspec.WireKey{}, 0
+	occurrences[5].WireKey = sunspec.WireKey{}
 	occurrenceWords := occurrences[5].Words()
 	occurrenceWords[0] = 0
 	record := views[0].Record()
 	record.Words[0] = 0
-	if observation.Chain()[0] != (modbusreg.SunSpecWireKey{ModelID: 1, ModelLength: 65}) || observation.RawWords()[0] != sunspecfixture.SignatureFirst || observation.Occurrences()[5].WireKey != (modbusreg.SunSpecWireKey{ModelID: 123, ModelLength: 24}) || observation.Occurrences()[5].Words()[0] != 123 || observation.SourceViews()[0].Record().Words[0] == 0 {
+	if observation.Chain()[0] != (sunspec.WireKey{ModelID: 1, ModelLength: 65}) || observation.RawWords()[0] != sunspecfixture.SignatureFirst || observation.Occurrences()[5].WireKey != (sunspec.WireKey{ModelID: 123, ModelLength: 24}) || observation.Occurrences()[5].Words()[0] != 123 || observation.SourceViews()[0].Record().Words[0] == 0 {
 		t.Fatal("qualification getters leaked caller mutation")
 	}
 }
@@ -107,7 +108,7 @@ func TestSunSpecQualificationObservationJSONGoldenAndBoundedReplay(t *testing.T)
 	if got.Schema != want.Schema || got.CapabilityID != want.CapabilityID || got.CapabilityReason != want.CapabilityReason || got.FlavorID != want.FlavorID || got.FlavorReason != want.FlavorReason || got.SampleID != want.SampleID || got.SampleIdentity != want.SampleIdentity || !reflect.DeepEqual(got.Chain, want.Chain) {
 		t.Fatalf("serialized metadata=%+v want=%+v", got.qualificationMetadata(), want)
 	}
-	if got.CapabilityReason != modbusreg.SunSpecCapabilityReasonAdmitted || got.FlavorReason != SunSpecFroniusFlavorReasonMatched {
+	if got.CapabilityReason != sunspec.CapabilityReasonAdmitted || got.FlavorReason != SunSpecFroniusFlavorReasonMatched {
 		t.Fatalf("serialized reasons capability=%q flavor=%q", got.CapabilityReason, got.FlavorReason)
 	}
 	if !reflect.DeepEqual(got.RawWords, observation.RawWords()) || len(got.Occurrences) != 8 || len(got.SourceViews) != len(observation.SourceViews()) {
@@ -121,7 +122,7 @@ func TestSunSpecQualificationObservationJSONGoldenAndBoundedReplay(t *testing.T)
 		}
 	}
 	model123 := got.Occurrences[5]
-	if model123.WireKey != (modbusreg.SunSpecWireKey{ModelID: 123, ModelLength: 24}) || model123.DecoderKey == nil || *model123.DecoderKey != (modbusreg.SunSpecDecoderKey{ModelID: 123, ModelLength: 24, SchemaRevision: sunspecfixture.Revision}) {
+	if model123.WireKey != (sunspec.WireKey{ModelID: 123, ModelLength: 24}) || model123.DecoderKey == nil || *model123.DecoderKey != (sunspec.DecoderKey{ModelID: 123, ModelLength: 24, SchemaRevision: sunspecfixture.Revision}) {
 		t.Fatalf("serialized model 123=%#v", model123)
 	}
 	for index, gotView := range got.SourceViews {
@@ -161,8 +162,8 @@ func TestSunSpecQualificationObservationJSONIgnoresPrivateStructuralCandidate(t 
 	// validation carries the private structural candidate; walked without it,
 	// it does not. Every value the encoder reads must be identical for both.
 	model707 := []uint16{707, 33, 0, 0, 0, 1, 2, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1}
-	plain := sunspecfixture.WalkWords(t, modbusreg.SunSpecChainPlanSpec{SchemaRevision: modbusreg.SunSpecModelsRevisionV2}, nil, model707).Occurrences()
-	selected := sunspecfixture.WalkWords(t, modbusreg.SunSpecChainPlanSpec{SchemaRevision: modbusreg.SunSpecModelsRevisionV2, StructuralCandidateIDs: []uint16{707}}, nil, model707).Occurrences()
+	plain := sunspecfixture.WalkWords(t, sunspec.ChainPlanSpec{SchemaRevision: sunspec.ModelsRevisionV2}, nil, model707).Occurrences()
+	selected := sunspecfixture.WalkWords(t, sunspec.ChainPlanSpec{SchemaRevision: sunspec.ModelsRevisionV2, StructuralCandidateIDs: []uint16{707}}, nil, model707).Occurrences()
 	if len(plain) != 1 || len(selected) != 1 || reflect.DeepEqual(plain[0], selected[0]) {
 		t.Fatal("structural validation attached no private candidate to the Model 707 occurrence")
 	}
@@ -298,7 +299,7 @@ func TestSunSpecQualificationObservationFailsClosed(t *testing.T) {
 	noMatch := qualificationSnapshotWithOccurrences(t, registry, noMatchOccurrences)
 
 	unknownOccurrence := sunspecfixture.Occurrence(t, registry, []uint16{999, 1, 7}, 9)
-	if unknownOccurrence.Disposition != modbusreg.SunSpecChainDispositionUnknownModel {
+	if unknownOccurrence.Disposition != sunspec.ChainDispositionUnknownModel {
 		t.Fatalf("unknown occurrence disposition=%q", unknownOccurrence.Disposition)
 	}
 	unknown := qualificationSnapshotWithOccurrences(t, registry, append(valid.Occurrences(), unknownOccurrence))
@@ -307,7 +308,7 @@ func TestSunSpecQualificationObservationFailsClosed(t *testing.T) {
 	unsupportedWords := make([]uint16, 27)
 	unsupportedWords[0], unsupportedWords[1] = 123, 25
 	unsupportedOccurrences[5] = sunspecfixture.Occurrence(t, registry, unsupportedWords, 6)
-	if unsupportedOccurrences[5].Disposition != modbusreg.SunSpecChainDispositionUnsupportedLength {
+	if unsupportedOccurrences[5].Disposition != sunspec.ChainDispositionUnsupportedLength {
 		t.Fatalf("unsupported occurrence disposition=%q", unsupportedOccurrences[5].Disposition)
 	}
 	unsupported := qualificationSnapshotWithOccurrences(t, registry, unsupportedOccurrences)
@@ -337,7 +338,7 @@ func TestSunSpecQualificationObservationFailsClosed(t *testing.T) {
 		return records
 	})
 
-	for name, snapshot := range map[string]modbusreg.SunSpecChainSnapshot{
+	for name, snapshot := range map[string]sunspec.ChainSnapshot{
 		"no match":           noMatch,
 		"unknown occurrence": unknown,
 		"unsupported":        unsupported,
@@ -353,21 +354,21 @@ func TestSunSpecQualificationObservationFailsClosed(t *testing.T) {
 	}
 }
 
-func qualificationSnapshot(t *testing.T, registry modbusreg.SunSpecDecoderRegistry) modbusreg.SunSpecChainSnapshot {
+func qualificationSnapshot(t *testing.T, registry sunspec.DecoderRegistry) sunspec.ChainSnapshot {
 	t.Helper()
 	v11 := froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")
 	return qualificationSnapshotWithOccurrences(t, registry, v11.Occurrences())
 }
 
 type qualificationObservationManifest struct {
-	Schema           string                            `json:"schema"`
-	CapabilityID     string                            `json:"capability_id"`
-	CapabilityReason modbusreg.SunSpecCapabilityReason `json:"capability_reason"`
-	FlavorID         string                            `json:"flavor_id"`
-	FlavorReason     SunSpecFroniusFlavorReason        `json:"flavor_reason"`
-	SampleID         string                            `json:"sample_id"`
-	SampleIdentity   sampleIdentityDTO                 `json:"sample_identity"`
-	Chain            []modbusreg.SunSpecWireKey        `json:"chain"`
+	Schema           string                     `json:"schema"`
+	CapabilityID     string                     `json:"capability_id"`
+	CapabilityReason sunspec.CapabilityReason   `json:"capability_reason"`
+	FlavorID         string                     `json:"flavor_id"`
+	FlavorReason     SunSpecFroniusFlavorReason `json:"flavor_reason"`
+	SampleID         string                     `json:"sample_id"`
+	SampleIdentity   sampleIdentityDTO          `json:"sample_identity"`
+	Chain            []sunspec.WireKey          `json:"chain"`
 }
 
 type sampleIdentityDTO struct {
@@ -387,15 +388,15 @@ func (value serializedQualificationObservation) qualificationMetadata() qualific
 }
 
 type serializedSunSpecOccurrence struct {
-	Ordinal        uint32                            `json:"ordinal"`
-	WireKey        modbusreg.SunSpecWireKey          `json:"wire_key"`
-	SchemaRevision modbusreg.SunSpecSchemaRevision   `json:"schema_revision"`
-	HeaderOffset   uint16                            `json:"header_offset"`
-	PayloadOffset  uint16                            `json:"payload_offset"`
-	Disposition    modbusreg.SunSpecChainDisposition `json:"disposition"`
-	DecoderKey     *modbusreg.SunSpecDecoderKey      `json:"decoder_key"`
-	Words          []uint16                          `json:"words"`
-	SourceSpans    []modbusreg.SunSpecSourceSpan     `json:"source_spans"`
+	Ordinal        uint32                   `json:"ordinal"`
+	WireKey        sunspec.WireKey          `json:"wire_key"`
+	SchemaRevision sunspec.SchemaRevision   `json:"schema_revision"`
+	HeaderOffset   uint16                   `json:"header_offset"`
+	PayloadOffset  uint16                   `json:"payload_offset"`
+	Disposition    sunspec.ChainDisposition `json:"disposition"`
+	DecoderKey     *sunspec.DecoderKey      `json:"decoder_key"`
+	Words          []uint16                 `json:"words"`
+	SourceSpans    []sunspec.SourceSpan     `json:"source_spans"`
 }
 
 type serializedLogicalView struct {
@@ -423,14 +424,14 @@ type serializedLogicalView struct {
 	WireResponseBytes   []byte                    `json:"wire_response_bytes"`
 }
 
-func qualificationSnapshotWithOccurrences(t *testing.T, registry modbusreg.SunSpecDecoderRegistry, occurrences []modbusreg.SunSpecOccurrence) modbusreg.SunSpecChainSnapshot {
+func qualificationSnapshotWithOccurrences(t *testing.T, registry sunspec.DecoderRegistry, occurrences []sunspec.Occurrence) sunspec.ChainSnapshot {
 	t.Helper()
 	return sunspecfixture.Walk(t, registry.DecoderKeys(), func(_ int, record *modbusreg.LogicalViewRecord) {
 		record.DeadlineIdentity = 700
 	}, occurrences...)
 }
 
-func qualificationSnapshotWithCoalescedTCPView(t *testing.T, registry modbusreg.SunSpecDecoderRegistry) (modbusreg.SunSpecChainSnapshot, modbusreg.LogicalViewRecord) {
+func qualificationSnapshotWithCoalescedTCPView(t *testing.T, registry sunspec.DecoderRegistry) (sunspec.ChainSnapshot, modbusreg.LogicalViewRecord) {
 	t.Helper()
 	baseline := qualificationSnapshot(t, registry)
 	// The first occurrence span names the view to deliver as a slice of a
@@ -461,5 +462,5 @@ func qualificationSnapshotWithCoalescedTCPView(t *testing.T, registry modbusreg.
 		}
 	}
 	t.Fatal("qualification snapshot has no coalesced source view")
-	return modbusreg.SunSpecChainSnapshot{}, modbusreg.LogicalViewRecord{}
+	return sunspec.ChainSnapshot{}, modbusreg.LogicalViewRecord{}
 }

@@ -6,8 +6,8 @@ import (
 	"slices"
 	"testing"
 
-	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/internal/sunspecfixture"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 // These are synthetic geometry inputs from docs-modbus #145, not device
@@ -38,7 +38,7 @@ func TestOutBackAXSReadOnlyDecoderRejectsBothSourceRevisions(t *testing.T) {
 				if !errors.Is(err, ErrOutBackAXSSourceNotQualified) {
 					t.Fatalf("want source qualification rejection, got %v", err)
 				}
-				if !reflect.DeepEqual(decoded, modbusreg.SunSpecDecodedModel{}) {
+				if !reflect.DeepEqual(decoded, sunspec.DecodedModel{}) {
 					t.Fatalf("rejection emitted partial output: %#v", decoded)
 				}
 				if !reflect.DeepEqual(words, original) {
@@ -46,7 +46,7 @@ func TestOutBackAXSReadOnlyDecoderRejectsBothSourceRevisions(t *testing.T) {
 				}
 			}
 			standard := sunspecfixture.Registry(t)
-			if slices.Contains(standard.DecoderKeys(), modbusreg.SunSpecDecoderKey{ModelID: tc.id, ModelLength: tc.length, SchemaRevision: modbusreg.SunSpecModelsRevisionV1}) {
+			if slices.Contains(standard.DecoderKeys(), sunspec.DecoderKey{ModelID: tc.id, ModelLength: tc.length, SchemaRevision: sunspec.ModelsRevisionV1}) {
 				t.Fatal("candidate admitted to standard registry")
 			}
 			if _, err := standard.DecodeOccurrence(candidate); err == nil {
@@ -63,7 +63,7 @@ func TestOutBackAXSReadOnlyDecoderFailsClosed(t *testing.T) {
 	}
 	for _, words := range [][]uint16{nil, {64110}, {64110, 281}, {64110, 282}, {64110, 420}, {64112, 64}, {64111, 22}} {
 		decoded, err := decoder.Decode(words)
-		if err == nil || !reflect.DeepEqual(decoded, modbusreg.SunSpecDecodedModel{}) {
+		if err == nil || !reflect.DeepEqual(decoded, sunspec.DecodedModel{}) {
 			t.Fatalf("accepted unsupported or malformed words: %#v", words)
 		}
 	}

@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/internal/sunspecfixture"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 func TestFroniusObservedFlavorMatchesOnlyExactEvidenceTuple(t *testing.T) {
@@ -21,8 +21,8 @@ func TestFroniusObservedFlavorMatchesOnlyExactEvidenceTuple(t *testing.T) {
 		t.Fatalf("capability=%t chain=%v views=%d", decision.Capability().Admitted(), decision.Chain(), len(decision.SourceViews()))
 	}
 	chain := decision.Chain()
-	chain[0] = modbusreg.SunSpecWireKey{}
-	if decision.Chain()[0] != (modbusreg.SunSpecWireKey{ModelID: 1, ModelLength: 65}) {
+	chain[0] = sunspec.WireKey{}
+	if decision.Chain()[0] != (sunspec.WireKey{ModelID: 1, ModelLength: 65}) {
 		t.Fatal("flavor chain mutated through accessor")
 	}
 }
@@ -55,14 +55,14 @@ func TestCapabilityAndFlavorRejectInvalidCommonAndAdmittedGeometry(t *testing.T)
 	invalidGeometry := valid.Occurrences()
 	invalidGeometry[5] = sunspecfixture.Occurrence(t, registry, sunspecfixture.ModelWords(t, registry, 160, 88, map[string][]uint16{"N": {3}}), 6)
 
-	for name, occurrences := range map[string][]modbusreg.SunSpecOccurrence{
+	for name, occurrences := range map[string][]sunspec.Occurrence{
 		"invalid mandatory Common":   invalidCommon,
 		"invalid Model 160 geometry": invalidGeometry,
 	} {
 		t.Run(name, func(t *testing.T) {
 			snapshot := sunspecfixture.Snapshot(t, registry, occurrences...)
 			capability := registry.EvaluateThreePhaseMonitoring(snapshot)
-			if capability.Admitted() || capability.Reason() != modbusreg.SunSpecCapabilityReasonInvalidChain {
+			if capability.Admitted() || capability.Reason() != sunspec.CapabilityReasonInvalidChain {
 				t.Fatalf("capability admitted=%t reason=%q", capability.Admitted(), capability.Reason())
 			}
 			flavor := EvaluateObservedFlavor(registry, snapshot)
@@ -86,11 +86,11 @@ func TestCapabilityAndFlavorRejectRetainedUnadmittedModel160Geometry(t *testing.
 		}
 	}
 	snapshot := sunspecfixture.SnapshotWithKeys(t, withoutExactMPPT, occurrences...)
-	if model160 := snapshot.ByModelID(160); len(model160) != 1 || model160[0].Disposition != modbusreg.SunSpecChainDispositionUnsupportedLength {
+	if model160 := snapshot.ByModelID(160); len(model160) != 1 || model160[0].Disposition != sunspec.ChainDispositionUnsupportedLength {
 		t.Fatalf("retained Model 160=%#v", model160)
 	}
 	capability := registry.EvaluateThreePhaseMonitoring(snapshot)
-	if capability.Admitted() || capability.Reason() != modbusreg.SunSpecCapabilityReasonInvalidChain {
+	if capability.Admitted() || capability.Reason() != sunspec.CapabilityReasonInvalidChain {
 		t.Fatalf("capability admitted=%t reason=%q", capability.Admitted(), capability.Reason())
 	}
 	flavor := EvaluateObservedFlavor(registry, snapshot)
@@ -114,14 +114,14 @@ func TestFroniusObservedFlavorReasonsAreClosedAndFailClosed(t *testing.T) {
 	invalidCapabilityOccurrences[1] = sunspecfixture.InverterOccurrence(t, registry, 113, map[string][]uint16{"St": {99}}, 2)
 	invalidCapability := sunspecfixture.Snapshot(t, registry, invalidCapabilityOccurrences...)
 	ambiguousOccurrences := valid.Occurrences()
-	ambiguousOccurrences = append(ambiguousOccurrences[:2], append([]modbusreg.SunSpecOccurrence{sunspecfixture.InverterOccurrence(t, registry, 103, nil, 3)}, ambiguousOccurrences[2:]...)...)
+	ambiguousOccurrences = append(ambiguousOccurrences[:2], append([]sunspec.Occurrence{sunspecfixture.InverterOccurrence(t, registry, 103, nil, 3)}, ambiguousOccurrences[2:]...)...)
 	for index := range ambiguousOccurrences {
 		ambiguousOccurrences[index].Ordinal = uint32(index + 1)
 	}
 	ambiguous := sunspecfixture.Snapshot(t, registry, ambiguousOccurrences...)
 
 	tests := map[string]struct {
-		snapshot modbusreg.SunSpecChainSnapshot
+		snapshot sunspec.ChainSnapshot
 		reason   SunSpecFroniusFlavorReason
 	}{
 		"identity":   {identity, SunSpecFroniusFlavorReasonCommonIdentityMismatch},
@@ -146,7 +146,7 @@ func TestFroniusObservedFlavorMapsMalformedSnapshotToCapabilityFailure(t *testin
 	missingTerminal := sunspecfixture.WithRaw(t, valid, func(raw []uint16) []uint16 { return raw[:len(raw)-2] })
 	trailing := sunspecfixture.WithRaw(t, valid, func(raw []uint16) []uint16 { return append(raw, 0) })
 
-	for name, snapshot := range map[string]modbusreg.SunSpecChainSnapshot{
+	for name, snapshot := range map[string]sunspec.ChainSnapshot{
 		"missing terminal": missingTerminal,
 		"trailing words":   trailing,
 	} {
@@ -165,12 +165,12 @@ func TestFroniusObservedFlavorFixtureIsExactAndNonActionable(t *testing.T) {
 		t.Fatal(err)
 	}
 	var fixture struct {
-		Schema       string                     `json:"schema"`
-		FlavorID     string                     `json:"flavor_id"`
-		Manufacturer string                     `json:"manufacturer"`
-		Model        string                     `json:"model"`
-		Firmware     string                     `json:"firmware"`
-		Chain        []modbusreg.SunSpecWireKey `json:"chain"`
+		Schema       string            `json:"schema"`
+		FlavorID     string            `json:"flavor_id"`
+		Manufacturer string            `json:"manufacturer"`
+		Model        string            `json:"model"`
+		Firmware     string            `json:"firmware"`
+		Chain        []sunspec.WireKey `json:"chain"`
 		Observation  struct {
 			Function  string `json:"function"`
 			UnitID    uint16 `json:"unit_id"`
@@ -181,7 +181,7 @@ func TestFroniusObservedFlavorFixtureIsExactAndNonActionable(t *testing.T) {
 	if err := json.Unmarshal(raw, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	wantChain := []modbusreg.SunSpecWireKey{{ModelID: 1, ModelLength: 65}, {ModelID: 113, ModelLength: 60}, {ModelID: 120, ModelLength: 26}, {ModelID: 121, ModelLength: 30}, {ModelID: 122, ModelLength: 44}, {ModelID: 160, ModelLength: 88}, {ModelID: 124, ModelLength: 24}, {ModelID: 0xffff, ModelLength: 0}}
+	wantChain := []sunspec.WireKey{{ModelID: 1, ModelLength: 65}, {ModelID: 113, ModelLength: 60}, {ModelID: 120, ModelLength: 26}, {ModelID: 121, ModelLength: 30}, {ModelID: 122, ModelLength: 44}, {ModelID: 160, ModelLength: 88}, {ModelID: 124, ModelLength: 24}, {ModelID: 0xffff, ModelLength: 0}}
 	if fixture.Schema != "helianthus-sunspec-fronius-observed-flavor/v1" || fixture.FlavorID != SunSpecFroniusObservedFlavorID || fixture.Manufacturer != "Fronius" || fixture.Model != "Symo GEN24 10.0" || fixture.Firmware != "1.41.11-1" || !reflect.DeepEqual(fixture.Chain, wantChain) {
 		t.Fatalf("fixture=%+v", fixture)
 	}
@@ -214,7 +214,7 @@ func TestFroniusObservedFlavorV11MatchesOnlyTheModel123Chain(t *testing.T) {
 
 func TestFroniusObservedFlavorSelectorRequiresExactlyOneMatch(t *testing.T) {
 	registry := sunspecfixture.Registry(t)
-	for name, snapshot := range map[string]modbusreg.SunSpecChainSnapshot{
+	for name, snapshot := range map[string]sunspec.ChainSnapshot{
 		"v1":   froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1"),
 		"v1.1": froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1"),
 	} {
@@ -258,12 +258,12 @@ func TestFroniusObservedFlavorV11FixtureIsExactAndNonActionable(t *testing.T) {
 		t.Fatal(err)
 	}
 	var fixture struct {
-		Schema       string                     `json:"schema"`
-		FlavorID     string                     `json:"flavor_id"`
-		Manufacturer string                     `json:"manufacturer"`
-		Model        string                     `json:"model"`
-		Firmware     string                     `json:"firmware"`
-		Chain        []modbusreg.SunSpecWireKey `json:"chain"`
+		Schema       string            `json:"schema"`
+		FlavorID     string            `json:"flavor_id"`
+		Manufacturer string            `json:"manufacturer"`
+		Model        string            `json:"model"`
+		Firmware     string            `json:"firmware"`
+		Chain        []sunspec.WireKey `json:"chain"`
 		Observation  struct {
 			Function  string `json:"function"`
 			UnitID    uint16 `json:"unit_id"`
@@ -274,7 +274,7 @@ func TestFroniusObservedFlavorV11FixtureIsExactAndNonActionable(t *testing.T) {
 	if err := json.Unmarshal(raw, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	wantChain := []modbusreg.SunSpecWireKey{{ModelID: 1, ModelLength: 65}, {ModelID: 113, ModelLength: 60}, {ModelID: 120, ModelLength: 26}, {ModelID: 121, ModelLength: 30}, {ModelID: 122, ModelLength: 44}, {ModelID: 123, ModelLength: 24}, {ModelID: 160, ModelLength: 88}, {ModelID: 124, ModelLength: 24}, {ModelID: 0xffff, ModelLength: 0}}
+	wantChain := []sunspec.WireKey{{ModelID: 1, ModelLength: 65}, {ModelID: 113, ModelLength: 60}, {ModelID: 120, ModelLength: 26}, {ModelID: 121, ModelLength: 30}, {ModelID: 122, ModelLength: 44}, {ModelID: 123, ModelLength: 24}, {ModelID: 160, ModelLength: 88}, {ModelID: 124, ModelLength: 24}, {ModelID: 0xffff, ModelLength: 0}}
 	if fixture.Schema != "helianthus-sunspec-fronius-observed-flavor/v1.1" || fixture.FlavorID != SunSpecFroniusObservedFlavorV11ID || fixture.Manufacturer != "Fronius" || fixture.Model != "Symo GEN24 10.0" || fixture.Firmware != "1.41.11-1" || !reflect.DeepEqual(fixture.Chain, wantChain) {
 		t.Fatalf("fixture=%+v", fixture)
 	}
@@ -283,9 +283,9 @@ func TestFroniusObservedFlavorV11FixtureIsExactAndNonActionable(t *testing.T) {
 	}
 }
 
-func froniusObservedSnapshot(t *testing.T, registry modbusreg.SunSpecDecoderRegistry, manufacturer, model, firmware string) modbusreg.SunSpecChainSnapshot {
+func froniusObservedSnapshot(t *testing.T, registry sunspec.DecoderRegistry, manufacturer, model, firmware string) sunspec.ChainSnapshot {
 	t.Helper()
-	occurrences := []modbusreg.SunSpecOccurrence{
+	occurrences := []sunspec.Occurrence{
 		sunspecfixture.CommonOccurrence(t, registry, manufacturer, model, firmware, 1),
 		sunspecfixture.InverterOccurrence(t, registry, 113, nil, 2),
 		sunspecfixture.Occurrence(t, registry, sunspecfixture.ModelWords(t, registry, 120, 26, nil), 3),
@@ -297,9 +297,9 @@ func froniusObservedSnapshot(t *testing.T, registry modbusreg.SunSpecDecoderRegi
 	return sunspecfixture.Snapshot(t, registry, occurrences...)
 }
 
-func froniusObservedSnapshotV11(t *testing.T, registry modbusreg.SunSpecDecoderRegistry, manufacturer, model, firmware string) modbusreg.SunSpecChainSnapshot {
+func froniusObservedSnapshotV11(t *testing.T, registry sunspec.DecoderRegistry, manufacturer, model, firmware string) sunspec.ChainSnapshot {
 	t.Helper()
-	occurrences := []modbusreg.SunSpecOccurrence{
+	occurrences := []sunspec.Occurrence{
 		sunspecfixture.CommonOccurrence(t, registry, manufacturer, model, firmware, 1),
 		sunspecfixture.InverterOccurrence(t, registry, 113, nil, 2),
 		sunspecfixture.Occurrence(t, registry, sunspecfixture.ModelWords(t, registry, 120, 26, nil), 3),

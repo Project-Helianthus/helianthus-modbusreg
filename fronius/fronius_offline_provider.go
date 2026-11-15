@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 // OfflineRequest bounds one explicitly invoked offline cycle. Source
@@ -49,7 +50,7 @@ type OfflineProvider struct {
 // an exact-card result. Invalid input never invokes the reader. Begin still
 // fences incompatible history on invalid attempts. Cancellation is cooperative;
 // Run creates no goroutine and cannot interrupt an uncooperative callback.
-func (p *OfflineProvider) Run(ctx context.Context, registry modbusreg.SunSpecDecoderRegistry, request OfflineRequest, reader OfflineReader) error {
+func (p *OfflineProvider) Run(ctx context.Context, registry sunspec.DecoderRegistry, request OfflineRequest, reader OfflineReader) error {
 	token, err := p.retained.Begin(ctx, request.Key, request.PollGeneration, request.DeadlineIdentity)
 	if err != nil {
 		return err
@@ -62,7 +63,7 @@ func (p *OfflineProvider) Run(ctx context.Context, registry modbusreg.SunSpecDec
 	k := request.Key
 	if reader == nil || request.MaxWords == 0 || request.MaxWords > card.Limits().MaxTotalWords ||
 		request.MaxOccurrences == 0 || request.MaxOccurrences > card.Limits().MaxOccurrences ||
-		request.MaxSourceViews == 0 || request.MaxSourceViews > modbusreg.MaxSunSpecPhaseOneChainWords ||
+		request.MaxSourceViews == 0 || request.MaxSourceViews > sunspec.MaxSunSpecPhaseOneChainWords ||
 		k.CardID != card.ID() || k.Schema != card.SchemaRevision() || registry.SchemaRevision() != card.SchemaRevision() || registry.DefinitionCount() == 0 ||
 		k.RequestedFunction != card.Function() || k.ReceivedFunction != card.Function() || k.Table != modbusreg.HoldingRegisters || k.UnitID != card.UnitID() ||
 		(k.Transport != modbusreg.TransportTCP && k.Transport != modbusreg.TransportRTU) {

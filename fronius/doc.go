@@ -6,7 +6,7 @@
 // port.
 //
 // The package reads SunSpec chains, decoder registries and capability
-// decisions only through the exported SunSpec surface of the module root
-// package, depends on no other module package and imports no other vendor
-// package.
+// decisions only through the exported surface of the SunSpec standard-family
+// package sunspec, depends otherwise only on the contracts of the module root
+// package and imports no other vendor package.
 package fronius

@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 const sunSpecQualificationObservationSchema = "helianthus-sunspec-qualification-observation/v1"
@@ -31,7 +32,7 @@ func (identity SunSpecQualificationSampleIdentity) DeadlineIdentity() uint64 {
 
 // SunSpecQualificationReplay is an immutable detached replay image.
 type SunSpecQualificationReplay struct {
-	snapshot modbusreg.SunSpecChainSnapshot
+	snapshot sunspec.ChainSnapshot
 }
 
 // RawWords returns a copy of the retained raw chain image.
@@ -40,7 +41,7 @@ func (replay SunSpecQualificationReplay) RawWords() []uint16 {
 }
 
 // Occurrences returns copies of the retained occurrences in chain order.
-func (replay SunSpecQualificationReplay) Occurrences() []modbusreg.SunSpecOccurrence {
+func (replay SunSpecQualificationReplay) Occurrences() []sunspec.Occurrence {
 	return replay.snapshot.Occurrences()
 }
 
@@ -52,18 +53,18 @@ func (replay SunSpecQualificationReplay) SourceViews() []modbusreg.LogicalViewSn
 // SunSpecQualificationObservation is the registry-owned, transport-neutral
 // evidence record for one terminal-qualified SunSpec capture.
 type SunSpecQualificationObservation struct {
-	capability modbusreg.SunSpecCapabilityDecision
+	capability sunspec.CapabilityDecision
 	flavor     SunSpecFroniusFlavorDecision
-	chain      []modbusreg.SunSpecWireKey
+	chain      []sunspec.WireKey
 	sampleID   string
 	identity   SunSpecQualificationSampleIdentity
-	snapshot   modbusreg.SunSpecChainSnapshot
+	snapshot   sunspec.ChainSnapshot
 }
 
 // NewSunSpecQualificationObservation derives qualification only from the
 // supplied registry and complete source-backed snapshot. It never accepts a
 // caller verdict, flavor selection, or sample identity.
-func NewSunSpecQualificationObservation(registry modbusreg.SunSpecDecoderRegistry, input modbusreg.SunSpecChainSnapshot) (SunSpecQualificationObservation, error) {
+func NewSunSpecQualificationObservation(registry sunspec.DecoderRegistry, input sunspec.ChainSnapshot) (SunSpecQualificationObservation, error) {
 	snapshot, identity, err := validateSunSpecQualificationSnapshot(input)
 	if err != nil {
 		return SunSpecQualificationObservation{}, err
@@ -73,7 +74,7 @@ func NewSunSpecQualificationObservation(registry modbusreg.SunSpecDecoderRegistr
 		return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification chain is not terminal verified")
 	}
 	capability := registry.EvaluateThreePhaseMonitoring(snapshot)
-	if !capability.Admitted() || capability.Reason() != modbusreg.SunSpecCapabilityReasonAdmitted {
+	if !capability.Admitted() || capability.Reason() != sunspec.CapabilityReasonAdmitted {
 		return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification capability is not admitted")
 	}
 	selection := SelectObservedFlavor(registry, snapshot)
@@ -87,7 +88,7 @@ func NewSunSpecQualificationObservation(registry modbusreg.SunSpecDecoderRegistr
 	return SunSpecQualificationObservation{
 		capability: capability.Clone(),
 		flavor:     cloneSunSpecFroniusFlavorDecision(flavor),
-		chain:      append([]modbusreg.SunSpecWireKey(nil), chain...),
+		chain:      append([]sunspec.WireKey(nil), chain...),
 		sampleID:   fmt.Sprintf("sunspec-%d-%d", identity.pollGeneration, identity.deadlineIdentity),
 		identity:   identity,
 		snapshot:   cloneSunSpecQualificationSnapshot(snapshot),
@@ -95,7 +96,7 @@ func NewSunSpecQualificationObservation(registry modbusreg.SunSpecDecoderRegistr
 }
 
 // Capability returns a copy of the admitted three-phase monitoring decision.
-func (observation SunSpecQualificationObservation) Capability() modbusreg.SunSpecCapabilityDecision {
+func (observation SunSpecQualificationObservation) Capability() sunspec.CapabilityDecision {
 	return observation.capability.Clone()
 }
 
@@ -106,8 +107,8 @@ func (observation SunSpecQualificationObservation) Flavor() SunSpecFroniusFlavor
 
 // Chain returns a copy of the terminal-verified wire chain, end marker
 // included.
-func (observation SunSpecQualificationObservation) Chain() []modbusreg.SunSpecWireKey {
-	return append([]modbusreg.SunSpecWireKey(nil), observation.chain...)
+func (observation SunSpecQualificationObservation) Chain() []sunspec.WireKey {
+	return append([]sunspec.WireKey(nil), observation.chain...)
 }
 
 // SampleID returns the sample identifier derived from the sample identity, in
@@ -125,7 +126,7 @@ func (observation SunSpecQualificationObservation) RawWords() []uint16 {
 }
 
 // Occurrences returns copies of the retained occurrences in chain order.
-func (observation SunSpecQualificationObservation) Occurrences() []modbusreg.SunSpecOccurrence {
+func (observation SunSpecQualificationObservation) Occurrences() []sunspec.Occurrence {
 	return observation.snapshot.Occurrences()
 }
 
@@ -144,38 +145,38 @@ func (observation SunSpecQualificationObservation) Replay() (SunSpecQualificatio
 	return SunSpecQualificationReplay{snapshot: cloneSunSpecQualificationSnapshot(observation.snapshot)}, nil
 }
 
-func validateSunSpecQualificationSnapshot(input modbusreg.SunSpecChainSnapshot) (modbusreg.SunSpecChainSnapshot, SunSpecQualificationSampleIdentity, error) {
-	if input.RawWordCount() < 4 || input.RawWordCount() > modbusreg.MaxSunSpecPhaseOneChainWords || input.OccurrenceCount() == 0 || input.OccurrenceCount() > modbusreg.MaxSunSpecPhaseOneChainWords/2 || input.SourceViewCount() == 0 || input.SourceViewCount() > modbusreg.MaxSunSpecPhaseOneChainWords {
-		return modbusreg.SunSpecChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification bounds are invalid")
+func validateSunSpecQualificationSnapshot(input sunspec.ChainSnapshot) (sunspec.ChainSnapshot, SunSpecQualificationSampleIdentity, error) {
+	if input.RawWordCount() < 4 || input.RawWordCount() > sunspec.MaxSunSpecPhaseOneChainWords || input.OccurrenceCount() == 0 || input.OccurrenceCount() > sunspec.MaxSunSpecPhaseOneChainWords/2 || input.SourceViewCount() == 0 || input.SourceViewCount() > sunspec.MaxSunSpecPhaseOneChainWords {
+		return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification bounds are invalid")
 	}
 	inputViews := input.SourceViews()
 	sources := make([]modbusreg.LogicalViewSnapshot, len(inputViews))
 	first := inputViews[0].Record()
 	if first.PollGeneration == 0 || first.DeadlineIdentity == 0 {
-		return modbusreg.SunSpecChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification sample identity is invalid")
+		return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification sample identity is invalid")
 	}
 	for index, view := range inputViews {
 		validated, err := modbusreg.NewLogicalViewSnapshot(view.Record())
 		if err != nil {
-			return modbusreg.SunSpecChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification source view %d: %w", index, err)
+			return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification source view %d: %w", index, err)
 		}
 		record := validated.Record()
-		if !modbusreg.SunSpecSameProvenance(first, record) || record.PollGeneration == 0 || record.DeadlineIdentity == 0 {
-			return modbusreg.SunSpecChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification source provenance is mixed")
+		if !sunspec.SameProvenance(first, record) || record.PollGeneration == 0 || record.DeadlineIdentity == 0 {
+			return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification source provenance is mixed")
 		}
 		sources[index] = validated
 	}
-	snapshot, err := modbusreg.NewSunSpecChainSnapshot(input.RawWords(), input.Occurrences(), sources)
+	snapshot, err := sunspec.NewChainSnapshot(input.RawWords(), input.Occurrences(), sources)
 	if err != nil {
-		return modbusreg.SunSpecChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification retained chain is invalid")
+		return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification retained chain is invalid")
 	}
 	if _, valid := snapshot.WireChain(); !valid {
-		return modbusreg.SunSpecChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification retained chain is invalid")
+		return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification retained chain is invalid")
 	}
 	return snapshot, SunSpecQualificationSampleIdentity{pollGeneration: first.PollGeneration, deadlineIdentity: first.DeadlineIdentity}, nil
 }
 
-func cloneSunSpecQualificationSnapshot(snapshot modbusreg.SunSpecChainSnapshot) modbusreg.SunSpecChainSnapshot {
+func cloneSunSpecQualificationSnapshot(snapshot sunspec.ChainSnapshot) sunspec.ChainSnapshot {
 	return snapshot.Clone()
 }
 
@@ -197,7 +198,7 @@ func (observation SunSpecQualificationObservation) MarshalJSON() ([]byte, error)
 		return nil, fmt.Errorf("SunSpec qualification observation cannot serialize inconsistent sample identity")
 	}
 	capability := observation.Capability()
-	if !capability.Admitted() || capability.Reason() != modbusreg.SunSpecCapabilityReasonAdmitted || capability.ProfileID() != modbusreg.SunSpecThreePhaseMonitoringCapabilityID {
+	if !capability.Admitted() || capability.Reason() != sunspec.CapabilityReasonAdmitted || capability.ProfileID() != sunspec.ThreePhaseMonitoringCapabilityID {
 		return nil, fmt.Errorf("SunSpec qualification observation cannot serialize non-admitted capability")
 	}
 	flavor := observation.Flavor()
@@ -239,7 +240,7 @@ func (observation SunSpecQualificationObservation) MarshalJSON() ([]byte, error)
 		SampleIdentity: sunSpecQualificationSampleIdentityJSON{
 			PollGeneration: identity.pollGeneration, DeadlineIdentity: identity.deadlineIdentity,
 		},
-		Chain:       append([]modbusreg.SunSpecWireKey(nil), chain...),
+		Chain:       append([]sunspec.WireKey(nil), chain...),
 		RawWords:    snapshot.RawWords(),
 		Occurrences: encodedOccurrences,
 		SourceViews: encodedViews,
@@ -254,12 +255,12 @@ func supportedSunSpecQualificationFlavorID(flavorID string) bool {
 type sunSpecQualificationObservationJSON struct {
 	Schema           string                                 `json:"schema"`
 	CapabilityID     string                                 `json:"capability_id"`
-	CapabilityReason modbusreg.SunSpecCapabilityReason      `json:"capability_reason"`
+	CapabilityReason sunspec.CapabilityReason               `json:"capability_reason"`
 	FlavorID         string                                 `json:"flavor_id"`
 	FlavorReason     SunSpecFroniusFlavorReason             `json:"flavor_reason"`
 	SampleID         string                                 `json:"sample_id"`
 	SampleIdentity   sunSpecQualificationSampleIdentityJSON `json:"sample_identity"`
-	Chain            []modbusreg.SunSpecWireKey             `json:"chain"`
+	Chain            []sunspec.WireKey                      `json:"chain"`
 	RawWords         []uint16                               `json:"raw_words"`
 	Occurrences      []sunSpecQualificationOccurrenceJSON   `json:"occurrences"`
 	SourceViews      []sunSpecQualificationLogicalViewJSON  `json:"source_views"`
@@ -271,15 +272,15 @@ type sunSpecQualificationSampleIdentityJSON struct {
 }
 
 type sunSpecQualificationOccurrenceJSON struct {
-	Ordinal        uint32                            `json:"ordinal"`
-	WireKey        modbusreg.SunSpecWireKey          `json:"wire_key"`
-	SchemaRevision modbusreg.SunSpecSchemaRevision   `json:"schema_revision"`
-	HeaderOffset   uint16                            `json:"header_offset"`
-	PayloadOffset  uint16                            `json:"payload_offset"`
-	Disposition    modbusreg.SunSpecChainDisposition `json:"disposition"`
-	DecoderKey     *modbusreg.SunSpecDecoderKey      `json:"decoder_key,omitempty"`
-	Words          []uint16                          `json:"words"`
-	SourceSpans    []modbusreg.SunSpecSourceSpan     `json:"source_spans"`
+	Ordinal        uint32                   `json:"ordinal"`
+	WireKey        sunspec.WireKey          `json:"wire_key"`
+	SchemaRevision sunspec.SchemaRevision   `json:"schema_revision"`
+	HeaderOffset   uint16                   `json:"header_offset"`
+	PayloadOffset  uint16                   `json:"payload_offset"`
+	Disposition    sunspec.ChainDisposition `json:"disposition"`
+	DecoderKey     *sunspec.DecoderKey      `json:"decoder_key,omitempty"`
+	Words          []uint16                 `json:"words"`
+	SourceSpans    []sunspec.SourceSpan     `json:"source_spans"`
 }
 
 type sunSpecQualificationLogicalViewJSON struct {

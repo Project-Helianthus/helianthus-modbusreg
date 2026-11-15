@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 func i27Input() DetachedRecordInput {
 	return DetachedRecordInput{
 		Words: []uint16{17, 23}, DeclaredWords: 2, Present: []WordSpan{{0, 2}},
 		Source:      SourceAssociation{Key: "synthetic-family", Revision: "one", PublicLocator: "public/family", ContentIdentity: "synthetic-content", DeclaredLayout: "opaque", SourceSetRevision: "set-one", SelectorInputs: "selector-one", Available: true},
-		Occurrences: []DetachedOccurrence{{Ordinal: 2, WireKey: modbusreg.SunSpecWireKey{ModelID: 64111, ModelLength: 1}, Words: []uint16{17}, Present: []WordSpan{{0, 1}}}, {Ordinal: 4, WireKey: modbusreg.SunSpecWireKey{ModelID: 64111, ModelLength: 1}, Offset: 1, Words: []uint16{23}, Present: []WordSpan{{0, 1}}}},
+		Occurrences: []DetachedOccurrence{{Ordinal: 2, WireKey: sunspec.WireKey{ModelID: 64111, ModelLength: 1}, Words: []uint16{17}, Present: []WordSpan{{0, 1}}}, {Ordinal: 4, WireKey: sunspec.WireKey{ModelID: 64111, ModelLength: 1}, Offset: 1, Words: []uint16{23}, Present: []WordSpan{{0, 1}}}},
 	}
 }
 

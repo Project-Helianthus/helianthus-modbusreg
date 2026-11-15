@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 // WordSpan uses zero-based word coordinates relative to the raw record,
@@ -28,7 +28,7 @@ type SourceAssociation struct {
 // Offset is the payload's logical word offset within the record, not a request.
 type DetachedOccurrence struct {
 	Ordinal          uint32
-	WireKey          modbusreg.SunSpecWireKey
+	WireKey          sunspec.WireKey
 	Offset           uint64
 	Words            []uint16
 	Present, Missing []WordSpan
@@ -211,7 +211,7 @@ func (*DetachedRecord) Evaluate() AXSReadOnlyFlavorDecision {
 }
 
 // TypedFacts always returns nil: no OutBack layout is admitted for typed decoding.
-func (*DetachedRecord) TypedFacts() []modbusreg.SunSpecDecodedModel { return nil }
+func (*DetachedRecord) TypedFacts() []sunspec.DecodedModel { return nil }
 
 // Requests always returns nil: the record never derives a read request.
-func (*DetachedRecord) Requests() []modbusreg.SunSpecReadRequest { return nil }
+func (*DetachedRecord) Requests() []sunspec.ReadRequest { return nil }

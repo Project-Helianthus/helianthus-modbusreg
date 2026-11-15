@@ -62,9 +62,7 @@ type LogicalViewSnapshot struct {
 
 // NewLogicalViewSnapshot validates a synthetic fixture/replay record. The
 // result cannot enter direct runtime admission; DecodeSpec is the trust gate.
-func NewLogicalViewSnapshot(
-	record LogicalViewRecord,
-) (LogicalViewSnapshot, error) {
+func NewLogicalViewSnapshot(record LogicalViewRecord) (LogicalViewSnapshot, error) {
 	if len(record.WireResponseBytes) == 0 ||
 		len(record.WireResponseBytes) > MaxWireResponseEvidenceBytes {
 		return LogicalViewSnapshot{}, fmt.Errorf("logical-view wire evidence exceeds runtime maximum")
@@ -150,6 +148,13 @@ func (snapshot LogicalViewSnapshot) Record() LogicalViewRecord {
 
 // Valid reports whether NewLogicalViewSnapshot validated snapshot; the zero snapshot is not valid.
 func (snapshot LogicalViewSnapshot) Valid() bool { return snapshot.valid }
+
+// Clone returns a copy of snapshot that shares no storage with it and keeps
+// its validity, so packages outside the root can retain an admitted view
+// without validating its record again.
+func (snapshot LogicalViewSnapshot) Clone() LogicalViewSnapshot {
+	return LogicalViewSnapshot{record: snapshot.Record(), valid: snapshot.valid}
+}
 
 // DependencyReadStatus classifies terminal dependency inputs.
 type DependencyReadStatus string
@@ -418,11 +423,6 @@ func NewObservation(
 		return Observation{}, err
 	}
 	return Observation{spec: CloneObservationSpec(spec), replayed: replayed}, nil
-}
-
-// buildObservation is NewObservation for root family files calling this name.
-func buildObservation(profile ProfileDescriptor, spec ObservationSpec) (Observation, error) {
-	return NewObservation(profile, spec)
 }
 
 func preflightObservationSpec(spec ObservationSpec) error {

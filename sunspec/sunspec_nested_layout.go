@@ -1,0 +1,136 @@
+package sunspec
+
+import "fmt"
+
+const maxSunSpecOccurrenceWords uint32 = 65536
+
+// FactPathSegment identifies one ordered group in a nested fact path.
+// Indexed distinguishes a named group from a repeated group with an explicit index.
+type FactPathSegment struct {
+	Name    string
+	Index   uint32
+	Indexed bool
+}
+
+// FactPath is an immutable ordered hierarchy for a nested SunSpec fact.
+type FactPath struct{ segments []FactPathSegment }
+
+// NewFactPath validates and copies segments. It returns an error for an
+// empty path, a segment without a name, or an unindexed segment with a nonzero
+// index. See
+// https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/sunspec/nested-layout-contract-v1.md.
+func NewFactPath(segments []FactPathSegment) (FactPath, error) {
+	if len(segments) == 0 {
+		return FactPath{}, fmt.Errorf("SunSpec fact path has no segments")
+	}
+	for _, segment := range segments {
+		if segment.Name == "" {
+			return FactPath{}, fmt.Errorf("SunSpec fact path segment has no name")
+		}
+		if !segment.Indexed && segment.Index != 0 {
+			return FactPath{}, fmt.Errorf("SunSpec unindexed fact path segment has an index")
+		}
+	}
+	return FactPath{segments: append([]FactPathSegment(nil), segments...)}, nil
+}
+
+// Segments returns a copy of the path segments, outermost first.
+func (p FactPath) Segments() []FactPathSegment {
+	return append([]FactPathSegment(nil), p.segments...)
+}
+
+// OccurrenceSourceRange maps an occurrence-relative range to its exact,
+// potentially fragmented physical source spans.
+type OccurrenceSourceRange struct {
+	offset, wordCount uint32
+	spans             []SourceSpan
+}
+
+// NewOccurrenceSourceRange validates a range of wordCount words at an
+// occurrence-relative offset and the ordered spans that cover it exactly. It
+// returns an error when the range is empty or reaches past 65536 words, when a
+// span has no logical view or no words or runs past the PDU, or when the span
+// counts do not sum to wordCount. Spans are copied, never coalesced.
+func NewOccurrenceSourceRange(offset, wordCount uint32, spans []SourceSpan) (OccurrenceSourceRange, error) {
+	if wordCount == 0 || offset >= maxSunSpecOccurrenceWords || wordCount > maxSunSpecOccurrenceWords-offset {
+		return OccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence source range is outside bounds")
+	}
+	if len(spans) == 0 {
+		return OccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence source range has no spans")
+	}
+	var total uint32
+	for _, span := range spans {
+		if span.LogicalViewID == 0 || span.WordCount == 0 || uint32(span.PDUOffset)+uint32(span.WordCount) > maxSunSpecOccurrenceWords {
+			return OccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence source span is outside bounds")
+		}
+		if total > wordCount-uint32(span.WordCount) {
+			return OccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence source spans exceed range")
+		}
+		total += uint32(span.WordCount)
+	}
+	if total != wordCount {
+		return OccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence source spans do not cover range")
+	}
+	return OccurrenceSourceRange{offset: offset, wordCount: wordCount, spans: append([]SourceSpan(nil), spans...)}, nil
+}
+
+// NewSunSpecOccurrenceSourceRangeFromSpans selects an occurrence-relative
+// range from a complete ordered occurrence without coalescing physical spans.
+func NewSunSpecOccurrenceSourceRangeFromSpans(offset, wordCount uint32, spans []SourceSpan) (OccurrenceSourceRange, error) {
+	if len(spans) == 0 {
+		return OccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence has no source spans")
+	}
+	var total uint32
+	for _, span := range spans {
+		if span.LogicalViewID == 0 || span.WordCount == 0 || uint32(span.PDUOffset)+uint32(span.WordCount) > maxSunSpecOccurrenceWords {
+			return OccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence source span is outside bounds")
+		}
+		if total > maxSunSpecOccurrenceWords-uint32(span.WordCount) {
+			return OccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence extent exceeds bounds")
+		}
+		total += uint32(span.WordCount)
+	}
+	if wordCount == 0 || offset >= total || wordCount > total-offset {
+		return OccurrenceSourceRange{}, fmt.Errorf("SunSpec occurrence source range is outside aggregate")
+	}
+
+	end := offset + wordCount
+	cursor := uint32(0)
+	selected := make([]SourceSpan, 0, len(spans))
+	for _, span := range spans {
+		spanStart := cursor
+		spanEnd := cursor + uint32(span.WordCount)
+		cursor = spanEnd
+		if spanEnd <= offset {
+			continue
+		}
+		if spanStart >= end {
+			break
+		}
+		start := uint32(0)
+		if offset > spanStart {
+			start = offset - spanStart
+		}
+		finish := uint32(span.WordCount)
+		if end < spanEnd {
+			finish = end - spanStart
+		}
+		part := span
+		part.PDUOffset = uint16(uint32(span.PDUOffset) + start)
+		part.WordCount = uint16(finish - start)
+		selected = append(selected, part)
+	}
+	return NewOccurrenceSourceRange(offset, wordCount, selected)
+}
+
+// OccurrenceOffset returns the first word of the range, counted from the
+// occurrence header.
+func (r OccurrenceSourceRange) OccurrenceOffset() uint32 { return r.offset }
+
+// WordCount returns the length of the range in words.
+func (r OccurrenceSourceRange) WordCount() uint32 { return r.wordCount }
+
+// SourceSpans returns a copy of the covering spans in word order.
+func (r OccurrenceSourceRange) SourceSpans() []SourceSpan {
+	return append([]SourceSpan(nil), r.spans...)
+}

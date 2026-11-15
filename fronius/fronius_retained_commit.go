@@ -8,6 +8,7 @@ import (
 	"time"
 
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
 // RetainedKey identifies compatible native evidence, not an admission.
@@ -22,7 +23,7 @@ type RetainedKey struct {
 	Transport           modbusreg.TransportFamily
 	TransportGeneration uint64
 	CardID              string
-	Schema              modbusreg.SunSpecSchemaRevision
+	Schema              sunspec.SchemaRevision
 }
 
 // RetainedToken is an opaque store-local, single-use cycle identity.
@@ -118,7 +119,7 @@ func (s *RetainedCommit) Begin(ctx context.Context, key RetainedKey, pollGenerat
 // Commit replays the complete supplied observation through the existing card.
 // Validation and publication serialize with Begin, Fail, Cancel and View.
 // Invalid active candidates close the attempt without replacing prior evidence.
-func (s *RetainedCommit) Commit(token RetainedToken, registry modbusreg.SunSpecDecoderRegistry, observation SunSpecQualificationObservation) error {
+func (s *RetainedCommit) Commit(token RetainedToken, registry sunspec.DecoderRegistry, observation SunSpecQualificationObservation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.checkActive(token); err != nil {

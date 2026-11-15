@@ -2,7 +2,7 @@ package outback
 
 import "errors"
 
-import modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+import "github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 
 const (
 	// AXSModelInterface is the vendor SunSpec model ID of the AXS interface
@@ -47,6 +47,6 @@ func NewAXSReadOnlyDecoder() (AXSReadOnlyDecoder, error) {
 // Decode rejects every caller-supplied block without partial typed output.
 // Raw evidence remains with the caller and is never modified. A future public
 // compatibility source and bounded operation contract are needed for admission.
-func (AXSReadOnlyDecoder) Decode(_ []uint16) (modbusreg.SunSpecDecodedModel, error) {
-	return modbusreg.SunSpecDecodedModel{}, ErrOutBackAXSSourceNotQualified
+func (AXSReadOnlyDecoder) Decode(_ []uint16) (sunspec.DecodedModel, error) {
+	return sunspec.DecodedModel{}, ErrOutBackAXSSourceNotQualified
 }

@@ -341,3 +341,28 @@ func TestNormalizationSourceLocatorRequiresIdentifier(t *testing.T) {
 		t.Fatalf("identified HTTPS source locator rejected: %v", err)
 	}
 }
+
+// TestLogicalViewSnapshotCloneKeepsValidityAndSharesNoStorage pins the copy
+// accessors other packages use: Valid reports the constructor's verdict, and
+// Clone keeps it for a valid view and for the zero value while sharing neither
+// the word nor the wire-byte storage of its original.
+func TestLogicalViewSnapshotCloneKeepsValidityAndSharesNoStorage(t *testing.T) {
+	view, err := reg.NewLogicalViewSnapshot(logicalViewRecord(1, 101, 1, []uint16{1, 2}))
+	if err != nil || !view.Valid() {
+		t.Fatalf("valid view: valid=%t err=%v", view.Valid(), err)
+	}
+	storage := func(view reg.LogicalViewSnapshot) (uintptr, uintptr) {
+		record := reflect.ValueOf(view).FieldByName("record")
+		return record.FieldByName("Words").Pointer(), record.FieldByName("WireResponseBytes").Pointer()
+	}
+	clone := view.Clone()
+	viewWords, viewBytes := storage(view)
+	cloneWords, cloneBytes := storage(clone)
+	if !clone.Valid() || !reflect.DeepEqual(clone.Record(), view.Record()) || cloneWords == viewWords || cloneBytes == viewBytes {
+		t.Fatalf("clone of a valid view: valid=%t record=%#v", clone.Valid(), clone.Record())
+	}
+	var zero reg.LogicalViewSnapshot
+	if zero.Valid() || zero.Clone().Valid() || !reflect.DeepEqual(zero.Clone(), zero) {
+		t.Fatalf("clone of the zero view=%#v", zero.Clone())
+	}
+}

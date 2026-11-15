@@ -9,9 +9,10 @@ import (
 
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/internal/sunspecfixture"
+	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
-func retainedFixture(t *testing.T) (modbusreg.SunSpecDecoderRegistry, SunSpecQualificationObservation, RetainedKey) {
+func retainedFixture(t *testing.T) (sunspec.DecoderRegistry, SunSpecQualificationObservation, RetainedKey) {
 	t.Helper()
 	r := sunspecfixture.Registry(t)
 	card := NewSunSpecFroniusQualificationCard()
@@ -32,7 +33,7 @@ func retainedFixture(t *testing.T) (modbusreg.SunSpecDecoderRegistry, SunSpecQua
 // its first raw word and the first word of its first source view incremented.
 // The SunSpec snapshot is immutable outside its package, so a caller can alter
 // retained evidence only by replacing the snapshot value.
-func mutatedSnapshot(t *testing.T, snapshot modbusreg.SunSpecChainSnapshot) modbusreg.SunSpecChainSnapshot {
+func mutatedSnapshot(t *testing.T, snapshot sunspec.ChainSnapshot) sunspec.ChainSnapshot {
 	t.Helper()
 	raw, records := snapshot.RawWords(), sunspecfixture.Records(snapshot)
 	raw[0]++
