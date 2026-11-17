@@ -22,6 +22,9 @@ The two existing system-information pairs retain identity and capability/version
 provenance separately. The retained field labels are Helianthus recovered
 labels; they do not establish new field semantics or live qualification.
 
+Typed vitals and lifetime values stay unknown until a publishable map gives
+each label a wire number. A recovered label is not that map.
+
 | Catalog operation | Family | Request → terminal tag | EVSE scope |
 | --- | --- | --- | --- |
 | `common.system_info` | 4 | 2 → 3 | System identity and firmware/version provenance |

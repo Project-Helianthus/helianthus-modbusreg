@@ -33,6 +33,9 @@ type FC100WCLifetimeReplay struct {
 	SnapshotDigest string
 }
 
+// TypedValueDisposition reports that every lifetime replay stays unknown.
+func (FC100WCLifetimeReplay) TypedValueDisposition() string { return "unknown" }
+
 // DecodeTeslaFC100WCLifetimeReplay accepts one FC100 response that is either the
 // exact request echo or a terminal family-6/tag-4 body; anything else is an error.
 func DecodeTeslaFC100WCLifetimeReplay(payload []byte) (FC100WCLifetimeReplay, error) {
