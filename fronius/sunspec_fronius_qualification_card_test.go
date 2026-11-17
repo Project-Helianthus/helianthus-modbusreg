@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
@@ -244,6 +245,104 @@ func TestFroniusQualificationCardSanitizedExpectedResult(t *testing.T) {
 	}
 	if !reflect.DeepEqual(gotValue, wantValue) {
 		t.Fatalf("expected result=%s want=%s", encoded, want)
+	}
+}
+
+func TestFroniusModel160StaysDecodedAndUncandidate(t *testing.T) {
+	registry := sunspecfixture.Registry(t)
+	card := NewSunSpecFroniusQualificationCard()
+	want := []string{
+		"mppt.module.dc_energy",
+		"mppt.module.dc_voltage",
+		"mppt.module.dc_current",
+		"mppt.module.dc_power",
+	}
+	got := card.DecodedNotCandidateFieldIDs()
+	if len(got) != len(want) {
+		t.Fatalf("decoded not candidate count=%d", len(got))
+	}
+	for index, id := range want {
+		if got[index] != id {
+			t.Fatalf("decoded not candidate[%d]=%q want %q", index, got[index], id)
+		}
+	}
+	mutated := card.DecodedNotCandidateFieldIDs()
+	mutated[0] = "mutated"
+	if card.DecodedNotCandidateFieldIDs()[0] != want[0] {
+		t.Fatal("decoded not candidate list leaked mutation")
+	}
+	candidates := card.SemanticCandidateFieldIDs()
+	for _, id := range want {
+		for _, candidate := range candidates {
+			if candidate == id {
+				t.Fatalf("%s is a semantic candidate", id)
+			}
+		}
+	}
+	for _, id := range append(append([]string{}, candidates...), got...) {
+		if id == "meter.energy.import.total" || strings.Contains(strings.ToLower(id), "battery") {
+			t.Fatalf("%s is in a qualification list", id)
+		}
+	}
+	if !reflect.DeepEqual(card.ExpectedChain(), froniusObservedChainV11) || card.LiveQualified() || card.WriteAuthority() {
+		t.Fatal("chain, live qualification, or write authority changed")
+	}
+	raw := sunspecfixture.RawWords(froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1").Occurrences())
+	snapshot, err := replayFroniusQualificationCard(t, card, registry, raw)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	observation, err := card.Qualify(registry, snapshot)
+	if err != nil {
+		t.Fatalf("Qualify: %v", err)
+	}
+	if len(observation.Capability().Facts()) != len(candidates) {
+		t.Fatalf("typed facts=%d", len(observation.Capability().Facts()))
+	}
+	var occurrence sunspec.Occurrence
+	found := 0
+	for _, item := range observation.Occurrences() {
+		if item.ModelID() == 160 {
+			occurrence = item
+			found++
+		}
+	}
+	if found != 1 {
+		t.Fatalf("model 160 occurrences=%d", found)
+	}
+	decoded, err := registry.DecodeOccurrence(occurrence)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !decoded.GeometryValid() {
+		t.Fatal("model 160 geometry invalid")
+	}
+	energy, ok := decoded.Fact("mppt.module.dc_energy")
+	if !ok || energy.FieldID != "mppt.module.dc_energy" {
+		t.Fatal("model 160 occurrence did not expose mppt.module.dc_energy")
+	}
+	for _, id := range want {
+		if _, ok := decoded.Fact(id); !ok {
+			t.Fatalf("model 160 occurrence did not expose %s", id)
+		}
+	}
+	moduleIDs := 0
+	for _, fact := range decoded.Facts() {
+		if fact.FieldID != "mppt.module.id" {
+			continue
+		}
+		moduleIDs++
+		text, isText := fact.Value.Text()
+		if isText || text != "" || fact.Value.PointType() != sunspec.TypeUint16 || strings.Contains(strings.ToLower(fact.FieldID), "battery") {
+			t.Fatal("module id is a string id or a battery id")
+		}
+	}
+	if moduleIDs == 0 {
+		t.Fatal("module id absent")
+	}
+	label, ok := decoded.Fact("mppt.module.label")
+	if !ok || label.Value.PointType() != sunspec.TypeString {
+		t.Fatal("module label is not the string point")
 	}
 }
 

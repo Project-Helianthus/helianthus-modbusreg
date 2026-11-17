@@ -1,5 +1,9 @@
 # Changelog
 
+## Fronius per-module direct-current points
+
+The retained Fronius qualification chain keeps `mppt.module.dc_energy`, `mppt.module.dc_voltage`, `mppt.module.dc_current` and `mppt.module.dc_power` decoded and outside the semantic candidate list, in that order. The candidate list, the observed chain, the capability fact count, live qualification and write authority stay unchanged. `meter.energy.import.total` and any battery identifier stay in neither list.
+
 ## Wall-connector vitals and lifetime values
 
 Typed vitals and lifetime values stay unknown until a publishable map gives each label a wire number. A recovered label is not that map. Each replay keeps its terminal length and digest, and a malformed body stays refused.
