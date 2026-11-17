@@ -107,6 +107,18 @@ func (SunSpecFroniusQualificationCard) SemanticCandidateFieldIDs() []string {
 	return sunspec.ThreePhaseMonitoringFieldIDs()
 }
 
+// DecodedNotCandidateFieldIDs lists the per-module direct-current points the
+// retained chain already decodes that stay outside SemanticCandidateFieldIDs.
+// The list is not a semantic promotion.
+func (SunSpecFroniusQualificationCard) DecodedNotCandidateFieldIDs() []string {
+	return []string{
+		"mppt.module.dc_energy",
+		"mppt.module.dc_voltage",
+		"mppt.module.dc_current",
+		"mppt.module.dc_power",
+	}
+}
+
 // NewReplayChain returns a fresh stateful acquisition adapter for one replay.
 // Every request is FC03 and remains subject to the card's finite bounds.
 func (card SunSpecFroniusQualificationCard) NewReplayChain(registry sunspec.DecoderRegistry) (*sunspec.Chain, error) {
