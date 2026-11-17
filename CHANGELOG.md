@@ -1,5 +1,9 @@
 # Changelog
 
+## Wall Connector activation in the read lifecycle
+
+The read lifecycle drives activation with an injected driver on the endpoint it owns. A report is ready only when it ends with the confirmation after a host echo of the immediately preceding greeting. Earlier attempts may be a greeting, an optional echo, and a refusal. Recovery returns to ready in the same epoch and does not call the driver. Restart after an observed activation enters ready on the successor endpoint instance and sends nothing. An optional readiness probe, off by default, may run one planned read of the first configured operation when the driver stays silent for the whole activation timeout. A retained record is current only while the lifecycle is ready and the record epoch, endpoint instance, and generation are the live ones. The registry ships no production driver.
+
 ## Fronius per-module direct-current points
 
 The retained Fronius qualification chain keeps `mppt.module.dc_energy`, `mppt.module.dc_voltage`, `mppt.module.dc_current` and `mppt.module.dc_power` decoded and outside the semantic candidate list, in that order. The candidate list, the observed chain, the capability fact count, live qualification and write authority stay unchanged. `meter.energy.import.total` and any battery identifier stay in neither list.
