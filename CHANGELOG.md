@@ -1,5 +1,9 @@
 # Changelog
 
+## Wall-connector vitals and lifetime values
+
+Typed vitals and lifetime values stay unknown until a publishable map gives each label a wire number. A recovered label is not that map. Each replay keeps its terminal length and digest, and a malformed body stays refused.
+
 ## Growatt BMS operating state
 
 The typed Growatt BMS status admits an operating state only when the low byte is soft-start, standby, charging, or discharging. Any other low byte is an error and returns no status. A nonzero high byte stays an error. Remaining capacity, full charge capacity, cumulative charge, and cumulative discharge stay independent ampere-hour observations. No watt-hour quantity is derived.

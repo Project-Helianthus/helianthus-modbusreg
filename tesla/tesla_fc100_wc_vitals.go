@@ -32,6 +32,9 @@ type FC100WCVitalsReplay struct {
 	SnapshotDigest string
 }
 
+// TypedValueDisposition reports that every vitals replay stays unknown.
+func (FC100WCVitalsReplay) TypedValueDisposition() string { return "unknown" }
+
 // OperationAdmissionFor applies the profile gate and the operation-specific
 // exact version gate. Unknown operations remain no-send.
 func (profile HSCProfile) OperationAdmissionFor(operation string) TEDAPIOperationAdmission {
