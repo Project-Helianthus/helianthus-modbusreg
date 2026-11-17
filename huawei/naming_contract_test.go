@@ -92,7 +92,7 @@ func TestNamingInventoryMatchesEveryBoundedEmittedField(t *testing.T) {
 	if err := json.Unmarshal(data, &inventory); err != nil {
 		t.Fatal(err)
 	}
-	expected := map[string]string{"pv_string_voltage": "provisional", "pv_string_current": "provisional", "energy_accumulated": "provisional", "energy_current_hour": "provisional", "energy_current_day": "provisional", "input_power": "provisional", "active_power": "provisional", "status": "adopted"}
+	expected := map[string]string{"pv_string_voltage": "provisional", "pv_string_current": "provisional", "energy_accumulated": "provisional", "energy_current_hour": "provisional", "energy_current_day": "provisional", "energy_current_month": "provisional", "energy_current_year": "provisional", "input_power": "provisional", "active_power": "provisional", "status": "adopted"}
 	if len(inventory.Rows) != len(expected) {
 		t.Fatal("bounded inventory row count changed")
 	}

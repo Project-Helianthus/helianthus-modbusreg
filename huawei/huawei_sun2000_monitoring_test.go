@@ -309,8 +309,8 @@ func TestH05EachDecodedFieldEqualsTheFixtureExpectedValue(t *testing.T) {
 		input   func(t testing.TB, unit uint8) SUN2000CapabilityInput
 		facts   int
 	}{
-		{"M3 behind SmartLogger", SUN2000M3MonitoringProfileID, h05M3Input, 19},
-		{"M1 behind S-Dongle", SUN2000M1MonitoringProfileID, func(t testing.TB, _ uint8) SUN2000CapabilityInput { return h05M1Input(t) }, 22},
+		{"M3 behind SmartLogger", SUN2000M3MonitoringProfileID, h05M3Input, 21},
+		{"M1 behind S-Dongle", SUN2000M1MonitoringProfileID, func(t testing.TB, _ uint8) SUN2000CapabilityInput { return h05M1Input(t) }, 24},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -338,7 +338,7 @@ func TestH05EachDecodedFieldEqualsTheFixtureExpectedValue(t *testing.T) {
 }
 
 func TestH05RefusalMapAndReadPlansMatchTheObservation(t *testing.T) {
-	published := map[[2]uint16]bool{{32000, 16}: true, {32016, 24}: true, {32064, 32}: true, {32106, 10}: true}
+	published := map[[2]uint16]bool{{32000, 16}: true, {32016, 24}: true, {32064, 32}: true, {32106, 14}: true}
 	for _, profile := range SUN2000MonitoringProfiles() {
 		t.Run(profile.ID(), func(t *testing.T) {
 			fixture, _ := h05Load(t, h05FixtureFor(profile.ID()))
@@ -551,8 +551,8 @@ func TestH05ObserverSessionHasNoWritePathAndReadsOnlyThePlan(t *testing.T) {
 		input   SUN2000CapabilityInput
 		want    []string
 	}{
-		{SUN2000M3MonitoringProfileID, h05M3Input(t, 2), []string{"3:2:32000:16", "3:2:32016:24", "3:2:32106:10"}},
-		{SUN2000M1MonitoringProfileID, h05M1Input(t), []string{"3:1:32000:16", "3:1:32016:24", "3:1:32064:32", "3:1:32106:10"}},
+		{SUN2000M3MonitoringProfileID, h05M3Input(t, 2), []string{"3:2:32000:16", "3:2:32016:24", "3:2:32106:14"}},
+		{SUN2000M1MonitoringProfileID, h05M1Input(t), []string{"3:1:32000:16", "3:1:32016:24", "3:1:32064:32", "3:1:32106:14"}},
 	} {
 		selection := h05Select(t, tc.input, tc.profile)
 		session := h05SessionFromFixture(t, tc.profile, selection.UnitID())

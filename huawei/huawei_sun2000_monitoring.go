@@ -99,7 +99,7 @@ var (
 	huaweiSUN2000StatusGroup  = huaweiSUN2000Group{offset: 32000, quantity: 16}
 	huaweiSUN2000StringsGroup = huaweiSUN2000Group{offset: 32016, quantity: 24}
 	huaweiSUN2000PowerGroup   = huaweiSUN2000Group{offset: 32064, quantity: 32}
-	huaweiSUN2000EnergyGroup  = huaweiSUN2000Group{offset: 32106, quantity: 10}
+	huaweiSUN2000EnergyGroup  = huaweiSUN2000Group{offset: 32106, quantity: 14}
 )
 
 type huaweiSUN2000WordType uint8
@@ -274,6 +274,10 @@ func huaweiSUN2000EnergyFields(accumulated, counters EvidenceGrade) []huaweiSUN2
 			kind: huaweiSUN2000Measurement, grade: counters},
 		{name: "energy_current_day", group: group, offset: 32114, wordType: huaweiSUN2000U32, exponent: -2, unit: "kWh",
 			kind: huaweiSUN2000Measurement, grade: counters},
+		{name: "energy_current_month", group: group, offset: 32116, wordType: huaweiSUN2000U32, exponent: -2, unit: "kWh",
+			kind: huaweiSUN2000Measurement, grade: GradeHypothesis},
+		{name: "energy_current_year", group: group, offset: 32118, wordType: huaweiSUN2000U32, exponent: -2, unit: "kWh",
+			kind: huaweiSUN2000Measurement, grade: GradeHypothesis},
 	}
 }
 

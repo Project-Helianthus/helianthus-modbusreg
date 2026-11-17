@@ -21,8 +21,8 @@ date `2023-03-17`.
 
 | Profile | Family and path | Identity | Edition binding | Read plan (FC03) |
 | --- | --- | --- | --- | --- |
-| `huawei.sun2000.m3.monitoring-readonly@1.0.0` | SUN2000 M3 series behind the SmartLogger | the observed SmartLogger card matches, the unit is a listed child of the validated listing, the routed model read at offset 30000 is NUL padded text, and the catalogue selects the M3 series row of the MC card | the edition's supported-model table names the model | 32000/16, 32016/24, 32106/10 |
-| `huawei.sun2000.m1.monitoring-readonly@1.0.0` | SUN2000 M1 series behind the S-Dongle | the observed S-Dongle card matches, which binds the child model, the unit is the observed child unit 1, and the catalogue selects the M1 series row of the MA-C00 card | the edition does not list the model; the contract checked the edition's layout against the child's reading | 32000/16, 32016/24, 32064/32, 32106/10 |
+| `huawei.sun2000.m3.monitoring-readonly@1.0.0` | SUN2000 M3 series behind the SmartLogger | the observed SmartLogger card matches, the unit is a listed child of the validated listing, the routed model read at offset 30000 is NUL padded text, and the catalogue selects the M3 series row of the MC card | the edition's supported-model table names the model | 32000/16, 32016/24, 32106/14 |
+| `huawei.sun2000.m1.monitoring-readonly@1.0.0` | SUN2000 M1 series behind the S-Dongle | the observed S-Dongle card matches, which binds the child model, the unit is the observed child unit 1, and the catalogue selects the M1 series row of the MA-C00 card | the edition does not list the model; the contract checked the edition's layout against the child's reading | 32000/16, 32016/24, 32064/32, 32106/14 |
 
 The catalogue places the M1 series on the MA-C00 card, whose edition lists its
 model and identifier; the profile keeps the groups and layout that the
@@ -142,12 +142,16 @@ An Unknown fact carries no value, never a zero.
 | `energy_accumulated` | 32106 | U32, kWh, gain 100 | Proven at units 1 and 2 | Hypothesis |
 | `energy_current_hour` | 32112 | U32, kWh, gain 100 | Hypothesis | Hypothesis |
 | `energy_current_day` | 32114 | U32, kWh, gain 100 | Hypothesis | Hypothesis |
+| `energy_current_month` | 32116 | U32, kWh, gain 100 | Hypothesis | Hypothesis |
+| `energy_current_year` | 32118 | U32, kWh, gain 100 | Hypothesis | Hypothesis |
 
 A Proven field is graded Hypothesis at an M3 series unit other than units 1 and
 2, which answered identity reads but were not read for monitoring. The status
 group yields no fact; its words are retained as native evidence, as are the
-string words past string 8, the DC-input energy counter, the statistics time and
-the anchor words of the power group.
+string words past string 8, the four words at 32108 where no numeric source
+field is named, and the anchor words of the power group. The commercial card
+and the HA and HD cards name that interval as a hole and name the month and
+year yields above. Both yields stay Hypothesis on both profiles.
 
 The supported field name is `status`; the former name is not accepted by
 `Fact` or emitted by `DecoderKeys`. Profile namespaces and string indexes stay

@@ -841,7 +841,7 @@ func huaweiChildProfileLoss(profile SUN2000MonitoringProfile) []ProviderLoss {
 		ProviderLoss{Kind: ProviderLossUnconsumedWords, Offset: huaweiSUN2000StatusGroup.offset, Quantity: huaweiSUN2000StatusGroup.quantity,
 			Detail: "status group retained as native evidence; no state is published from it"},
 		ProviderLoss{Kind: ProviderLossUnconsumedWords, Offset: 32032, Quantity: 8, Detail: "string words past string 8"},
-		ProviderLoss{Kind: ProviderLossUnconsumedWords, Offset: 32108, Quantity: 4, Detail: "DC input energy counter and statistics time"},
+		ProviderLoss{Kind: ProviderLossUnconsumedWords, Offset: 32108, Quantity: 4, Detail: "no numeric source field detected in interval"},
 		ProviderLoss{Kind: ProviderLossBattery, Detail: "battery offsets are never read; a zero word is never a battery value"},
 		ProviderLoss{Kind: ProviderLossMeter, Detail: "every meter value stays Unknown; no meter class contract"},
 	)

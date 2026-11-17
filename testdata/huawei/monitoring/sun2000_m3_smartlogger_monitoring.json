@@ -107,7 +107,7 @@
         {
           "function": "FC03",
           "offset": 32106,
-          "quantity": 10,
+          "quantity": 14,
           "outcome": {
             "type": "words",
             "words": [
@@ -120,7 +120,11 @@
               0,
               116,
               0,
-              228
+              228,
+              0,
+              1200,
+              0,
+              12000
             ]
           }
         },
@@ -289,6 +293,20 @@
           "value": "2.28",
           "unit": "kWh",
           "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.energy_current_month",
+          "index": 0,
+          "value": "12.00",
+          "unit": "kWh",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.energy_current_year",
+          "index": 0,
+          "value": "120.00",
+          "unit": "kWh",
+          "grade": "HYPOTHESIS"
         }
       ]
     },
@@ -367,7 +385,7 @@
         {
           "function": "FC03",
           "offset": 32106,
-          "quantity": 10,
+          "quantity": 14,
           "outcome": {
             "type": "words",
             "words": [
@@ -380,7 +398,11 @@
               0,
               146,
               0,
-              285
+              285,
+              0,
+              1500,
+              0,
+              15000
             ]
           }
         },
@@ -547,6 +569,20 @@
           "key": "huawei.sun2000.m3.energy_current_day",
           "index": 0,
           "value": "2.85",
+          "unit": "kWh",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.energy_current_month",
+          "index": 0,
+          "value": "15.00",
+          "unit": "kWh",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m3.energy_current_year",
+          "index": 0,
+          "value": "150.00",
           "unit": "kWh",
           "grade": "HYPOTHESIS"
         }
