@@ -3,12 +3,12 @@ package growatt
 import "fmt"
 
 // BMSOperatingState is the decoded operating state of the typed BMS
-// status. Decoding uses the two low bits of the state word and rejects a word
-// whose high byte is nonzero; field meaning is owned by
+// status. The low byte is admitted only when it is 0, 1, 2, or 3. A nonzero
+// high byte is rejected. Field meaning is owned by
 // https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/growatt/bms-rs485-1xsxxp-v202.md.
 type BMSOperatingState string
 
-// Operating states for the bit values 0 to 3, in that order.
+// Operating states for low-byte values 0, 1, 2, and 3, in that order.
 const (
 	BMSStateSoftStarting BMSOperatingState = "soft_starting"
 	BMSStateStandby      BMSOperatingState = "standby"
@@ -123,7 +123,7 @@ func growattBMSByteVersion(word uint16) string {
 }
 
 func growattBMSOperatingState(bits uint8) (BMSOperatingState, bool) {
-	switch bits & 0x03 {
+	switch bits {
 	case 0:
 		return BMSStateSoftStarting, true
 	case 1:
