@@ -25,7 +25,8 @@ func (acquisition *Gen3ReadAcquisition) exchange(
 	spec := teslaFC100OperationSpecs[operation]
 	acquisition.mu.Lock()
 	epoch := acquisition.epoch
-	acquisition.plan = &teslaGen3ReadPlan{instance: acquisition.instance, payload: request.Payload()}
+	instance := acquisition.instance
+	acquisition.plan = &teslaGen3ReadPlan{instance: instance, payload: request.Payload()}
 	acquisition.mu.Unlock()
 	responses, evidence, err := endpoint.ExchangePrivateFunction(
 		ctx, acquisition.config.Profile.Node(), request, policy, teslaGen3ReadClassifier{operation: operation, request: request.Payload()})
@@ -40,7 +41,7 @@ func (acquisition *Gen3ReadAcquisition) exchange(
 		OperationVersion: HSCFC100OperationCompatibilityV1,
 		Gen3Version:      acquisition.config.Gen3.Version(), Gen3VersionDisposition: acquisition.config.Gen3.VersionDisposition(),
 		Source: Gen3ReadSourceRTUPrivateFunction, LifecycleEpoch: epoch,
-		Generation: evidence.Generation, RequestID: evidence.RequestID,
+		EndpointInstance: instance, Generation: evidence.Generation, RequestID: evidence.RequestID,
 		Attempt: attempt, MaxAttempts: acquisition.config.MaxAttempts,
 		ObservedAt: acquisition.config.Now(), ReceiptWall: evidence.ReceiptWall,
 		SentAt: evidence.SentAt, ReceivedAt: evidence.ReceivedAt, ClockEpoch: evidence.ClockEpoch,
@@ -106,8 +107,10 @@ func (acquisition *Gen3ReadAcquisition) exchange(
 	return record, teslaGen3ReadFollowUpNone
 }
 
-// recover runs the transport's bounded recovery and then re-activates, which
-// opens a successor epoch. Failure leaves the lifecycle unavailable.
+// recover runs the transport's bounded recovery. Success returns to ready in
+// the same epoch and clears the pinned generation so the next admitted
+// exchange pins the successor generation of this endpoint instance. The
+// activation driver is not called. Failure leaves the lifecycle unavailable.
 func (acquisition *Gen3ReadAcquisition) recover(ctx context.Context, endpoint Gen3ReadEndpoint) bool {
 	acquisition.mu.Lock()
 	if acquisition.closed || acquisition.endpoint != endpoint {
@@ -116,9 +119,9 @@ func (acquisition *Gen3ReadAcquisition) recover(ctx context.Context, endpoint Ge
 	}
 	acquisition.state = Gen3ReadLifecycleRecovering
 	acquisition.mu.Unlock()
-	// Recovery and re-activation stay inside the acquisition budget. An
-	// expired or cancelled acquisition leaves the endpoint fenced and the
-	// lifecycle unavailable; Restart is the bounded way back.
+	// Recovery stays inside the acquisition budget. An expired or cancelled
+	// acquisition leaves the endpoint fenced and the lifecycle unavailable;
+	// Restart is the bounded way back.
 	if ctx.Err() != nil {
 		acquisition.setState(Gen3ReadLifecycleUnavailable)
 		return false
@@ -130,14 +133,20 @@ func (acquisition *Gen3ReadAcquisition) recover(ctx context.Context, endpoint Ge
 		return false
 	}
 	acquisition.mu.Lock()
-	acquisition.lastGeneration = acquisition.epochGeneration
-	acquisition.epochGeneration = 0
-	acquisition.mu.Unlock()
-	if err := acquisition.activate(ctx); err != nil {
-		acquisition.setState(Gen3ReadLifecycleUnavailable)
-		return false
+	closed := acquisition.closed
+	owned := acquisition.endpoint == endpoint
+	if !closed && owned {
+		acquisition.lastGeneration = acquisition.epochGeneration
+		acquisition.epochGeneration = 0
+		acquisition.state = Gen3ReadLifecycleReady
+		acquisition.mu.Unlock()
+		return true
 	}
-	return true
+	acquisition.mu.Unlock()
+	if !closed {
+		acquisition.setState(Gen3ReadLifecycleUnavailable)
+	}
+	return false
 }
 
 // publish linearizes the final ownership check, ACK promotion, and retention
@@ -149,8 +158,7 @@ func (acquisition *Gen3ReadAcquisition) publish(record Gen3ReadRecord, endpoint 
 	acquisition.mu.Lock()
 	defer acquisition.mu.Unlock()
 	if record.State == Gen3ReadEvidenceAck &&
-		(acquisition.closed || acquisition.endpoint != endpoint || acquisition.epoch != record.LifecycleEpoch ||
-			acquisition.state != Gen3ReadLifecycleReady) {
+		(acquisition.endpoint != endpoint || !acquisition.recordCurrentLocked(record)) {
 		record.State = Gen3ReadEvidenceIndeterminate
 		record.Cause = "receipt is not current for the owned endpoint epoch"
 		record.results = nil
@@ -202,10 +210,19 @@ func (acquisition *Gen3ReadAcquisition) Retained(operation FC100Operation) (Gen3
 	if entry.hasLastGood {
 		age := now.Sub(entry.lastGood.ObservedAt)
 		view.Fresh = age >= 0 && age <= window.Freshness
-		view.Current = !acquisition.closed && acquisition.state == Gen3ReadLifecycleReady &&
-			entry.lastGood.LifecycleEpoch == acquisition.epoch
+		view.Current = acquisition.recordCurrentLocked(entry.lastGood)
 	}
 	return view, true
+}
+
+// recordCurrentLocked reports whether a retained record is current. The caller
+// holds the lifecycle mutex. Publish uses the same comparison.
+func (acquisition *Gen3ReadAcquisition) recordCurrentLocked(record Gen3ReadRecord) bool {
+	return !acquisition.closed && acquisition.state == Gen3ReadLifecycleReady &&
+		record.LifecycleEpoch == acquisition.epoch &&
+		record.EndpointInstance == acquisition.instance &&
+		record.Generation == acquisition.epochGeneration &&
+		acquisition.epochGeneration != 0
 }
 
 // admit is the private-function admission decision for the owned endpoint.
@@ -213,10 +230,19 @@ func (acquisition *Gen3ReadAcquisition) admit(instance uint64, candidate modbus.
 	acquisition.mu.Lock()
 	defer acquisition.mu.Unlock()
 	plan := acquisition.plan
-	if acquisition.closed || acquisition.state != Gen3ReadLifecycleReady || plan == nil ||
+	if acquisition.closed || plan == nil ||
 		instance != acquisition.instance || plan.instance != instance ||
 		candidate.Endpoint != acquisition.config.Endpoint || candidate.UnitID != acquisition.config.Profile.Node() ||
 		candidate.Function != teslaHSCFunction100 || !bytes.Equal(candidate.Payload, plan.payload) {
+		return false
+	}
+	switch acquisition.state {
+	case Gen3ReadLifecycleReady:
+	case Gen3ReadLifecycleActivating:
+		if !acquisition.activatingProbe {
+			return false
+		}
+	default:
 		return false
 	}
 	if acquisition.epochGeneration == 0 {

@@ -18,8 +18,8 @@ import (
 // activation, single-flight qualification), protocols/tesla/tedapi.md (the
 // retained FC100 observation pairs and the request state machine),
 // protocols/tesla/gen3-current-limit-operation-v1.md (outcome classes, read
-// retry allowlist, recovery requires a successor generation with a valid
-// activation state), and protocols/modbus/private-function-codes.md (the
+// retry allowlist, recovery pins a successor generation in the same epoch),
+// and protocols/modbus/private-function-codes.md (the
 // production endpoint owns framing, correlation, fencing, and recovery).
 //
 // Only the five retained observation operations are admitted. Current-limit
@@ -42,10 +42,6 @@ const (
 	maxTeslaGen3ReadRetention        = 24 * time.Hour
 )
 
-// teslaGen3HSCActivationSequence is the documented device-originated
-// activation sequence: "TESLA" followed by NUL, then "PASS" followed by NUL.
-var teslaGen3HSCActivationSequence = []byte("TESLA\x00PASS\x00")
-
 var (
 	// ErrTeslaGen3ReadAcquisitionBusy reports that another lifecycle call
 	// already owns the single in-flight slot. The caller is not queued.
@@ -55,8 +51,8 @@ var (
 	ErrTeslaGen3ReadAcquisitionUnavailable = errors.New("tesla Gen3 read acquisition is unavailable")
 	// ErrTeslaGen3ReadAcquisitionClosed reports a closed lifecycle.
 	ErrTeslaGen3ReadAcquisitionClosed = errors.New("tesla Gen3 read acquisition is closed")
-	// ErrTeslaGen3HSCActivationFailed reports a failed, timed-out, reset, or
-	// unexpected activation observation; the HSC exchange state stays disabled.
+	// ErrTeslaGen3HSCActivationFailed reports a failed, timed-out, refused, or
+	// unexpected activation. The read path stays unready.
 	ErrTeslaGen3HSCActivationFailed = errors.New("tesla Gen3 HSC activation failed")
 )
 
@@ -89,15 +85,14 @@ const (
 	// Gen3ReadLifecycleStopped is the initial state before Start; no
 	// endpoint is open and only Start leaves it.
 	Gen3ReadLifecycleStopped Gen3ReadLifecycleState = "stopped"
-	// Gen3ReadLifecycleActivating means an endpoint is open and the
-	// device-originated activation sequence is being observed; no exchange
-	// is admitted.
+	// Gen3ReadLifecycleActivating means an endpoint is open and the activation
+	// exchange is in progress. The only admitted exchange is the readiness probe.
 	Gen3ReadLifecycleActivating Gen3ReadLifecycleState = "activating"
 	// Gen3ReadLifecycleReady means activation completed in the current
-	// lifecycle epoch; it is the only state that admits an exchange.
+	// lifecycle epoch. Planned reads are admitted.
 	Gen3ReadLifecycleReady Gen3ReadLifecycleState = "ready"
 	// Gen3ReadLifecycleRecovering means the transport fenced the generation
-	// and bounded recovery followed by re-activation is in progress.
+	// and bounded recovery is in progress. Recovery does not repeat activation.
 	Gen3ReadLifecycleRecovering Gen3ReadLifecycleState = "recovering"
 	// Gen3ReadLifecycleUnavailable means the lifecycle has no activated,
 	// unfenced endpoint; acquisitions fail until Restart succeeds.
@@ -106,21 +101,6 @@ const (
 	// lifecycle is nil.
 	Gen3ReadLifecycleClosed Gen3ReadLifecycleState = "closed"
 )
-
-// Gen3HSCActivationRequest identifies the endpoint and lifecycle epoch
-// whose activation is being observed.
-type Gen3HSCActivationRequest struct {
-	Endpoint string
-	Epoch    uint64
-}
-
-// Gen3HSCActivationWitness returns the bytes the device originated for the
-// documented activation sequence on the owned endpoint. The lifecycle compares
-// them byte-for-byte; any error, timeout, or other byte sequence leaves the HSC
-// exchange state disabled. The witness never admits an exchange by itself.
-type Gen3HSCActivationWitness interface {
-	ObserveTeslaGen3HSCActivation(context.Context, Gen3HSCActivationRequest) ([]byte, error)
-}
 
 // Gen3ReadEndpoint is the subset of the helianthus-modbus RTU production
 // endpoint the lifecycle owns. *modbus.RTUProductionEndpoint satisfies it.
@@ -174,9 +154,14 @@ type Gen3ReadAcquisitionConfig struct {
 	AcquisitionDeadline time.Duration
 	ActivationTimeout   time.Duration
 	PollInterval        time.Duration
-	Activation          Gen3HSCActivationWitness
-	Open                Gen3ReadEndpointOpener
-	Now                 func() time.Time
+	// Activation drives the exchange on the owned endpoint. Nil is NO_SEND.
+	Activation HSCActivationDriver
+	// ReadinessProbe, when set, admits one planned read of the first configured
+	// operation after the driver reports silence for the whole activation
+	// timeout. It is off unless set.
+	ReadinessProbe bool
+	Open           Gen3ReadEndpointOpener
+	Now            func() time.Time
 }
 
 // Gen3ReadRecord is one acquisition outcome with native identity,
@@ -196,6 +181,7 @@ type Gen3ReadRecord struct {
 	Gen3VersionDisposition Gen3HSCVersionDisposition
 	Source                 string
 	LifecycleEpoch         uint64
+	EndpointInstance       uint64
 	Generation             uint64
 	RequestID              uint64
 	Attempt                int
@@ -269,8 +255,9 @@ func (record Gen3ReadRecord) clone() Gen3ReadRecord {
 }
 
 // Gen3ReadRetained is the retained view of one operation: the last ACK
-// (last-known-good) and the last attempt. Fresh is age-based; Current also
-// requires the record's lifecycle epoch to be the active ready epoch.
+// (last-known-good) and the last attempt. Fresh is age-based. Current also
+// requires ready state and the record's epoch, endpoint instance, and
+// generation to be the live ones.
 type Gen3ReadRetained struct {
 	LastGood       Gen3ReadRecord
 	HasLastGood    bool
@@ -307,16 +294,23 @@ type Gen3ReadAcquisition struct {
 	// instance identifies the owned endpoint; admission callbacks bound to a
 	// retired instance deny every candidate.
 	instance uint64
-	// epoch increments for every activated endpoint generation (start,
-	// restart, recovery).
+	// epoch is opened by the observed activation. Recovery and a later
+	// Restart keep it. Zero before the first successful activation.
 	epoch uint64
-	// epochGeneration pins the transport generation admitted in this epoch;
-	// zero until the first admission. lastGeneration is the previous epoch's
-	// generation on the same endpoint instance.
+	// epochGeneration pins the transport generation admitted for the current
+	// endpoint instance; zero until the next admission. lastGeneration is the
+	// generation that admission must succeed, on this same instance.
 	epochGeneration uint64
 	lastGeneration  uint64
 	plan            *teslaGen3ReadPlan
 	retained        map[FC100Operation]*teslaGen3ReadRetention
+	// activationObserved is set by the driver or the readiness probe.
+	// activationReport and activationBasis describe that opening.
+	activationObserved bool
+	activationReport   HSCActivationReport
+	activationBasis    HSCActivationBasis
+	// activatingProbe admits exactly one planned read while activating.
+	activatingProbe bool
 }
 
 // NewGen3ReadAcquisition validates the explicit configuration and every
@@ -363,7 +357,7 @@ func validateTeslaGen3ReadAcquisitionConfig(config Gen3ReadAcquisitionConfig) er
 		return noSend("Gen3 version is not the qualified operation version")
 	}
 	if config.Activation == nil {
-		return noSend("has no activation witness")
+		return noSend("has no activation driver")
 	}
 	if config.ResponseTimeout <= 0 || config.ResponseTimeout > maxTeslaGen3ReadResponseTimeout ||
 		config.AcquisitionDeadline < config.ResponseTimeout || config.AcquisitionDeadline > maxTeslaGen3ReadDeadline ||
@@ -463,8 +457,10 @@ func (acquisition *Gen3ReadAcquisition) Start(ctx context.Context) error {
 	return acquisition.startLocked(ctx)
 }
 
-// Restart closes the owned endpoint, opens a successor, and re-activates it.
-// Retained records stay as historical last-known-good evidence.
+// Restart closes the owned endpoint and opens a successor. When an activation
+// has already been observed, the successor enters ready in the same epoch and
+// the driver is not called. Otherwise Restart enters activating and calls the
+// driver. Retained records stay historical.
 func (acquisition *Gen3ReadAcquisition) Restart(ctx context.Context) error {
 	if ctx == nil {
 		return modbusreg.ErrQualifiedFunctionNoSend
@@ -496,6 +492,11 @@ func (acquisition *Gen3ReadAcquisition) startLocked(ctx context.Context) error {
 	acquisition.endpoint = endpoint
 	acquisition.lastGeneration = 0
 	acquisition.epochGeneration = 0
+	if acquisition.activationObserved {
+		acquisition.state = Gen3ReadLifecycleReady
+		acquisition.mu.Unlock()
+		return nil
+	}
 	acquisition.mu.Unlock()
 	if err := acquisition.activate(ctx); err != nil {
 		acquisition.retireEndpoint()
@@ -535,6 +536,7 @@ func (acquisition *Gen3ReadAcquisition) retireEndpoint() {
 	acquisition.endpoint = nil
 	acquisition.instance++
 	acquisition.plan = nil
+	acquisition.activatingProbe = false
 	acquisition.mu.Unlock()
 	if endpoint != nil {
 		_ = endpoint.Close()
@@ -561,53 +563,6 @@ func (acquisition *Gen3ReadAcquisition) setState(state Gen3ReadLifecycleState) {
 	acquisition.mu.Unlock()
 }
 
-// activate observes the documented device-originated activation sequence
-// within ActivationTimeout. Success opens a new lifecycle epoch.
-func (acquisition *Gen3ReadAcquisition) activate(ctx context.Context) error {
-	acquisition.mu.Lock()
-	if acquisition.closed {
-		acquisition.mu.Unlock()
-		return ErrTeslaGen3ReadAcquisitionClosed
-	}
-	acquisition.state = Gen3ReadLifecycleActivating
-	epoch := acquisition.epoch + 1
-	acquisition.mu.Unlock()
-	deadline := acquisition.config.Now().Add(acquisition.config.ActivationTimeout)
-	activationCtx, cancel := context.WithTimeout(ctx, acquisition.config.ActivationTimeout)
-	defer cancel()
-	observed, err := acquisition.config.Activation.ObserveTeslaGen3HSCActivation(
-		activationCtx, Gen3HSCActivationRequest{Endpoint: acquisition.config.Endpoint, Epoch: epoch})
-	returned := acquisition.config.Now()
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrTeslaGen3HSCActivationFailed, err)
-	}
-	// A report delivered at or after the activation deadline, or after
-	// cancellation, is not a completed activation even when its bytes match.
-	// The deadline is compared against the report-return time on the
-	// lifecycle clock because the context timer may not have fired yet.
-	if !returned.Before(deadline) {
-		return fmt.Errorf("%w: %w", ErrTeslaGen3HSCActivationFailed, context.DeadlineExceeded)
-	}
-	if contextDeadline, ok := activationCtx.Deadline(); ok && !time.Now().Before(contextDeadline) {
-		return fmt.Errorf("%w: %w", ErrTeslaGen3HSCActivationFailed, context.DeadlineExceeded)
-	}
-	if !bytes.Equal(observed, teslaGen3HSCActivationSequence) {
-		return fmt.Errorf("%w: unexpected activation bytes", ErrTeslaGen3HSCActivationFailed)
-	}
-	acquisition.mu.Lock()
-	defer acquisition.mu.Unlock()
-	if acquisition.closed {
-		return ErrTeslaGen3ReadAcquisitionClosed
-	}
-	// Re-check cancellation inside the readiness commit.
-	if ctxErr := activationCtx.Err(); ctxErr != nil {
-		return fmt.Errorf("%w: %w", ErrTeslaGen3HSCActivationFailed, ctxErr)
-	}
-	acquisition.epoch = epoch
-	acquisition.state = Gen3ReadLifecycleReady
-	return nil
-}
-
 // Close closes the owned endpoint. An in-flight exchange observes endpoint
 // loss and completes as an indeterminate record; nothing is resent.
 func (acquisition *Gen3ReadAcquisition) Close() error {
@@ -625,6 +580,7 @@ func (acquisition *Gen3ReadAcquisition) Close() error {
 	acquisition.endpoint = nil
 	acquisition.instance++
 	acquisition.plan = nil
+	acquisition.activatingProbe = false
 	acquisition.mu.Unlock()
 	if endpoint != nil {
 		return endpoint.Close()

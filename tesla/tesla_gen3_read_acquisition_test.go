@@ -49,8 +49,13 @@ func TestTeslaGen3ReadAcquisitionAcquiresEachObservationOperation(t *testing.T) 
 			}
 			if record.Source != Gen3ReadSourceRTUPrivateFunction || record.LifecycleEpoch != 1 ||
 				record.Generation != 1 || record.RequestID != 1 || record.Attempt != 1 || record.MaxAttempts != 2 ||
-				record.TransportOutcome != "success" || !record.ObservedAt.Equal(harness.clock.now()) {
+				record.TransportOutcome != "success" || !record.ObservedAt.Equal(harness.clock.now()) ||
+				record.EndpointInstance == 0 {
 				t.Fatalf("record source = %#v", record)
+			}
+			if opening := harness.acquisition.ActivationOpening(); opening == nil || opening.Epoch != record.LifecycleEpoch ||
+				opening.Basis != HSCActivationBasisDriverExchange || harness.witness.calls() != 1 {
+				t.Fatalf("activation opening = %+v calls %d", opening, harness.witness.calls())
 			}
 			if !bytes.Equal(record.TerminalBody(), body) {
 				t.Fatalf("terminal body = %x, want %x", record.TerminalBody(), body)
@@ -94,7 +99,9 @@ func TestTeslaGen3ReadAcquisitionOwnsProductionEndpointConfiguration(t *testing.
 	if config.Admission.AdmitRTURead(modbus.RTUReadAdmissionRequest{Endpoint: "evse-a", Generation: 1, UnitID: 0x10, Function: 3, Quantity: 1}) {
 		t.Fatal("FC03/FC04 read admitted by the Tesla read-path lifecycle")
 	}
-	if harness.opens != 1 || harness.witness.calls() != 1 || harness.acquisition.State() != Gen3ReadLifecycleReady {
+	opening := harness.acquisition.ActivationOpening()
+	if harness.opens != 1 || harness.witness.calls() != 1 || harness.acquisition.State() != Gen3ReadLifecycleReady ||
+		opening == nil || opening.Epoch != 1 || opening.Basis != HSCActivationBasisDriverExchange {
 		t.Fatalf("opens/activations/state = %d/%d/%s", harness.opens, harness.witness.calls(), harness.acquisition.State())
 	}
 }
@@ -174,19 +181,19 @@ func TestTeslaGen3ReadAcquisitionRejectsMutationAndUnqualifiedConfiguration(t *t
 		"gen3 not activation capable": func(c *Gen3ReadAcquisitionConfig) {
 			c.Gen3 = mustTeslaGen3Profile(t, Gen3HSCProfileConfig{Enabled: true, Version: "wc3_24_44_3", PrivateFunctionCapable: true, OperationCapable: true})
 		},
-		"no activation witness": func(c *Gen3ReadAcquisitionConfig) { c.Activation = nil },
-		"zero attempts":         func(c *Gen3ReadAcquisitionConfig) { c.MaxAttempts = 0 },
-		"four attempts":         func(c *Gen3ReadAcquisitionConfig) { c.MaxAttempts = 4 },
-		"empty endpoint":        func(c *Gen3ReadAcquisitionConfig) { c.Endpoint = "" },
-		"path as label":         func(c *Gen3ReadAcquisitionConfig) { c.Endpoint = "/dev/ttyUSB0" },
-		"empty local path":      func(c *Gen3ReadAcquisitionConfig) { c.LocalPath = "" },
-		"unbounded timeout":     func(c *Gen3ReadAcquisitionConfig) { c.ResponseTimeout = 0 },
-		"unbounded deadline":    func(c *Gen3ReadAcquisitionConfig) { c.AcquisitionDeadline = 0 },
-		"unbounded activation":  func(c *Gen3ReadAcquisitionConfig) { c.ActivationTimeout = 0 },
-		"unbounded poll":        func(c *Gen3ReadAcquisitionConfig) { c.PollInterval = 0 },
-		"no operations":         func(c *Gen3ReadAcquisitionConfig) { c.Operations = nil },
-		"duplicate operation":   func(c *Gen3ReadAcquisitionConfig) { c.Operations = append(c.Operations, c.Operations[0]) },
-		"missing window":        func(c *Gen3ReadAcquisitionConfig) { delete(c.Windows, FC100OperationWCGetVitals) },
+		"no activation driver": func(c *Gen3ReadAcquisitionConfig) { c.Activation = nil },
+		"zero attempts":        func(c *Gen3ReadAcquisitionConfig) { c.MaxAttempts = 0 },
+		"four attempts":        func(c *Gen3ReadAcquisitionConfig) { c.MaxAttempts = 4 },
+		"empty endpoint":       func(c *Gen3ReadAcquisitionConfig) { c.Endpoint = "" },
+		"path as label":        func(c *Gen3ReadAcquisitionConfig) { c.Endpoint = "/dev/ttyUSB0" },
+		"empty local path":     func(c *Gen3ReadAcquisitionConfig) { c.LocalPath = "" },
+		"unbounded timeout":    func(c *Gen3ReadAcquisitionConfig) { c.ResponseTimeout = 0 },
+		"unbounded deadline":   func(c *Gen3ReadAcquisitionConfig) { c.AcquisitionDeadline = 0 },
+		"unbounded activation": func(c *Gen3ReadAcquisitionConfig) { c.ActivationTimeout = 0 },
+		"unbounded poll":       func(c *Gen3ReadAcquisitionConfig) { c.PollInterval = 0 },
+		"no operations":        func(c *Gen3ReadAcquisitionConfig) { c.Operations = nil },
+		"duplicate operation":  func(c *Gen3ReadAcquisitionConfig) { c.Operations = append(c.Operations, c.Operations[0]) },
+		"missing window":       func(c *Gen3ReadAcquisitionConfig) { delete(c.Windows, FC100OperationWCGetVitals) },
 		"retention below fresh": func(c *Gen3ReadAcquisitionConfig) {
 			c.Windows[FC100OperationWCGetVitals] = Gen3ReadWindow{Freshness: time.Minute, Retention: time.Second}
 		},
@@ -213,11 +220,17 @@ func TestTeslaGen3ReadAcquisitionRejectsMutationAndUnqualifiedConfiguration(t *t
 }
 
 func TestTeslaGen3ReadAcquisitionRequiresDocumentedActivation(t *testing.T) {
+	greeting := HSCActivationGreeting()
 	for name, step := range map[string]teslaGen3WitnessStep{
-		"unexpected bytes": {observed: []byte("TESLA\x00FAIL\x00")},
-		"partial":          {observed: []byte("TESLA\x00")},
-		"timeout":          {err: context.DeadlineExceeded},
-		"reset":            {err: errors.New("device reset")},
+		"confirmation without echo": {report: HSCActivationReport{ClockEpoch: "synthetic", Events: []HSCActivationEvent{
+			hscActivationEvent(HSCActivationEventGreeting, greeting),
+			hscActivationEvent(HSCActivationEventConfirmation, HSCActivationConfirmation()),
+		}}},
+		"partial": {report: HSCActivationReport{ClockEpoch: "synthetic", Events: []HSCActivationEvent{
+			hscActivationEvent(HSCActivationEventGreeting, greeting),
+		}}},
+		"timeout": {err: context.DeadlineExceeded},
+		"reset":   {err: errors.New("device reset")},
 	} {
 		t.Run(name, func(t *testing.T) {
 			config := teslaGen3ReadTestConfig(t, nil)
@@ -298,7 +311,7 @@ func TestTeslaGen3ReadAcquisitionTimeoutLeavesValueIndeterminate(t *testing.T) {
 		record.TransportOutcome != "transport_fault" || record.Generation != 1 || len(record.ResponseADUs()) != 1 {
 		t.Fatalf("timeout record = %#v", record)
 	}
-	if endpoint.recovers != 1 || harness.witness.calls() != 2 || harness.acquisition.State() != Gen3ReadLifecycleReady {
+	if endpoint.recovers != 1 || harness.witness.calls() != 1 || harness.acquisition.State() != Gen3ReadLifecycleReady {
 		t.Fatalf("recovers/activations/state = %d/%d/%s", endpoint.recovers, harness.witness.calls(), harness.acquisition.State())
 	}
 	retained, ok := harness.acquisition.Retained(FC100OperationWCGetVitals)
@@ -326,7 +339,7 @@ func TestTeslaGen3ReadAcquisitionRetriesAreBounded(t *testing.T) {
 	if err != nil || record.State != Gen3ReadEvidenceTimeout || record.Attempt != 3 || record.MaxAttempts != 3 {
 		t.Fatalf("exhausted record = %#v, %v", record, err)
 	}
-	if endpoint.exchanges() != 3 || endpoint.recovers != 3 || harness.witness.calls() != 4 || record.LifecycleEpoch != 3 {
+	if endpoint.exchanges() != 3 || endpoint.recovers != 3 || harness.witness.calls() != 1 || record.LifecycleEpoch != 1 {
 		t.Fatalf("exchanges/recovers/activations/epoch = %d/%d/%d/%d", endpoint.exchanges(), endpoint.recovers, harness.witness.calls(), record.LifecycleEpoch)
 	}
 
@@ -335,7 +348,7 @@ func TestTeslaGen3ReadAcquisitionRetriesAreBounded(t *testing.T) {
 	retryEndpoint.push(teslaGen3FakeStep{outcome: "timeout"})
 	retryEndpoint.push(teslaGen3FakeStep{terminal: teslaGen3ReadTerminal(t, FC100OperationWCGetVitals, []byte{0x08, 0x02})})
 	record, err = retry.acquisition.Acquire(context.Background(), FC100OperationWCGetVitals)
-	if err != nil || record.State != Gen3ReadEvidenceAck || record.Attempt != 2 || record.Generation != 2 || record.LifecycleEpoch != 2 {
+	if err != nil || record.State != Gen3ReadEvidenceAck || record.Attempt != 2 || record.Generation != 2 || record.LifecycleEpoch != 1 {
 		t.Fatalf("retried record = %#v, %v", record, err)
 	}
 
@@ -357,7 +370,7 @@ func TestTeslaGen3ReadAcquisitionRetriesAreBounded(t *testing.T) {
 	rejectedEndpoint.push(teslaGen3FakeStep{terminal: teslaGen3ReadTerminal(t, FC100OperationWCGetVitals, []byte{0x08, 0x01})})
 	record, err = rejected.acquisition.Acquire(context.Background(), FC100OperationWCGetVitals)
 	if err != nil || record.State != Gen3ReadEvidenceAck || record.Attempt != 2 || record.Generation != 2 ||
-		record.LifecycleEpoch != 2 || rejectedEndpoint.recovers != 1 {
+		record.LifecycleEpoch != 1 || rejectedEndpoint.recovers != 1 {
 		t.Fatalf("wrong-tag terminal retry = %#v, %v (recovers %d)", record, err, rejectedEndpoint.recovers)
 	}
 	if retained, _ := rejected.acquisition.Retained(FC100OperationWCGetVitals); retained.LastAttempt.RequestID != record.RequestID {
@@ -417,17 +430,18 @@ func TestTeslaGen3ReadAcquisitionFreshnessAndRetentionWindows(t *testing.T) {
 func TestTeslaGen3ReadAcquisitionReconnectRequiresRecoveryAndActivation(t *testing.T) {
 	harness := newTeslaGen3ReadHarness(t, nil)
 	endpoint := harness.endpoint()
+	opened := harness.acquisition.ActivationOpening()
 	endpoint.push(teslaGen3FakeStep{outcome: "write_fault"})
-	harness.witness.push(teslaGen3WitnessStep{observed: []byte("TESLA\x00")})
+	endpoint.push(teslaGen3FakeStep{terminal: teslaGen3ReadTerminal(t, FC100OperationWCGetVitals, []byte{0x08, 0x01})})
 	record, err := harness.acquisition.Acquire(context.Background(), FC100OperationWCGetVitals)
-	if err != nil || record.State != Gen3ReadEvidenceIndeterminate || record.Attempt != 1 {
+	if err != nil || record.State != Gen3ReadEvidenceAck || record.Attempt != 2 || record.LifecycleEpoch != opened.Epoch || record.Generation != 2 {
 		t.Fatalf("record = %#v, %v", record, err)
 	}
-	if harness.acquisition.State() != Gen3ReadLifecycleUnavailable || endpoint.recovers != 1 || endpoint.exchanges() != 1 {
-		t.Fatalf("state/recovers/exchanges = %s/%d/%d", harness.acquisition.State(), endpoint.recovers, endpoint.exchanges())
+	if harness.acquisition.State() != Gen3ReadLifecycleReady || endpoint.recovers != 1 || endpoint.exchanges() != 2 || harness.witness.calls() != 1 {
+		t.Fatalf("state/recovers/exchanges/calls = %s/%d/%d/%d", harness.acquisition.State(), endpoint.recovers, endpoint.exchanges(), harness.witness.calls())
 	}
-	if _, err := harness.acquisition.Acquire(context.Background(), FC100OperationWCGetVitals); !errors.Is(err, ErrTeslaGen3ReadAcquisitionUnavailable) {
-		t.Fatalf("acquire while unavailable = %v", err)
+	if kept := harness.acquisition.ActivationOpening(); kept == nil || kept.Epoch != opened.Epoch {
+		t.Fatalf("opening after recovery = %+v", kept)
 	}
 
 	failedRecovery := newTeslaGen3ReadHarness(t, nil)
@@ -454,7 +468,7 @@ func TestTeslaGen3ReadAcquisitionRestartStartsSuccessorEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := harness.endpoint()
-	if second == first || !first.isClosed() || harness.opens != 2 || harness.witness.calls() != 2 {
+	if second == first || !first.isClosed() || harness.opens != 2 || harness.witness.calls() != 1 {
 		t.Fatalf("restart endpoints/opens/activations = %v/%d/%d", first.isClosed(), harness.opens, harness.witness.calls())
 	}
 	retained, ok := harness.acquisition.Retained(FC100OperationWCGetVitals)
@@ -468,10 +482,10 @@ func TestTeslaGen3ReadAcquisitionRestartStartsSuccessorEndpoint(t *testing.T) {
 		}
 	}
 	record, err := harness.acquisition.Acquire(context.Background(), FC100OperationWCGetVitals)
-	if err != nil || record.State != Gen3ReadEvidenceAck || record.LifecycleEpoch != 2 || record.Generation != 1 {
+	if err != nil || record.State != Gen3ReadEvidenceAck || record.LifecycleEpoch != 1 || record.Generation != 1 {
 		t.Fatalf("successor record = %#v, %v", record, err)
 	}
-	if retained, _ := harness.acquisition.Retained(FC100OperationWCGetVitals); !retained.Current || retained.LastGood.LifecycleEpoch != 2 {
+	if retained, _ := harness.acquisition.Retained(FC100OperationWCGetVitals); !retained.Current || retained.LastGood.LifecycleEpoch != 1 {
 		t.Fatalf("retained successor = %#v", retained)
 	}
 
@@ -695,20 +709,15 @@ func (clock *teslaGen3FakeClock) advance(delta time.Duration) {
 type teslaGen3WitnessStep struct {
 	before   func()
 	waitDone bool
-	observed []byte
+	report   HSCActivationReport
 	err      error
 }
 
 type teslaGen3FakeWitness struct {
-	mu       sync.Mutex
-	steps    []teslaGen3WitnessStep
-	observed int
-}
-
-func (witness *teslaGen3FakeWitness) push(step teslaGen3WitnessStep) {
-	witness.mu.Lock()
-	witness.steps = append(witness.steps, step)
-	witness.mu.Unlock()
+	mu          sync.Mutex
+	steps       []teslaGen3WitnessStep
+	observed    int
+	lastRequest HSCActivationRequest
 }
 
 func (witness *teslaGen3FakeWitness) calls() int {
@@ -717,18 +726,19 @@ func (witness *teslaGen3FakeWitness) calls() int {
 	return witness.observed
 }
 
-func (witness *teslaGen3FakeWitness) ObserveTeslaGen3HSCActivation(ctx context.Context, request Gen3HSCActivationRequest) ([]byte, error) {
+func (witness *teslaGen3FakeWitness) DriveTeslaHSCActivation(ctx context.Context, request HSCActivationRequest) (HSCActivationReport, error) {
 	witness.mu.Lock()
 	defer witness.mu.Unlock()
 	witness.observed++
-	if ctx == nil || request.Endpoint != "evse-a" || request.Epoch == 0 {
-		return nil, errors.New("invalid activation request")
+	witness.lastRequest = request
+	if ctx == nil || request.Endpoint != "evse-a" || request.Epoch == 0 || request.Owned == nil {
+		return HSCActivationReport{}, errors.New("invalid activation request")
 	}
 	if _, ok := ctx.Deadline(); !ok {
-		return nil, errors.New("activation is unbounded")
+		return HSCActivationReport{}, errors.New("activation is unbounded")
 	}
 	if len(witness.steps) == 0 {
-		return []byte("TESLA\x00PASS\x00"), nil
+		return hscActivationSuccess(), nil
 	}
 	step := witness.steps[0]
 	witness.steps = witness.steps[1:]
@@ -738,7 +748,7 @@ func (witness *teslaGen3FakeWitness) ObserveTeslaGen3HSCActivation(ctx context.C
 	if step.waitDone {
 		<-ctx.Done()
 	}
-	return append([]byte(nil), step.observed...), step.err
+	return step.report.clone(), step.err
 }
 
 type teslaGen3FakeStep struct {
@@ -1063,8 +1073,8 @@ func TestTeslaGen3ReadAcquisitionRejectsExpiredActivation(t *testing.T) {
 		cancelled bool
 		step      teslaGen3WitnessStep
 	}{
-		"cancelled start": {cancelled: true, step: teslaGen3WitnessStep{observed: []byte("TESLA\x00PASS\x00")}},
-		"late success":    {step: teslaGen3WitnessStep{waitDone: true, observed: []byte("TESLA\x00PASS\x00")}},
+		"cancelled start": {cancelled: true, step: teslaGen3WitnessStep{report: hscActivationSuccess()}},
+		"late success":    {step: teslaGen3WitnessStep{waitDone: true, report: hscActivationSuccess()}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			config := teslaGen3ReadTestConfig(t, nil)
@@ -1154,8 +1164,8 @@ func TestTeslaGen3ReadAcquisitionRejectsActivationAtOrAfterDeadline(t *testing.T
 			// The fake clock passes the activation deadline while the real
 			// context timer has not fired, so ctx.Err() is still nil.
 			config.Activation = &teslaGen3FakeWitness{steps: []teslaGen3WitnessStep{{
-				before:   func() { clock.advance(tc.advance) },
-				observed: []byte("TESLA\x00PASS\x00"),
+				before: func() { clock.advance(tc.advance) },
+				report: hscActivationSuccess(),
 			}}}
 			acquisition, err := NewGen3ReadAcquisition(config)
 			if err != nil {

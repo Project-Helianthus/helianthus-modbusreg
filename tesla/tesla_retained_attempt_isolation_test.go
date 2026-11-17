@@ -38,7 +38,7 @@ func k22RetentionFixture(t *testing.T) (*Gen3ReadAcquisition, *time.Time, *k22No
 	operation := FC100OperationWCGetVitals
 	return &Gen3ReadAcquisition{
 		config: Gen3ReadAcquisitionConfig{Now: func() time.Time { return now }},
-		state:  Gen3ReadLifecycleReady, endpoint: endpoint, epoch: 1,
+		state:  Gen3ReadLifecycleReady, endpoint: endpoint, instance: 1, epoch: 1, epochGeneration: 1,
 		windows: map[FC100Operation]Gen3ReadWindow{
 			operation: {Freshness: time.Second, Retention: time.Minute},
 		},
@@ -48,7 +48,7 @@ func k22RetentionFixture(t *testing.T) (*Gen3ReadAcquisition, *time.Time, *k22No
 	}, &now, endpoint
 }
 
-func k22SyntheticACK(epoch, request uint64, at time.Time, body []byte) Gen3ReadRecord {
+func k22SyntheticACK(epoch, instance, request uint64, at time.Time, body []byte) Gen3ReadRecord {
 	return Gen3ReadRecord{
 		Endpoint: "synthetic-family", Node: 0x10,
 		Operation: FC100OperationWCGetVitals,
@@ -56,7 +56,7 @@ func k22SyntheticACK(epoch, request uint64, at time.Time, body []byte) Gen3ReadR
 		Profile: HSCProfileName, ProfileVersion: HSCCompatibilityV1,
 		OperationVersion: HSCFC100OperationCompatibilityV1,
 		Source:           Gen3ReadSourceRTUPrivateFunction,
-		LifecycleEpoch:   epoch, Generation: epoch, RequestID: request,
+		LifecycleEpoch:   epoch, EndpointInstance: instance, Generation: 1, RequestID: request,
 		Attempt: 1, MaxAttempts: 1, ObservedAt: at,
 		State: Gen3ReadEvidenceAck,
 		// Deliberately opaque fixture bytes, not frames from a device.
@@ -78,15 +78,16 @@ func TestK22RetiredEvidenceCannotRefreshSuccessor(t *testing.T) {
 	for _, fence := range []string{"endpoint", "epoch", "endpoint_and_epoch"} {
 		t.Run(fence, func(t *testing.T) {
 			acquisition, now, oldEndpoint := k22RetentionFixture(t)
-			old := acquisition.publish(k22SyntheticACK(1, 1, *now, []byte{0x11, 0x12}), oldEndpoint)
+			old := acquisition.publish(k22SyntheticACK(1, acquisition.instance, 1, *now, []byte{0x11, 0x12}), oldEndpoint)
 			if fence != "epoch" {
 				acquisition.endpoint = &k22NoIOEndpoint{t: t}
+				acquisition.instance++
 			}
 			if fence != "endpoint" {
 				acquisition.epoch = 2
 			}
 			*now = now.Add(2 * time.Second)
-			good := acquisition.publish(k22SyntheticACK(acquisition.epoch, 2, *now, []byte{0x21}), acquisition.endpoint)
+			good := acquisition.publish(k22SyntheticACK(acquisition.epoch, acquisition.instance, 2, *now, []byte{0x21}), acquisition.endpoint)
 			before := k22Retained(t, acquisition)
 			if !before.Fresh || !before.Current || !reflect.DeepEqual(before.LastGood, good) {
 				t.Fatalf("successor ACK was not retained: %+v", before)
@@ -113,8 +114,9 @@ func TestK22RetiredEvidenceCannotRefreshSuccessor(t *testing.T) {
 
 func TestK22PartialSuccessorKeepsAgedLastGoodWithoutBorrowing(t *testing.T) {
 	acquisition, now, oldEndpoint := k22RetentionFixture(t)
-	good := acquisition.publish(k22SyntheticACK(1, 1, *now, []byte{0x31, 0x32}), oldEndpoint)
+	good := acquisition.publish(k22SyntheticACK(1, acquisition.instance, 1, *now, []byte{0x31, 0x32}), oldEndpoint)
 	acquisition.endpoint = &k22NoIOEndpoint{t: t}
+	acquisition.instance++
 	acquisition.epoch = 2
 	*now = now.Add(2 * time.Second)
 	// A failed newer receipt has no decoded value or missing identity bytes.

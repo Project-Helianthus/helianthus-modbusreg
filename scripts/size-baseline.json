@@ -125,7 +125,7 @@
       "path": "tesla/tesla_gen3_read_acquisition_test.go",
       "symbol": "$file",
       "metric": "functions_per_file",
-      "value": 96
+      "value": 95
     },
     {
       "path": "tools/huaweicatalog/generate.go",

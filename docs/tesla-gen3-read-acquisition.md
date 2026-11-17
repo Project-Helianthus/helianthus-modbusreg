@@ -16,7 +16,8 @@ observation or a compatible candidate, is `NO_SEND` at construction.
 ## Public contracts followed
 
 - `protocols/tesla/gen3-hsc-rtu.md`: 115200 8N1 serial format, the
-  device-originated activation sequence (`TESLA` NUL, `PASS` NUL), activation
+  responder greeting (`TESLA` NUL), the host echo of those bytes, and the
+  confirmation (`PASS` NUL) or refusal (`FAIL` NUL), activation
   failure/timeout/reset/unexpected-frame disabling the exchange state, and
   qualification by explicit endpoint, node, exact version, activation state,
   and single-flight correlation.
@@ -34,18 +35,26 @@ observation or a compatible candidate, is `NO_SEND` at construction.
 ## State machine
 
 ```text
-stopped --Start--> activating --activation ok--> ready
+stopped --Start--> activating --driver confirmation after host echo--> ready
+activating --readiness probe acknowledged--> ready
 ready --Acquire/PollOnce--> ready                      (ack, rejected, no_send)
-ready --fencing failure--> recovering --Recover ok--> activating --ok--> ready
-recovering|activating --failure--> unavailable --Restart--> activating
+ready --fencing failure--> recovering --Recover ok--> ready
+recovering|activating --failure--> unavailable
+unavailable --Restart after observed activation--> ready
+unavailable --Restart before observed activation--> activating
 any --Close--> closed
 ```
 
-Every activated endpoint generation opens a new lifecycle epoch. Admission is
-bound to the owned endpoint instance, the planned exact request payload, the
-configured node and endpoint label, and the transport generation pinned for
-the epoch; a retired endpoint's admission denies every candidate. The FC03/FC04
-read path of the endpoint admits nothing.
+A successful activation opens one lifecycle epoch. Recovery keeps that epoch,
+clears the pinned generation, and does not call the driver. The next admitted
+exchange pins the successor generation of the same endpoint instance. Restart
+after an observed activation opens a successor endpoint instance in the same
+epoch, enters ready, and sends nothing. Restart before any observed activation
+enters activating and calls the driver. Admission is bound to the owned
+endpoint instance, the planned exact request payload, the configured node and
+endpoint label, and the transport generation pinned for that instance; a
+retired endpoint's admission denies every candidate. The FC03/FC04 read path
+of the endpoint admits nothing.
 
 ## Scheduling, retries, and retention
 
@@ -54,11 +63,12 @@ One lifecycle call owns the single in-flight slot; concurrent `Acquire`,
 `ErrTeslaGen3ReadAcquisitionBusy`. Each transport exchange has exactly one send
 attempt. `MaxAttempts` (1 through 3) bounds exchanges per acquisition, all
 inside `AcquisitionDeadline`. A timeout or indeterminate outcome after possible
-transmission is followed by the transport's bounded recovery and a fresh
-activation before any retry; both run inside the remaining acquisition budget.
-An expired or cancelled acquisition does not start recovery: the endpoint stays
-fenced, the lifecycle becomes unavailable, and `Restart` is required. The
-response classifier accepts as terminal only the request operation's exact
+transmission is followed by bounded recovery in the same epoch, without a
+second activation, before any retry. Both stay inside the remaining acquisition
+budget. An expired or cancelled acquisition does not start recovery: the
+endpoint stays fenced, the lifecycle becomes unavailable, and `Restart` is
+required.
+The response classifier accepts as terminal only the request operation's exact
 family/terminal-tag container or a TEDAPI application error; any other frame is
 a classifier fault that fences the transport generation, so a delayed terminal
 can never satisfy a later attempt. A correlated exception or application error
@@ -68,15 +78,17 @@ last-known-good record is not fresh and current; `Run` repeats it every
 
 Each operation has its own freshness and retention window. A failed attempt
 never replaces the last acknowledged record. Records older than the retention
-window are discarded. `Current` is true only for a record from the active
-ready epoch; records from a recovered, restarted, or closed endpoint remain
+window are discarded. `Current` is true only while the lifecycle is ready and
+the record's epoch, endpoint instance, and generation are the live ones. A
+fenced generation, another endpoint instance, or a closed lifecycle remains
 historical.
 
 ## Records and evidence states
 
 A record carries the endpoint label, node, operation and family/tag pair,
 profile and operation versions, the Gen3 version label and disposition, the
-source, lifecycle epoch, transport generation and request identifier, attempt
+source, lifecycle epoch, endpoint instance, transport generation and request
+identifier, attempt
 count, lifecycle and transport timestamps, the exact request ADU, every
 received response ADU, and the evidence state:
 
@@ -93,13 +105,44 @@ qualification claim, and it creates no control authority.
 
 ## Activation boundary
 
-The lifecycle compares the bytes reported by a configured
-`Gen3HSCActivationWitness` with the documented sequence and fails closed
-without one. A report returned at or after the `ActivationTimeout` deadline (measured
-on the lifecycle clock), or after cancellation, is rejected even when its
-bytes match; cancellation is checked again inside the readiness commit.
-The final ownership check, ACK promotion, and retention run in one critical
-section with `Close`, so a record whose endpoint was closed or retired before
-publication is `indeterminate` with its frames kept and no decoded value. The helianthus-modbus production endpoint does not expose
-pre-exchange activation bytes, so this repository ships no production witness;
-until one exists the lifecycle cannot be constructed for live use.
+The lifecycle drives the activation exchange through an injected
+`HSCActivationDriver` on the endpoint it owns. The responder greeting is
+`TESLA` followed by NUL. The host echo is those same bytes. The responder then
+sends the confirmation `PASS` followed by NUL, or the refusal `FAIL` followed
+by NUL and a new greeting. Readiness requires one or more attempts of the form
+greeting, optional echo, and refusal, ending with greeting, echo, and
+confirmation, and each echo must equal the greeting immediately before it. A
+confirmation with no echo, a final refusal or greeting, a differing echo,
+unknown bytes, a wrong order, or a report over the resource ceiling fails
+closed with `ErrTeslaGen3HSCActivationFailed` and leaves the lifecycle
+unavailable.
+
+The activation deadline is sampled on the lifecycle clock before the driver is
+called. A report returned at or after that deadline is rejected even when its
+bytes match. Cancellation is checked again inside the readiness commit, under
+the same mutex `Close` takes. The final ownership check, ACK promotion, and
+retention run in one critical section with `Close`, so a record whose endpoint
+was closed or retired before publication is `indeterminate` with its frames
+kept and no decoded value.
+
+Recovery keeps the epoch and does not call the driver. Restart after an
+observed activation opens the successor endpoint instance, enters `ready` in
+the same epoch, and sends nothing. Restart before any observed activation
+enters `activating` and calls the driver.
+
+`ReadinessProbe` is off unless the configuration sets it. When it is on, and
+the driver returns no event and no error for the whole activation timeout, the
+lifecycle admits one exchange of the first configured operation while still
+`activating`. An acknowledged record opens the epoch. Any other record leaves
+the lifecycle unavailable and retires the endpoint. The probe is never used
+after any event was reported, and admission allows no other exchange while
+`activating`.
+
+`ActivationOpening` returns a copy of the report that opened the current
+epoch, that epoch, and the basis (`driver_exchange` or `probe`). It is nil
+before an activation has been observed. A later Restart keeps that opening.
+
+A nil driver is `NO_SEND`. This repository ships no production driver and does
+not open a serial port. The host supplies the driver. Tests use a scripted
+peer. The echo window, the retry count, and the host-side turnaround are not
+established and must be measured.
