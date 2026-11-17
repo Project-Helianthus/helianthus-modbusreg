@@ -1,5 +1,9 @@
 # Changelog
 
+## Growatt BMS operating state
+
+The typed Growatt BMS status admits an operating state only when the low byte is soft-start, standby, charging, or discharging. Any other low byte is an error and returns no status. A nonzero high byte stays an error. Remaining capacity, full charge capacity, cumulative charge, and cumulative discharge stay independent ampere-hour observations. No watt-hour quantity is derived.
+
 ## SUN2000 month and year yields
 
 Both SUN2000 monitoring profiles read the energy group at offset 32106 with quantity 14. The read still covers accumulated yield, the current hour and the current day, and it covers the current month and the current year. The month and year counters are U32 values in kWh with exponent -2, graded Hypothesis. The four words at 32108 stay inside the read and stay unconsumed: no numeric source field is named there. Meter facts stay unadmitted. A battery offset stays a loss, and a zero word there stays unpublished.

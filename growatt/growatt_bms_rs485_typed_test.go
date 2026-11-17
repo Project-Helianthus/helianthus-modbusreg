@@ -39,6 +39,64 @@ func TestDecodeGrowattBMSTypedReadOnlyStatusRejectsInvalidTypedEncoding(t *testi
 	}
 }
 
+func TestDecodeGrowattBMSTypedReadOnlyStatusRejectsUnlistedOperatingState(t *testing.T) {
+	states := []struct {
+		low  uint16
+		want BMSOperatingState
+	}{
+		{0, BMSStateSoftStarting},
+		{1, BMSStateStandby},
+		{2, BMSStateCharging},
+		{3, BMSStateDischarging},
+	}
+	for _, state := range states {
+		input := validGrowattBMSTypedReadOnlyInput()
+		input.Slices[1].Words[6] = state.low
+		status, err := DecodeGrowattBMSTypedReadOnlyStatus(input)
+		if err != nil {
+			t.Fatalf("low byte %d: %v", state.low, err)
+		}
+		if status.OperatingState != state.want {
+			t.Fatalf("low byte %d decoded %q", state.low, status.OperatingState)
+		}
+	}
+
+	input := validGrowattBMSTypedReadOnlyInput()
+	input.Slices[1].Words[6] = 0
+	input.Slices[1].Words[13] = 3300
+	input.Slices[1].Words[14] = 4400
+	input.Slices[2].Words[5] = 70
+	input.Slices[2].Words[6] = 80
+	status, err := DecodeGrowattBMSTypedReadOnlyStatus(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.OperatingState != BMSStateSoftStarting ||
+		status.OperatingState == BMSStateCharging ||
+		status.OperatingState == BMSStateStandby ||
+		status.RemainingCapacityAmpHours != 33 ||
+		status.FullChargeCapacityAmpHours != 44 ||
+		status.CumulativeChargeAmpHours != 7 ||
+		status.CumulativeDischargeAmpHours != 8 ||
+		status.OutboundAllowed() {
+		t.Fatalf("status=%#v", status)
+	}
+	native := status.NativeObservation().Slices()
+	if native[1].Words[6] != 0 || native[1].Words[13] != 3300 || native[1].Words[14] != 4400 ||
+		native[2].Words[5] != 70 || native[2].Words[6] != 80 {
+		t.Fatal("native capacity observation was replaced")
+	}
+
+	for _, word := range []uint16{4, 5, 6, 7, 0x0100} {
+		rejected := validGrowattBMSTypedReadOnlyInput()
+		rejected.Slices[1].Words[6] = word
+		got, err := DecodeGrowattBMSTypedReadOnlyStatus(rejected)
+		if err == nil || got != (BMSTypedReadOnlyStatus{}) {
+			t.Fatalf("word %#x status=%#v err=%v", word, got, err)
+		}
+	}
+}
+
 func TestGrowattBMSTypedStatusRetainsNativeObservation(t *testing.T) {
 	input := validGrowattBMSTypedReadOnlyInput()
 	status, err := DecodeGrowattBMSTypedReadOnlyStatus(input)
