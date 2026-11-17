@@ -354,6 +354,42 @@ func TestThreePhaseMonitoringOmitsUnimplementedApparentPower(t *testing.T) {
 	}
 }
 
+func TestThreePhaseMonitoringOmitsUnimplementedIntegerApparentPower(t *testing.T) {
+	registry := mustStandardSunSpecRegistry(t)
+	decision := registry.EvaluateThreePhaseMonitoring(capabilitySnapshot(t, registry, 103, map[string][]uint16{
+		"VA": {0x8000}, "VA_SF": {0}, "VAr": {0xfffd}, "VAr_SF": {0},
+		"PPVphAB": {410}, "PPVphBC": {411}, "PPVphCA": {412}, "V_SF": {0},
+	}))
+	if !decision.Admitted() || decision.Reason() != CapabilityReasonAdmitted {
+		t.Fatalf("admitted=%t reason=%q", decision.Admitted(), decision.Reason())
+	}
+	want := []struct {
+		id, unit, number string
+	}{
+		{"inverter.ac.power.reactive", "var", "-3"},
+		{"inverter.ac.voltage.line_ab", "V", "410"},
+		{"inverter.ac.voltage.line_bc", "V", "411"},
+		{"inverter.ac.voltage.line_ca", "V", "412"},
+	}
+	facts := decision.Facts()
+	required := len(ThreePhaseMonitoringFieldIDs())
+	if len(facts) != required+len(want) {
+		t.Fatalf("facts=%d", len(facts))
+	}
+	for _, fact := range facts {
+		if fact.FieldID() == "inverter.ac.power.apparent" {
+			t.Fatal("unimplemented integer apparent power was admitted")
+		}
+	}
+	for index, field := range want {
+		fact := facts[required+index]
+		number, ok := fact.Value().Number()
+		if fact.FieldID() != field.id || fact.Unit() != field.unit || !ok || number != field.number {
+			t.Fatalf("optional[%d] id=%s unit=%s number=%s present=%t", index, fact.FieldID(), fact.Unit(), number, ok)
+		}
+	}
+}
+
 func TestSunSpecThreePhaseMonitoringFieldIDsFollowTheCapabilityOrder(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
 	decision := registry.EvaluateThreePhaseMonitoring(capabilitySnapshot(t, registry, 113, nil))
