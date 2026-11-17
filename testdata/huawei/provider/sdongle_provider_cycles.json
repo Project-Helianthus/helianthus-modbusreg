@@ -203,7 +203,7 @@
           "function": "FC03",
           "unit": 1,
           "offset": 32106,
-          "quantity": 10,
+          "quantity": 14,
           "reply": {
             "kind": "source"
           }
@@ -265,7 +265,7 @@
           "function": "FC03",
           "unit": 1,
           "offset": 32106,
-          "quantity": 10,
+          "quantity": 14,
           "reply": {
             "kind": "source"
           }
@@ -573,7 +573,7 @@
           "function": "FC03",
           "unit": 1,
           "offset": 32106,
-          "quantity": 10,
+          "quantity": 14,
           "reply": {
             "kind": "source"
           }

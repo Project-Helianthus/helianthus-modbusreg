@@ -145,7 +145,7 @@
         {
           "function": "FC03",
           "offset": 32106,
-          "quantity": 10,
+          "quantity": 14,
           "outcome": {
             "type": "words",
             "words": [
@@ -158,7 +158,11 @@
               0,
               24,
               0,
-              37
+              37,
+              0,
+              150,
+              0,
+              1500
             ]
           }
         },
@@ -338,6 +342,20 @@
           "key": "huawei.sun2000.m1.energy_current_day",
           "index": 0,
           "value": "0.37",
+          "unit": "kWh",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m1.energy_current_month",
+          "index": 0,
+          "value": "1.50",
+          "unit": "kWh",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "huawei.sun2000.m1.energy_current_year",
+          "index": 0,
+          "value": "15.00",
           "unit": "kWh",
           "grade": "HYPOTHESIS"
         }

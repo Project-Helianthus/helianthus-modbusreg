@@ -1,5 +1,9 @@
 # Changelog
 
+## SUN2000 month and year yields
+
+Both SUN2000 monitoring profiles read the energy group at offset 32106 with quantity 14. The read still covers accumulated yield, the current hour and the current day, and it covers the current month and the current year. The month and year counters are U32 values in kWh with exponent -2, graded Hypothesis. The four words at 32108 stay inside the read and stay unconsumed: no numeric source field is named there. Meter facts stay unadmitted. A battery offset stays a loss, and a zero word there stays unpublished.
+
 ## Detection and ledger packages (#377)
 
 Profile detection moves from the module root to package `github.com/Project-Helianthus/helianthus-modbusreg/detection`, and the attempt ledger and completion records move to package `github.com/Project-Helianthus/helianthus-modbusreg/ledger`. Exported names that began with `Detection` or `Ledger` lose that prefix and constructors follow their types; other exported names, such as `NewProfileDetector`, `NewProbePlan`, `MarshalDetectionDecision`, `DefaultDetectionLimits`, `NewFixtureReplayer`, `NewSampleLedger`, `NewObservationFactory` and `NewFMV3M303CompletionRecord`, change only their qualifier; methods, fields, wire values, JSON keys, serialized records and behavior are unchanged. No alias or forwarding declaration remains in the root package. Both packages depend only on the contracts of the root package and import neither each other nor a vendor package; the import-direction test pins the final package graph. The root package keeps the shared contracts and imports no other package of the module. The one-off move tool is removed with this last move. Consumers replace each previous name with the current one:

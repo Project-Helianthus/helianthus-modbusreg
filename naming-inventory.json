@@ -568,6 +568,38 @@
       "consumer_files": []
     },
     {
+      "identity": "HuaweiSUN2000MonitoringProfile / decoded field / energy_current_month",
+      "owning_file": "huawei/huawei_sun2000_monitoring.go",
+      "current_name": "energy_current_month",
+      "target": "energy_current_month",
+      "category": "decoded_value",
+      "role_decomposition": "provisional; existing vocabulary unchanged",
+      "existing_public_evidence": [
+        "huawei/huawei_sun2000_monitoring.go"
+      ],
+      "value_class": "measurement",
+      "unit_metadata": "kWh",
+      "status": "provisional",
+      "open_question": "Confirm profile-specific identity, consumer bindings, vocabulary and applicable qualification before adoption.",
+      "consumer_files": []
+    },
+    {
+      "identity": "HuaweiSUN2000MonitoringProfile / decoded field / energy_current_year",
+      "owning_file": "huawei/huawei_sun2000_monitoring.go",
+      "current_name": "energy_current_year",
+      "target": "energy_current_year",
+      "category": "decoded_value",
+      "role_decomposition": "provisional; existing vocabulary unchanged",
+      "existing_public_evidence": [
+        "huawei/huawei_sun2000_monitoring.go"
+      ],
+      "value_class": "measurement",
+      "unit_metadata": "kWh",
+      "status": "provisional",
+      "open_question": "Confirm profile-specific identity, consumer bindings, vocabulary and applicable qualification before adoption.",
+      "consumer_files": []
+    },
+    {
       "identity": "HuaweiSUN2000MonitoringProfile / decoded field / input_power",
       "owning_file": "huawei/huawei_sun2000_monitoring.go",
       "current_name": "input_power",

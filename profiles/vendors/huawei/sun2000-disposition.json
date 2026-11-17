@@ -163,7 +163,7 @@
         },
         {
           "offset": 32106,
-          "quantity": 10,
+          "quantity": 14,
           "use": "CONSUMED"
         }
       ],
@@ -229,6 +229,28 @@
         {
           "key": "energy_current_day",
           "offset": 32114,
+          "stride": 0,
+          "count": 1,
+          "type": "U32",
+          "gain": 100,
+          "unit": "kWh",
+          "sign": "UNSIGNED",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "energy_current_month",
+          "offset": 32116,
+          "stride": 0,
+          "count": 1,
+          "type": "U32",
+          "gain": 100,
+          "unit": "kWh",
+          "sign": "UNSIGNED",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "energy_current_year",
+          "offset": 32118,
           "stride": 0,
           "count": 1,
           "type": "U32",
@@ -331,7 +353,7 @@
         },
         {
           "offset": 32106,
-          "quantity": 10,
+          "quantity": 14,
           "use": "CONSUMED"
         }
       ],
@@ -417,6 +439,28 @@
         {
           "key": "energy_current_day",
           "offset": 32114,
+          "stride": 0,
+          "count": 1,
+          "type": "U32",
+          "gain": 100,
+          "unit": "kWh",
+          "sign": "UNSIGNED",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "energy_current_month",
+          "offset": 32116,
+          "stride": 0,
+          "count": 1,
+          "type": "U32",
+          "gain": 100,
+          "unit": "kWh",
+          "sign": "UNSIGNED",
+          "grade": "HYPOTHESIS"
+        },
+        {
+          "key": "energy_current_year",
+          "offset": 32118,
           "stride": 0,
           "count": 1,
           "type": "U32",
@@ -673,14 +717,14 @@
         "id": "catalog_m3_row_behind_smartlogger",
         "outcome": "PROFILE_SELECTED",
         "selected_profile": "huawei.sun2000.m3.monitoring-readonly@1.0.0",
-        "native_fact_count": 19,
+        "native_fact_count": 21,
         "reason": "the SmartLogger tuple, a listed unit, and the catalog row selected by the M3 series token, its identifier and a software text at or above its floor, or of a branch with no documented relation to it"
       },
       {
         "id": "catalog_m1_row_behind_sdongle",
         "outcome": "PROFILE_SELECTED",
         "selected_profile": "huawei.sun2000.m1.monitoring-readonly@1.0.0",
-        "native_fact_count": 22,
+        "native_fact_count": 24,
         "reason": "the S-Dongle tuple, the observed child unit, and the catalog row selected by the M1 series token, its identifier and a software text at or above its floor"
       },
       {
@@ -702,7 +746,7 @@
   "registers": {
     "evidence_backed": [
       "32016+24 strings group",
-      "32106+10 energy group",
+      "32106+14 energy group",
       "32064+32 power group on the M1 series"
     ],
     "retained_not_facts": [
@@ -737,6 +781,8 @@
     "huawei.sun2000.m3.energy_accumulated",
     "huawei.sun2000.m3.energy_current_hour",
     "huawei.sun2000.m3.energy_current_day",
+    "huawei.sun2000.m3.energy_current_month",
+    "huawei.sun2000.m3.energy_current_year",
     "huawei.sun2000.m1.pv_string_voltage",
     "huawei.sun2000.m1.pv_string_current",
     "huawei.sun2000.m1.input_power",
@@ -744,7 +790,9 @@
     "huawei.sun2000.m1.status",
     "huawei.sun2000.m1.energy_accumulated",
     "huawei.sun2000.m1.energy_current_hour",
-    "huawei.sun2000.m1.energy_current_day"
+    "huawei.sun2000.m1.energy_current_day",
+    "huawei.sun2000.m1.energy_current_month",
+    "huawei.sun2000.m1.energy_current_year"
   ],
   "catalog_registered": false,
   "automatic_runtime_admission": false,
