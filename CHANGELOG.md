@@ -936,6 +936,13 @@ Direct replacement of external values and schema identifiers; no aliases or migr
 
 ## Unreleased
 
+- Three-phase inverter monitoring still requires its existing facts. Apparent
+  power, reactive power, and the three line-to-line voltages are appended, in
+  that order, when the decoded point is present once, has its catalog unit, and
+  has a valid value. An absent or unimplemented point is left out: it does not
+  reject the capability and it is not reported as zero. The Fronius
+  qualification candidate list is that required list followed by the optional
+  points the qualified replay admits. Module energy stays off both lists.
 - Doc comments now cover every exported declaration in the Tesla, Growatt,
   OutBack and Fronius family files (first slice of #375; the six declarations
   in `tesla_gen3_read_acquisition.go` follow in a later slice). Comments state

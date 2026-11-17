@@ -37,6 +37,8 @@ func TestFroniusQualificationCardPinsBoundedReadOnlyObservedFlavor(t *testing.T)
 		"inverter.ac.voltage.phase_a", "inverter.ac.voltage.phase_b", "inverter.ac.voltage.phase_c",
 		"inverter.ac.power.active", "inverter.ac.frequency", "inverter.ac.energy_lifetime",
 		"inverter.temperature.cabinet", "inverter.operating_state", "inverter.events.1", "inverter.events.2",
+		"inverter.ac.power.apparent", "inverter.ac.power.reactive",
+		"inverter.ac.voltage.line_ab", "inverter.ac.voltage.line_bc", "inverter.ac.voltage.line_ca",
 	}
 	if got := card.SemanticCandidateFieldIDs(); !reflect.DeepEqual(got, wantFacts) {
 		t.Fatalf("semantic candidates=%v", got)
@@ -76,8 +78,8 @@ func TestFroniusQualificationCardReplaysCompleteSourceBackedChain(t *testing.T) 
 			t.Fatalf("occurrence lost raw/provenance: %#v", occurrence)
 		}
 	}
-	if got := len(observation.Capability().Facts()); got != len(card.SemanticCandidateFieldIDs()) {
-		t.Fatalf("typed facts=%d", got)
+	if got := capabilityFieldIDs(observation.Capability().Facts()); !reflect.DeepEqual(got, card.SemanticCandidateFieldIDs()) || len(got) != len(card.SemanticCandidateFieldIDs()) {
+		t.Fatalf("typed facts=%v", got)
 	}
 }
 
@@ -296,8 +298,8 @@ func TestFroniusModel160StaysDecodedAndUncandidate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Qualify: %v", err)
 	}
-	if len(observation.Capability().Facts()) != len(candidates) {
-		t.Fatalf("typed facts=%d", len(observation.Capability().Facts()))
+	if got := capabilityFieldIDs(observation.Capability().Facts()); !reflect.DeepEqual(got, candidates) || len(got) != len(candidates) {
+		t.Fatalf("typed facts=%v", got)
 	}
 	var occurrence sunspec.Occurrence
 	found := 0
@@ -344,6 +346,14 @@ func TestFroniusModel160StaysDecodedAndUncandidate(t *testing.T) {
 	if !ok || label.Value.PointType() != sunspec.TypeString {
 		t.Fatal("module label is not the string point")
 	}
+}
+
+func capabilityFieldIDs(facts []sunspec.CapabilityFact) []string {
+	ids := make([]string, len(facts))
+	for index, fact := range facts {
+		ids[index] = fact.FieldID()
+	}
+	return ids
 }
 
 // rawOccurrence returns an occurrence whose words are the header of

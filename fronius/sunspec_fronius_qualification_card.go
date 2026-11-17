@@ -101,10 +101,13 @@ func (SunSpecFroniusQualificationCard) ExpectedChain() []sunspec.WireKey {
 }
 
 // SemanticCandidateFieldIDs lists the exact qualified native facts that may be
-// considered by a later semantic owner. It is not a promotion or publication
-// decision and does not expose facts from any other model in the retained chain.
+// considered by a later semantic owner. The list is the required three-phase
+// monitoring facts followed by the optional apparent-power, reactive-power,
+// and line-to-line voltage points the qualified replay admits. It is not a
+// promotion or publication decision and does not expose facts from any other
+// model in the retained chain, including module energy.
 func (SunSpecFroniusQualificationCard) SemanticCandidateFieldIDs() []string {
-	return sunspec.ThreePhaseMonitoringFieldIDs()
+	return append(sunspec.ThreePhaseMonitoringFieldIDs(), sunspec.ThreePhaseMonitoringOptionalFieldIDs()...)
 }
 
 // DecodedNotCandidateFieldIDs lists the per-module direct-current points the
