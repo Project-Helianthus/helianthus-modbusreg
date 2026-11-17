@@ -37,7 +37,12 @@
     "inverter.temperature.cabinet",
     "inverter.operating_state",
     "inverter.events.1",
-    "inverter.events.2"
+    "inverter.events.2",
+    "inverter.ac.power.apparent",
+    "inverter.ac.power.reactive",
+    "inverter.ac.voltage.line_ab",
+    "inverter.ac.voltage.line_bc",
+    "inverter.ac.voltage.line_ca"
   ],
   "retained_evidence": ["raw_words", "occurrence_order", "source_spans", "logical_view_provenance"],
   "live_qualified": false,

@@ -74,7 +74,7 @@ func (v CanonicalValue) Bitfield() (uint64, []string, bool) {
 	return v.bits, append([]string(nil), v.bitSymbols...), v.kind == CanonicalBitfield
 }
 
-// CapabilityFact is one required fact of an admitted capability: field
+// CapabilityFact is one admitted fact of an admitted capability: field
 // identifier, capability unit, canonical value and the decoded source value it
 // was derived from.
 type CapabilityFact struct {
@@ -102,7 +102,7 @@ func (f CapabilityFact) SourceValue() Value {
 
 // CapabilityDecision is the immutable result of
 // EvaluateThreePhaseMonitoring. A rejected decision carries only its reason;
-// an admitted one also carries the source occurrence, the required facts in a
+// an admitted one also carries the source occurrence, the admitted facts in a
 // fixed order and the source views. Admission is not a product or firmware
 // qualification.
 type CapabilityDecision struct {
@@ -132,8 +132,10 @@ func (d CapabilityDecision) SourceOccurrence() (Occurrence, bool) {
 	return cloneOccurrence(*d.source), true
 }
 
-// Facts returns copies of the required facts in the capability's fixed order;
-// it is empty when rejected.
+// Facts returns copies of the admitted facts in the capability's fixed order;
+// it is empty when rejected. Required facts come first. Optional apparent
+// power, reactive power, and line-to-line voltages follow when they are
+// admitted.
 func (d CapabilityDecision) Facts() []CapabilityFact {
 	return cloneSunSpecCapabilityFacts(d.facts)
 }
@@ -177,15 +179,34 @@ var threePhaseMonitoringFields = []sunSpecCapabilityField{
 	{"inverter.events.2", "", "none"},
 }
 
+var threePhaseMonitoringOptionalFields = []sunSpecCapabilityField{
+	{"inverter.ac.power.apparent", "VA", "VA"},
+	{"inverter.ac.power.reactive", "var", "var"},
+	{"inverter.ac.voltage.line_ab", "V", "V"},
+	{"inverter.ac.voltage.line_bc", "V", "V"},
+	{"inverter.ac.voltage.line_ca", "V", "V"},
+}
+
 // ThreePhaseMonitoringFieldIDs returns a new slice of the field
 // identifiers a ThreePhaseMonitoringCapabilityID decision requires, in
-// the fixed order of CapabilityDecision.Facts.
+// their fixed order. Admitted facts start with this list.
 func ThreePhaseMonitoringFieldIDs() []string {
-	fields := make([]string, len(threePhaseMonitoringFields))
-	for index, field := range threePhaseMonitoringFields {
-		fields[index] = field.id
+	return sunSpecCapabilityFieldIDs(threePhaseMonitoringFields)
+}
+
+// ThreePhaseMonitoringOptionalFieldIDs returns a new slice of the optional
+// apparent-power, reactive-power, and line-to-line voltage identifiers, in
+// the order an admitted decision appends the points that qualify.
+func ThreePhaseMonitoringOptionalFieldIDs() []string {
+	return sunSpecCapabilityFieldIDs(threePhaseMonitoringOptionalFields)
+}
+
+func sunSpecCapabilityFieldIDs(fields []sunSpecCapabilityField) []string {
+	ids := make([]string, len(fields))
+	for index, field := range fields {
+		ids[index] = field.id
 	}
-	return fields
+	return ids
 }
 
 // EvaluateThreePhaseMonitoring decides the three-phase monitoring capability
@@ -193,9 +214,13 @@ func ThreePhaseMonitoringFieldIDs() []string {
 // chain that DecodeChain accepts, with a qualifying Common Model and valid
 // geometry throughout; exactly one three-phase inverter occurrence must be
 // present and admitted under this registry's revision; and every required fact
-// must occur once, with its catalog unit and a valid, fully named value. Any
-// failure yields a rejected decision with its reason. It never returns an
-// error and never reads from a device.
+// must occur once, with its catalog unit and a valid, fully named value. An
+// apparent-power, reactive-power, or line-to-line voltage point is appended
+// after those required facts, in that order, only when it occurs once with its
+// catalog unit and a valid value. An absent or unimplemented point is omitted:
+// it does not reject the capability and it is not reported as zero. Any
+// failure of a required check yields a rejected decision with its reason. It
+// never returns an error and never reads from a device.
 func (r DecoderRegistry) EvaluateThreePhaseMonitoring(snapshot ChainSnapshot) CapabilityDecision {
 	rejected := func(reason CapabilityReason) CapabilityDecision {
 		return CapabilityDecision{reason: reason}
@@ -243,11 +268,11 @@ func (r DecoderRegistry) EvaluateThreePhaseMonitoring(snapshot ChainSnapshot) Ca
 	if !found || model.Topology() != TopologyThreePhase {
 		return rejected(CapabilityReasonSourceUnsupported)
 	}
-	factsByID := make(map[string][]Fact, len(threePhaseMonitoringFields))
+	factsByID := make(map[string][]Fact, len(model.Facts()))
 	for _, fact := range model.Facts() {
 		factsByID[fact.FieldID] = append(factsByID[fact.FieldID], fact)
 	}
-	canonical := make([]CapabilityFact, 0, len(threePhaseMonitoringFields))
+	canonical := make([]CapabilityFact, 0, len(threePhaseMonitoringFields)+len(threePhaseMonitoringOptionalFields))
 	for _, required := range threePhaseMonitoringFields {
 		matches := factsByID[required.id]
 		if len(matches) != 1 || matches[0].Unit != required.sourceUnit || !matches[0].Required {
@@ -259,6 +284,20 @@ func (r DecoderRegistry) EvaluateThreePhaseMonitoring(snapshot ChainSnapshot) Ca
 		}
 		canonical = append(canonical, CapabilityFact{
 			fieldID: required.id, unit: required.unit, value: value,
+			sourceValue: cloneSunSpecValue(matches[0].Value),
+		})
+	}
+	for _, optional := range threePhaseMonitoringOptionalFields {
+		matches := factsByID[optional.id]
+		if len(matches) != 1 || matches[0].Unit != optional.sourceUnit {
+			continue
+		}
+		value, ok := canonicalSunSpecValue(matches[0].Value)
+		if !ok {
+			continue
+		}
+		canonical = append(canonical, CapabilityFact{
+			fieldID: optional.id, unit: optional.unit, value: value,
 			sourceValue: cloneSunSpecValue(matches[0].Value),
 		})
 	}
