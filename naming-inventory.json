@@ -493,7 +493,7 @@
       "status": "provisional",
       "open_question": "Confirm profile-specific identity, consumer bindings, vocabulary and applicable qualification before adoption.",
       "consumer_files": [
-        "ebusgateway/cmd/gateway/huawei_pv_semreg.go"
+        "gateway/cmd/gateway/huawei_pv_semreg.go"
       ]
     },
     {
@@ -511,7 +511,7 @@
       "status": "provisional",
       "open_question": "Confirm profile-specific identity, consumer bindings, vocabulary and applicable qualification before adoption.",
       "consumer_files": [
-        "ebusgateway/cmd/gateway/huawei_pv_semreg.go"
+        "gateway/cmd/gateway/huawei_pv_semreg.go"
       ]
     },
     {
@@ -530,7 +530,7 @@
       "status": "provisional",
       "open_question": "Total accumulation meaning across both families remains unestablished by the public monitoring contract; keep this exact key provisional.",
       "consumer_files": [
-        "ebusgateway/cmd/gateway/huawei_pv_semreg.go"
+        "gateway/cmd/gateway/huawei_pv_semreg.go"
       ],
       "candidate_target": "energy_total",
       "consumer_obligation": "Gateway generated-energy projection keeps energy_accumulated until the public native contract establishes the candidate target."
@@ -614,7 +614,7 @@
       "status": "provisional",
       "open_question": "Confirm profile-specific identity, consumer bindings, vocabulary and applicable qualification before adoption.",
       "consumer_files": [
-        "ebusgateway/cmd/gateway/huawei_pv_semreg.go"
+        "gateway/cmd/gateway/huawei_pv_semreg.go"
       ]
     },
     {
@@ -632,7 +632,7 @@
       "status": "provisional",
       "open_question": "Confirm profile-specific identity, consumer bindings, vocabulary and applicable qualification before adoption.",
       "consumer_files": [
-        "ebusgateway/cmd/gateway/huawei_pv_semreg.go"
+        "gateway/cmd/gateway/huawei_pv_semreg.go"
       ]
     },
     {
@@ -651,7 +651,7 @@
       "status": "adopted",
       "open_question": "No open naming question; M1 Hypothesis grade and M3 refused power group remain unchanged.",
       "consumer_files": [
-        "ebusgateway/cmd/gateway/huawei_pv_semreg.go"
+        "gateway/cmd/gateway/huawei_pv_semreg.go"
       ],
       "candidate_target": "status",
       "previous_name": "device_status",

@@ -1,7 +1,7 @@
 {
   "purpose": "Source snapshot search index; matches require semantic review.",
   "source_files": {
-    "ebusgateway": [
+    "gateway": [
       ".github/workflows/ci.yml",
       ".github/workflows/semantic-imports.yml",
       ".gitignore",
@@ -1775,7 +1775,7 @@
       "internal/device/thermostat/vr90.go",
       "internal/device/thermostat/vr90_test.go"
     ],
-    "matter-binding": [
+    "matterreg": [
       ".github/workflows/sdk-baseline.yml",
       ".gitignore",
       "AGENTS.md",
@@ -4092,7 +4092,7 @@
     ]
   },
   "dynamic_search_candidates": {
-    "ebusgateway": [
+    "gateway": [
       "active_passive_deduplicator_test.go",
       "admission_artifact.go",
       "admission_artifact_test.go",
@@ -4756,7 +4756,7 @@
       "internal/datasource/graphql_zone.go",
       "internal/datasource/graphql_zone_test.go"
     ],
-    "matter-binding": [
+    "matterreg": [
       "adoption/reference.go",
       "adoption/reference_test.go",
       "candidates/bridge/candidate_test.go",
@@ -5007,7 +5007,7 @@
       {
         "previous_name": "device_status",
         "emitted_name": "status",
-        "binding": "ebusgateway/cmd/gateway/huawei_pv_semreg.go",
+        "binding": "gateway/cmd/gateway/huawei_pv_semreg.go",
         "obligation": "Replace the native suffix switch with status; accept only grid_connected. No fallback, duplicate field or alias."
       }
     ],
@@ -5025,7 +5025,7 @@
   },
   "reviewed_consumers": [
     {
-      "repository": "ebusgateway",
+      "repository": "gateway",
       "status": "direct_binding_requires_adoption",
       "files": [
         "cmd/gateway/huawei_pv_semreg.go"
@@ -5059,7 +5059,7 @@
       "finding": "Schema mapping and field display reviewed; no direct old-key match in the supplied source universe. No global absence claim."
     },
     {
-      "repository": "matter-binding",
+      "repository": "matterreg",
       "status": "semantic_contract_review_required",
       "files": [
         "docs/target-profile/evse.md",
