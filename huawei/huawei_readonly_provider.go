@@ -471,8 +471,8 @@ type ProviderGatewayIdentity struct {
 	IdentifiedAt time.Time
 }
 
-// ProviderGroupEvidence is the provenance of one monitoring group of a
-// child: the outcome of this cycle and the read that carried the words.
+// ProviderGroupEvidence is the provenance of one monitoring group:
+// the outcome of this cycle and the read that carried the words.
 type ProviderGroupEvidence struct {
 	Offset        uint16
 	Quantity      uint16
@@ -593,11 +593,12 @@ type ProviderExchange struct {
 // ProviderLossKind names what a cycle does not publish.
 type ProviderLossKind string
 
-// The loss kinds: a planned or refused group not read, words no field
+// The loss kinds: a planned, refused or failed group, words no field
 // consumes, a battery or meter that is not admitted, and a withheld child.
 const (
 	ProviderLossPlannedGroup    ProviderLossKind = "PLANNED_GROUP_NOT_READ"
 	ProviderLossRefusedGroup    ProviderLossKind = "REFUSED_GROUP_NOT_READ"
+	ProviderLossFailedGroup     ProviderLossKind = "GROUP_READ_FAILED"
 	ProviderLossUnconsumedWords ProviderLossKind = "UNCONSUMED_WORDS"
 	ProviderLossBattery         ProviderLossKind = "BATTERY_NOT_ADMITTED"
 	ProviderLossMeter           ProviderLossKind = "METER_NOT_ADMITTED"
@@ -627,6 +628,7 @@ type ProviderCycle struct {
 	Outcome      ProviderCycleOutcome
 	Reason       ProviderReason
 	Gateway      ProviderGatewayIdentity
+	Plant        []ProviderPlantGroup `json:",omitempty"`
 	Children     []ProviderChildObservation
 	Exchanges    []ProviderExchange
 	Loss         []ProviderLoss
@@ -640,6 +642,13 @@ func (c ProviderCycle) clone() ProviderCycle {
 		children[index] = child.clone()
 	}
 	c.Children = children
+	if c.Plant != nil {
+		plant := make([]ProviderPlantGroup, len(c.Plant))
+		for index, group := range c.Plant {
+			plant[index] = group.clone()
+		}
+		c.Plant = plant
+	}
 	c.Exchanges = append([]ProviderExchange(nil), c.Exchanges...)
 	c.Loss = append([]ProviderLoss(nil), c.Loss...)
 	return c
@@ -829,6 +838,7 @@ type huaweiProviderState struct {
 	smartLogger        *SmartLoggerObservedQualificationInput
 	sdongle            *SDongleObservedQualificationInput
 	children           map[uint8]*huaweiChildState
+	plant              [2]huaweiPlantState
 	// carriedRefusals keeps exception 3 refusals learned in a cycle that was
 	// cancelled before it could commit, for children not yet in children.
 	carriedRefusals map[uint8]map[string]bool

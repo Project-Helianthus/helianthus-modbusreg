@@ -578,6 +578,15 @@ func h06ElapsedOf(class string) time.Duration {
 // h06Script turns one fixture cycle into a session script.
 func h06Script(t testing.TB, sources h06Sources, path string, cycle h06Cycle) []h06Expected {
 	t.Helper()
+	script := scriptWithoutPlantReads(t, sources, path, cycle)
+	if cycle.Expect.Outcome == string(ProviderCycleComplete) {
+		return withSyntheticPlantReads(path, script)
+	}
+	return script
+}
+
+func scriptWithoutPlantReads(t testing.TB, sources h06Sources, path string, cycle h06Cycle) []h06Expected {
+	t.Helper()
 	script := make([]h06Expected, 0, len(cycle.Steps))
 	for _, step := range cycle.Steps {
 		var answer h06Answer
@@ -620,6 +629,34 @@ func h06Script(t testing.TB, sources h06Sources, path string, cycle h06Cycle) []
 		script = append(script, expected)
 	}
 	return script
+}
+
+// withSyntheticPlantReads adds synthetic plant replies to legacy scripts after the
+// last gateway identity or guard read, before routed monitoring.
+func withSyntheticPlantReads(path string, script []h06Expected) []h06Expected {
+	if path == "SmartLogger" {
+		return insertPlantReads(script, []h06Expected{
+			h06FC03(0, 40521, 6, h06Answer{words: []uint16{0, 100, 0, 200, 0, 300}}),
+			h06FC03(0, 40560, 4, h06Answer{words: []uint16{0, 400, 0, 500}}),
+		})
+	}
+	return insertPlantReads(script, []h06Expected{
+		h06FC03(100, 37498, 8, h06Answer{words: []uint16{0, 100, 0, 200, 0, 300, 0, 400}}),
+		h06FC03(100, 37516, 2, h06Answer{words: []uint16{0, 500}}),
+	})
+}
+
+func insertPlantReads(script, reads []h06Expected) []h06Expected {
+	step := 0
+	for index, read := range script {
+		if read.unit == reads[0].unit {
+			step = index + 1
+		}
+	}
+	out := make([]h06Expected, 0, len(script)+len(reads))
+	out = append(out, script[:step]...)
+	out = append(out, reads...)
+	return append(out, script[step:]...)
 }
 
 // ---- running a provider -------------------------------------------------------

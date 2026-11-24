@@ -287,7 +287,7 @@ func TestH06AnUnknownChildClassIsWithheld(t *testing.T) {
 	copy(model, []uint16{0x5355, 0x4e32, 0x3030, 0x302d, 0x4f54, 0x4845, 0x522d, 0x5800})
 	script = append(script, h06FC03(4, 30000, 15, h06Answer{words: model}))
 	script = append(script, h06AdmissionWords(t, sources, "SmartLogger", 4, "m3_series_identifier_selects_the_mc_card")...)
-	cycle := rig.refresh(t, script...)
+	cycle := rig.refresh(t, withSyntheticPlantReads(rig.path, script)...)
 	unknown, _ := cycle.Child(3)
 	otherFamily, _ := cycle.Child(4)
 	if unknown.Evidence != ProviderEvidenceWithheld || unknown.Reason != ProviderReasonNoClassContract || unknown.ListedClass != "BACKUP0" ||
@@ -306,7 +306,8 @@ func TestH06AnUnknownChildClassIsWithheld(t *testing.T) {
 		}
 	}
 	// The withheld child is not read again in the next cycle either.
-	next := rig.refresh(t, h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{words: []uint16{sources.smartLoggerInventory.ChangeCounter.Before}}))
+	guard := h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{words: []uint16{sources.smartLoggerInventory.ChangeCounter.Before}})
+	next := rig.refresh(t, withSyntheticPlantReads(rig.path, []h06Expected{guard})...)
 	if child, _ := next.Child(4); child.Reason != ProviderReasonCatalogNotSelected || h06CatalogSummary(child.Catalog) != "NOT_SELECTED no_catalog_row" {
 		t.Fatalf("next cycle: %+v", child)
 	}
@@ -337,8 +338,10 @@ func TestH06ProvidersReadOnlyAllowlistedPDUs(t *testing.T) {
 	sets := map[string]map[allowed]bool{
 		"SmartLogger": {
 			{0, 0x03, 65521, 1, 0}: true, {0, 0x2b, 0, 0, 3}: true, {0, 0x2b, 0, 0, 1}: true,
+			{0, 0x03, 40521, 6, 0}: true, {0, 0x03, 40560, 4, 0}: true,
 		},
 		"S-Dongle": {
+			{100, 0x03, 37498, 8, 0}: true, {100, 0x03, 37516, 2, 0}: true,
 			{100, 0x03, 37410, 3, 0}: true, {100, 0x03, 37411, 1, 0}: true, {100, 0x03, 30068, 2, 0}: true, {100, 0x03, 37429, 1, 0}: true,
 			{100, 0x03, 30050, 15, 0}: true, {100, 0x2b, 0, 0, 1}: true, {1, 0x03, 30000, 15, 0}: true, {1, 0x2b, 0, 0, 1}: true, {1, 0x2b, 0, 0, 3}: true,
 		},

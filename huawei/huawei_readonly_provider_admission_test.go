@@ -227,8 +227,13 @@ func TestM89AdmissionOutcomesAreRecordedPerChild(t *testing.T) {
 				t.Fatalf("cycle %d mismatch: %+v", cycle.Cycle, child)
 			}
 		}
-		if len(cycles[2].Exchanges) != 1 {
-			t.Fatalf("a withheld child was read in a guard-held cycle: %+v", cycles[2].Exchanges)
+		if len(cycles[2].Exchanges) != 3 {
+			t.Fatalf("guard-held cycle should read only the guard and plant groups: %+v", cycles[2].Exchanges)
+		}
+		for _, exchange := range cycles[2].Exchanges {
+			if exchange.UnitID != 100 {
+				t.Fatalf("a withheld child was read in a guard-held cycle: %+v", exchange)
+			}
 		}
 		admitted, _ := cycles[4].Child(1)
 		if admitted.Evidence != ProviderEvidenceCurrent || admitted.Catalog == nil || admitted.Catalog.Outcome() != SUN2000CatalogSelected {
@@ -294,7 +299,7 @@ func TestM89BuildBelowTheFloorIsWithheld(t *testing.T) {
 				{Function: "FC03", Unit: unit, Offset: huaweiSUN2000ModelOffset, Quantity: huaweiSUN2000ModelQuantity, Reply: h06Reply{Kind: "source", Case: test.decisionCase}},
 			}})...)
 			script = append(script, h06AdmissionWords(t, sources, "SmartLogger", unit, test.decisionCase)...)
-			cycle := rig.refresh(t, script...)
+			cycle := rig.refresh(t, withSyntheticPlantReads(rig.path, script)...)
 			child, _ := cycle.Child(unit)
 			if child.Evidence != ProviderEvidenceWithheld || child.Reason != test.reason || h06CatalogSummary(child.Catalog) != test.summary ||
 				child.ProfileID != "" || len(child.Reading.Facts()) != 0 {
@@ -315,8 +320,9 @@ func TestM89BuildBelowTheFloorIsWithheld(t *testing.T) {
 				t.Fatalf("no withheld loss %q: %+v", test.detail, cycle.Loss)
 			}
 			// The guard holds: the withheld child is neither read nor admitted.
-			next := rig.refresh(t, h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{words: []uint16{sources.smartLoggerInventory.ChangeCounter.Before}}))
-			if again, _ := next.Child(unit); again.Reason != test.reason || h06CatalogSummary(again.Catalog) != test.summary || len(next.Exchanges) != 1 {
+			guard := h06FC03(0, huaweiSmartLoggerCounterOffset, 1, h06Answer{words: []uint16{sources.smartLoggerInventory.ChangeCounter.Before}})
+			next := rig.refresh(t, withSyntheticPlantReads(rig.path, []h06Expected{guard})...)
+			if again, _ := next.Child(unit); again.Reason != test.reason || h06CatalogSummary(again.Catalog) != test.summary || len(next.Exchanges) != 3 {
 				t.Fatalf("next cycle: %+v, %d exchanges", again, len(next.Exchanges))
 			}
 		})
@@ -394,7 +400,7 @@ func TestM89AdmissionVariesEveryIdentityWord(t *testing.T) {
 					script = append(script, h06FC03(unit, step.Offset, step.Quantity, h06MonitoringAnswer(t, rig.sources.m3, unit, step.Offset, step.Quantity)))
 				}
 			}
-			cycle := rig.refresh(t, script...)
+			cycle := rig.refresh(t, withSyntheticPlantReads(rig.path, script)...)
 			child, _ := cycle.Child(unit)
 			if child.Reason != tc.reason || h06CatalogSummary(child.Catalog) != tc.summary {
 				t.Fatalf("child %s %s %q, want %s %q", child.Evidence, child.Reason, h06CatalogSummary(child.Catalog), tc.reason, tc.summary)
@@ -481,7 +487,7 @@ func TestM89AnIdentificationEventDropsTheDecisionOfAWithheldChild(t *testing.T) 
 		{Function: "FC03", Unit: 4, Offset: huaweiSUN2000ModelOffset, Quantity: huaweiSUN2000ModelQuantity, Reply: h06Reply{Kind: "source"}},
 	}})...)
 	script = append(script, h06AdmissionWords(t, rig.sources, fixture.Path, 4, "m3_series_token_with_identifier_449_stays_ambiguous_between_two_cards")...)
-	cycle := rig.refresh(t, script...)
+	cycle := rig.refresh(t, withSyntheticPlantReads(rig.path, script)...)
 	child, _ := cycle.Child(3)
 	if child.Evidence != ProviderEvidenceWithheld || child.Reason != ProviderReasonChildTimeout || child.Catalog != nil {
 		t.Fatalf("child 3 after the timed-out admission: %s %s %q", child.Evidence, child.Reason, h06CatalogSummary(child.Catalog))
@@ -514,7 +520,7 @@ func TestM89AGuardChangeMakesTheAdmissionRunAgainAfterAFailedRead(t *testing.T) 
 	for attempt := 0; attempt < 4; attempt++ {
 		script = append(script, h06FC03(1, huaweiSUN2000IdentifierOffset, 1, h06Answer{err: h06Timeout()}))
 	}
-	failed := rig.refresh(t, script...)
+	failed := rig.refresh(t, withSyntheticPlantReads(rig.path, script)...)
 	if child, _ := failed.Child(1); child.Evidence != ProviderEvidenceStale || child.Reason != ProviderReasonChildTimeout {
 		t.Fatalf("re-identification with a timed-out identifier: %s %s", child.Evidence, child.Reason)
 	}
@@ -523,7 +529,7 @@ func TestM89AGuardChangeMakesTheAdmissionRunAgainAfterAFailedRead(t *testing.T) 
 	for _, step := range h05Profile(t, SUN2000M1MonitoringProfileID).Plan(1) {
 		retry = append(retry, h06FC03(1, step.Offset, step.Quantity, h06MonitoringAnswer(t, rig.sources.m1, 1, step.Offset, step.Quantity)))
 	}
-	again := rig.refresh(t, retry...)
+	again := rig.refresh(t, withSyntheticPlantReads(rig.path, retry)...)
 	if child, _ := again.Child(1); again.Reason != ProviderReasonGuardHeld || child.Evidence != ProviderEvidenceCurrent ||
 		child.IdentifiedGeneration != again.Generation || child.Catalog == nil {
 		t.Fatalf("retried admission: %s %+v", again.Reason, child)
@@ -576,7 +582,7 @@ func m89ReidentifyWithRoutedModel(t *testing.T, routed []uint16, want ProviderRe
 		{Function: "FC03", Unit: 4, Offset: huaweiSUN2000ModelOffset, Quantity: huaweiSUN2000ModelQuantity, Reply: h06Reply{Kind: "source"}},
 	}})...)
 	script = append(script, h06AdmissionWords(t, rig.sources, fixture.Path, 4, "m3_series_token_with_identifier_449_stays_ambiguous_between_two_cards")...)
-	cycle := rig.refresh(t, script...)
+	cycle := rig.refresh(t, withSyntheticPlantReads(rig.path, script)...)
 	child, _ := cycle.Child(1)
 	if child.Evidence != ProviderEvidenceWithheld || child.Reason != want || child.Fenced == nil || len(child.Reading.Facts()) != 0 {
 		t.Fatalf("child 1 after the contradicting model: %s %s fenced %v", child.Evidence, child.Reason, child.Fenced != nil)

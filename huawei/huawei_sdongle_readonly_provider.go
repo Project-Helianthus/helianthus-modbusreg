@@ -23,7 +23,9 @@ const (
 // child's admission reads the model identifier, the software text and the
 // firmware text at the child unit, before the M1 series groups are read there
 // once its catalog decision selects the M1 series row. Only the gateway unit
-// and the observed child unit are addressed; no meter is read. Do not copy it.
+// and the observed child unit are addressed. The two plant power groups are
+// read at the gateway after its identity or guard is confirmed. No meter is
+// read. Do not copy it.
 type SDongleReadOnlyProvider struct {
 	core *huaweiProviderCore
 }
@@ -45,10 +47,7 @@ func newHuaweiSDongleReadOnlyProvider(config ProviderConfig, disposition Provide
 		return nil, ErrHuaweiProviderConfig
 	}
 	profile, _ := huaweiProfileByID(SUN2000M1MonitoringProfileID)
-	gateway := card.UnitID()
 	loss := []ProviderLoss{
-		{Kind: ProviderLossPlannedGroup, HasUnit: true, UnitID: gateway, Offset: 37498, Quantity: 8, Detail: "dongle plant power group: planned until an approved observation records its answer"},
-		{Kind: ProviderLossPlannedGroup, HasUnit: true, UnitID: gateway, Offset: 37516, Quantity: 2, Detail: "dongle plant AC power group: planned until an approved observation records its answer"},
 		{Kind: ProviderLossMeter, HasUnit: true, UnitID: card.ChildUnit(), Offset: 37100, Quantity: 39, Detail: "inverter-exposed meter group: planned until a meter class contract exists"},
 	}
 	loss = append(loss, huaweiChildProfileLoss(profile)...)
@@ -124,6 +123,7 @@ func (p *SDongleReadOnlyProvider) Enablement() ProviderEnablement {
 
 func runHuaweiSDongleCycle(r *huaweiCycleRun) {
 	defer func() { r.out.Gateway = r.state.gateway }()
+	defer r.finishPlantGroups(huaweiSDonglePlant)
 	s := r.state
 	card := NewSDongleObservedQualificationCard()
 	guard, result := r.readHolding(card.UnitID(), huaweiSDongleSearchOffset, huaweiSDongleSearchQuantity)
@@ -152,7 +152,10 @@ func runHuaweiSDongleCycle(r *huaweiCycleRun) {
 			s.endpointFailures = 0
 			s.gateway.State = ProviderGatewayIdentified
 			r.out.Reason = ProviderReasonGuardHeld
-			r.readSDongleChild()
+			r.readPlantGroups(huaweiSDonglePlant)
+			if !r.stopped() {
+				r.readSDongleChild()
+			}
 			if !r.stopped() {
 				r.out.Outcome = ProviderCycleComplete
 			}
@@ -270,6 +273,10 @@ func (r *huaweiCycleRun) identifySDongle(before []uint16) {
 	child.listedClass = card.ChildFamily()
 	child.identificationEvent()
 	r.out.Reason = ProviderReasonIdentified
+	r.readPlantGroups(huaweiSDonglePlant)
+	if r.stopped() {
+		return
+	}
 	if !r.admitSDongleChild(child) {
 		if !r.stopped() {
 			r.out.Outcome = ProviderCycleComplete

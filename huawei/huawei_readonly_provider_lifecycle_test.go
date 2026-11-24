@@ -184,7 +184,7 @@ func TestH06SmartLoggerGatewayMismatchWithholdsTheInstance(t *testing.T) {
 func TestH06SmartLoggerChildIdentityChangeFencesItsReading(t *testing.T) {
 	fixture, start := h06FixtureCycle(t, "smartlogger_provider_cycles.json", "start_identification")
 	rig := newH06Rig(t, fixture.Path, []uint8{1})
-	first := rig.refresh(t, h06Script(t, rig.sources, fixture.Path, h06Cycle{Steps: h06StepsForUnits(start.Steps, 1)})...)
+	first := rig.refresh(t, h06Script(t, rig.sources, fixture.Path, h06Cycle{Steps: h06StepsForUnits(start.Steps, 1), Expect: start.Expect})...)
 	if child, _ := first.Child(1); child.Evidence != ProviderEvidenceCurrent {
 		t.Fatalf("first: %+v", child)
 	}
@@ -198,7 +198,7 @@ func TestH06SmartLoggerChildIdentityChangeFencesItsReading(t *testing.T) {
 	model := make([]uint16, 15)
 	copy(model, []uint16{0x5355, 0x4e32, 0x3030, 0x302d, 0x4f54, 0x4845, 0x522d, 0x5800})
 	script = append(script, h06FC03(1, 30000, 15, h06Answer{words: model}))
-	cycle := rig.refresh(t, script...)
+	cycle := rig.refresh(t, withSyntheticPlantReads(rig.path, script)...)
 	child, _ := cycle.Child(1)
 	if child.Evidence != ProviderEvidenceWithheld || child.Reason != ProviderReasonIdentityMismatch || len(child.Reading.Facts()) != 0 ||
 		child.Catalog != nil {
@@ -244,7 +244,7 @@ func TestH06SmartLoggerEmptyAllowlistReadsNoChild(t *testing.T) {
 	for _, step := range h06IdentificationSteps() {
 		script = append(script, h06Script(t, rig.sources, "SmartLogger", h06Cycle{Steps: []h06Step{step}})...)
 	}
-	cycle := rig.refresh(t, script...)
+	cycle := rig.refresh(t, withSyntheticPlantReads(rig.path, script)...)
 	if cycle.Outcome != ProviderCycleComplete || len(cycle.Children) != 11 {
 		t.Fatalf("empty allowlist: %s %v", cycle.Outcome, h06ChildSummary(cycle))
 	}
@@ -790,7 +790,7 @@ func TestH06WithheldChildStaysWithheldAcrossAGatewayFailure(t *testing.T) {
 	for _, step := range h06IdentificationSteps() {
 		script = append(script, h06Script(t, sources, fixture.Path, h06Cycle{Steps: []h06Step{step}})...)
 	}
-	withheld := rig.refresh(t, script...)
+	withheld := rig.refresh(t, withSyntheticPlantReads(rig.path, script)...)
 	if child, _ := withheld.Child(1); child.Evidence != ProviderEvidenceWithheld || child.Reason != ProviderReasonNoClassContract {
 		t.Fatalf("re-enumeration: %+v", child)
 	}
@@ -829,8 +829,14 @@ func TestH06SmartLoggerMismatchFenceSurvivesAGatewayReadFailure(t *testing.T) {
 	for _, step := range h06IdentificationSteps() {
 		script = append(script, h06Script(t, sources, fixture.Path, h06Cycle{Steps: []h06Step{step}})...)
 	}
-	if mismatch := rig.refresh(t, script...); mismatch.Reason != ProviderReasonGatewayMismatch {
-		t.Fatalf("mismatch cycle: %s %s", mismatch.Outcome, mismatch.Reason)
+	mismatch := rig.refresh(t, script...)
+	if mismatch.Reason != ProviderReasonGatewayMismatch || len(mismatch.Plant) != 2 {
+		t.Fatalf("mismatch cycle: %s %s %+v", mismatch.Outcome, mismatch.Reason, mismatch.Plant)
+	}
+	for _, group := range mismatch.Plant {
+		if group.Retained || len(group.Words) != 0 || group.Outcome != SUN2000GroupNotRead {
+			t.Fatalf("gateway mismatch carried plant evidence: %+v", group)
+		}
 	}
 	var timeouts []h06Expected
 	for attempt := 0; attempt < 4; attempt++ {
