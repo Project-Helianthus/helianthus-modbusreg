@@ -10,6 +10,49 @@ import (
 	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
+func TestFroniusHardwareTestLevelRecordsEachObservedFlavorField(t *testing.T) {
+	level := froniusObservedHardwareTestLevel()
+	want := []struct {
+		id       string
+		firmware string
+		chain    []sunspec.WireKey
+	}{
+		{SunSpecFroniusObservedFlavorID, "1.41.11-1", froniusObservedChainV1},
+		{SunSpecFroniusObservedFlavorV11ID, "1.41.11-1", froniusObservedChainV11},
+		{SunSpecFroniusObservedFlavorV12ID, "1.42.9-1", froniusObservedChainV12},
+	}
+	if len(level) != len(want) {
+		t.Fatalf("hardware test level count=%d", len(level))
+	}
+	for index, entry := range want {
+		got := level[index]
+		if got.FlavorID != entry.id {
+			t.Fatalf("flavor_id[%d]=%q want %q", index, got.FlavorID, entry.id)
+		}
+		if got.Firmware != entry.firmware {
+			t.Fatalf("firmware[%d]=%q want %q", index, got.Firmware, entry.firmware)
+		}
+		if !reflect.DeepEqual(got.Chain, entry.chain) {
+			t.Fatalf("chain[%d]=%v want %v", index, got.Chain, entry.chain)
+		}
+	}
+	if level[0].Firmware != level[1].Firmware || reflect.DeepEqual(level[0].Chain, level[1].Chain) || level[0].FlavorID == level[1].FlavorID {
+		t.Fatal("versions 1.0.0 and 1.1.0 do not differ by chain and flavor id at the same firmware")
+	}
+	if level[1].Firmware == level[2].Firmware || !reflect.DeepEqual(level[1].Chain, level[2].Chain) || level[1].FlavorID == level[2].FlavorID {
+		t.Fatal("versions 1.1.0 and 1.2.0 do not differ by firmware and flavor id on the same chain")
+	}
+	mutated := froniusObservedHardwareTestLevel()
+	mutated[0].FlavorID = "mutated-id"
+	mutated[0].Firmware = "mutated-firmware"
+	mutated[0].Chain[0].ModelID++
+	mutated[1].Chain[0].ModelLength++
+	fresh := froniusObservedHardwareTestLevel()
+	if fresh[0].FlavorID != want[0].id || fresh[0].Firmware != want[0].firmware || fresh[0].Chain[0].ModelID != want[0].chain[0].ModelID || fresh[1].Chain[0].ModelLength != want[1].chain[0].ModelLength {
+		t.Fatal("hardware test level leaked a field mutation")
+	}
+}
+
 func TestFroniusObservedFlavorMatchesOnlyExactEvidenceTuple(t *testing.T) {
 	registry := sunspecfixture.Registry(t)
 	snapshot := froniusObservedSnapshot(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1")

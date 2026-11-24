@@ -1,6 +1,7 @@
 package fronius
 
 import (
+	"bytes"
 	"encoding/json"
 	"math"
 	"os"
@@ -23,9 +24,6 @@ func TestFroniusQualificationCardPinsBoundedReadOnlyObservedFlavor(t *testing.T)
 		card.Function() != modbusreg.FunctionReadHoldingRegisters || !card.ReadOnly() {
 		t.Fatalf("unexpected qualification card: %#v", card)
 	}
-	if card.LiveQualified() || card.AutomaticRuntimeAdmission() || card.WriteAuthority() {
-		t.Fatal("offline qualification card created live or write authority")
-	}
 	if got := card.BaseCandidates(); !reflect.DeepEqual(got, []uint16{40000}) {
 		t.Fatalf("base candidates=%v", got)
 	}
@@ -39,6 +37,7 @@ func TestFroniusQualificationCardPinsBoundedReadOnlyObservedFlavor(t *testing.T)
 		"inverter.temperature.cabinet", "inverter.operating_state", "inverter.events.1", "inverter.events.2",
 		"inverter.ac.power.apparent", "inverter.ac.power.reactive",
 		"inverter.ac.voltage.line_ab", "inverter.ac.voltage.line_bc", "inverter.ac.voltage.line_ca",
+		"mppt.module.dc_energy", "mppt.module.dc_voltage", "mppt.module.dc_current", "mppt.module.dc_power",
 	}
 	if got := card.SemanticCandidateFieldIDs(); !reflect.DeepEqual(got, wantFacts) {
 		t.Fatalf("semantic candidates=%v", got)
@@ -78,8 +77,10 @@ func TestFroniusQualificationCardReplaysCompleteSourceBackedChain(t *testing.T) 
 			t.Fatalf("occurrence lost raw/provenance: %#v", occurrence)
 		}
 	}
-	if got := capabilityFieldIDs(observation.Capability().Facts()); !reflect.DeepEqual(got, card.SemanticCandidateFieldIDs()) || len(got) != len(card.SemanticCandidateFieldIDs()) {
-		t.Fatalf("typed facts=%v", got)
+	facts := capabilityFieldIDs(observation.Capability().Facts())
+	candidates := card.SemanticCandidateFieldIDs()
+	if len(candidates) != len(facts)+len(sunSpecFroniusMPPTCandidateFieldIDs) || !reflect.DeepEqual(candidates[:len(facts)], facts) || !reflect.DeepEqual(candidates[len(facts):], sunSpecFroniusMPPTCandidateFieldIDs) {
+		t.Fatalf("typed facts=%v candidates=%v", facts, candidates)
 	}
 }
 
@@ -234,7 +235,12 @@ func TestFroniusQualificationCardSanitizedExpectedResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := os.ReadFile("../testdata/sunspec/qualification/fronius_gen24_float_v1_1_expected.json")
+	for _, forbidden := range []string{"live_qualified", "support_claim", "automatic_runtime_admission", "write_authority"} {
+		if bytes.Contains(encoded, []byte(`"`+forbidden+`"`)) {
+			t.Fatalf("expected result contains %s", forbidden)
+		}
+	}
+	want, err := os.ReadFile("../driverdata/sunspec/fronius_qualification_card_expected.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +256,7 @@ func TestFroniusQualificationCardSanitizedExpectedResult(t *testing.T) {
 	}
 }
 
-func TestFroniusModel160StaysDecodedAndUncandidate(t *testing.T) {
+func TestFroniusModel160PointsJoinTheCandidateList(t *testing.T) {
 	registry := sunspecfixture.Registry(t)
 	card := NewSunSpecFroniusQualificationCard()
 	want := []string{
@@ -259,35 +265,33 @@ func TestFroniusModel160StaysDecodedAndUncandidate(t *testing.T) {
 		"mppt.module.dc_current",
 		"mppt.module.dc_power",
 	}
-	got := card.DecodedNotCandidateFieldIDs()
-	if len(got) != len(want) {
-		t.Fatalf("decoded not candidate count=%d", len(got))
+	candidates := card.SemanticCandidateFieldIDs()
+	if len(candidates) < len(want) {
+		t.Fatalf("candidate count=%d", len(candidates))
 	}
+	got := candidates[len(candidates)-len(want):]
 	for index, id := range want {
 		if got[index] != id {
-			t.Fatalf("decoded not candidate[%d]=%q want %q", index, got[index], id)
+			t.Fatalf("model 160 candidate[%d]=%q want %q", index, got[index], id)
 		}
 	}
-	mutated := card.DecodedNotCandidateFieldIDs()
-	mutated[0] = "mutated"
-	if card.DecodedNotCandidateFieldIDs()[0] != want[0] {
-		t.Fatal("decoded not candidate list leaked mutation")
+	mutated := card.SemanticCandidateFieldIDs()
+	mutated[len(mutated)-1] = "mutated"
+	fresh := card.SemanticCandidateFieldIDs()
+	if fresh[len(fresh)-1] != want[len(want)-1] {
+		t.Fatal("candidate list leaked mutation")
 	}
-	candidates := card.SemanticCandidateFieldIDs()
-	for _, id := range want {
-		for _, candidate := range candidates {
-			if candidate == id {
-				t.Fatalf("%s is a semantic candidate", id)
-			}
-		}
+	recorded := candidates[:len(candidates)-len(want)]
+	if len(recorded) < 14 || recorded[0] != "inverter.ac.current.total" || recorded[13] != "inverter.events.2" {
+		t.Fatalf("recorded hardware facts=%v", recorded)
 	}
-	for _, id := range append(append([]string{}, candidates...), got...) {
+	for _, id := range candidates {
 		if id == "meter.energy.import.total" || strings.Contains(strings.ToLower(id), "battery") {
 			t.Fatalf("%s is in a qualification list", id)
 		}
 	}
-	if !reflect.DeepEqual(card.ExpectedChain(), froniusObservedChainV11) || card.LiveQualified() || card.WriteAuthority() {
-		t.Fatal("chain, live qualification, or write authority changed")
+	if !reflect.DeepEqual(card.ExpectedChain(), froniusObservedChainV11) {
+		t.Fatal("expected chain changed")
 	}
 	raw := sunspecfixture.RawWords(froniusObservedSnapshotV11(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-1").Occurrences())
 	snapshot, err := replayFroniusQualificationCard(t, card, registry, raw)
@@ -298,7 +302,7 @@ func TestFroniusModel160StaysDecodedAndUncandidate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Qualify: %v", err)
 	}
-	if got := capabilityFieldIDs(observation.Capability().Facts()); !reflect.DeepEqual(got, candidates) || len(got) != len(candidates) {
+	if got := capabilityFieldIDs(observation.Capability().Facts()); !reflect.DeepEqual(got, recorded) {
 		t.Fatalf("typed facts=%v", got)
 	}
 	var occurrence sunspec.Occurrence

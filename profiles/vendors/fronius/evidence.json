@@ -12,7 +12,7 @@
   "applicability": [
     "Fronius Symo GEN24 10.0 firmware 1.41.11-1",
     "exact SunSpec V1.1 chain ending in ffff/0",
-    "offline read-only fixture classification only; no live support or write authority"
+    "hardware test level is the observed flavors sunspec.flavor.fronius.gen24.float.observed@1.0.0 at firmware 1.41.11-1, sunspec.flavor.fronius.gen24.float.observed@1.1.0 at firmware 1.41.11-1, and sunspec.flavor.fronius.gen24.float.observed@1.2.0 at firmware 1.42.9-1"
   ],
   "license": "CC0-1.0"
 }

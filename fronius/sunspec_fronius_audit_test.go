@@ -38,17 +38,14 @@ type sunSpecFroniusAuditDisposition struct {
 		ExecutableEvidence        []string `json:"executable_evidence"`
 	} `json:"registry"`
 	Fronius struct {
-		FlavorID                    string            `json:"flavor_id"`
-		Manufacturer                string            `json:"manufacturer"`
-		Model                       string            `json:"model"`
-		Firmware                    string            `json:"firmware"`
-		Chain                       []sunspec.WireKey `json:"chain"`
-		OfflineFixture              string            `json:"offline_fixture"`
-		OfflineClassifierExecutable bool              `json:"offline_classifier_executable"`
-		AutomaticRuntimeAdmission   bool              `json:"automatic_runtime_admission"`
-		LiveQualified               bool              `json:"live_qualified"`
-		WriteAuthority              bool              `json:"write_authority"`
-		SupportClaim                bool              `json:"support_claim"`
+		FlavorID                    string                            `json:"flavor_id"`
+		Manufacturer                string                            `json:"manufacturer"`
+		Model                       string                            `json:"model"`
+		Firmware                    string                            `json:"firmware"`
+		Chain                       []sunspec.WireKey                 `json:"chain"`
+		OfflineFixture              string                            `json:"offline_fixture"`
+		OfflineClassifierExecutable bool                              `json:"offline_classifier_executable"`
+		HardwareTestLevel           []sunSpecFroniusHardwareTestLevel `json:"hardware_test_level"`
 	} `json:"fronius"`
 }
 
@@ -213,9 +210,17 @@ func TestSunSpecFroniusAuditClosesAgainstPinnedRegistry(t *testing.T) {
 		!reflect.DeepEqual(disposition.Fronius.Chain, froniusObservedChainV11) ||
 		disposition.Fronius.OfflineFixture != "testdata/sunspec/chains/fronius_gen24_float_v1_1.json" ||
 		!disposition.Fronius.OfflineClassifierExecutable ||
-		disposition.Fronius.AutomaticRuntimeAdmission || disposition.Fronius.LiveQualified ||
-		disposition.Fronius.WriteAuthority || disposition.Fronius.SupportClaim {
+		!reflect.DeepEqual(disposition.Fronius.HardwareTestLevel, froniusObservedHardwareTestLevel()) {
 		t.Fatalf("unexpected Fronius disposition: %#v", disposition.Fronius)
+	}
+	dispositionBytes, err := os.ReadFile("../profiles/vendors/fronius/disposition.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"live_qualified", "support_claim", "automatic_runtime_admission", "write_authority"} {
+		if bytes.Contains(dispositionBytes, []byte(`"`+forbidden+`"`)) {
+			t.Fatalf("disposition contains %s", forbidden)
+		}
 	}
 
 	// The disposition names the fixture relative to the module root.
@@ -268,12 +273,17 @@ func TestSunSpecFroniusAuditUsesPublicProtocolEvidence(t *testing.T) {
 	wantApplicability := []string{
 		"Fronius Symo GEN24 10.0 firmware 1.41.11-1",
 		"exact SunSpec V1.1 chain ending in ffff/0",
-		"offline read-only fixture classification only; no live support or write authority",
+		"hardware test level is the observed flavors sunspec.flavor.fronius.gen24.float.observed@1.0.0 at firmware 1.41.11-1, sunspec.flavor.fronius.gen24.float.observed@1.1.0 at firmware 1.41.11-1, and sunspec.flavor.fronius.gen24.float.observed@1.2.0 at firmware 1.42.9-1",
 	}
 	if evidence.Schema != "helianthus-modbusreg-vendor-evidence/v1" || evidence.Profile != "fronius" ||
 		evidence.ProfileVersion != "1.0.0" || evidence.License != "CC0-1.0" ||
 		!reflect.DeepEqual(evidence.PublicSources, wantSources) ||
 		!reflect.DeepEqual(evidence.Applicability, wantApplicability) {
 		t.Fatalf("unexpected Fronius public evidence: %#v", evidence)
+	}
+	for _, line := range evidence.Applicability {
+		if strings.Contains(line, "no live support") || strings.Contains(line, "write authority") {
+			t.Fatalf("applicability denies live support or write authority: %q", line)
+		}
 	}
 }

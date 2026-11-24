@@ -135,6 +135,33 @@ var (
 	}
 )
 
+// sunSpecFroniusHardwareTestLevel is one observed flavor recorded as the
+// hardware test level of this model at that firmware.
+type sunSpecFroniusHardwareTestLevel struct {
+	FlavorID string            `json:"flavor_id"`
+	Firmware string            `json:"firmware"`
+	Chain    []sunspec.WireKey `json:"chain"`
+}
+
+// froniusObservedHardwareTestLevel returns the observed flavors in version
+// order. Each call copies the wire chains.
+func froniusObservedHardwareTestLevel() []sunSpecFroniusHardwareTestLevel {
+	definitions := []sunSpecFroniusFlavorDefinition{
+		froniusObservedFlavorV1,
+		froniusObservedFlavorV11,
+		froniusObservedFlavorV12,
+	}
+	level := make([]sunSpecFroniusHardwareTestLevel, len(definitions))
+	for index, definition := range definitions {
+		level[index] = sunSpecFroniusHardwareTestLevel{
+			FlavorID: definition.id,
+			Firmware: definition.firmware,
+			Chain:    append([]sunspec.WireKey(nil), definition.chain...),
+		}
+	}
+	return level
+}
+
 // SunSpecFroniusFlavorSelectionReason is the stable reason code of a
 // SunSpecFroniusFlavorSelection.
 type SunSpecFroniusFlavorSelectionReason string
