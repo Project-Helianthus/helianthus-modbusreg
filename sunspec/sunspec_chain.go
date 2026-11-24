@@ -299,18 +299,23 @@ func (c *Chain) payload(r ReadRequest, v modbusreg.LogicalViewSnapshot, x modbus
 	}
 	wk := WireKey{c.current.id, c.current.length}
 	d := ChainDispositionUnknownModel
+	// An admitted occurrence carries its decoder key's revision, so the
+	// registry that owns the key can decode it. A model with no key keeps
+	// the plan revision.
+	revision := c.plan.revision
 	var key *DecoderKey
 	if k, ok := c.plan.keys[wk]; ok {
 		d = ChainDispositionAdmitted
 		z := k
 		key = &z
+		revision = k.SchemaRevision
 	} else if _, ok := c.plan.known[c.current.id]; ok {
 		d = ChainDispositionUnsupportedLength
 	}
 	c.occ = append(c.occ, Occurrence{
 		Ordinal:             uint32(len(c.occ) + 1),
 		WireKey:             wk,
-		SchemaRevision:      c.plan.revision,
+		SchemaRevision:      revision,
 		HeaderOffset:        c.current.header,
 		PayloadOffset:       c.current.header + 2,
 		Disposition:         d,

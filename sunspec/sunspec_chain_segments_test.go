@@ -168,6 +168,62 @@ func TestListedDERChainDecodesWithTheDERRegistry(t *testing.T) {
 	}
 }
 
+func TestListedChainKeepsCoreModelsBesideTheDERRegistry(t *testing.T) {
+	plan, err := NewListedChainPlan([]uint16{1, 103, 120, 701}, []uint16{40000}, listedChainLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.SchemaRevision() != ModelsRevisionV2 {
+		t.Fatalf("revision=%q", plan.SchemaRevision())
+	}
+	if _, ok := plan.structuralCandidateIDs[707]; !ok || len(plan.structuralCandidateIDs) != 1 {
+		t.Fatalf("structural candidates=%v", plan.structuralCandidateIDs)
+	}
+	want := []DecoderKey{
+		{ModelID: 1, ModelLength: 66, SchemaRevision: ModelsRevisionV2},
+		{ModelID: 103, ModelLength: 50, SchemaRevision: ModelsRevisionV1},
+		{ModelID: 120, ModelLength: 26, SchemaRevision: ModelsRevisionV1},
+		{ModelID: 701, ModelLength: 153, SchemaRevision: ModelsRevisionV2},
+	}
+	for _, key := range want {
+		assertPlanKey(t, plan, key)
+	}
+	if got := plan.keys[WireKey{ModelID: 1, ModelLength: 66}]; got.SchemaRevision != ModelsRevisionV2 {
+		t.Fatalf("common model key=%#v", got)
+	}
+
+	snapshot := walkListedChain(t, plan, [][]uint16{
+		modelBlock(1, 66),
+		modelBlock(103, 50),
+		modelBlock(120, 26),
+		modelBlock(701, 153),
+	})
+	occurrences := snapshot.Occurrences()
+	if len(occurrences) != len(want) {
+		t.Fatalf("occurrences=%d", len(occurrences))
+	}
+	core := listedRegistry(t, ModelsRevisionV1)
+	der := listedRegistry(t, ModelsRevisionV2)
+	for index, key := range want {
+		occurrence := occurrences[index]
+		got, ok := occurrence.DecoderKey()
+		if !ok || got != key || occurrence.SchemaRevision != key.SchemaRevision || occurrence.Disposition != ChainDispositionAdmitted {
+			t.Fatalf("occurrence %d key=%#v revision=%q disposition=%q", index, got, occurrence.SchemaRevision, occurrence.Disposition)
+		}
+		registry := der
+		if key.SchemaRevision == ModelsRevisionV1 {
+			registry = core
+		}
+		decoded, err := registry.DecodeOccurrence(occurrence)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decoded.Key() != key || decoded.Ordinal() != uint32(index+1) || len(decoded.Facts()) == 0 {
+			t.Fatalf("model %d key=%#v ordinal=%d facts=%d", index, decoded.Key(), decoded.Ordinal(), len(decoded.Facts()))
+		}
+	}
+}
+
 func TestListedNameplateModelStaysInTheReadPlan(t *testing.T) {
 	withNameplate, err := NewListedChainPlan([]uint16{1, 103, 120}, []uint16{40000}, listedChainLimits())
 	if err != nil {
@@ -273,6 +329,15 @@ func segmentFixtureOccurrence(ordinal uint32, modelID, length uint16) Occurrence
 
 func listedChainLimits() ChainLimits {
 	return ChainLimits{MaxTotalWords: 512, MaxOccurrences: 8}
+}
+
+func listedRegistry(t *testing.T, revision SchemaRevision) DecoderRegistry {
+	t.Helper()
+	registry, err := NewStandardSunSpecDecoderRegistry(revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return registry
 }
 
 func listedDERPlan(t *testing.T) ChainPlan {

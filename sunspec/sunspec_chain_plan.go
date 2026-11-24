@@ -256,10 +256,11 @@ func validateUnitAllowlist(list UnitAllowlist) error {
 }
 
 // NewListedChainPlan builds the read plan for a chain that lists modelIDs.
-// An identifier in the 700s or 800s selects the V2 registry and the model 707
-// structural-candidate selection. Every other chain uses the V1 registry.
-// Decoder keys are the registry keys of the listed identifiers. An empty list
-// carries the whole V1 registry. A listed model 120 keeps its V1 nameplate key.
+// Decoder keys come from the V1 registry. An identifier in the 700s or 800s
+// also selects the V2 registry, the V2 plan revision, and the model 707
+// structural-candidate selection. A listed model the V2 registry does not
+// hold keeps its V1 key, including nameplate model 120. An empty list carries
+// the whole V1 registry.
 func NewListedChainPlan(modelIDs, bases []uint16, limits ChainLimits) (ChainPlan, error) {
 	revision := sunSpecChainRevision(modelIDs)
 	registry, err := NewStandardSunSpecDecoderRegistry(revision)
@@ -267,14 +268,49 @@ func NewListedChainPlan(modelIDs, bases []uint16, limits ChainLimits) (ChainPlan
 		return ChainPlan{}, err
 	}
 	keys := sunSpecListedDecoderKeys(registry, modelIDs)
-	if err := sunSpecRequireListedNameplate(keys, modelIDs, revision); err != nil {
+	var companion []DecoderKey
+	if revision == ModelsRevisionV2 {
+		core, err := NewStandardSunSpecDecoderRegistry(ModelsRevisionV1)
+		if err != nil {
+			return ChainPlan{}, err
+		}
+		companion = sunSpecListedDecoderKeys(core, modelIDs)
+	}
+	if err := sunSpecRequireListedNameplate(append(append([]DecoderKey(nil), keys...), companion...), modelIDs); err != nil {
 		return ChainPlan{}, err
 	}
 	spec := ChainPlanSpec{SchemaRevision: revision, BaseCandidates: bases, Limits: limits, DecoderKeys: keys}
 	if revision == ModelsRevisionV2 {
 		spec.StructuralCandidateIDs = []uint16{sunSpecDERTripStructuralCandidate}
 	}
-	return NewChainPlan(spec)
+	plan, err := NewChainPlan(spec)
+	if err != nil {
+		return ChainPlan{}, err
+	}
+	if err := plan.addListedCompanionKeys(companion); err != nil {
+		return ChainPlan{}, err
+	}
+	return plan, nil
+}
+
+// addListedCompanionKeys adds decoder keys from the other registry. A wire
+// key the plan revision already owns is left in place.
+func (p *ChainPlan) addListedCompanionKeys(keys []DecoderKey) error {
+	for _, key := range keys {
+		if key.ModelLength == 0 || !validSunSpecRevision(key.SchemaRevision) {
+			return fmt.Errorf("SunSpec decoder key is not exact")
+		}
+		wire := WireKey{key.ModelID, key.ModelLength}
+		if existing, ok := p.keys[wire]; ok {
+			if existing.SchemaRevision == p.revision {
+				continue
+			}
+			return fmt.Errorf("SunSpec decoder key duplicated")
+		}
+		p.keys[wire] = key
+		p.known[key.ModelID] = struct{}{}
+	}
+	return nil
 }
 
 func sunSpecChainRevision(modelIDs []uint16) SchemaRevision {
@@ -303,12 +339,12 @@ func sunSpecListedDecoderKeys(registry DecoderRegistry, modelIDs []uint16) []Dec
 	return keys
 }
 
-func sunSpecRequireListedNameplate(keys []DecoderKey, modelIDs []uint16, revision SchemaRevision) error {
-	if revision != ModelsRevisionV1 || !sunSpecModelListed(modelIDs, 120) {
+func sunSpecRequireListedNameplate(keys []DecoderKey, modelIDs []uint16) error {
+	if !sunSpecModelListed(modelIDs, 120) {
 		return nil
 	}
 	for _, key := range keys {
-		if key.ModelID == 120 && key.ModelLength == 26 && key.SchemaRevision == revision {
+		if key.ModelID == 120 && key.ModelLength == 26 && key.SchemaRevision == ModelsRevisionV1 {
 			return nil
 		}
 	}
