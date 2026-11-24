@@ -309,6 +309,9 @@ func (p *huaweiProviderCore) refresh(ctx context.Context) (ProviderCycle, error)
 
 // carryRefusals keeps the exception 3 refusals of an uncommitted cycle.
 func (p *huaweiProviderCore) carryRefusals(from *huaweiProviderState) {
+	for index, group := range from.plant {
+		p.state.plant[index].refused = p.state.plant[index].refused || group.refused
+	}
 	for unit, child := range from.children {
 		for key := range child.refused {
 			if kept, ok := p.state.children[unit]; ok {
@@ -523,6 +526,63 @@ func (r *huaweiCycleRun) readHolding(unit uint8, offset, quantity uint16) ([]uin
 		return nil, result
 	}
 	return words, result
+}
+
+// readPlantGroups runs only after identification or a held guard. A group that
+// does not answer cannot replace the kept words of that group or block its sibling.
+func (r *huaweiCycleRun) readPlantGroups(plan huaweiPlantPlan) {
+	for index, extent := range plan.groups {
+		kept := &r.state.plant[index]
+		outcome, code := SUN2000GroupNotRead, uint8(0)
+		if !kept.refused {
+			words, result := r.readHolding(plan.unit, extent.offset, extent.quantity)
+			code = result.exceptionCode
+			kept.refused = code == huaweiSUN2000RefusalCode
+			switch result.status {
+			case huaweiReadStopped:
+				return
+			case huaweiReadAnswered:
+				outcome = SUN2000GroupAnswered
+				kept.words = words
+				kept.meta = huaweiGroupMeta{cycle: r.cycle, readAt: r.link.lastEnd, generation: r.generation}
+			case huaweiReadException:
+				outcome = SUN2000GroupException
+			case huaweiReadFailed:
+				outcome = SUN2000GroupFailed
+			}
+		}
+		r.recordPlantGroup(kept.observation(plan.unit, extent, outcome, code))
+	}
+}
+
+// finishPlantGroups renders unattempted groups when admission or the guard
+// failed. An identity mismatch fences the old gateway's plant words.
+func (r *huaweiCycleRun) finishPlantGroups(plan huaweiPlantPlan) {
+	if r.stopped() || r.out.Plant != nil {
+		return
+	}
+	if r.state.gatewayFenced {
+		r.state.plant = [2]huaweiPlantState{}
+	}
+	for index, extent := range plan.groups {
+		r.recordPlantGroup(r.state.plant[index].observation(plan.unit, extent, SUN2000GroupNotRead, 0))
+	}
+}
+
+func (r *huaweiCycleRun) recordPlantGroup(group ProviderPlantGroup) {
+	r.out.Plant = append(r.out.Plant, group)
+	loss := ProviderLoss{HasUnit: true, UnitID: group.UnitID, Offset: group.Offset, Quantity: group.Quantity}
+	switch {
+	case group.Refused:
+		loss.Kind, loss.Detail = ProviderLossRefusedGroup, huaweiRuntimeRefusalDetail(huaweiSUN2000RefusalCode)
+	case group.Outcome == SUN2000GroupException:
+		loss.Kind, loss.Detail = ProviderLossRefusedGroup, huaweiRuntimeRefusalDetail(group.ExceptionCode)
+	case group.Outcome == SUN2000GroupFailed:
+		loss.Kind, loss.Detail = ProviderLossFailedGroup, "plant group did not answer"
+	default:
+		return
+	}
+	r.out.Loss = append(r.out.Loss, loss)
 }
 
 // readIdentification reads one Read Device Identification page.

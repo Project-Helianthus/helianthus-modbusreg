@@ -20,7 +20,8 @@ const (
 // supplied session: the counter guard and the extended inventory at unit 0
 // under the observed card, the admission of each listed and allowed SUN2000
 // unit (the routed model read, the model identifier, the software text and the
-// firmware text, read on each identification event only), and the M3 series
+// firmware text, read on each identification event only), plant power and
+// energy at unit 0, and the M3 series
 // monitoring groups at each child whose catalog decision selects the M3
 // series row. The PLC, meter and every other unit without a class contract are
 // never read. Do not copy it.
@@ -38,8 +39,7 @@ func NewSmartLoggerReadOnlyProvider(config ProviderConfig) (*SmartLoggerReadOnly
 func newHuaweiSmartLoggerReadOnlyProvider(config ProviderConfig, disposition ProviderDisposition) (*SmartLoggerReadOnlyProvider, error) {
 	profile, _ := huaweiProfileByID(SUN2000M3MonitoringProfileID)
 	loss := []ProviderLoss{
-		{Kind: ProviderLossPlannedGroup, HasUnit: true, UnitID: 0, Offset: 40521, Quantity: 6, Detail: "logger plant power group: planned until an approved observation records its answer"},
-		{Kind: ProviderLossPlannedGroup, HasUnit: true, UnitID: 0, Offset: 40560, Quantity: 4, Detail: "logger plant energy group: planned until an approved observation records its answer"},
+		{Kind: ProviderLossUnconsumedWords, HasUnit: true, UnitID: 0, Offset: 40523, Quantity: 2, Detail: "aggregate CO2 reduction retained as native words, not decoded as plant power"},
 	}
 	loss = append(loss, huaweiChildProfileLoss(profile)...)
 	core, err := newHuaweiProviderCore(ProviderPathSmartLogger, SmartLoggerReadOnlyProviderID, config, disposition, runHuaweiSmartLoggerCycle, loss)
@@ -119,6 +119,7 @@ func (p *SmartLoggerReadOnlyProvider) Enablement() ProviderEnablement {
 
 func runHuaweiSmartLoggerCycle(r *huaweiCycleRun) {
 	defer func() { r.out.Gateway = r.state.gateway }()
+	defer r.finishPlantGroups(huaweiSmartLoggerPlant)
 	s := r.state
 	if s.identified && !s.reidentify && s.identityGeneration == r.generation {
 		words, result := r.readHolding(0, huaweiSmartLoggerCounterOffset, 1)
@@ -130,10 +131,7 @@ func runHuaweiSmartLoggerCycle(r *huaweiCycleRun) {
 				s.endpointFailures = 0
 				s.gateway.State = ProviderGatewayIdentified
 				r.out.Reason = ProviderReasonGuardHeld
-				r.readSmartLoggerChildren()
-				if !r.stopped() {
-					r.out.Outcome = ProviderCycleComplete
-				}
+				r.readSmartLoggerMonitoring()
 				return
 			}
 			s.reidentify = true
@@ -300,6 +298,14 @@ func (r *huaweiCycleRun) identifySmartLogger() {
 		child.identificationEvent()
 	}
 	r.out.Reason = ProviderReasonIdentified
+	r.readSmartLoggerMonitoring()
+}
+
+func (r *huaweiCycleRun) readSmartLoggerMonitoring() {
+	r.readPlantGroups(huaweiSmartLoggerPlant)
+	if r.stopped() {
+		return
+	}
 	r.readSmartLoggerChildren()
 	if !r.stopped() {
 		r.out.Outcome = ProviderCycleComplete
