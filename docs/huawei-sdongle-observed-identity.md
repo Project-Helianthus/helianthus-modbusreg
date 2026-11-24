@@ -147,8 +147,10 @@ labels and the child model are exact. A test scans every committed file under
 The S-Dongle disposition moves to schema v2. The recorded persistent
 non-response stays on record, and its status is superseded for the identity of
 the observed tuple only: `observed_identity` carries the exact tuple, the
-tolerances, the forbidden identities and the negative-overlap rows, and the
-further live I/O rule becomes operator approval at action time. The profile
+tolerances, the forbidden identities and the negative-overlap rows. The
+observed-identity hard stop is no longer recorded: further live reads need no
+operator approval at action time, and a persistent non-response leaves the child
+stale while the transport backs off and identifies again. The profile
 outcome stays `PRE_LIVE_INSUFFICIENT_EVIDENCE` and monitoring is not admitted.
 The child inventory gap closes for the observed tuple. The product string, the
 encoding of the protocol words and the EMMA overlap in its reverse direction stay

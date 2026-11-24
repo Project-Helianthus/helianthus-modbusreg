@@ -145,13 +145,6 @@
     "qualification_card": "huawei.qualification.sdongle.observed-readonly@1.0.0",
     "gate_registered": true,
     "default_denied": true,
-    "hard_stop": {
-      "recorded_status": "LIVE_STOPPED_PERSISTENT_NON_RESPONSE",
-      "superseded_for": "IDENTITY_OF_OBSERVED_TUPLE_ONLY",
-      "non_response_reproduced": false,
-      "superseded_only_by": "MATCHED_OBSERVED_CARD_OF_THE_SAME_CLASS",
-      "further_live_io": "OPERATOR_APPROVAL_AT_ACTION_TIME"
-    },
     "required_tuple": [
       "gateway_unit_100",
       "gateway_basic_mei_exception_1",
@@ -523,8 +516,8 @@
     "status": "HARD_STOP_SUPERSEDED_FOR_OBSERVED_IDENTITY",
     "read_only": true,
     "live_io_performed": true,
-    "further_live_io": "OPERATOR_APPROVAL_AT_ACTION_TIME",
-    "operator_confirmation_required": true,
+    "further_live_io": "TRANSPORT_BACKOFF_NO_APPROVAL",
+    "operator_confirmation_required": false,
     "required_connection_context": [
       "endpoint",
       "port",
@@ -560,15 +553,15 @@
     "requires": [
       "observed_identity_offline_admitted",
       "child_monitoring_profile_offline_admitted",
-      "recorded_stop_superseded_for_observed_identity",
+      "no_recorded_stop_in_force",
       "authority_fields_false"
     ],
     "identity_card": "huawei.qualification.sdongle.observed-readonly@1.0.0",
     "child_profiles": [
       "huawei.sun2000.m1.monitoring-readonly@1.0.0"
     ],
-    "recorded_stop": "WHOLE_TUPLE_MATCHED_ON_EACH_CONNECTION_GENERATION_BEFORE_ANY_CHILD_GROUP_READ",
-    "further_live_io": "OPERATOR_APPROVAL_AT_ACTION_TIME_OWNED_BY_THE_CALLER",
+    "identity_match": "WHOLE_TUPLE_MATCHED_ON_EACH_CONNECTION_GENERATION_BEFORE_ANY_CHILD_GROUP_READ",
+    "further_live_io": "TRANSPORT_BACKOFF_NO_APPROVAL",
     "read_functions": [
       "FC03",
       "FC2B_MEI_0E"

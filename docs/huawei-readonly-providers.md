@@ -27,8 +27,10 @@ admitted only when all of the following hold, and refused otherwise:
   registered;
 - at least one child monitoring profile bound to that card is
   `OFFLINE_PROFILE_ADMITTED`;
-- a recorded stop, where the path has one, is superseded for the observed
-  identity and further live reads need operator approval at action time;
+- no recorded stop is in force. The S-Dongle path has none: after a persistent
+  non-response its values are reported stale (last value with its age) or
+  unknown, never substituted, further reads follow the modbus transport's
+  backoff, and no operator approval is asked at action time;
 - catalog registration, automatic runtime admission, the support claim and
   write authority are all false.
 

@@ -28,10 +28,10 @@ func h06DispositionMutations() []h06Mutation {
 		{"IdentityScope", "a gate that widens the observed-tuple scope", func(d *ProviderDisposition) { d.IdentityScope = "ALL_TUPLES" }},
 		{"RecordedStop", "a gate that ignores a stop in force", func(d *ProviderDisposition) {
 			d.RecordedStop = "IN_FORCE"
-			d.FurtherLiveIO = huaweiLiveIOOperatorAtTime
+			d.FurtherLiveIO = "OPERATOR_APPROVAL_AT_ACTION_TIME"
 		}},
 		{"FurtherLiveIO", "a gate that ignores a hard stop on further reads", func(d *ProviderDisposition) {
-			d.RecordedStop = huaweiStopObservedIdentity
+			d.RecordedStop = "IDENTITY_OF_OBSERVED_TUPLE_ONLY"
 			d.FurtherLiveIO = "HARD_STOP"
 		}},
 		{"ChildProfiles", "a gate that admits without a child profile", func(d *ProviderDisposition) { d.ChildProfiles = nil }},
@@ -210,7 +210,7 @@ func TestH06ProductionProviderRowsMatchTheProviders(t *testing.T) {
 			map[string]int{"slice": 206, "parent": 201}, "smartlogger_provider_cycles.json", "ROUTED_MODEL_READ_30000"},
 		{ProviderPathSDongle, "sdongle-disposition.json", SDongleReadOnlyProviderID, SUN2000M1MonitoringProfileID,
 			"architecture/sdongle-provider-port.md",
-			[]string{"observed_identity_offline_admitted", "child_monitoring_profile_offline_admitted", "recorded_stop_superseded_for_observed_identity", "authority_fields_false"},
+			[]string{"observed_identity_offline_admitted", "child_monitoring_profile_offline_admitted", "no_recorded_stop_in_force", "authority_fields_false"},
 			map[string]int{"parent": 201}, "sdongle_provider_cycles.json", "CARD_TUPLE_CHILD_MODEL_30000"},
 	} {
 		t.Run(string(test.path), func(t *testing.T) {
@@ -219,7 +219,7 @@ func TestH06ProductionProviderRowsMatchTheProviders(t *testing.T) {
 			keys := []string{"issue", "provider_id", "enablement", "scope", "requires", "identity_card", "child_profiles", "read_functions",
 				"units", "never_read", "child_admission", "pacing", "docs_contract", "issues", "support_claim", "live_qualified"}
 			if test.path == ProviderPathSDongle {
-				keys = append(keys, "recorded_stop", "further_live_io")
+				keys = append(keys, "identity_match", "further_live_io")
 			}
 			requireHuaweiKeys(t, row, keys...)
 			recorded, _ := RecordedProviderDisposition(test.path)
@@ -319,5 +319,21 @@ func TestH06DocumentaryOfflineOwnersRefuseTheObservedTuple(t *testing.T) {
 		if !sort.IntsAreSorted(offsets) || len(offsets) < 3 {
 			t.Fatalf("%s plan %v", profile.ID(), offsets)
 		}
+	}
+}
+
+// TestSDongleNonResponseAsksNoApproval pins the non-response rule: after a persistent
+// non-response the dongle path carries no recorded stop and no operator
+// approval for further reads; the gate admits it with the transport backoff.
+func TestSDongleNonResponseAsksNoApproval(t *testing.T) {
+	recorded, ok := RecordedProviderDisposition(ProviderPathSDongle)
+	if !ok {
+		t.Fatal("the S-Dongle path has no recorded disposition")
+	}
+	if recorded.RecordedStop != "" || recorded.FurtherLiveIO != "" {
+		t.Fatalf("recorded stop=%q further live I/O=%q; want none", recorded.RecordedStop, recorded.FurtherLiveIO)
+	}
+	if enablement := EvaluateHuaweiProviderEnablement(recorded); !enablement.Admitted {
+		t.Fatalf("S-Dongle path refused without a stop: %+v", enablement)
 	}
 }

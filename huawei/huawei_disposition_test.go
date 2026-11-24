@@ -218,7 +218,7 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 				plan := huaweiObject(t, record["qualification_plan"])
 				requireHuaweiKeys(t, plan, "status", "read_only", "live_io_performed", "further_live_io", "operator_confirmation_required", "required_connection_context", "capture_sequence", "redact", "promotion_outcomes")
 				if plan["status"] != "HARD_STOP_SUPERSEDED_FOR_OBSERVED_IDENTITY" || plan["read_only"] != true || plan["live_io_performed"] != true ||
-					plan["further_live_io"] != "OPERATOR_APPROVAL_AT_ACTION_TIME" || plan["operator_confirmation_required"] != true ||
+					plan["further_live_io"] != "TRANSPORT_BACKOFF_NO_APPROVAL" || plan["operator_confirmation_required"] != false ||
 					!reflect.DeepEqual(huaweiStringSlice(t, plan["promotion_outcomes"]), []string{"PROFILE_ADMITTED", "NO_ADMISSIBLE_PROFILE"}) {
 					t.Fatalf("unexpected S-Dongle qualification contract: %#v", plan)
 				}

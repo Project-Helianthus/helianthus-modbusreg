@@ -147,23 +147,21 @@ func TestH15SDongleDispositionSupersedesHardStopForIdentityOnly(t *testing.T) {
 	})
 
 	// The recorded stop stays on record and is superseded for the observed
-	// identity only: the earlier attempts are untouched, and further I/O needs
-	// the operator's approval at action time.
+	// identity only: the earlier attempts are untouched; a persistent
+	// non-response leaves no stop and no operator approval for further reads.
 	live := huaweiObject(t, evidence["live_qualification"])
 	plan := huaweiObject(t, record["qualification_plan"])
 	observed := huaweiObject(t, record["observed_identity"])
-	hardStop := huaweiObject(t, observed["hard_stop"])
-	requireHuaweiKeys(t, hardStop, "recorded_status", "superseded_for", "non_response_reproduced", "superseded_only_by", "further_live_io")
+	if _, ok := observed["hard_stop"]; ok {
+		t.Fatalf("observed identity still records a hard stop: %#v", observed["hard_stop"])
+	}
 	if live["status"] != "SUPERSEDED_FOR_OBSERVED_IDENTITY" || live["recorded_status"] != "LIVE_STOPPED_PERSISTENT_NON_RESPONSE" ||
-		hardStop["recorded_status"] != live["recorded_status"] || hardStop["superseded_for"] != "IDENTITY_OF_OBSERVED_TUPLE_ONLY" ||
-		hardStop["non_response_reproduced"] != false || hardStop["superseded_only_by"] != "MATCHED_OBSERVED_CARD_OF_THE_SAME_CLASS" ||
-		hardStop["further_live_io"] != plan["further_live_io"] || plan["further_live_io"] != "OPERATOR_APPROVAL_AT_ACTION_TIME" ||
-		plan["operator_confirmation_required"] != true || plan["read_only"] != true || plan["status"] != "HARD_STOP_SUPERSEDED_FOR_OBSERVED_IDENTITY" ||
+		plan["further_live_io"] != "TRANSPORT_BACKOFF_NO_APPROVAL" || plan["operator_confirmation_required"] != false || plan["read_only"] != true || plan["status"] != "HARD_STOP_SUPERSEDED_FOR_OBSERVED_IDENTITY" ||
 		len(h03Array(t, live["attempts"])) != 3 || len(h03Array(t, huaweiObject(t, live["retry_matrix"])["attempts"])) != 4 {
-		t.Fatalf("hard stop record: %#v %#v %#v", live, hardStop, plan)
+		t.Fatalf("non-response record: %#v %#v", live, plan)
 	}
 
-	requireHuaweiKeys(t, observed, "status", "scope", "qualification_card", "gate_registered", "default_denied", "hard_stop", "required_tuple",
+	requireHuaweiKeys(t, observed, "status", "scope", "qualification_card", "gate_registered", "default_denied", "required_tuple",
 		"software_selection", "exact_tuple", "tolerance", "retained_not_gating", "forbidden_identity", "outside_admitted_set_outcome", "multiple_positive_outcome",
 		"first_match_priority", "timing", "negative_overlap", "fixtures", "profile_status")
 	if observed["status"] != "OFFLINE_IDENTITY_ADMITTED" || observed["scope"] != "OBSERVED_TUPLE_ONLY" || observed["qualification_card"] != card.ID() ||
