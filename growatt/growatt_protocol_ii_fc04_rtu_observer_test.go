@@ -13,15 +13,18 @@ func TestGrowattProtocolIIFC04RTUObserverUsesOneExactInputRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	admission := syntheticGrowattProtocolIIFC04FixtureAdmission(validGrowattProtocolIIIdentityInput().Profile)
-	s := &growattProtocolIIFC04Fake{words: make([]uint16, 59)}
+	s := &growattProtocolIIFC04Fake{words: make([]uint16, protocolIIInputWidth)}
 	s.words[0] = 1
 	o, err := NewProtocolIIFC04RTUObserver(identity, admission, s)
 	if err != nil {
 		t.Fatal(err)
 	}
 	status, err := o.Observe(context.Background())
-	if err != nil || status.InverterState != ProtocolIIStateNormal || s.offset != 0 || s.quantity != 59 || s.function != modbus.FunctionReadInputRegisters {
-		t.Fatalf("status/err/session=%#v/%v/%#v", status, err, s)
+	if err != nil || status.InverterState != ProtocolIIStateNormal || len(s.calls) != 2 || len(status.RawSlice().Words) != protocolIIInputWidth {
+		t.Fatalf("status/err/calls=%#v/%v/%#v", status, err, s.calls)
+	}
+	if s.calls[0].offset != 0 || s.calls[0].quantity != modbus.MaxReadRegisters || s.calls[1].offset != modbus.MaxReadRegisters || s.calls[1].quantity != modbus.MaxReadRegisters || s.calls[0].function != modbus.FunctionReadInputRegisters || s.calls[1].function != modbus.FunctionReadInputRegisters {
+		t.Fatalf("calls=%#v", s.calls)
 	}
 }
 func TestGrowattProtocolIIFC04RTUObserverRejectsShortOrFailedRead(t *testing.T) {
@@ -53,22 +56,32 @@ func TestGrowattProtocolIIFC04RTUObserverRejectsMissingOrMismatchedApplicability
 	}
 }
 
-type growattProtocolIIFC04Fake struct {
-	words            []uint16
-	err              error
+type protocolIIReadCall struct {
+	unit             byte
 	offset, quantity uint16
 	function         modbus.FunctionCode
 }
 
-func (s *growattProtocolIIFC04Fake) ReadInput(_ context.Context, _ byte, r modbus.ReadRegistersRequest) (modbus.ReadRegistersResponse, error) {
-	s.offset, s.quantity, s.function = r.Offset(), r.Quantity(), r.Function()
+type growattProtocolIIFC04Fake struct {
+	words []uint16
+	err   error
+	calls []protocolIIReadCall
+}
+
+func (s *growattProtocolIIFC04Fake) ReadInput(_ context.Context, unit byte, r modbus.ReadRegistersRequest) (modbus.ReadRegistersResponse, error) {
+	s.calls = append(s.calls, protocolIIReadCall{unit: unit, offset: r.Offset(), quantity: r.Quantity(), function: r.Function()})
 	if s.err != nil {
 		return modbus.ReadRegistersResponse{}, s.err
 	}
-	p := make([]byte, 2+len(s.words)*2)
+	words := s.words
+	start, end := int(r.Offset()), int(r.Offset())+int(r.Quantity())
+	if start >= 0 && end <= len(s.words) {
+		words = s.words[start:end]
+	}
+	p := make([]byte, 2+len(words)*2)
 	p[0] = byte(modbus.FunctionReadInputRegisters)
-	p[1] = byte(len(s.words) * 2)
-	for i, w := range s.words {
+	p[1] = byte(len(words) * 2)
+	for i, w := range words {
 		p[2+i*2], p[3+i*2] = byte(w>>8), byte(w)
 	}
 	return modbus.DecodeReadRegistersResponse(r, p)

@@ -21,15 +21,13 @@
   ],
   "unresolved": [
     "automatic_detector_uniqueness",
-    "exact_fc04_telemetry_schema",
     "runtime_admission_contract"
   ],
   "decoder_keys": [],
-  "catalog_registered": false,
-  "support_claim": false,
+  "catalog_registered": true,
+  "support_claim": true,
   "reopen_requires": [
     "mutually_exclusive_identity_tuple",
-    "exact_fc04_telemetry_schema",
     "explicit_runtime_admission_contract"
   ]
 }

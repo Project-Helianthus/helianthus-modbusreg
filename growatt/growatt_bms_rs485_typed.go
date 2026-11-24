@@ -42,6 +42,7 @@ type BMSTypedReadOnlyStatus struct {
 	FloatingPackVoltageVolts    float64
 	CumulativeChargeAmpHours    float64
 	CumulativeDischargeAmpHours float64
+	StatusWords                 BMSStatusWords
 }
 
 // NativeObservation returns the validated caller-selected unit, revision, and
@@ -115,6 +116,7 @@ func DecodeGrowattBMSTypedReadOnlyStatus(input BMSReadOnlyInput) (BMSTypedReadOn
 		FloatingPackVoltageVolts:    float64(extension[4]) / 10,
 		CumulativeChargeAmpHours:    float64(extension[5]) / 10,
 		CumulativeDischargeAmpHours: float64(extension[6]) / 10,
+		StatusWords:                 growattBMSStatusWords(wordsByOffset),
 	}, nil
 }
 

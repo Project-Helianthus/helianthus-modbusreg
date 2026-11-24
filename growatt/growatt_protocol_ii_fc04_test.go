@@ -8,7 +8,7 @@ func TestDecodeGrowattProtocolIIFC04TelemetryKeepsRawAndProducesBoundedFacts(t *
 		t.Fatal(err)
 	}
 	admission := syntheticGrowattProtocolIIFC04FixtureAdmission(validGrowattProtocolIIIdentityInput().Profile)
-	words := make([]uint16, 59)
+	words := make([]uint16, protocolIIInputWidth)
 	words[0] = 1
 	words[1], words[2] = 0, 1234
 	words[35], words[36] = 0, 567
@@ -39,13 +39,13 @@ func TestDecodeGrowattProtocolIIFC04TelemetryFailsClosed(t *testing.T) {
 	}
 	admission := syntheticGrowattProtocolIIFC04FixtureAdmission(validGrowattProtocolIIIdentityInput().Profile)
 	for name, mutate := range map[string]func(*ProtocolIIFC04Slice){
-		"short":  func(s *ProtocolIIFC04Slice) { s.Words = s.Words[:58] },
+		"short":  func(s *ProtocolIIFC04Slice) { s.Words = s.Words[:protocolIIInputWidth-1] },
 		"extra":  func(s *ProtocolIIFC04Slice) { s.Words = append(s.Words, 0) },
 		"offset": func(s *ProtocolIIFC04Slice) { s.Offset = 1 },
 		"enum":   func(s *ProtocolIIFC04Slice) { s.Words[0] = 2 },
 	} {
 		t.Run(name, func(t *testing.T) {
-			s := ProtocolIIFC04Slice{Words: make([]uint16, 59)}
+			s := ProtocolIIFC04Slice{Words: make([]uint16, protocolIIInputWidth)}
 			mutate(&s)
 			if status, err := DecodeGrowattProtocolIIFC04Telemetry(identity, admission, s); err == nil || status.Identity().UnitID() != 0 {
 				t.Fatalf("status/err=%#v/%v", status, err)
@@ -56,7 +56,7 @@ func TestDecodeGrowattProtocolIIFC04TelemetryFailsClosed(t *testing.T) {
 
 func TestGrowattProtocolIIFC04TelemetryRequiresSeparateExactApplicability(t *testing.T) {
 	admission := syntheticGrowattProtocolIIFC04FixtureAdmission(validGrowattProtocolIIIdentityInput().Profile)
-	words := make([]uint16, 59)
+	words := make([]uint16, protocolIIInputWidth)
 	words[0] = 1
 
 	for name, mutate := range map[string]func(*ProtocolIIIdentityInput){

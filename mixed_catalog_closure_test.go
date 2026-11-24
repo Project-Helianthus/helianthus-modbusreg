@@ -12,6 +12,7 @@ import (
 	reg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/detection"
 	"github.com/Project-Helianthus/helianthus-modbusreg/fronius"
+	"github.com/Project-Helianthus/helianthus-modbusreg/profiles"
 	"github.com/Project-Helianthus/helianthus-modbusreg/sunspec"
 )
 
@@ -113,7 +114,7 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 	}{
 		{"sunspec.direct-inverter", "PRIMARY", "CONDITIONAL_CAPABILITY", sunspec.ThreePhaseMonitoringCapabilityID, ""},
 		{"fronius.gen24", "POST_PRIMARY_FLAVOR", "QUALIFIED_FLAVOR_CLASSIFICATION", fronius.SunSpecFroniusObservedFlavorID + "," + fronius.SunSpecFroniusObservedFlavorV11ID, ""},
-		{"growatt.direct-inverter", "PRIMARY_CANDIDATE", "OFFLINE_IDENTITY_ADMITTED", "", "profiles/vendors/growatt/disposition.json"},
+		{"growatt.direct-inverter", "PRIMARY_CANDIDATE", "OFFLINE_IDENTITY_ADMITTED", profiles.GrowattProtocolIIRuntimeIdentity, "profiles/vendors/growatt/disposition.json"},
 		{"huawei.smartlogger", "PRIMARY_CANDIDATE", "NO_ADMISSIBLE_PROFILE", "", "profiles/vendors/huawei/smartlogger-disposition.json"},
 		{"huawei.sdongle", "PRIMARY_CANDIDATE", "PRE_LIVE_INSUFFICIENT_EVIDENCE", "", "profiles/vendors/huawei/sdongle-disposition.json"},
 		{"huawei.emma", "PRIMARY_CANDIDATE", "OFFLINE_IDENTITY_ADMITTED", "", "profiles/vendors/huawei/emma-disposition.json"},
@@ -144,11 +145,18 @@ func TestMixedCatalogClosurePinsParticipantsAndFailClosedPolicy(t *testing.T) {
 		if err := json.Unmarshal(data, &disposition); err != nil {
 			t.Fatal(err)
 		}
+		if got.ID == "growatt.direct-inverter" {
+			if disposition.Outcome != got.Disposition || !disposition.CatalogRegistered ||
+				disposition.AutomaticRuntimeAdmission || !disposition.SupportClaim || !disposition.OfflineIdentityGate {
+				t.Fatalf("participant %s catalog: %#v", got.ID, disposition)
+			}
+			continue
+		}
 		if disposition.Outcome != got.Disposition || disposition.CatalogRegistered ||
 			disposition.AutomaticRuntimeAdmission || disposition.SupportClaim {
 			t.Fatalf("participant %s became actionable: %#v", got.ID, disposition)
 		}
-		if (got.ID == "huawei.emma" || got.ID == "growatt.direct-inverter") && !disposition.OfflineIdentityGate {
+		if got.ID == "huawei.emma" && !disposition.OfflineIdentityGate {
 			t.Fatalf("participant %s lacks its offline identity gate: %#v", got.ID, disposition)
 		}
 	}

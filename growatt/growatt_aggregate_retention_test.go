@@ -512,12 +512,17 @@ func TestGrowattAggregateRetentionAllTelemetryZero(t *testing.T) {
 	}
 	retentionBegin(t, r, c, 2, 3)
 	retentionSuccess(t, r, c, 2, 4, in)
+	decoded, err := DecodeGrowattBMSTypedReadOnlyStatus(in)
+	if err != nil {
+		t.Fatal(err)
+	}
 	s := r.Snapshot()
 	actual := *s.Value
 	actual.nativeObservation = nil
 	expected := BMSTypedReadOnlyStatus{
 		Revision:           BMSRevisionTuple{Family: "1xSxxP ESS", FileRevision: "Rev2.01", HeaderVersion: "V2.0", CumulativeRevision: "2.02"},
 		MCUSoftwareVersion: "1.2", GaugeVersion: "3.4", BMSCompany: 4, BMSGeneration: 2, PackCompany: 1, PackGeneration: 3, OperatingState: BMSStateSoftStarting,
+		StatusWords: decoded.StatusWords,
 	}
 	if !reflect.DeepEqual(actual, expected) || !reflect.DeepEqual(s.Value.NativeObservation().Slices(), in.Slices) || s.SuccessRevision != 2 {
 		t.Fatalf("validated zeros did not replace every telemetry field: %+v", actual)

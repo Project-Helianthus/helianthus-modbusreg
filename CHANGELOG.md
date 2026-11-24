@@ -1,5 +1,9 @@
 # Changelog
 
+## Growatt battery status words and Protocol II input table
+
+The typed low-voltage battery status now carries `StatusWords` beside the existing members. Documented status, capability and topology bits are named flags, and documented extension words carry their scale and unit. Warning, protection and error bits the public contract does not name stay raw at their offsets. `NewProtocolIIFC04Applicability` admits an explicit TL3-X family selection (MAX, MID or MAC) and keeps automatic qualification unknown when no documented map identifies the raw device type or protocol version. The same input without that selection returns `NO_ADMISSIBLE_PROFILE`. The input image is words 0 through 249, acquired as two function-04 reads of quantity 125. Catalog registration and the support claim are true; `decoder_keys` stays empty; the offline identity outcome stays `OFFLINE_IDENTITY_ADMITTED`.
+
 ## Wall Connector activation in the read lifecycle
 
 The read lifecycle drives activation with an injected driver on the endpoint it owns. A report is ready only when it ends with the confirmation after a host echo of the immediately preceding greeting. Earlier attempts may be a greeting, an optional echo, and a refusal. Recovery returns to ready in the same epoch and does not call the driver. Restart after an observed activation enters ready on the successor endpoint instance and sends nothing. An optional readiness probe, off by default, may run one planned read of the first configured operation when the driver stays silent for the whole activation timeout. A retained record is current only while the lifecycle is ready and the record epoch, endpoint instance, and generation are the live ones. The registry ships no production driver.

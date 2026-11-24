@@ -8,7 +8,7 @@ import (
 )
 
 func recordValidationJSON() map[string]any {
-	return map[string]any{"family": "MAX", "device_type": 17, "model_build_word_82": 23, "model_build_word_83": 41, "reported_protocol_word": 256, "source_schema_ref": "synthetic:source:edition-a:amendment-a", "function": 4, "offset": 0, "width_words": 59, "field_schema_ref": "synthetic:fields:a", "tuple_evidence_ref": "synthetic:tuple:a"}
+	return map[string]any{"family": "MAX", "device_type": 17, "model_build_word_82": 23, "model_build_word_83": 41, "reported_protocol_word": 256, "source_schema_ref": "synthetic:source:edition-a:amendment-a", "function": 4, "offset": 0, "width_words": 250, "field_schema_ref": "synthetic:fields:a", "tuple_evidence_ref": "synthetic:tuple:a"}
 }
 func recordValidationBytes(t *testing.T, m map[string]any) []byte {
 	t.Helper()
@@ -35,7 +35,7 @@ func recordValidationOperands(t *testing.T) (growatt.FC04Record, growatt.Protoco
 	if e != nil {
 		t.Fatal(e)
 	}
-	s := growatt.FC04SymbolicSchema{SourceSchemaRef: r.SourceSchemaRef, FieldSchemaRef: r.FieldSchemaRef, DocumentEdition: "1.24", AmendmentIdentity: "synthetic:amendment:a", Function: 4, Offset: 0, WidthWords: 59, FieldExtents: []growatt.FC04FieldExtent{{Offset: 0, WidthWords: 1}, {Offset: 57, WidthWords: 2}}}
+	s := growatt.FC04SymbolicSchema{SourceSchemaRef: r.SourceSchemaRef, FieldSchemaRef: r.FieldSchemaRef, DocumentEdition: "1.24", AmendmentIdentity: "synthetic:amendment:a", Function: 4, Offset: 0, WidthWords: 250, FieldExtents: []growatt.FC04FieldExtent{{Offset: 0, WidthWords: 1}, {Offset: 57, WidthWords: 2}}}
 	return r, i, s
 }
 func TestGrowattFc04RecordValidationParsing(t *testing.T) {
@@ -93,7 +93,7 @@ func TestGrowattFc04RecordValidationComparisons(t *testing.T) {
 			if side == "identity" {
 				i = growatt.ProtocolIIIdentityObservation{}
 			} else {
-				s.FieldExtents = []growatt.FC04FieldExtent{{Offset: 58, WidthWords: 2}}
+				s.FieldExtents = []growatt.FC04FieldExtent{{Offset: 249, WidthWords: 2}}
 			}
 			if e := growatt.CompareGrowattFC04Record(r, i, []growatt.FC04Record{r}, []growatt.FC04SymbolicSchema{s}); e == nil {
 				t.Fatal("invalid operand")
@@ -123,7 +123,7 @@ func TestGrowattFc04RecordValidationExternalAdmissionDenied(t *testing.T) {
 	if status != "NO_ADMISSIBLE_PROFILE" || !errors.Is(e, growatt.ErrGrowattFC04Missing) {
 		t.Fatalf("admitted: %s %v", status, e)
 	}
-	if _, e := growatt.DecodeGrowattProtocolIIFC04Telemetry(i, growatt.ProtocolIIFC04Applicability{}, growatt.ProtocolIIFC04Slice{Words: make([]uint16, 59)}); e == nil {
+	if _, e := growatt.DecodeGrowattProtocolIIFC04Telemetry(i, growatt.ProtocolIIFC04Applicability{}, growatt.ProtocolIIFC04Slice{Words: make([]uint16, 250)}); e == nil {
 		t.Fatal("typed telemetry admitted")
 	}
 	if o, e := growatt.NewProtocolIIFC04RTUObserver(i, growatt.ProtocolIIFC04Applicability{}, publicGrowattProtocolIIFC04Session{}); e == nil || o != nil {
@@ -180,7 +180,7 @@ func TestGrowattFc04RecordValidationSchemaJoins(t *testing.T) {
 			x.FieldExtents = []growatt.FC04FieldExtent{{Offset: 65535, WidthWords: 2}}
 		},
 		"outside_field": func(x *growatt.FC04SymbolicSchema) {
-			x.FieldExtents = []growatt.FC04FieldExtent{{Offset: 58, WidthWords: 2}}
+			x.FieldExtents = []growatt.FC04FieldExtent{{Offset: 249, WidthWords: 2}}
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -3,6 +3,7 @@ package growatt
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
@@ -55,7 +56,7 @@ func TestGrowattBMSRS485RTUObserverStopsWithoutPartialStatus(t *testing.T) {
 	}
 
 	status, err := observer.Observe(context.Background())
-	if err == nil || status != (BMSTypedReadOnlyStatus{}) || len(session.calls) != 2 {
+	if err == nil || !reflect.DeepEqual(status, BMSTypedReadOnlyStatus{}) || len(session.calls) != 2 {
 		t.Fatalf("status/error/calls=%#v/%v/%#v", status, err, session.calls)
 	}
 }
@@ -72,7 +73,7 @@ func TestGrowattBMSRS485RTUObserverRejectsMismatchedResponse(t *testing.T) {
 	}
 
 	status, err := observer.Observe(context.Background())
-	if err == nil || status != (BMSTypedReadOnlyStatus{}) || len(session.calls) != 3 {
+	if err == nil || !reflect.DeepEqual(status, BMSTypedReadOnlyStatus{}) || len(session.calls) != 3 {
 		t.Fatalf("status/error/calls=%#v/%v/%#v", status, err, session.calls)
 	}
 }
@@ -91,7 +92,7 @@ func TestGrowattBMSRS485RTUObserverRejectsShortFC03Response(t *testing.T) {
 	}
 
 	status, err := observer.Observe(context.Background())
-	if err == nil || status != (BMSTypedReadOnlyStatus{}) || len(session.calls) != 3 {
+	if err == nil || !reflect.DeepEqual(status, BMSTypedReadOnlyStatus{}) || len(session.calls) != 3 {
 		t.Fatalf("status/error/calls=%#v/%v/%#v", status, err, session.calls)
 	}
 }

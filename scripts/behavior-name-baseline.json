@@ -20,6 +20,18 @@
     {
       "token": "CRC16",
       "reason": "Hypothesis; candidate protocol vocabulary: CRC error check. Provenance is not published."
+    },
+    {
+      "token": "IIFC04",
+      "reason": "Growatt Protocol II function 04 is a protocol identifier in public constructor names."
+    },
+    {
+      "token": "RS485",
+      "reason": "RS-485 is the physical interface named by the published Growatt protocol."
+    },
+    {
+      "token": "V202",
+      "reason": "Version 202 identifies the published Growatt BMS RS-485 protocol revision."
     }
   ],
   "baseline": [
