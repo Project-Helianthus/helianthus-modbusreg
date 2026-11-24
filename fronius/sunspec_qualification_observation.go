@@ -11,6 +11,14 @@ import (
 
 const sunSpecQualificationObservationSchema = "helianthus-sunspec-qualification-observation/v1"
 
+// SunSpecQualificationFlavorNotObserved is the flavor reason recorded when a
+// chain is admitted and no Fronius flavor was observed.
+const SunSpecQualificationFlavorNotObserved SunSpecFroniusFlavorReason = "NOT_OBSERVED"
+
+// sunSpecQualificationFlavorNotObservedID is the flavor identifier encoded for
+// SunSpecQualificationFlavorNotObserved. It is not an observed flavor.
+const sunSpecQualificationFlavorNotObservedID = "sunspec.flavor.not_observed"
+
 // SunSpecQualificationSampleIdentity is the capture identity shared by every
 // retained source view of one qualification observation.
 type SunSpecQualificationSampleIdentity struct {
@@ -51,7 +59,9 @@ func (replay SunSpecQualificationReplay) SourceViews() []modbusreg.LogicalViewSn
 }
 
 // SunSpecQualificationObservation is the registry-owned, transport-neutral
-// evidence record for one terminal-qualified SunSpec capture.
+// evidence record for one admitted SunSpec capture. A uniquely matched Fronius
+// flavor is recorded on it. When no flavor matches, the flavor reason is
+// SunSpecQualificationFlavorNotObserved.
 type SunSpecQualificationObservation struct {
 	capability sunspec.CapabilityDecision
 	flavor     SunSpecFroniusFlavorDecision
@@ -61,37 +71,48 @@ type SunSpecQualificationObservation struct {
 	snapshot   sunspec.ChainSnapshot
 }
 
-// NewSunSpecQualificationObservation derives qualification only from the
-// supplied registry and complete source-backed snapshot. It never accepts a
-// caller verdict, flavor selection, or sample identity.
+// NewSunSpecQualificationObservation builds on sunspec.NewObservation. When one
+// Fronius flavor matches, the observation records that flavor. When the chain
+// is admitted and no flavor matches, the observation is returned with the
+// flavor recorded as not observed. An ambiguous flavor match is rejected. It
+// never accepts a caller verdict, flavor selection, or sample identity.
 func NewSunSpecQualificationObservation(registry sunspec.DecoderRegistry, input sunspec.ChainSnapshot) (SunSpecQualificationObservation, error) {
-	snapshot, identity, err := validateSunSpecQualificationSnapshot(input)
+	base, err := sunspec.NewObservation(registry, input)
 	if err != nil {
 		return SunSpecQualificationObservation{}, err
 	}
-	chain, valid := snapshot.WireChain()
-	if !valid {
-		return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification chain is not terminal verified")
+	selection := SelectObservedFlavor(registry, base.Snapshot())
+	var flavor SunSpecFroniusFlavorDecision
+	if selection.Matched() {
+		if selection.Reason() != SunSpecFroniusFlavorSelectionReasonMatched {
+			return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification flavor is ambiguous")
+		}
+		decision, ok := selection.Decision()
+		if !ok || !decision.Matched() || decision.Reason() != SunSpecFroniusFlavorReasonMatched {
+			return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification flavor decision is invalid")
+		}
+		flavor = cloneSunSpecFroniusFlavorDecision(decision)
+	} else if selection.Reason() == SunSpecFroniusFlavorSelectionReasonAmbiguousMatch {
+		return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification flavor is ambiguous")
+	} else if selection.Reason() != SunSpecFroniusFlavorSelectionReasonNoMatch {
+		return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification flavor selection is invalid")
+	} else {
+		flavor = SunSpecFroniusFlavorDecision{
+			flavorID:   sunSpecQualificationFlavorNotObservedID,
+			reason:     SunSpecQualificationFlavorNotObserved,
+			capability: base.Capability(),
+		}
 	}
-	capability := registry.EvaluateThreePhaseMonitoring(snapshot)
-	if !capability.Admitted() || capability.Reason() != sunspec.CapabilityReasonAdmitted {
-		return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification capability is not admitted")
-	}
-	selection := SelectObservedFlavor(registry, snapshot)
-	if !selection.Matched() || selection.Reason() != SunSpecFroniusFlavorSelectionReasonMatched {
-		return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification flavor is not uniquely matched")
-	}
-	flavor, ok := selection.Decision()
-	if !ok || !flavor.Matched() || flavor.Reason() != SunSpecFroniusFlavorReasonMatched {
-		return SunSpecQualificationObservation{}, fmt.Errorf("SunSpec qualification flavor decision is invalid")
-	}
+	identity := base.SampleIdentity()
 	return SunSpecQualificationObservation{
-		capability: capability.Clone(),
-		flavor:     cloneSunSpecFroniusFlavorDecision(flavor),
-		chain:      append([]sunspec.WireKey(nil), chain...),
-		sampleID:   fmt.Sprintf("sunspec-%d-%d", identity.pollGeneration, identity.deadlineIdentity),
-		identity:   identity,
-		snapshot:   cloneSunSpecQualificationSnapshot(snapshot),
+		capability: base.Capability(),
+		flavor:     flavor,
+		chain:      base.Chain(),
+		sampleID:   base.SampleID(),
+		identity: SunSpecQualificationSampleIdentity{
+			pollGeneration: identity.PollGeneration(), deadlineIdentity: identity.DeadlineIdentity(),
+		},
+		snapshot: cloneSunSpecQualificationSnapshot(base.Snapshot()),
 	}, nil
 }
 
@@ -100,7 +121,8 @@ func (observation SunSpecQualificationObservation) Capability() sunspec.Capabili
 	return observation.capability.Clone()
 }
 
-// Flavor returns a copy of the uniquely matched Fronius flavor decision.
+// Flavor returns a copy of the recorded Fronius flavor. When none was
+// observed, Matched is false and Reason is SunSpecQualificationFlavorNotObserved.
 func (observation SunSpecQualificationObservation) Flavor() SunSpecFroniusFlavorDecision {
 	return cloneSunSpecFroniusFlavorDecision(observation.flavor)
 }
@@ -146,34 +168,11 @@ func (observation SunSpecQualificationObservation) Replay() (SunSpecQualificatio
 }
 
 func validateSunSpecQualificationSnapshot(input sunspec.ChainSnapshot) (sunspec.ChainSnapshot, SunSpecQualificationSampleIdentity, error) {
-	if input.RawWordCount() < 4 || input.RawWordCount() > sunspec.MaxSunSpecPhaseOneChainWords || input.OccurrenceCount() == 0 || input.OccurrenceCount() > sunspec.MaxSunSpecPhaseOneChainWords/2 || input.SourceViewCount() == 0 || input.SourceViewCount() > sunspec.MaxSunSpecPhaseOneChainWords {
-		return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification bounds are invalid")
-	}
-	inputViews := input.SourceViews()
-	sources := make([]modbusreg.LogicalViewSnapshot, len(inputViews))
-	first := inputViews[0].Record()
-	if first.PollGeneration == 0 || first.DeadlineIdentity == 0 {
-		return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification sample identity is invalid")
-	}
-	for index, view := range inputViews {
-		validated, err := modbusreg.NewLogicalViewSnapshot(view.Record())
-		if err != nil {
-			return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification source view %d: %w", index, err)
-		}
-		record := validated.Record()
-		if !sunspec.SameProvenance(first, record) || record.PollGeneration == 0 || record.DeadlineIdentity == 0 {
-			return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification source provenance is mixed")
-		}
-		sources[index] = validated
-	}
-	snapshot, err := sunspec.NewChainSnapshot(input.RawWords(), input.Occurrences(), sources)
+	snapshot, identity, err := sunspec.ValidateObservationSnapshot(input)
 	if err != nil {
-		return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification retained chain is invalid")
+		return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, err
 	}
-	if _, valid := snapshot.WireChain(); !valid {
-		return sunspec.ChainSnapshot{}, SunSpecQualificationSampleIdentity{}, fmt.Errorf("SunSpec qualification retained chain is invalid")
-	}
-	return snapshot, SunSpecQualificationSampleIdentity{pollGeneration: first.PollGeneration, deadlineIdentity: first.DeadlineIdentity}, nil
+	return snapshot, SunSpecQualificationSampleIdentity{pollGeneration: identity.PollGeneration(), deadlineIdentity: identity.DeadlineIdentity()}, nil
 }
 
 func cloneSunSpecQualificationSnapshot(snapshot sunspec.ChainSnapshot) sunspec.ChainSnapshot {
@@ -182,8 +181,12 @@ func cloneSunSpecQualificationSnapshot(snapshot sunspec.ChainSnapshot) sunspec.C
 
 // MarshalJSON revalidates the observation and encodes it as the versioned
 // snake_case JSON evidence record, including raw words, occurrences and the
-// full source-view provenance. It returns an error instead of encoding a zero
-// or internally inconsistent observation.
+// full source-view provenance. An admitted observation whose flavor was not
+// observed encodes that flavor as not observed, together with the sample,
+// occurrences and source views. A matched flavor still has to agree in flavor
+// identity, chain and source views. It returns an error instead of encoding a
+// zero or internally inconsistent observation. The capability check accepts
+// the admitted capability the observation carries.
 func (observation SunSpecQualificationObservation) MarshalJSON() ([]byte, error) {
 	snapshot, identity, err := validateSunSpecQualificationSnapshot(observation.snapshot)
 	if err != nil {
@@ -198,11 +201,15 @@ func (observation SunSpecQualificationObservation) MarshalJSON() ([]byte, error)
 		return nil, fmt.Errorf("SunSpec qualification observation cannot serialize inconsistent sample identity")
 	}
 	capability := observation.Capability()
-	if !capability.Admitted() || capability.Reason() != sunspec.CapabilityReasonAdmitted || capability.ProfileID() != sunspec.ThreePhaseMonitoringCapabilityID {
+	if !capability.Admitted() || capability.Reason() != sunspec.CapabilityReasonAdmitted {
 		return nil, fmt.Errorf("SunSpec qualification observation cannot serialize non-admitted capability")
 	}
 	flavor := observation.Flavor()
-	if !flavor.Matched() || flavor.Reason() != SunSpecFroniusFlavorReasonMatched || !supportedSunSpecQualificationFlavorID(flavor.FlavorID()) || !reflect.DeepEqual(flavor.Chain(), chain) || !reflect.DeepEqual(flavor.SourceViews(), snapshot.SourceViews()) {
+	if flavor.Reason() == SunSpecQualificationFlavorNotObserved {
+		if flavor.Matched() || flavor.FlavorID() != sunSpecQualificationFlavorNotObservedID || len(flavor.Chain()) != 0 || len(flavor.SourceViews()) != 0 {
+			return nil, fmt.Errorf("SunSpec qualification observation cannot serialize inconsistent flavor")
+		}
+	} else if !flavor.Matched() || flavor.Reason() != SunSpecFroniusFlavorReasonMatched || !supportedSunSpecQualificationFlavorID(flavor.FlavorID()) || !reflect.DeepEqual(flavor.Chain(), chain) || !reflect.DeepEqual(flavor.SourceViews(), snapshot.SourceViews()) {
 		return nil, fmt.Errorf("SunSpec qualification observation cannot serialize inconsistent flavor")
 	}
 
