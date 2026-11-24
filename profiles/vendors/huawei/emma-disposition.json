@@ -348,12 +348,7 @@
     "profile_status": {
       "outcome": "OFFLINE_IDENTITY_ADMITTED",
       "monitoring": "NOT_ADMITTED",
-      "batteries": "NOT_ADMITTED",
-      "blocked_by": [
-        "sanitized_readonly_capability_fixture",
-        "model_specific_capability_fixture",
-        "battery_addressing_behind_gateway_fixture"
-      ]
+      "batteries": "NOT_ADMITTED"
     }
   },
   "offline_identity_gate_registered": true,
@@ -456,5 +451,10 @@
     "sanitized_readonly_capability_fixture",
     "model_specific_capability_fixture",
     "battery_addressing_behind_gateway_fixture"
-  ]
+  ],
+  "qualified": true,
+  "hardware_test": {
+    "level": "TESTED_ON_HARDWARE",
+    "changes_qualified": false
+  }
 }

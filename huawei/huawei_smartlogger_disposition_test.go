@@ -13,7 +13,7 @@ func TestHuaweiSmartLoggerDispositionPinsFloorCandidateAndNoSend(t *testing.T) {
 		"schema", "profile", "profile_version", "outcome", "evidence",
 		"admission", "software_selection", "observed_identity", "change_counter", "child_enumeration", "private_functions",
 		"decoder_keys", "catalog_registered", "automatic_runtime_admission",
-		"support_claim", "write_authority", "production_provider", "reopen_requires",
+		"support_claim", "write_authority", "production_provider", "reopen_requires", "qualified", "hardware_test",
 	)
 	if record["schema"] != "helianthus-modbusreg-huawei-smartlogger-disposition/v2" ||
 		record["profile"] != "huawei.smartlogger" || record["profile_version"] != "1.0.0" ||
@@ -23,15 +23,16 @@ func TestHuaweiSmartLoggerDispositionPinsFloorCandidateAndNoSend(t *testing.T) {
 		t.Fatalf("unexpected SmartLogger disposition: %#v", record)
 	}
 
-	// The two gaps that the observed-tuple fixtures close have left the list;
-	// the partly closed overlap gap stays. TestH03SmartLoggerDisposition... pins the closed rows.
+	// The two gaps that the observed-tuple fixtures close have left the open
+	// list; the partly closed overlap gap stays on reopen_requires.
+	// TestH03SmartLoggerDisposition... pins the closed rows.
 	missing := []string{"pairwise_negative_overlap_with_emma_fixture"}
 	evidence := huaweiObject(t, record["evidence"])
-	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence",
+	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible",
 		"closed_evidence", "partially_closed_evidence", "unknown_after_observation", "docs_contract", "vendor_documentation")
 	if evidence["docs_merge_sha"] != smartLoggerDocsMergeSHA || evidence["candidate_id"] != "huawei.smartlogger.v1" ||
 		evidence["source_license"] != "CC0-1.0" || evidence["eligible"] != false ||
-		!reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), missing) {
+		!reflect.DeepEqual(huaweiStringSlice(t, record["reopen_requires"]), missing) {
 		t.Fatalf("unexpected SmartLogger evidence: %#v", evidence)
 	}
 

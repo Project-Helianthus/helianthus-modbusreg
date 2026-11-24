@@ -58,7 +58,7 @@ func TestH03SmartLoggerDispositionSupersedesIdentityStatusAndKeepsProfileClosed(
 	requireHuaweiKeys(t, record,
 		"schema", "profile", "profile_version", "outcome", "evidence", "admission", "software_selection", "observed_identity",
 		"change_counter", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered",
-		"automatic_runtime_admission", "support_claim", "write_authority", "production_provider", "reopen_requires",
+		"automatic_runtime_admission", "support_claim", "write_authority", "production_provider", "reopen_requires", "qualified", "hardware_test",
 	)
 	if record["schema"] != "helianthus-modbusreg-huawei-smartlogger-disposition/v2" || record["profile"] != "huawei.smartlogger" ||
 		record["profile_version"] != "1.0.0" || record["outcome"] != "NO_ADMISSIBLE_PROFILE" || record["catalog_registered"] != false ||
@@ -68,18 +68,17 @@ func TestH03SmartLoggerDispositionSupersedesIdentityStatusAndKeepsProfileClosed(
 	}
 
 	evidence := huaweiObject(t, record["evidence"])
-	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence",
+	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible",
 		"closed_evidence", "partially_closed_evidence", "unknown_after_observation", "docs_contract", "vendor_documentation")
 	if evidence["docs_merge_sha"] != smartLoggerDocsMergeSHA || evidence["candidate_id"] != "huawei.smartlogger.v1" ||
 		evidence["source_license"] != "CC0-1.0" || evidence["eligible"] != false {
 		t.Fatalf("unexpected SmartLogger evidence: %#v", evidence)
 	}
-	// Only the gaps that the fixtures close leave the lists; the partly closed
-	// gap stays, so the profile outcome cannot move.
+	// Only the gaps that the fixtures close leave the open list; the partly
+	// closed gap stays on reopen_requires, so the profile outcome cannot move.
 	stillMissing := []string{"pairwise_negative_overlap_with_emma_fixture"}
-	if !reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), stillMissing) ||
-		!reflect.DeepEqual(huaweiStringSlice(t, record["reopen_requires"]), stillMissing) {
-		t.Fatalf("unexpected missing evidence: %#v / %#v", evidence["missing_evidence"], record["reopen_requires"])
+	if !reflect.DeepEqual(huaweiStringSlice(t, record["reopen_requires"]), stillMissing) {
+		t.Fatalf("unexpected reopen list: %#v", record["reopen_requires"])
 	}
 	closed := h03Array(t, evidence["closed_evidence"])
 	wantClosed := []struct{ gap, scope string }{
@@ -173,9 +172,8 @@ func TestH03SmartLoggerDispositionSupersedesIdentityStatusAndKeepsProfileClosed(
 		t.Fatalf("unexpected inventory tolerance: %#v", tolerance)
 	}
 	profile := huaweiObject(t, observed["profile_status"])
-	requireHuaweiKeys(t, profile, "outcome", "monitoring", "blocked_by")
-	if profile["outcome"] != "NO_ADMISSIBLE_PROFILE" || profile["monitoring"] != "NOT_ADMITTED" ||
-		!reflect.DeepEqual(huaweiStringSlice(t, profile["blocked_by"]), stillMissing) {
+	requireHuaweiKeys(t, profile, "outcome", "monitoring")
+	if profile["outcome"] != "NO_ADMISSIBLE_PROFILE" || profile["monitoring"] != "NOT_ADMITTED" {
 		t.Fatalf("unexpected profile status: %#v", profile)
 	}
 	h03RequireFiles(t, h03FixturePaths)
@@ -188,44 +186,45 @@ func TestH03SmartLoggerDispositionSupersedesIdentityStatusAndKeepsProfileClosed(
 
 func TestH03PointerRowsLeaveOtherDispositionsClosed(t *testing.T) {
 	type expectation struct {
-		file, outcome, state string
-		pages                []string
-		fixtures             []string
-		missing              string
-		missingList          []string
+		file, outcome, state, hardwareLevel string
+		pages                               []string
+		fixtures                            []string
+		reopen                              []string
 	}
 	observation := "protocols/huawei/smartlogger-observed-inventory-v1.md"
 	identity := "protocols/huawei/sun2000-observed-identity-v1.md"
 	tests := []expectation{
-		// The SUN2000 monitoring profiles (#348) admit two families; the
-		// pointer row itself still changes nothing, and what stays missing is
-		// a monitoring profile for the MAP0 series, whose catalog row the
-		// selection (#362) records.
-		{"sun2000-disposition.json", "OFFLINE_PROFILE_ADMITTED", "OBSERVED_IDENTITY_BEHIND_GATEWAY", []string{identity, observation}, []string{h03FixturePaths[1], h03FixturePaths[3]},
-			"missing_evidence", []string{"catalog_monitoring_profile"}},
-		{"luna2000-disposition.json", "NO_ADMISSIBLE_PROFILE", "NOT_OBSERVED", []string{identity}, []string{},
-			"missing_evidence", []string{"pinned_vendor_document_identity", "companion_docs_modbus_protocol_page", "clean_room_sanitized_identity_fixture", "clean_room_sanitized_monitoring_fixture", "negative_overlap_with_smartlogger_emma_sdongle"}},
+		// The SUN2000 monitoring profiles admit two hand families. The pointer
+		// row still changes nothing. reopen_requires still names a catalog
+		// monitoring profile; the MAP0 row is the declared child of the
+		// energy-manager path and has no hand profile of its own.
+		{"sun2000-disposition.json", "OFFLINE_PROFILE_ADMITTED", "OBSERVED_IDENTITY_BEHIND_GATEWAY", "TESTED_ON_HARDWARE", []string{identity, observation}, []string{h03FixturePaths[1], h03FixturePaths[3]},
+			[]string{"catalog_monitoring_profile"}},
+		{"luna2000-disposition.json", "NO_ADMISSIBLE_PROFILE", "NOT_OBSERVED", "NOT_TESTED", []string{identity}, []string{},
+			[]string{"pinned_vendor_document_identity", "companion_docs_modbus_protocol_page", "clean_room_sanitized_identity_fixture", "clean_room_sanitized_monitoring_fixture", "negative_overlap_with_smartlogger_emma_sdongle"}},
 	}
 	for _, test := range tests {
 		t.Run(test.file, func(t *testing.T) {
 			record := decodeHuaweiObject(t, "../profiles/vendors/huawei/"+test.file)
 			pointer := huaweiObject(t, record["observation_pointer"])
-			requireHuaweiKeys(t, pointer, "docs_contract", "observation_state", "fixtures", "changes_outcome", "changes_missing_evidence")
+			requireHuaweiKeys(t, pointer, "docs_contract", "observation_state", "fixtures", "changes_outcome")
 			h03RequireDocsContract(t, pointer["docs_contract"], test.pages)
-			if pointer["observation_state"] != test.state || pointer["changes_outcome"] != false || pointer["changes_missing_evidence"] != false ||
+			if pointer["observation_state"] != test.state || pointer["changes_outcome"] != false ||
 				!reflect.DeepEqual(huaweiStringSlice(t, pointer["fixtures"]), test.fixtures) {
 				t.Fatalf("unexpected pointer row: %#v", pointer)
 			}
 			h03RequireFiles(t, test.fixtures)
 
-			// The pointer row records evidence only: outcome, lists and authority are untouched.
-			evidence := huaweiObject(t, record["evidence"])
-			if record["outcome"] != test.outcome || !reflect.DeepEqual(huaweiStringSlice(t, evidence[test.missing]), test.missingList) ||
+			// The pointer row records evidence only: outcome and authority are untouched.
+			// Qualified stays the declared binding beside the hardware-test level.
+			hardware := huaweiObject(t, record["hardware_test"])
+			if record["outcome"] != test.outcome || record["qualified"] != true ||
+				hardware["level"] != test.hardwareLevel || hardware["changes_qualified"] != false ||
 				record["catalog_registered"] != false || record["automatic_runtime_admission"] != false || record["support_claim"] != false ||
 				(test.file != "sun2000-disposition.json" && len(h03Array(t, record["decoder_keys"])) != 0) {
 				t.Fatalf("pointer row changed the disposition: %#v", record)
 			}
-			if reopen, ok := record["reopen_requires"]; ok && !reflect.DeepEqual(huaweiStringSlice(t, reopen), test.missingList) {
+			if reopen, ok := record["reopen_requires"]; ok && !reflect.DeepEqual(huaweiStringSlice(t, reopen), test.reopen) {
 				t.Fatalf("reopen_requires changed: %#v", reopen)
 			}
 		})
