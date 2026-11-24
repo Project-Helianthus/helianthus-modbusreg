@@ -193,7 +193,11 @@ and gains. A card that does not document offset 32064 keeps the power words it
 does document and does not gain an invented read at 32064. Words inside the
 read that the card does not define stay undecoded.
 
-The status code uses that card's dictionary. A code the dictionary lists is
+The status code uses that card's dictionary. The status names and alarm
+labels are compiled into the module with the catalogue cards, so a built
+binary does not read the source tree. `CatalogMonitoringProfiles` returns
+an error when that document is missing or does not decode, and it does not
+return profiles with empty names. A code the dictionary lists is
 published under the dictionary's meaning. A code it does not list stays
 Unknown, with no value. One card's dictionary is not applied to another card.
 A raw-only status row is not given a meaning.

@@ -1,6 +1,11 @@
 package huawei
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"reflect"
+	"testing"
+)
 
 // Catalogue profile tests vary the card, the kept hand identifier, the string
 // count, the power-group offset and quantity, the direct-current counter, the
@@ -16,6 +21,7 @@ import "testing"
 //   - only the observed status code published, or one card's dictionary used for another
 //   - a negative active power withheld
 //   - a refused group dropping the sibling groups, or a loss without its unit
+//   - status names read from the source tree, or a missing label document published as empty names
 
 func TestCatalogCardProfilesCoverEveryCard(t *testing.T) {
 	wantStrings := map[string]int{
@@ -24,7 +30,10 @@ func TestCatalogCardProfilesCoverEveryCard(t *testing.T) {
 		"MA-C00": 4, "MA-C20": 8, "MA-V200": 10, "MB02": 6, "MC": 8,
 		"SUN-C81": 8, "SUN-V300": 8,
 	}
-	profiles := CatalogMonitoringProfiles()
+	profiles, err := CatalogMonitoringProfiles()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(profiles) != len(wantStrings) {
 		t.Fatalf("profiles %d", len(profiles))
 	}
@@ -246,6 +255,46 @@ func TestCatalogAlarmBitWithoutALabelStaysNative(t *testing.T) {
 	}
 }
 
+func TestCatalogLabelsAreCompiledIn(t *testing.T) {
+	if _, _, err := catalogDictionaries(nil); err == nil {
+		t.Fatal("missing label document returned empty maps")
+	}
+	if _, _, err := catalogDictionaries([]byte("{")); err == nil {
+		t.Fatal("unreadable label document returned empty maps")
+	}
+	saved := catalogLabelDocument
+	catalogLabelDocument = nil
+	t.Cleanup(func() { catalogLabelDocument = saved })
+	missing := catalogLoad()
+	if missing.labelErr == nil || len(missing.profiles) != 0 {
+		t.Fatal("a missing label document still built profiles")
+	}
+	catalogLabelDocument = []byte("{")
+	broken := catalogLoad()
+	if broken.labelErr == nil || len(broken.profiles) != 0 {
+		t.Fatal("an unreadable label document still built profiles")
+	}
+	catalogLabelDocument = saved
+	data, err := os.ReadFile(filepath.Join("..", "profiles", "vendors", "huawei", "catalog", "dictionaries.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromFile, fileAlarms, err := catalogDictionaries(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromModule, moduleAlarms, err := catalogDictionaries(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(fromFile, fromModule) || !reflect.DeepEqual(fileAlarms, moduleAlarms) {
+		t.Fatal("compiled labels differ from the catalogue document")
+	}
+	if fromModule["MC"][0x0100] != "starting" {
+		t.Fatalf("compiled starting name %q", fromModule["MC"][0x0100])
+	}
+}
+
 func TestCatalogProfileLossDropsFilledHoles(t *testing.T) {
 	for _, card := range []string{"MC", "MA-C00"} {
 		profile := catalogProfileByCard(t, card)
@@ -282,7 +331,11 @@ func TestCatalogProfileLossDropsFilledHoles(t *testing.T) {
 
 func catalogProfileByCard(t *testing.T, card string) CatalogMonitoringProfile {
 	t.Helper()
-	for _, profile := range CatalogMonitoringProfiles() {
+	profiles, err := CatalogMonitoringProfiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, profile := range profiles {
 		if profile.Card() == card {
 			return profile
 		}
