@@ -1,0 +1,142 @@
+name: Additive rows
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  fast:
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'ubuntu-latest' || 'synology' }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.22"
+          cache: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install -r requirements-lint.txt
+      - id: tool
+        run: |
+          set -euo pipefail
+          if ! bash scripts/preflight/acquire.sh tool "$RUNNER_TEMP/docs-semantic" > "$RUNNER_TEMP/docs-semantic.sha"; then
+            echo "selected=false" >> "$GITHUB_OUTPUT"
+            echo "run_packages=false" >> "$GITHUB_OUTPUT"
+            echo "run_compare=false" >> "$GITHUB_OUTPUT"
+            echo "run_preflight=false" >> "$GITHUB_OUTPUT"
+            echo "run_gates=false" >> "$GITHUB_OUTPUT"
+            echo "additive-rows: full CI retained"
+            exit 0
+          fi
+          echo "dir=$RUNNER_TEMP/docs-semantic" >> "$GITHUB_OUTPUT"
+          echo "main=$RUNNER_TEMP/docs-semantic/acceptance/tools/manifest/main.py" >> "$GITHUB_OUTPUT"
+      - id: class
+        if: steps.tool.outputs.dir != ''
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REPO: ${{ github.event.pull_request.base.repo.id }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          bash scripts/preflight/fetch_base.sh "${BASE_REF}"
+          git diff --name-status FETCH_HEAD HEAD > "$RUNNER_TEMP/name-status.txt"
+          export PULLS_OUT="$RUNNER_TEMP/pulls.json"
+          python3 - <<'PY'
+          import importlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, "scripts/preflight")
+          import classify
+          client = importlib.import_module("urllib.request")
+
+          def opener(request, timeout=30):
+              outgoing = client.Request(request.full_url, headers=dict(request.headers))
+              return client.urlopen(outgoing, timeout=timeout)
+
+          destination = Path(os.environ["PULLS_OUT"])
+          try:
+              token = os.environ.get("GITHUB_TOKEN") or None
+              pulls = classify.fetch_open_pulls(
+                  os.environ["GITHUB_REPOSITORY"], opener=opener, token=token
+              )
+          except Exception:
+              pulls = None
+          if isinstance(pulls, list):
+              destination.write_text(json.dumps(pulls) + "\n", encoding="utf-8")
+          else:
+              destination.write_text("null\n", encoding="utf-8")
+          PY
+          python3 scripts/preflight/classify.py \
+            --event pull_request \
+            --manifests-dir "${{ steps.tool.outputs.dir }}/acceptance/manifests" \
+            --name-status "$RUNNER_TEMP/name-status.txt" \
+            --current-number "${PR_NUMBER}" \
+            --base-ref "${BASE_REF}" \
+            --head-ref "${HEAD_REF}" \
+            --base-repo-id "${BASE_REPO}" \
+            --head-repo-id "${HEAD_REPO}" \
+            --pulls-file "$RUNNER_TEMP/pulls.json" \
+            --github-output "$GITHUB_OUTPUT" \
+            --acquisition "$RUNNER_TEMP/acquisition.txt" \
+            --packages-file "$RUNNER_TEMP/packages.txt" \
+            --selected-file "$RUNNER_TEMP/selected.txt"
+      - if: steps.class.outputs.selected == 'true'
+        run: |
+          set -euo pipefail
+          bash scripts/preflight/acquire.sh rest \
+            "${{ steps.tool.outputs.dir }}" \
+            "$RUNNER_TEMP/donor" \
+            "$RUNNER_TEMP/acquisition.txt"
+      - if: steps.class.outputs.selected == 'true'
+        run: |
+          set -euo pipefail
+          python3 "${{ steps.tool.outputs.main }}" check --manifest "${{ steps.class.outputs.manifest }}" --donor "$RUNNER_TEMP/donor"
+      - if: success() && steps.class.outputs.run_packages == 'true'
+        run: |
+          set -euo pipefail
+          found=0
+          while IFS= read -r pkg; do
+            if [ -n "$pkg" ]; then
+              found=1
+              GOWORK=off go test -race -count=1 "$pkg"
+            fi
+          done < "$RUNNER_TEMP/packages.txt"
+          if [ "$found" -eq 0 ]; then
+            echo "fast path selected no package"
+            exit 1
+          fi
+      - if: success() && steps.class.outputs.run_compare == 'true'
+        run: |
+          set -euo pipefail
+          python3 "${{ steps.tool.outputs.main }}" compare --manifest "${{ steps.class.outputs.manifest }}" --destination "${GITHUB_WORKSPACE}"
+      - if: success() && (steps.class.outputs.run_preflight == 'true' || steps.class.outputs.run_gates == 'true')
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.11.4
+          install-only: true
+      - if: success() && steps.class.outputs.run_preflight == 'true'
+        env:
+          QQ06_MAIN_PY: ${{ steps.tool.outputs.main }}
+        run: |
+          set -euo pipefail
+          python3 scripts/preflight/preflight.py --manifest "${{ steps.class.outputs.manifest }}" --donor "$RUNNER_TEMP/donor"
+      - if: success() && steps.class.outputs.run_gates == 'true'
+        run: |
+          set -euo pipefail
+          python3 scripts/check_size_ratchet.py
+          python3 scripts/check_behavior_names.py --check
+          python3 scripts/check_go_lint_baseline.py --check
+      - if: success() && steps.class.outputs.run_packages != 'true' && steps.class.outputs.run_compare != 'true' && steps.class.outputs.run_preflight != 'true'
+        run: echo "additive-rows: full CI retained"
