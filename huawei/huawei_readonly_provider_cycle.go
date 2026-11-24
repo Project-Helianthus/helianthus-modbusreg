@@ -315,6 +315,7 @@ func (p *huaweiProviderCore) carryRefusals(from *huaweiProviderState) {
 	for index, group := range from.emmaSite {
 		p.state.emmaSite[index].refused = p.state.emmaSite[index].refused || group.refused
 	}
+	p.carryMeterRefusals(from)
 	for unit, child := range from.children {
 		for key := range child.refused {
 			if kept, ok := p.state.children[unit]; ok {
@@ -804,6 +805,15 @@ func (r *huaweiCycleRun) monitorChild(child *huaweiChildState) (ProviderEvidence
 			break
 		}
 	}
+	if r.core.path == ProviderPathSDongle {
+		meterReason := r.readSDongleMeter(child, state == ProviderEvidenceCurrent || reason == ProviderReasonChildException)
+		if state == ProviderEvidenceCurrent && meterReason != ProviderReasonRead {
+			state, reason = ProviderEvidenceStale, meterReason
+		}
+		if r.stopped() {
+			return "", "", nil
+		}
+	}
 	decoded, err := profile.Decode(child.unit, readings)
 	if err != nil {
 		return ProviderEvidenceStale, ProviderReasonChildReadFailed, current
@@ -833,6 +843,9 @@ func (r *huaweiCycleRun) childObservation(child *huaweiChildState, state Provide
 		out.IdentifiedGeneration = child.identifiedGeneration
 	}
 	if state != ProviderEvidenceWithheld && child.reading.ProfileID() != "" && child.identity != nil {
+		if current == nil && r.core.path == ProviderPathSDongle {
+			r.readSDongleMeter(child, false)
+		}
 		if current == nil {
 			// Not read this cycle: every kept group is retained with its
 			// original cycle, through the same retention as a failed read.
@@ -881,7 +894,7 @@ func CatalogProfileLosses(profile CatalogMonitoringProfile) []ProviderLoss {
 	}
 	return []ProviderLoss{
 		{Kind: ProviderLossBattery, Detail: "battery offsets are never read; a zero word is never a battery value"},
-		{Kind: ProviderLossMeter, Detail: "every meter value stays Unknown; no meter class contract"},
+		{Kind: ProviderLossMeter, Detail: "meter values are not part of the inverter catalogue profile"},
 	}
 }
 
@@ -923,6 +936,14 @@ func (r *huaweiCycleRun) staleChildren(reason ProviderReason, withheld bool) {
 			// matches; a later read failure never releases the readings.
 			withheld, why = true, ProviderReasonGatewayMismatch
 		}
+		if r.state.gatewayFenced {
+			child.meter = huaweiMeterState{}
+		}
+		if r.core.path == ProviderPathSmartLogger && !withheld && child.listedClass == huaweiMeterClassLabel && child.ineligible == "" {
+			r.readLoggerMeter(child, false)
+			r.observeLoggerMeter(child, ProviderEvidenceStale, why)
+			continue
+		}
 		if withheld || child.identity == nil || child.reading.ProfileID() == "" || child.ineligible != "" {
 			state = ProviderEvidenceWithheld
 		}
@@ -946,7 +967,6 @@ func huaweiChildProfileLoss(profile SUN2000MonitoringProfile) []ProviderLoss {
 		ProviderLoss{Kind: ProviderLossUnconsumedWords, Offset: 32032, Quantity: 8, Detail: "string words past string 8"},
 		ProviderLoss{Kind: ProviderLossUnconsumedWords, Offset: 32108, Quantity: 4, Detail: "no numeric source field detected in interval"},
 		ProviderLoss{Kind: ProviderLossBattery, Detail: "battery offsets are never read; a zero word is never a battery value"},
-		ProviderLoss{Kind: ProviderLossMeter, Detail: "every meter value stays Unknown; no meter class contract"},
 	)
 	if profile.ID() == SUN2000M1MonitoringProfileID {
 		loss = append(loss, ProviderLoss{Kind: ProviderLossUnconsumedWords, Offset: huaweiSUN2000PowerGroup.offset, Quantity: huaweiSUN2000PowerGroup.quantity,

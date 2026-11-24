@@ -165,22 +165,20 @@ func TestHuaweiMonthAndYearYieldsStayInsideTheEnergyRead(t *testing.T) {
 //   - offset or quantity: the hole moves or changes width
 //   - kind: the hole becomes a refused group or a consumed fact
 //   - battery detail: the battery loss starts publishing a zero word
-//   - meter detail or MeterFactsAdmitted: a meter value is admitted
+//   - MeterFactsAdmitted: an inverter profile admits a meter value
 //   - a zero word at a battery offset decodes: the word becomes a battery value
 func TestHuaweiUnnamedEnergyWordsStayUnconsumed(t *testing.T) {
 	for _, profile := range SUN2000MonitoringProfiles() {
 		profile := profile
 		t.Run(profile.ID(), func(t *testing.T) {
 			var hole ProviderLoss
-			var battery, meter ProviderLoss
+			var battery ProviderLoss
 			for _, loss := range huaweiChildProfileLoss(profile) {
 				switch {
 				case loss.Offset == 32108:
 					hole = loss
 				case loss.Kind == ProviderLossBattery:
 					battery = loss
-				case loss.Kind == ProviderLossMeter:
-					meter = loss
 				}
 			}
 			want := ProviderLoss{Kind: ProviderLossUnconsumedWords, Offset: 32108, Quantity: 4, Detail: "no numeric source field detected in interval"}
@@ -189,9 +187,6 @@ func TestHuaweiUnnamedEnergyWordsStayUnconsumed(t *testing.T) {
 			}
 			if battery != (ProviderLoss{Kind: ProviderLossBattery, Detail: "battery offsets are never read; a zero word is never a battery value"}) {
 				t.Fatalf("battery loss %+v", battery)
-			}
-			if meter != (ProviderLoss{Kind: ProviderLossMeter, Detail: "every meter value stays Unknown; no meter class contract"}) {
-				t.Fatalf("meter loss %+v", meter)
 			}
 			if profile.MeterFactsAdmitted() || profile.BatteryFactsAdmitted() {
 				t.Fatal("profile admits a meter or a battery")

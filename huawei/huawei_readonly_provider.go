@@ -630,6 +630,7 @@ type ProviderCycle struct {
 	Gateway      ProviderGatewayIdentity
 	Plant        []ProviderPlantGroup `json:",omitempty"`
 	EMMASite     []EMMASiteGroup      `json:",omitempty"`
+	Meter        []ProviderMeterGroup `json:",omitempty"`
 	Children     []ProviderChildObservation
 	Exchanges    []ProviderExchange
 	Loss         []ProviderLoss
@@ -656,6 +657,10 @@ func (c ProviderCycle) clone() ProviderCycle {
 			site[index] = group.clone()
 		}
 		c.EMMASite = site
+	}
+	c.Meter = slices.Clone(c.Meter)
+	for index := range c.Meter {
+		c.Meter[index] = c.Meter[index].clone()
 	}
 	c.Exchanges = append([]ProviderExchange(nil), c.Exchanges...)
 	c.Loss = append([]ProviderLoss(nil), c.Loss...)
@@ -753,6 +758,7 @@ type huaweiChildState struct {
 	// identity while one is bound, and otherwise the definitive withhold.
 	catalog  *SUN2000CatalogDecision
 	emmaPlan *huaweiEMMAChildPlan
+	meter    huaweiMeterState
 }
 
 func (c *huaweiChildState) clone() *huaweiChildState {
@@ -787,6 +793,7 @@ func (c *huaweiChildState) fence() {
 		}
 	}
 	c.reading = SUN2000MonitoringReading{}
+	c.meter = huaweiMeterState{}
 	c.groups = map[uint16]huaweiGroupMeta{}
 	c.failures, c.skipUntil = 0, 0
 }
@@ -849,6 +856,7 @@ type huaweiProviderState struct {
 	children           map[uint8]*huaweiChildState
 	plant              [2]huaweiPlantState
 	emmaSite           [len(huaweiEMMASite)]huaweiPlantState
+	emmaMeter          huaweiMeterState
 	// carriedRefusals keeps exception 3 refusals learned in a cycle that was
 	// cancelled before it could commit, for children not yet in children.
 	carriedRefusals map[uint8]map[string]bool
@@ -879,6 +887,10 @@ func (s *huaweiProviderState) child(unit uint8) *huaweiChildState {
 	c := &huaweiChildState{unit: unit, groups: map[uint16]huaweiGroupMeta{}, refused: map[string]bool{}}
 	for key := range s.carriedRefusals[unit] {
 		c.refused[key] = true
+	}
+	for i := range c.meter {
+		c.meter[i].refused = c.refused[huaweiMeterRefusalKey(i)]
+		delete(c.refused, huaweiMeterRefusalKey(i))
 	}
 	delete(s.carriedRefusals, unit)
 	s.children[unit] = c

@@ -38,22 +38,13 @@ admitted only when all of the following hold, and refused otherwise:
 | --- | --- | --- | --- | --- |
 | SmartLogger | observed card admitted | SUN2000 M3 series admitted | admitted | `SmartLoggerReadOnlyProvider` |
 | S-Dongle | observed card admitted; recorded stop superseded for that identity | SUN2000 M1 series admitted | admitted | `SDongleReadOnlyProvider` |
-| EMMA | observed card admitted | SUN2000 MAP0 series `NO_ADMISSIBLE_PROFILE`, reason `catalogue_card_without_monitoring_profile` | refused, `NO_ADMITTED_CHILD_PROFILE` | none |
+| EMMA | declared gateway identity checked at unit 0 | catalogue profiles for covered children; uncovered children stay native | admitted | `EMMAReadOnlyProvider` |
 
 The SmartLogger and S-Dongle profile outcomes of the gateways themselves stay
 `NO_ADMISSIBLE_PROFILE` and `PRE_LIVE_INSUFFICIENT_EVIDENCE`: they describe the
 documentary candidates, not the plant readings in the production cycles.
-Each admitted path records its provider in a `production_provider` row of its
-disposition.
-
-**Why the EMMA path has no provider.** Issue 201 gives no provider to a profile
-whose disposition is identity only, and the EMMA path is identity only: its
-inverters belong to the MAP0 series, which has a catalogue row and no
-monitoring profile, so the monitoring contract consumes none of their words,
-and the EMMA's own site groups are planned reads that no production cycle
-sends. A scaffold that only identified the gateway would issue live reads that
-yield no fact. The gate records the refusal with the MAP0 reason instead, and a
-provider follows when a monitoring profile admits the family.
+The [EMMA site cycle](emma-offline-provider-cycle.md#read-only-site-cycle)
+retains its separate site groups beside the meter groups.
 
 **What the providers build on.** Gateway identity is the observed qualification
 card of the path, evaluated over the replies the provider read, with the card's
@@ -221,7 +212,8 @@ read.
 | --- | --- | --- |
 | allowed but not listed | withheld, no read | `not_listed` |
 | listed but not allowed | withheld, no read | `not_allowlisted` |
-| listed and allowed, label without a class contract (PLC, meter, any label other than SUN2000) | withheld, no read | `no_class_contract` |
+| listed and allowed SmartLogger meter | meter groups at the routed unit; no inverter admission | `read` on success |
+| listed and allowed, unhandled class (including PLC) | withheld, no read | `no_class_contract` |
 | routed model disagrees with the listing | withheld until the next identification | `identity_mismatch` |
 | an admission read refused, or a word that does not have the shape of its read | withheld until the next identification | `identity_insufficient` |
 | the catalogue decision selects no row, or cannot tell rows apart | withheld until the next identification | `catalogue_not_selected`, `catalogue_ambiguous` |
@@ -261,10 +253,28 @@ admission, typed reading and group provenance, every wire attempt, and the named
 loss. Its authority methods all return false.
 
 The loss names the groups refused by the family, the status group and the
-other unconsumed words, unadmitted inverter battery and meter values, withheld
-children, and groups refused or plant groups with a failed read at runtime.
+other unconsumed words, unadmitted inverter battery values, withheld children,
+and plant and meter groups refused or failed at runtime.
 When there is no last-known-good reading, missing facts are Unknown, never
 substituted with zero, empty or false.
+
+## Meter readings
+
+`ProviderCycle.Meter` carries native FC03 words, typed facts and a read epoch
+for each meter group. SmartLogger reads `32260/33` and `32335/30` at each listed
+and allowlisted meter unit after the listing guard. It records `32293/6` and
+`33000/7` as refused without requesting them; their evidence carries forward to
+later builds as Hypothesis. EMMA adds the built-in sensor groups `31639/20`,
+`31661/10`, `31671/4`, `31679/4` and `31687/4` at unit 0. The S-Dongle reads the
+inverter-side meter area on the admitted child using `37100/1`, `37101/24`,
+`37125/1` and `37126/13`. The status, type and model-check words remain native.
+
+`MeterFactsAdmitted()` is true only for a cycle with newly decoded meter
+facts. Retained groups keep their original epoch and a native-only answer does
+not count as a decoded fact. Values retain native signs: a documented
+export-positive convention is recorded separately; no direction is inferred
+from undocumented polarity, undirected counters, or the meter's route. Meter
+measurements establish neither identity nor hardware qualification.
 
 ## Read allowlist
 
@@ -274,8 +284,8 @@ child's routed unit, and of the plant groups and profile read plans. They send
 FC2B / MEI 0x0e reads with read code 1 from object 0 or read code
 3 from object 0x87 and its continuations. They never send a write, FC0x41 or
 FC0x17. The SmartLogger provider never reads the power group or the
-inverter-exposed meter group of the M3 series, an inverter battery offset, or a PLC or
-meter unit. The S-Dongle provider addresses units 100 and 1 only.
+inverter-exposed meter group of the M3 series, an inverter battery offset, or a PLC unit.
+No unlisted or non-allowlisted meter unit is read. The S-Dongle provider addresses units 100 and 1 only.
 
 ## Fixtures and tests
 

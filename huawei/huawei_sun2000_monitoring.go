@@ -398,11 +398,7 @@ func (d Decimal) String() string {
 		return strconv.FormatInt(d.Coefficient, 10) + strings.Repeat("0", int(d.Exponent))
 	}
 	negative := d.Coefficient < 0
-	magnitude := d.Coefficient
-	if negative {
-		magnitude = -magnitude
-	}
-	digits := strconv.FormatInt(magnitude, 10)
+	digits := strings.TrimPrefix(strconv.FormatInt(d.Coefficient, 10), "-")
 	places := int(-d.Exponent)
 	if len(digits) <= places {
 		digits = strings.Repeat("0", places-len(digits)+1) + digits

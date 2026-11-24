@@ -70,7 +70,7 @@ func TestEMMACycleRetriesUnconfirmedInventory(t *testing.T) {
 						t.Fatalf("confirmed empty inventory did not persist: %+v", child)
 					}
 				}
-				if third.PlannedReads != 3 || session.Remaining() != 0 || len(session.Unexpected()) != 0 {
+				if third.PlannedReads != 8 || session.Remaining() != 0 || len(session.Unexpected()) != 0 {
 					t.Fatalf("confirmed empty inventory was retried: %d requests, %v", third.PlannedReads, session.Unexpected())
 				}
 				return

@@ -560,7 +560,6 @@
     "never_read": [
       "unit_0",
       "planned_dongle_plant_groups",
-      "meter_groups",
       "battery_offsets"
     ],
     "child_admission": {

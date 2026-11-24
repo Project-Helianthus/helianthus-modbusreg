@@ -66,8 +66,8 @@ func TestHuaweiPlantGroupsReachProviderCycle(t *testing.T) {
 			fixture, _ := h06Load(t, test.fixture)
 			rig := newH06Rig(t, fixture.Path, h06Units(fixture.AllowedUnits))
 			script := scriptWithoutPlantReads(t, rig.sources, fixture.Path, fixture.Cycles[0])
-			cycle := rig.refresh(t, insertPlantReads(script, test.reads)...)
-			h06RequireExpect(t, fixture.Path, cycle, fixture.Cycles[0].Expect)
+			cycle := rig.refresh(t, withLegacyMeterReads(fixture.Path, insertPlantReads(script, test.reads), rig.sources.allowed)...)
+			h06RequireExpect(t, fixture.Path, cycle, fixture.Cycles[0].Expect, rig.sources.allowed)
 			if len(cycle.Plant) != len(test.reads) {
 				t.Fatalf("plant groups: %+v", cycle.Plant)
 			}
@@ -93,8 +93,8 @@ func checkDonglePlantReversal(t *testing.T, rig *h06Rig, fixture h06Fixture, ac 
 	power := h06FC03(100, 37498, 8, h06Answer{words: []uint16{0x8000, 11, 0x9000, 22, 0xffff, 0xe5f6, 0, 7777}})
 	step := fixture.Cycles[1]
 	script := scriptWithoutPlantReads(t, rig.sources, fixture.Path, step)
-	cycle := rig.refresh(t, insertPlantReads(script, []h06Expected{power, ac})...)
-	h06RequireExpect(t, fixture.Path, cycle, step.Expect)
+	cycle := rig.refresh(t, withLegacyMeterReads(fixture.Path, insertPlantReads(script, []h06Expected{power, ac}), rig.sources.allowed)...)
+	h06RequireExpect(t, fixture.Path, cycle, step.Expect, rig.sources.allowed)
 	requirePlantRead(t, cycle, 0, power,
 		plantFactWant{"plant_dc_input_power", 37498, "kW", "2147483.659"},
 		plantFactWant{"plant_consumption_power", 37500, "kW", "2415919.126"},
@@ -130,17 +130,17 @@ func TestHuaweiPlantGroupRefusalIsLocal(t *testing.T) {
 			script := scriptWithoutPlantReads(t, rig.sources, fixture.Path, step)
 			energy := h06FC03(0, 40560, 4, h06Answer{words: []uint16{0, 111, 0, 222}})
 			refusal := h06FC03(0, 40521, 6, h06Answer{err: h06Exception(3, 3)})
-			cycle := rig.refresh(t, insertPlantReads(script, []h06Expected{refusal, energy})...)
+			cycle := rig.refresh(t, withLegacyMeterReads(fixture.Path, insertPlantReads(script, []h06Expected{refusal, energy}), rig.sources.allowed)...)
 			requireLoggerPlantRefusal(t, cycle, kept, havePrior, SUN2000GroupException, 3)
 			requirePlantRead(t, cycle, 1, energy,
 				plantFactWant{"plant_total_energy", 40560, "kWh", "11.1"},
 				plantFactWant{"plant_daily_energy", 40562, "kWh", "22.2"},
 			)
 			if !havePrior {
-				h06RequireExpect(t, fixture.Path, cycle, step.Expect)
+				h06RequireExpect(t, fixture.Path, cycle, step.Expect, rig.sources.allowed)
 			}
 			guard := scriptWithoutPlantReads(t, rig.sources, fixture.Path, fixture.Cycles[1])
-			next := rig.refresh(t, insertPlantReads(guard, []h06Expected{energy})...)
+			next := rig.refresh(t, withLegacyMeterReads(fixture.Path, insertPlantReads(guard, []h06Expected{energy}), rig.sources.allowed)...)
 			requireLoggerPlantRefusal(t, next, kept, havePrior, SUN2000GroupNotRead, 0)
 		})
 	}
