@@ -41,6 +41,7 @@ type sunSpecModelDefinition struct {
 	compatibility bool
 	points        []sunSpecPointDefinition
 	geometry      func([]uint16) bool
+	layout        func([]uint16) ([]sunSpecPointDefinition, bool)
 }
 
 func standardSunSpecModelDefinitions(revision SchemaRevision) ([]sunSpecModelDefinition, error) {
@@ -158,7 +159,7 @@ func standardSunSpecModelDefinitionsV1(revision SchemaRevision) ([]sunSpecModelD
 			return nil, err
 		}
 	}
-	return definitions, nil
+	return gridSupportFixedDefinitions(revision, definitions)
 }
 
 func appendSunSpecDefinition(values []sunSpecModelDefinition, revision SchemaRevision, id, length uint16, topology Topology, compatibility bool, points []sunSpecPointDefinition) ([]sunSpecModelDefinition, error) {

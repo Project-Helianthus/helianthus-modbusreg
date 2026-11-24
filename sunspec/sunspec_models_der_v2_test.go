@@ -78,7 +78,7 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 	quarantined := []struct {
 		modelID, length uint16
 	}{
-		{707, 33}, {708, 33}, {709, 39},
+		{707, 33},
 	}
 	for _, model := range quarantined {
 		if _, ok := registry.definition(DecoderKey{ModelID: model.modelID, ModelLength: model.length, SchemaRevision: ModelsRevisionV2}); ok {
@@ -146,7 +146,7 @@ func TestSunSpecV2QuarantinesNestedDERTripBlocks(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, model := range decoded.Models() {
-		if model.Key().ModelID == 707 || model.Key().ModelID == 708 || model.Key().ModelID == 709 || len(model.Facts()) == 0 && model.Key().ModelID != 1 {
+		if model.Key().ModelID == 707 || len(model.Facts()) == 0 && model.Key().ModelID != 1 {
 			t.Fatalf("quarantined model was decoded: %#v", model)
 		}
 	}
@@ -253,10 +253,16 @@ func TestSunSpecV2DERTripLVNestedLayoutValidationDoesNotAdmitModel(t *testing.T)
 	if _, err := registry.DecodeOccurrence(Occurrence{WireKey: WireKey{ModelID: 707, ModelLength: 33}, SchemaRevision: ModelsRevisionV2, Disposition: ChainDispositionUnknownModel, words: words, spans: spans}); err == nil {
 		t.Fatal("Model 707 layout validation decoded an unknown occurrence")
 	}
+	if _, ok := registry.definition(DecoderKey{ModelID: 708, ModelLength: 33, SchemaRevision: ModelsRevisionV2}); !ok {
+		t.Fatal("high trip curve length did not resolve")
+	}
+	if _, ok := registry.definition(DecoderKey{ModelID: 709, ModelLength: 39, SchemaRevision: ModelsRevisionV2}); !ok {
+		t.Fatal("low trip curve length did not resolve")
+	}
 	for _, unchanged := range []struct {
 		revision        SchemaRevision
 		modelID, length uint16
-	}{{ModelsRevisionV1, 707, 33}, {ModelsRevisionV2, 708, 33}, {ModelsRevisionV2, 709, 39}} {
+	}{{ModelsRevisionV1, 707, 33}, {ModelsRevisionV1, 708, 33}, {ModelsRevisionV1, 709, 39}} {
 		other, err := NewStandardSunSpecDecoderRegistry(unchanged.revision)
 		if err != nil {
 			t.Fatal(err)
