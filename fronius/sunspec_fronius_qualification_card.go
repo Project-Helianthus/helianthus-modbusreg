@@ -20,9 +20,9 @@ const (
 	sunSpecFroniusOfflineReplayMatch     = "OFFLINE_REPLAY_MATCH"
 )
 
-// SunSpecFroniusQualificationCard defines the bounded, read-only acquisition
-// and evaluation inputs for the exact observed Fronius flavor. The card does
-// not carry endpoint authority and cannot represent a live qualification.
+// SunSpecFroniusQualificationCard defines the bounded read-only replay
+// inputs for one exact observed Fronius flavor. It carries no endpoint and
+// records the observed flavors as the hardware test level.
 type SunSpecFroniusQualificationCard struct{}
 
 // NewSunSpecFroniusQualificationCard returns the card. It holds no state;
@@ -100,26 +100,30 @@ func (SunSpecFroniusQualificationCard) ExpectedChain() []sunspec.WireKey {
 	return append([]sunspec.WireKey(nil), froniusObservedChainV11...)
 }
 
-// SemanticCandidateFieldIDs lists the exact qualified native facts that may be
-// considered by a later semantic owner. The list is the required three-phase
-// monitoring facts followed by the optional apparent-power, reactive-power,
-// and line-to-line voltage points the qualified replay admits. It is not a
-// promotion or publication decision and does not expose facts from any other
-// model in the retained chain, including module energy.
-func (SunSpecFroniusQualificationCard) SemanticCandidateFieldIDs() []string {
-	return append(sunspec.ThreePhaseMonitoringFieldIDs(), sunspec.ThreePhaseMonitoringOptionalFieldIDs()...)
+// sunSpecFroniusMPPTCandidateFieldIDs are the model 160 per-module points
+// that join the hardware facts. The order is the order already recorded
+// for those points.
+var sunSpecFroniusMPPTCandidateFieldIDs = []string{
+	"mppt.module.dc_energy",
+	"mppt.module.dc_voltage",
+	"mppt.module.dc_current",
+	"mppt.module.dc_power",
 }
 
-// DecodedNotCandidateFieldIDs lists the per-module direct-current points the
-// retained chain already decodes that stay outside SemanticCandidateFieldIDs.
-// The list is not a semantic promotion.
-func (SunSpecFroniusQualificationCard) DecodedNotCandidateFieldIDs() []string {
-	return []string{
-		"mppt.module.dc_energy",
-		"mppt.module.dc_voltage",
-		"mppt.module.dc_current",
-		"mppt.module.dc_power",
-	}
+// SemanticCandidateFieldIDs lists the native facts of the admitted
+// occurrence that a later semantic owner may consider. The fourteen
+// three-phase monitoring facts recorded on hardware stay first, followed by
+// the optional apparent-power, reactive-power and line-to-line voltage
+// points the qualified replay admits, then the four model 160 per-module
+// points. The list is not a promotion or publication decision.
+func (SunSpecFroniusQualificationCard) SemanticCandidateFieldIDs() []string {
+	required := sunspec.ThreePhaseMonitoringFieldIDs()
+	optional := sunspec.ThreePhaseMonitoringOptionalFieldIDs()
+	out := make([]string, 0, len(required)+len(optional)+len(sunSpecFroniusMPPTCandidateFieldIDs))
+	out = append(out, required...)
+	out = append(out, optional...)
+	out = append(out, sunSpecFroniusMPPTCandidateFieldIDs...)
+	return out
 }
 
 // NewReplayChain returns a fresh stateful acquisition adapter for one replay.
@@ -218,30 +222,29 @@ func (card SunSpecFroniusQualificationCard) ExpectedResult() SunSpecFroniusQuali
 }
 
 // MarshalJSON encodes the expected result as the versioned snake_case JSON
-// record with status OFFLINE_REPLAY_MATCH. It holds only card constants, never
-// raw words or acquisition provenance.
+// record with status OFFLINE_REPLAY_MATCH. It holds card constants and the
+// observed-flavor hardware test level, never raw words or acquisition
+// provenance.
 func (result SunSpecFroniusQualificationExpectedResult) MarshalJSON() ([]byte, error) {
 	card := result.card
 	return json.Marshal(struct {
-		Schema                    string            `json:"schema"`
-		CardID                    string            `json:"card_id"`
-		Status                    string            `json:"status"`
-		CapabilityID              string            `json:"capability_id"`
-		FlavorID                  string            `json:"flavor_id"`
-		Manufacturer              string            `json:"manufacturer"`
-		Model                     string            `json:"model"`
-		Firmware                  string            `json:"firmware"`
-		Function                  string            `json:"function"`
-		UnitID                    byte              `json:"unit_id"`
-		PDUOffset                 uint16            `json:"pdu_offset"`
-		MaxTotalWords             uint32            `json:"max_total_words"`
-		MaxOccurrences            uint32            `json:"max_occurrences"`
-		Chain                     []sunspec.WireKey `json:"chain"`
-		SemanticCandidateFieldIDs []string          `json:"semantic_candidate_field_ids"`
-		RetainedEvidence          []string          `json:"retained_evidence"`
-		LiveQualified             bool              `json:"live_qualified"`
-		AutomaticRuntimeAdmission bool              `json:"automatic_runtime_admission"`
-		WriteAuthority            bool              `json:"write_authority"`
+		Schema                    string                            `json:"schema"`
+		CardID                    string                            `json:"card_id"`
+		Status                    string                            `json:"status"`
+		CapabilityID              string                            `json:"capability_id"`
+		FlavorID                  string                            `json:"flavor_id"`
+		Manufacturer              string                            `json:"manufacturer"`
+		Model                     string                            `json:"model"`
+		Firmware                  string                            `json:"firmware"`
+		Function                  string                            `json:"function"`
+		UnitID                    byte                              `json:"unit_id"`
+		PDUOffset                 uint16                            `json:"pdu_offset"`
+		MaxTotalWords             uint32                            `json:"max_total_words"`
+		MaxOccurrences            uint32                            `json:"max_occurrences"`
+		Chain                     []sunspec.WireKey                 `json:"chain"`
+		SemanticCandidateFieldIDs []string                          `json:"semantic_candidate_field_ids"`
+		RetainedEvidence          []string                          `json:"retained_evidence"`
+		HardwareTestLevel         []sunSpecFroniusHardwareTestLevel `json:"hardware_test_level"`
 	}{
 		Schema:                    sunSpecFroniusQualificationResultV1,
 		CardID:                    card.ID(),
@@ -259,8 +262,6 @@ func (result SunSpecFroniusQualificationExpectedResult) MarshalJSON() ([]byte, e
 		Chain:                     card.ExpectedChain(),
 		SemanticCandidateFieldIDs: card.SemanticCandidateFieldIDs(),
 		RetainedEvidence:          []string{"raw_words", "occurrence_order", "source_spans", "logical_view_provenance"},
-		LiveQualified:             card.LiveQualified(),
-		AutomaticRuntimeAdmission: card.AutomaticRuntimeAdmission(),
-		WriteAuthority:            card.WriteAuthority(),
+		HardwareTestLevel:         froniusObservedHardwareTestLevel(),
 	})
 }
