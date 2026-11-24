@@ -12,7 +12,7 @@ func TestThreePhaseMonitoringAdmitsExactlyOneCompleteSource(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
 	for _, modelID := range []uint16{103, 113} {
 		t.Run(string(rune(modelID)), func(t *testing.T) {
-			snapshot := capabilitySnapshot(t, registry, modelID, nil)
+			snapshot := legacyOptionalCapabilitySnapshot(t, registry, modelID, nil)
 			decision := registry.EvaluateThreePhaseMonitoring(snapshot)
 			if !decision.Admitted() || decision.Reason() != CapabilityReasonAdmitted || decision.ProfileID() != ThreePhaseMonitoringCapabilityID {
 				t.Fatalf("decision admitted=%t reason=%q profile=%q", decision.Admitted(), decision.Reason(), decision.ProfileID())
@@ -288,7 +288,7 @@ func TestSunSpecCapabilityDecisionCloneSharesNoEvidence(t *testing.T) {
 
 func TestThreePhaseMonitoringAdmitsValidApparentReactiveAndLineVoltage(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
-	decision := registry.EvaluateThreePhaseMonitoring(capabilitySnapshot(t, registry, 113, map[string][]uint16{
+	decision := registry.EvaluateThreePhaseMonitoring(legacyOptionalCapabilitySnapshot(t, registry, 113, map[string][]uint16{
 		"VA": float32Words(1500), "VAr": float32Words(-8),
 		"PPVphAB": float32Words(400), "PPVphBC": float32Words(401), "PPVphCA": float32Words(399),
 	}))
@@ -320,7 +320,7 @@ func TestThreePhaseMonitoringAdmitsValidApparentReactiveAndLineVoltage(t *testin
 
 func TestThreePhaseMonitoringOmitsUnimplementedApparentPower(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
-	decision := registry.EvaluateThreePhaseMonitoring(capabilitySnapshot(t, registry, 113, map[string][]uint16{
+	decision := registry.EvaluateThreePhaseMonitoring(legacyOptionalCapabilitySnapshot(t, registry, 113, map[string][]uint16{
 		"VA": {0x7fc0, 0}, "VAr": float32Words(-3),
 		"PPVphAB": float32Words(410), "PPVphBC": float32Words(411), "PPVphCA": float32Words(412),
 	}))
@@ -356,7 +356,7 @@ func TestThreePhaseMonitoringOmitsUnimplementedApparentPower(t *testing.T) {
 
 func TestThreePhaseMonitoringOmitsUnimplementedIntegerApparentPower(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
-	decision := registry.EvaluateThreePhaseMonitoring(capabilitySnapshot(t, registry, 103, map[string][]uint16{
+	decision := registry.EvaluateThreePhaseMonitoring(legacyOptionalCapabilitySnapshot(t, registry, 103, map[string][]uint16{
 		"VA": {0x8000}, "VA_SF": {0}, "VAr": {0xfffd}, "VAr_SF": {0},
 		"PPVphAB": {410}, "PPVphBC": {411}, "PPVphCA": {412}, "V_SF": {0},
 	}))
@@ -392,7 +392,7 @@ func TestThreePhaseMonitoringOmitsUnimplementedIntegerApparentPower(t *testing.T
 
 func TestSunSpecThreePhaseMonitoringFieldIDsFollowTheCapabilityOrder(t *testing.T) {
 	registry := mustStandardSunSpecRegistry(t)
-	decision := registry.EvaluateThreePhaseMonitoring(capabilitySnapshot(t, registry, 113, nil))
+	decision := registry.EvaluateThreePhaseMonitoring(legacyOptionalCapabilitySnapshot(t, registry, 113, nil))
 	facts := decision.Facts()
 	required := ThreePhaseMonitoringFieldIDs()
 	optional := ThreePhaseMonitoringOptionalFieldIDs()
@@ -445,4 +445,24 @@ func TestSunSpecCloneSourceViewsSharesNoStorage(t *testing.T) {
 	if got := CloneSourceViews([]modbusreg.LogicalViewSnapshot{{}, views[1]}); got[0].Valid() || !reflect.DeepEqual(got[0], modbusreg.LogicalViewSnapshot{}) || !got[1].Valid() {
 		t.Fatalf("clone changed view validity: %#v", got)
 	}
+}
+
+// The original optional-point scenarios intentionally leave the newly exposed
+// inverter points unavailable. Valid extended values have their own coverage.
+func legacyOptionalCapabilitySnapshot(t *testing.T, registry DecoderRegistry, modelID uint16, override map[string][]uint16) ChainSnapshot {
+	t.Helper()
+	values := map[string][]uint16{"StVnd": {0xffff}, "EvtVnd1": {0xffff, 0xffff}, "EvtVnd2": {0xffff, 0xffff}, "EvtVnd3": {0xffff, 0xffff}, "EvtVnd4": {0xffff, 0xffff}}
+	for _, name := range []string{"PF", "DCA", "DCV", "DCW", "TmpSnk", "TmpTrns", "TmpOt"} {
+		absent := []uint16{0x8000}
+		if modelID == 113 {
+			absent = []uint16{0x7fc0, 0}
+		} else if name == "DCA" || name == "DCV" {
+			absent = []uint16{0xffff}
+		}
+		values[name] = absent
+	}
+	for name, words := range override {
+		values[name] = words
+	}
+	return capabilitySnapshot(t, registry, modelID, values)
 }

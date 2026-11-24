@@ -342,9 +342,18 @@ func froniusObservedSnapshot(t *testing.T, registry sunspec.DecoderRegistry, man
 
 func froniusObservedSnapshotV11(t *testing.T, registry sunspec.DecoderRegistry, manufacturer, model, firmware string) sunspec.ChainSnapshot {
 	t.Helper()
+	// This synthetic replay represents only the inverter points on the card.
+	// Absent optional float points must not use the fixture builder's zero fill.
+	unsupported := map[string][]uint16{
+		"StVnd": {0xffff}, "EvtVnd1": {0xffff, 0xffff}, "EvtVnd2": {0xffff, 0xffff},
+		"EvtVnd3": {0xffff, 0xffff}, "EvtVnd4": {0xffff, 0xffff},
+	}
+	for _, point := range []string{"PF", "DCA", "DCV", "DCW", "TmpSnk", "TmpTrns", "TmpOt"} {
+		unsupported[point] = []uint16{0x7fc0, 0}
+	}
 	occurrences := []sunspec.Occurrence{
 		sunspecfixture.CommonOccurrence(t, registry, manufacturer, model, firmware, 1),
-		sunspecfixture.InverterOccurrence(t, registry, 113, nil, 2),
+		sunspecfixture.InverterOccurrence(t, registry, 113, unsupported, 2),
 		sunspecfixture.Occurrence(t, registry, sunspecfixture.ModelWords(t, registry, 120, 26, nil), 3),
 		sunspecfixture.Occurrence(t, registry, sunspecfixture.ModelWords(t, registry, 121, 30, nil), 4),
 		sunspecfixture.Occurrence(t, registry, sunspecfixture.ModelWords(t, registry, 122, 44, nil), 5),
