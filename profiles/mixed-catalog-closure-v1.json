@@ -58,7 +58,7 @@
       "id": "growatt.direct-inverter",
       "role": "PRIMARY_CANDIDATE",
       "disposition": "OFFLINE_IDENTITY_ADMITTED",
-      "runtime_identity": "",
+      "runtime_identity": "growatt.protocol-ii.fc04",
       "disposition_file": "profiles/vendors/growatt/disposition.json"
     },
     {

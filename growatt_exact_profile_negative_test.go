@@ -89,7 +89,7 @@ func TestK21GrowattExactProfileNegativeAdmissionMatrix(t *testing.T) {
 			if session.reads != 0 {
 				t.Fatalf("rejected candidate read count=%d", session.reads)
 			}
-			telemetry, err := growatt.DecodeGrowattProtocolIIFC04Telemetry(identity, admission, growatt.ProtocolIIFC04Slice{Words: make([]uint16, 59)})
+			telemetry, err := growatt.DecodeGrowattProtocolIIFC04Telemetry(identity, admission, growatt.ProtocolIIFC04Slice{Words: make([]uint16, 250)})
 			if err == nil || telemetry.Identity().UnitID() != 0 || len(telemetry.RawSlice().Words) != 0 {
 				t.Fatalf("candidate acquired typed FC04 decoder output: telemetry=%v err=%v", telemetry, err)
 			}

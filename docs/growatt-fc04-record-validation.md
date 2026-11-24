@@ -14,7 +14,7 @@ mandatory scalar keys: `family`, `device_type`, `model_build_word_82`,
 It rejects duplicate keys (including escaped equivalents), unknown keys,
 nulls, wrong types, coercions, trailing values, malformed references and invalid
 extents. Native words are unsigned 16-bit integers. Family is one of MAX, MID,
-MAC; function is 4, offset is 0 and width is 59 words. References are nonempty,
+MAC; function is 4, offset is 0 and width is 250 words (0 through 249). References are nonempty,
 exact identifiers without whitespace or control characters; parsing does not
 resolve them or verify their publication or review.
 
@@ -51,9 +51,36 @@ result says only that their values satisfy the comparison. Supplying the same
 record to `ValidateGrowattFC04RecordAdmission` still returns
 `NO_ADMISSIBLE_PROFILE` and missing evidence for a well-formed identity and
 record. Malformed records and incoherent identity observations also return
-`NO_ADMISSIBLE_PROFILE`, with their diagnostic error. The reviewed public
-catalog is empty and has no caller population or approval API. No applicability
-value, typed telemetry constructor or observer constructor is added.
+`NO_ADMISSIBLE_PROFILE`, with their diagnostic error. `ValidateGrowattFC04RecordAdmission`
+claims `OFFLINE_IDENTITY_ADMITTED` only for a coherent record with a documented
+automatic match. No documented numeric device-type or protocol-version map
+identifies those words, so this validator still returns `NO_ADMISSIBLE_PROFILE`.
+
+`NewProtocolIIFC04Applicability` is the public constructor. An explicit
+selection of a documented TL3-X family (MAX, MID or MAC) admits that configured
+profile. The raw holding-register device type and reported protocol version
+stay with their provenance when an FC03 observation from the same unit is
+present, and their automatic qualification stays unknown. A configured endpoint
+with a valid unit and no FC03 observation is admitted the same way: the
+execution unit is the configured unit, FC03 evidence stays absent, and no
+identity is fabricated. Without that selection, an unknown or ambiguous device
+type or version returns `NO_ADMISSIBLE_PROFILE` with a reason. A selected family
+outside the published applicability, or known contrary identity evidence, returns
+the same named result. Edition v1.24 and the example value 207 establish no
+numeric selector. The input table is words 0 through 249. The RTU observer
+acquires that image as two function-04 reads, offset 0 quantity 125 then offset
+125 quantity 125.
+
+The profile disposition keeps schema
+`helianthus-modbusreg-profile-disposition/v1` and outcome
+`OFFLINE_IDENTITY_ADMITTED`. `catalog_registered` and `support_claim` are true
+because the data-only catalog entry constructs this provider. `decoder_keys`
+stays empty. `automatic_runtime_admission` stays false. The removed unresolved
+and reopen item is the exact FC04 telemetry schema; the other unresolved items
+remain `automatic_detector_uniqueness` and `runtime_admission_contract`, and the
+other reopen item remains `mutually_exclusive_identity_tuple` together with
+`explicit_runtime_admission_contract`. The recorded evidence level does not
+condition registration, the support claim or admission.
 
 ## Claims and transitions
 
@@ -61,7 +88,7 @@ value, typed telemetry constructor or observer constructor is added.
 | --- | --- | --- |
 | Proven within focused synthetic tests | Closed parsing, exact comparisons, geometry checks and public denial behave as described | Software mechanics only; no device qualification or admission |
 | Hypothesis | A future independently reviewed tuple-to-schema mapping could support an owning runtime implementation | Requires separate public evidence and acceptance |
-| Unknown | A current reviewed exact native tuple mapping for these families | Public admission remains `NO_ADMISSIBLE_PROFILE` |
+| Unknown | A current reviewed exact native tuple mapping for these families | Automatic and offline record admission remain `NO_ADMISSIBLE_PROFILE`; a configured TL3-X selection is not that mapping |
 
 This component retains no observations and changes no existing decoder or
 retention rule. A failed comparison cannot replace partial last-known-good
@@ -69,11 +96,11 @@ native state. A later composition owner must preserve historical provenance,
 handle amendments/withdrawals and revalidate current review before consumption.
 This diagnostic cannot approve a cached mapping across a source transition.
 
-There is no detector registration, transport, scheduling, acquisition, profile
-admission, projection or gateway integration. Existing trust/admission checks,
-eBUS MCP compatibility and GraphQL parity are untouched. Focused tests use
-synthetic operands; no hardware, passive capture or live-device acceptance is
-claimed.
+There is no detector registration, transport, scheduling or gateway integration.
+Configured TL3-X admission and the 250-word projection live in the Growatt
+package and the data-only profile catalog. Existing trust checks, eBUS MCP
+compatibility and GraphQL parity are untouched. Focused tests use synthetic
+operands; no hardware, passive capture or live-device acceptance is claimed.
 
 ## Documentation merge dependency
 

@@ -480,7 +480,7 @@ func TestI23DiagnosticCompletionDeadline(i23T *testing.T) {
 
 func TestI23DocumentarySuccessDeniesFC04Admission(i23T *testing.T) {
 	// Parsing a documentary record is a success; native identity remains Unknown.
-	i23Bytes, i23Err := json.Marshal(FC04Record{Family: "MAX", DeviceType: 17, ModelBuildWord82: 23, ModelBuildWord83: 41, ReportedProtocolWord: 256, SourceSchemaRef: "synthetic:source", Function: 4, Offset: 0, WidthWords: 59, FieldSchemaRef: "synthetic:fields", TupleEvidenceRef: "synthetic:tuple"})
+	i23Bytes, i23Err := json.Marshal(FC04Record{Family: "MAX", DeviceType: 17, ModelBuildWord82: 23, ModelBuildWord83: 41, ReportedProtocolWord: 256, SourceSchemaRef: "synthetic:source", Function: 4, Offset: 0, WidthWords: 250, FieldSchemaRef: "synthetic:fields", TupleEvidenceRef: "synthetic:tuple"})
 	if i23Err != nil {
 		i23T.Fatal(i23Err)
 	}

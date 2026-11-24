@@ -77,11 +77,11 @@ func TestGrowattProtocolIIDispositionAdmitsOnlyOfflineIdentity(t *testing.T) {
 			t.Fatalf("candidate operation %d=%#v want=%#v", index, operation, want)
 		}
 	}
-	if len(record.DecoderKeys) != 0 || record.CatalogRegistered || record.SupportClaim {
-		t.Fatalf("non-admission leaked support: keys=%v catalog=%v claim=%v", record.DecoderKeys, record.CatalogRegistered, record.SupportClaim)
+	if len(record.DecoderKeys) != 0 || !record.CatalogRegistered || !record.SupportClaim {
+		t.Fatalf("catalog registration: keys=%v catalog=%v claim=%v", record.DecoderKeys, record.CatalogRegistered, record.SupportClaim)
 	}
-	wantUnresolved := []string{"automatic_detector_uniqueness", "exact_fc04_telemetry_schema", "runtime_admission_contract"}
-	wantReopen := []string{"mutually_exclusive_identity_tuple", "exact_fc04_telemetry_schema", "explicit_runtime_admission_contract"}
+	wantUnresolved := []string{"automatic_detector_uniqueness", "runtime_admission_contract"}
+	wantReopen := []string{"mutually_exclusive_identity_tuple", "explicit_runtime_admission_contract"}
 	if !reflect.DeepEqual(record.Unresolved, wantUnresolved) || !reflect.DeepEqual(record.ReopenRequires, wantReopen) {
 		t.Fatalf("closure conditions unresolved=%v reopen=%v", record.Unresolved, record.ReopenRequires)
 	}

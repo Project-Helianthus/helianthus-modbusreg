@@ -13,7 +13,7 @@ func TestM52GrowattAdjacentRevisionsReachRevisionComparison(t *testing.T) {
 		t.Fatal(err)
 	}
 	admission := syntheticGrowattProtocolIIFC04FixtureAdmission(input.Profile)
-	raw := ProtocolIIFC04Slice{Words: make([]uint16, 59)}
+	raw := ProtocolIIFC04Slice{Words: make([]uint16, protocolIIInputWidth)}
 	raw.Words[0] = 1
 
 	for _, test := range []struct {

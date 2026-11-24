@@ -24,7 +24,7 @@ func TestS06GrowattFixtureFlagRequiredForOtherwiseMatchingAdmission(t *testing.T
 		unflagged.profile.ProtocolVersion != identity.ProtocolVersion() {
 		t.Fatal("unflagged admission must satisfy every identity comparison")
 	}
-	raw := ProtocolIIFC04Slice{Words: make([]uint16, 59)}
+	raw := ProtocolIIFC04Slice{Words: make([]uint16, protocolIIInputWidth)}
 	raw.Words[0] = 1
 	raw.Words[2] = 1234
 	if identity.OutboundAllowed() {

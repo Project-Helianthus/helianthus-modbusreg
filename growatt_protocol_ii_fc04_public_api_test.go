@@ -11,18 +11,18 @@ import (
 	"github.com/Project-Helianthus/helianthus-modbusreg/growatt"
 )
 
-// TestGrowattProtocolIIFC04HasNoPublicAdmissionPath keeps the source-backed
-// qualification boundary at the public-package boundary. The pinned manual has
-// no admissible device/model-build/protocol tuple, so raw FC03 observations may
-// be retained but no public value, including a caller string, may admit FC04.
+// TestGrowattProtocolIIFC04HasNoPublicAdmissionPath keeps zero applicability
+// closed. NewProtocolIIFC04Applicability is public. A zero applicability value
+// still yields no telemetry and no observer.
 func TestGrowattProtocolIIFC04HasNoPublicAdmissionPath(t *testing.T) {
 	command := exec.Command("go", "doc", "./growatt", "NewProtocolIIFC04Applicability")
 	command.Env = append(command.Environ(), "GOWORK=off")
-	if output, err := command.CombinedOutput(); err == nil || !strings.Contains(string(output), "no symbol") {
-		t.Fatalf("public FC04 applicability constructor remains reachable: output=%q err=%v", output, err)
+	output, err := command.CombinedOutput()
+	if err != nil || !strings.Contains(string(output), "NewProtocolIIFC04Applicability") {
+		t.Fatalf("public FC04 applicability constructor: output=%q err=%v", output, err)
 	}
 
-	words := make([]uint16, 59)
+	words := make([]uint16, 250)
 	words[0] = 1
 	for name, mutate := range map[string]func(*growatt.ProtocolIIIdentityInput){
 		"combined tuple": func(input *growatt.ProtocolIIIdentityInput) {

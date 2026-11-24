@@ -1,6 +1,9 @@
 package growatt
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestDecodeGrowattBMSTypedReadOnlyStatusProjectsOnlyExactV202Fields(t *testing.T) {
 	status, err := DecodeGrowattBMSTypedReadOnlyStatus(validGrowattBMSTypedReadOnlyInput())
@@ -91,7 +94,7 @@ func TestDecodeGrowattBMSTypedReadOnlyStatusRejectsUnlistedOperatingState(t *tes
 		rejected := validGrowattBMSTypedReadOnlyInput()
 		rejected.Slices[1].Words[6] = word
 		got, err := DecodeGrowattBMSTypedReadOnlyStatus(rejected)
-		if err == nil || got != (BMSTypedReadOnlyStatus{}) {
+		if err == nil || !reflect.DeepEqual(got, BMSTypedReadOnlyStatus{}) {
 			t.Fatalf("word %#x status=%#v err=%v", word, got, err)
 		}
 	}

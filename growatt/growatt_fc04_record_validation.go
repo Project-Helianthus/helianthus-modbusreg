@@ -14,11 +14,11 @@ import (
 )
 
 // FC04 record validation errors; callers match them with errors.Is.
-// ErrGrowattFC04Missing: a required key, reviewed catalog entry or symbolic
-// schema is absent (admission always ends here because the reviewed catalog is
-// empty). ErrGrowattFC04Invalid: the record, identity or comparison is malformed
-// or differs. ErrGrowattFC04Ambiguous: more than one entry or schema matches a
-// reference. See
+// ErrGrowattFC04Missing: a required key, reviewed automatic match or symbolic
+// schema is absent. No documented device-type and protocol-version map exists,
+// so a coherent record still has no automatic match. ErrGrowattFC04Invalid:
+// the record, identity or comparison is malformed or differs.
+// ErrGrowattFC04Ambiguous: more than one entry or schema matches a reference. See
 // https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/growatt-fc04-record-validation-implementation.md.
 var (
 	ErrGrowattFC04Missing   = errors.New("growatt FC04 missing or insufficient evidence")
@@ -58,7 +58,7 @@ func growattFC04Reference(s string) bool {
 	return s != "" && utf8.ValidString(s) && !strings.ContainsAny(s, "\ufffd") && strings.IndexFunc(s, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) < 0
 }
 func (r FC04Record) valid() bool {
-	return (r.Family == "MAX" || r.Family == "MID" || r.Family == "MAC") && r.Function == 4 && r.Offset == 0 && r.WidthWords == 59 && growattFC04Reference(r.SourceSchemaRef) && growattFC04Reference(r.FieldSchemaRef) && growattFC04Reference(r.TupleEvidenceRef)
+	return (r.Family == "MAX" || r.Family == "MID" || r.Family == "MAC") && r.Function == 4 && r.Offset == 0 && r.WidthWords == protocolIIInputWidth && growattFC04Reference(r.SourceSchemaRef) && growattFC04Reference(r.FieldSchemaRef) && growattFC04Reference(r.TupleEvidenceRef)
 }
 
 // ParseGrowattFC04Record accepts one closed JSON object. It rejects missing,
@@ -184,9 +184,11 @@ func CompareGrowattFC04Record(r FC04Record, i ProtocolIIIdentityObservation, ent
 	return nil
 }
 
-// ValidateGrowattFC04RecordAdmission uses the current empty reviewed public
-// catalog. No caller operands, approval flag or synthetic record can populate
-// that catalog. Every result remains NO_ADMISSIBLE_PROFILE.
+// ValidateGrowattFC04RecordAdmission reports OFFLINE_IDENTITY_ADMITTED only
+// for a coherent record with a documented automatic match. No such numeric
+// map is documented. A configured family selection is not this function.
+// Unknown raw device type and protocol version supply no automatic match.
+// Every other result remains NO_ADMISSIBLE_PROFILE.
 func ValidateGrowattFC04RecordAdmission(data []byte, i ProtocolIIIdentityObservation) (string, error) {
 	const denied = "NO_ADMISSIBLE_PROFILE"
 	if _, e := ParseGrowattFC04Record(data); e != nil {
