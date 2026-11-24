@@ -776,10 +776,32 @@ func (r *huaweiCycleRun) recordChildLoss(out ProviderChildObservation, state Pro
 	for _, group := range out.Groups {
 		if group.Refused {
 			r.out.Loss = append(r.out.Loss, ProviderLoss{Kind: ProviderLossRefusedGroup, HasUnit: true, UnitID: out.UnitID,
-				Offset: group.Offset, Quantity: group.Quantity, Detail: "refused with exception 3 at runtime; not sent again"})
+				Offset: group.Offset, Quantity: group.Quantity, Detail: huaweiRuntimeRefusalDetail(huaweiSUN2000RefusalCode)})
 		}
 	}
 	return out
+}
+
+// huaweiRuntimeRefusalDetail is the loss text for a group the unit refused.
+func huaweiRuntimeRefusalDetail(code uint8) string {
+	if code == huaweiSUN2000RefusalCode {
+		return "refused with exception 3 at runtime; not sent again"
+	}
+	return "refused with exception " + strconv.Itoa(int(code)) + " at runtime"
+}
+
+// CatalogProfileLosses is what a catalogue profile still does not publish.
+// The hand profiles keep their own holes; a catalogue profile consumes the
+// status, string, power and energy words its card documents, and it does not
+// list those words as unconsumed. Battery and meter facts stay unadmitted.
+func CatalogProfileLosses(profile CatalogMonitoringProfile) []ProviderLoss {
+	if profile.ID() == "" {
+		return nil
+	}
+	return []ProviderLoss{
+		{Kind: ProviderLossBattery, Detail: "battery offsets are never read; a zero word is never a battery value"},
+		{Kind: ProviderLossMeter, Detail: "every meter value stays Unknown; no meter class contract"},
+	}
 }
 
 // huaweiWithheldDetail names why a child is withheld. A catalog withhold

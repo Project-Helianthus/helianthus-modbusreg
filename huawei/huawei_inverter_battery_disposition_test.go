@@ -331,10 +331,14 @@ func TestHuaweiInverterBatteryProfilesAreNotRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Only the two monitoring files name a SUN2000 profile, and only by the
-	// two exact profile identifiers and their decoder keys. No LUNA2000 profile
-	// is named anywhere in the product files of any module package.
-	allowed := map[string]bool{"huawei/huawei_sun2000_monitoring.go": true, "huawei/huawei_sun2000_capability.go": true}
+	// The hand files name only the two observed families. The catalogue profile
+	// file names those families and one profile per other card. No LUNA2000
+	// profile is named anywhere in the product files of any module package.
+	allowed := map[string]bool{
+		"huawei/huawei_sun2000_monitoring.go":       true,
+		"huawei/huawei_sun2000_capability.go":       true,
+		"huawei/huawei_sun2000_catalog_profiles.go": true,
+	}
 	for _, file := range huaweiModuleProductFiles(t) {
 		data, err := os.ReadFile(huaweiModulePath(file))
 		if err != nil {
@@ -356,8 +360,10 @@ func TestHuaweiInverterBatteryProfilesAreNotRegistered(t *testing.T) {
 				continue
 			}
 			rest := line[index:]
-			if !strings.HasPrefix(rest, "huawei.sun2000.m3.") && !strings.HasPrefix(rest, "huawei.sun2000.m1.") {
-				t.Fatalf("%s names a SUN2000 profile outside the two exact families: %q", file, strings.TrimSpace(line))
+			handFamily := strings.HasPrefix(rest, "huawei.sun2000.m3.") || strings.HasPrefix(rest, "huawei.sun2000.m1.")
+			perCard := file == "huawei/huawei_sun2000_catalog_profiles.go" && strings.Contains(line, "strings.ToLower(card)")
+			if !handFamily && !perCard {
+				t.Fatalf("%s names a SUN2000 profile outside the catalogue profiles: %q", file, strings.TrimSpace(line))
 			}
 		}
 	}
