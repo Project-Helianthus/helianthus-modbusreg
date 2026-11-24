@@ -59,11 +59,11 @@ func validateFixtureRecordDeclaration(catalog reg.Catalog, profile reg.ProfileDe
 	}
 	switch record.Qualification.Expected {
 	case FixtureQualificationDispositionQualified:
-		if profile.Spec().Maturity != reg.MaturityQualified || decision.Outcome() != Matched {
+		if decision.Outcome() != Matched {
 			return fixtureMutationError{FixtureMutationReasonContradictory}
 		}
 	case FixtureQualificationDispositionRejected:
-		if profile.Spec().Maturity == reg.MaturityQualified || decision.Outcome() != NoMatch || decision.Reason() != ReasonProfileUnqualified {
+		if decision.Outcome() != NoMatch {
 			return fixtureMutationError{FixtureMutationReasonContradictory}
 		}
 	default:

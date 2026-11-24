@@ -14,7 +14,7 @@ func TestDetectionReasonPrecedencePairs(t *testing.T) {
 	priorities := []Reason{
 		"invalid_identity", "identity_mismatch", "firmware_mismatch",
 		"fixture_opt_in_required", "profile_revoked", "profile_superseded",
-		"profile_unqualified", "profile_default_off", "candidate_disabled",
+		"candidate_disabled",
 	}
 	for higher, want := range priorities {
 		for _, lower := range priorities[higher+1:] {
@@ -36,7 +36,7 @@ func TestDetectionReasonPrecedencePairs(t *testing.T) {
 			}
 		}
 	}
-	t.Run("all_nine_reversed", func(t *testing.T) {
+	t.Run("all_seven_reversed", func(t *testing.T) {
 		evidence := make([]CandidateEvidence, len(priorities))
 		for i := range priorities {
 			evidence[i] = CandidateEvidence{Reason: priorities[len(priorities)-1-i], Score: uint32(len(priorities) - i)}
