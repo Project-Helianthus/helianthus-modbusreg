@@ -5,6 +5,7 @@ manifest tool; a missing path fails these tests.
 """
 from __future__ import annotations
 
+import base64
 import filecmp
 import hashlib
 import json
@@ -307,6 +308,31 @@ def moved_case(root, row, source, destination, violations=None, existing=None):
     if existing is not None:
         write(checkout / destination, existing)
     return checkout, manifest_path(root / "tool", row), donor
+
+
+def run_fetch_base(checkout, log_path, token):
+    bindir = checkout.parent / ("bin-" + log_path.name)
+    bindir.mkdir()
+    script = bindir / "git"
+    script.write_text(
+        "#!/bin/sh\n"
+        "printf '%s\\n' \"prompt=${GIT_TERMINAL_PROMPT-unset}\" >> \"$FETCH_LOG\"\n"
+        "printf '%s\\n' \"$*\" >> \"$FETCH_LOG\"\n"
+        "exec \"$REAL_GIT\" \"$@\"\n",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    env["FETCH_LOG"] = str(log_path)
+    env["REAL_GIT"] = shutil.which("git")
+    env.pop("GITHUB_TOKEN", None)
+    if token:
+        env["GITHUB_TOKEN"] = token
+    return subprocess.run(
+        ["bash", str(REPO / "scripts" / "preflight" / "fetch_base.sh"), "main"],
+        cwd=checkout, env=env, text=True, capture_output=True, timeout=60,
+    )
 
 
 def run_preflight(checkout, manifest, donor):
@@ -1245,6 +1271,39 @@ class SelectionTests(Case):
 
 
 class WorkflowTests(Case):
+    def test_fetch_base_does_not_prompt_or_store_the_job_token(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            origin = root / "origin"
+            checkout = root / "checkout"
+            commit_tree(origin, {"keep.go": KEEP})
+            shallow_clone(origin, checkout)
+            git(checkout, "remote", "set-url", "origin", str(origin.resolve()))
+            write(checkout / "added.go", KEEP)
+            git(checkout, "add", "added.go")
+            git(checkout, "commit", "-m", "add")
+            token = "synthetic-job-token"
+            completed = run_fetch_base(checkout, root / "authed.log", token)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            recorded = (root / "authed.log").read_text(encoding="utf-8")
+            basic = base64.b64encode(b"x-access-token:" + token.encode()).decode()
+            self.assertIn("prompt=0", recorded)
+            self.assertIn("credential.helper=", recorded)
+            self.assertIn("http.extraheader=AUTHORIZATION: basic " + basic, recorded)
+            self.assertNotIn(token, recorded)
+            config = git(checkout, "config", "--local", "--list").stdout
+            self.assertNotIn(token, config)
+            self.assertNotIn("extraheader", config)
+            diff = git(checkout, "diff", "--name-status", "FETCH_HEAD", "HEAD").stdout
+            self.assertIn("added.go", diff)
+            anonymous = run_fetch_base(checkout, root / "anon.log", None)
+            self.assertEqual(anonymous.returncode, 0, anonymous.stderr)
+            anon_text = (root / "anon.log").read_text(encoding="utf-8")
+            self.assertIn("prompt=0", anon_text)
+            self.assertIn("credential.helper=", anon_text)
+            self.assertNotIn("extraheader", anon_text)
+            self.assertNotIn("AUTHORIZATION", anon_text)
+
     def test_ci_keeps_full_suite_and_stages_the_self_test_after_it(self):
         text = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         checks, lint = text.split("  lint:", 1)
@@ -1281,6 +1340,14 @@ class WorkflowTests(Case):
             self.assertLess(text.index("fetch_open_pulls"), text.index("scripts/preflight/classify.py"))
             self.assertIn("--pulls-file", text)
             self.assertNotIn("--fetch-pulls", text)
+            self.assertIn('bash scripts/preflight/fetch_base.sh "${BASE_REF}"', text)
+            self.assertLess(text.index("fetch_base.sh"), text.index("git diff --name-status"))
+            # Joined: the scope gate rejects this command text in non-Go sources.
+            self.assertNotIn(
+                " ".join(("git", "fetch", "--no-tags", "--depth=1", "origin")),
+                text,
+            )
+            self.assertIn("GITHUB_TOKEN: ${{ github.token }}", text)
         for path in (REPO / "scripts" / "preflight").glob("*.py"):
             if path.name.startswith("test_"):
                 continue

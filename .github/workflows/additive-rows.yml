@@ -45,9 +45,10 @@ jobs:
           BASE_REPO: ${{ github.event.pull_request.base.repo.id }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.id }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git fetch --no-tags --depth=1 origin "${BASE_REF}"
+          bash scripts/preflight/fetch_base.sh "${BASE_REF}"
           git diff --name-status FETCH_HEAD HEAD > "$RUNNER_TEMP/name-status.txt"
           export PULLS_OUT="$RUNNER_TEMP/pulls.json"
           python3 - <<'PY'

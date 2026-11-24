@@ -37,6 +37,7 @@ jobs:
           BASE_REPO: ${{ github.event.pull_request.base.repo.id }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.id }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           echo "run_full=true" >> "$GITHUB_OUTPUT"
@@ -46,7 +47,7 @@ jobs:
           if ! bash scripts/preflight/acquire.sh tool "$RUNNER_TEMP/qq06-classify" > "$RUNNER_TEMP/qq06-classify.sha"; then
             exit 0
           fi
-          git fetch --no-tags --depth=1 origin "${BASE_REF}"
+          bash scripts/preflight/fetch_base.sh "${BASE_REF}"
           git diff --name-status FETCH_HEAD HEAD > "$RUNNER_TEMP/name-status.txt"
           export PULLS_OUT="$RUNNER_TEMP/pulls.json"
           python3 - <<'PY'
