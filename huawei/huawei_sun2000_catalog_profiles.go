@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
-	"github.com/Project-Helianthus/helianthus-modbusreg/profiles"
 )
 
 // CatalogMonitoringProfile is the monitoring profile generated from one
@@ -182,8 +181,9 @@ func (r CatalogMonitoringReading) Losses() []ProviderLoss {
 
 // CatalogMonitoringProfiles returns one profile per catalogue card, ordered
 // by card key. Status names and alarm labels come from the document compiled
-// into the module. A missing or unreadable document is an error, and no
-// profile is returned with empty names.
+// into the module. Register rows come from the SUN2000 selection, which is
+// the reader of the embedded inverter catalogue. A missing or unreadable
+// label document is an error, and no profile is returned with empty names.
 func CatalogMonitoringProfiles() ([]CatalogMonitoringProfile, error) {
 	catalogOnce.Do(func() {
 		catalogLoaded = catalogLoad()
@@ -340,40 +340,19 @@ func catalogLoad() catalogBundle {
 	if err != nil {
 		return catalogBundle{labelErr: err}
 	}
-	names, err := catalogRegisterNames()
-	if err != nil {
+	cards, err := huaweiSUN2000MonitoringRegisterCards()
+	if err != nil || len(cards) == 0 {
 		return catalogBundle{}
 	}
 	var built []CatalogMonitoringProfile
-	for _, name := range names {
-		data, err := profiles.HuaweiInverterCatalog().ReadFile(huaweiSUN2000CatalogDirectory + "/" + name)
-		if err != nil {
-			return catalogBundle{}
-		}
-		var file catalogRegisterFile
-		if err := decodeHuaweiSUN2000CatalogFile(data, &file); err != nil || file.Card == "" {
+	for _, file := range cards {
+		if file.Card == "" {
 			return catalogBundle{}
 		}
 		built = append(built, catalogBuild(file, states[file.Card], alarms[file.Card]))
 	}
 	sort.Slice(built, func(i, j int) bool { return built[i].card < built[j].card })
 	return catalogBundle{profiles: built}
-}
-
-func catalogRegisterNames() ([]string, error) {
-	found, err := profiles.HuaweiInverterCatalog().ReadDir(huaweiSUN2000CatalogDirectory)
-	if err != nil {
-		return nil, err
-	}
-	var names []string
-	for _, entry := range found {
-		name := entry.Name()
-		if strings.HasPrefix(name, "registers-") && strings.HasSuffix(name, ".json") {
-			names = append(names, name)
-		}
-	}
-	sort.Strings(names)
-	return names, nil
 }
 
 func catalogDictionaries(data []byte) (map[string]map[uint16]string, map[string]map[uint16]map[int]string, error) {

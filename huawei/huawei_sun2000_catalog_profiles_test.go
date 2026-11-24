@@ -1,6 +1,7 @@
 package huawei
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -22,6 +23,35 @@ import (
 //   - a negative active power withheld
 //   - a refused group dropping the sibling groups, or a loss without its unit
 //   - status names read from the source tree, or a missing label document published as empty names
+
+func TestCatalogProfilesDoNotReadTheEmbeddedCatalog(t *testing.T) {
+	data, err := os.ReadFile("huawei_sun2000_catalog_profiles.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{
+		`"github.com/Project-Helianthus/helianthus-modbusreg/profiles"`,
+		"huawei/catalog",
+		"registers-",
+		"HuaweiInverterCatalog",
+		"//go:embed",
+	} {
+		if bytes.Contains(data, []byte(marker)) {
+			t.Fatalf("catalogue profiles read the embedded catalogue via %s", marker)
+		}
+	}
+	cards, err := huaweiSUN2000MonitoringRegisterCards()
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles, err := CatalogMonitoringProfiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cards) == 0 || len(cards) != len(profiles) {
+		t.Fatalf("retained cards %d profiles %d", len(cards), len(profiles))
+	}
+}
 
 func TestCatalogCardProfilesCoverEveryCard(t *testing.T) {
 	wantStrings := map[string]int{

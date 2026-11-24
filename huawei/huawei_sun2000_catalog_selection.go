@@ -17,6 +17,7 @@ import (
 // docs/huawei-catalog.md) and decides which model row, if any, a routed
 // inverter belongs to. It reads the editions, the model rows and the identity
 // rows of each card; it decodes no register and grants no authority. The
+// same read retains each card document for the monitoring profiles. The
 // directory is the catalog's path inside the inverter part that package
 // profiles embeds.
 const huaweiSUN2000CatalogDirectory = "vendors/huawei/catalog"
@@ -336,8 +337,9 @@ type huaweiSUN2000CatalogAlias struct {
 }
 
 type huaweiSUN2000Catalog struct {
-	entries []huaweiSUN2000CatalogEntry
-	err     error
+	entries   []huaweiSUN2000CatalogEntry
+	registers []catalogRegisterFile
+	err       error
 }
 
 var (
@@ -355,8 +357,20 @@ var (
 
 func huaweiSUN2000LoadedCatalog() huaweiSUN2000Catalog {
 	huaweiSUN2000CatalogOnce.Do(func() {
+		var registers []catalogRegisterFile
 		entries, err := loadHuaweiSUN2000Catalog(func(name string) ([]byte, error) {
-			return profiles.HuaweiInverterCatalog().ReadFile(huaweiSUN2000CatalogDirectory + "/" + name)
+			data, readErr := profiles.HuaweiInverterCatalog().ReadFile(huaweiSUN2000CatalogDirectory + "/" + name)
+			if readErr != nil {
+				return nil, readErr
+			}
+			kept, retain, retainErr := huaweiSUN2000RetainedRegisterCard(name, data)
+			if retainErr != nil {
+				return nil, retainErr
+			}
+			if retain {
+				registers = append(registers, kept)
+			}
+			return data, nil
 		}, func() ([]string, error) {
 			found, err := profiles.HuaweiInverterCatalog().ReadDir(huaweiSUN2000CatalogDirectory)
 			if err != nil {
@@ -368,9 +382,38 @@ func huaweiSUN2000LoadedCatalog() huaweiSUN2000Catalog {
 			}
 			return names, nil
 		})
-		huaweiSUN2000CatalogLoaded = huaweiSUN2000Catalog{entries: entries, err: err}
+		if err != nil {
+			registers = nil
+		}
+		huaweiSUN2000CatalogLoaded = huaweiSUN2000Catalog{entries: entries, registers: registers, err: err}
 	})
 	return huaweiSUN2000CatalogLoaded
+}
+
+// huaweiSUN2000RetainedRegisterCard keeps a card document the selection already
+// read. Monitoring profiles decode that document and do not open the catalogue.
+func huaweiSUN2000RetainedRegisterCard(name string, data []byte) (catalogRegisterFile, bool, error) {
+	if !strings.HasPrefix(name, "registers-") || !strings.HasSuffix(name, ".json") {
+		return catalogRegisterFile{}, false, nil
+	}
+	var file catalogRegisterFile
+	if err := decodeHuaweiSUN2000CatalogFile(data, &file); err != nil {
+		return catalogRegisterFile{}, false, err
+	}
+	if file.Card == "" {
+		return catalogRegisterFile{}, false, errHuaweiSUN2000CatalogInvalid
+	}
+	return file, true, nil
+}
+
+// huaweiSUN2000MonitoringRegisterCards returns the card documents retained by
+// the inverter selection. The caller decodes them and does not open the catalogue.
+func huaweiSUN2000MonitoringRegisterCards() ([]catalogRegisterFile, error) {
+	catalog := huaweiSUN2000LoadedCatalog()
+	if catalog.err != nil {
+		return nil, catalog.err
+	}
+	return append([]catalogRegisterFile(nil), catalog.registers...), nil
 }
 
 func decodeHuaweiSUN2000CatalogFile(data []byte, target any) error {

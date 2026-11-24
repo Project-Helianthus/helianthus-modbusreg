@@ -28,8 +28,9 @@ model row from the model text or a recorded wire alias, the model identifier,
 the map scope and the row floor (see
 [SUN2000 monitoring profiles](huawei-sun2000-monitoring-profiles.md#capability-detection)).
 It decodes no register, registers no profile, admits nothing beyond the two
-SUN2000 monitoring profiles and grants no write. The monitoring profiles built
-on the catalogue are a follow-up.
+SUN2000 monitoring profiles and grants no write. Monitoring profiles for every
+catalogue card decode the register rows retained by that read. They do not
+open the catalogue.
 
 Companion: the public documentation for this catalogue is merged as
 [helianthus-docs-modbus#260](https://github.com/Project-Helianthus/helianthus-docs-modbus/pull/260).
