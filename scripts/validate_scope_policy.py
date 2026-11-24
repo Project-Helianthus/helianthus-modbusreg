@@ -10,7 +10,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 from urllib.parse import urlparse
 
 
@@ -19,13 +19,20 @@ REPOSITORY_MODE = "single_multi_vendor"
 IMPLEMENTATION_SCOPE = "public_registry_semantics"
 MODULE_PATH = "github.com/Project-Helianthus/helianthus-modbusreg"
 PUBLIC_MODBUS = "github.com/Project-Helianthus/helianthus-modbus"
+PUBLIC_SEMREG = "github.com/Project-Helianthus/helianthus-semreg"
+SEMREG_TEXT = "golang.org/x/text"
+SYS_MODULE = "golang.org/x/sys"
+SYS_VERSION = "v0.30.0"
 POLICY_KEYS = {
     "schema",
     "repository_mode",
     "implementation_scope",
     "module_path",
     "required_public_dependencies",
+    "allowed_public_dependencies",
     "allowed_project_import_prefixes",
+    "driver_leaf_directory",
+    "driver_leaf_allowed_import_prefixes",
     "allowed_non_io_net_imports",
     "forbidden_product_import_prefixes",
     "forbidden_product_import_tokens",
@@ -89,6 +96,13 @@ def string_list(policy: dict[str, object], key: str) -> list[str]:
     return value
 
 
+def string_text(policy: dict[str, object], key: str) -> str:
+    value = policy.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise PolicyError(f"policy {key} must be a nonempty string")
+    return value
+
+
 def safe_relative_path(value: object, expected: str, label: str) -> str:
     if value != expected:
         raise PolicyError(f"policy {label} must be {expected}")
@@ -123,9 +137,12 @@ def load_policy(root: Path) -> dict[str, object]:
     required_dependencies = string_list(policy, "required_public_dependencies")
     if required_dependencies != [PUBLIC_MODBUS]:
         raise PolicyError("the public modbus module must be the sole dependency")
+    string_list(policy, "allowed_public_dependencies")
     allowed_projects = set(string_list(policy, "allowed_project_import_prefixes"))
     if allowed_projects != {PUBLIC_MODBUS, MODULE_PATH}:
         raise PolicyError("project import boundary is invalid")
+    string_text(policy, "driver_leaf_directory")
+    string_list(policy, "driver_leaf_allowed_import_prefixes")
     if set(string_list(policy, "allowed_non_io_net_imports")) != {"net/url"}:
         raise PolicyError("net/url must be the only non-I/O net exception")
     if not REQUIRED_FORBIDDEN_IMPORT_PREFIXES.issubset(
@@ -168,7 +185,13 @@ def project_import_allowed(import_path: str, allowed: set[str]) -> bool:
     )
 
 
-def validate_imports(imports: Iterable[str], policy: dict[str, object]) -> None:
+def in_directory(directory: str, leaf: str) -> bool:
+    return directory == leaf or directory.startswith(leaf + "/")
+
+
+def validate_imports(
+    imports: Iterable[tuple[str, str]], policy: dict[str, object]
+) -> None:
     allowed_projects = set(string_list(policy, "allowed_project_import_prefixes"))
     allowed_net = set(string_list(policy, "allowed_non_io_net_imports"))
     forbidden_prefixes = tuple(
@@ -178,8 +201,16 @@ def validate_imports(imports: Iterable[str], policy: dict[str, object]) -> None:
         token.casefold()
         for token in string_list(policy, "forbidden_product_import_tokens")
     )
+    leaf = str(policy["driver_leaf_directory"])
+    leaf_imports = set(string_list(policy, "driver_leaf_allowed_import_prefixes"))
 
-    for import_path in imports:
+    for import_path, directory in imports:
+        if import_path == PUBLIC_SEMREG or import_path.startswith(PUBLIC_SEMREG + "/"):
+            if import_path in leaf_imports and in_directory(directory, leaf):
+                continue
+            raise PolicyError(
+                f"forbidden SemReg dependency: {import_path} from {directory}"
+            )
         if import_path in allowed_net:
             continue
         if project_import_allowed(import_path, allowed_projects):
@@ -258,20 +289,66 @@ def validate_module(root: Path, policy: dict[str, object]) -> None:
         raise PolicyError(f"go.mod inspection failed: {result.stderr.strip()}")
     try:
         module = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise PolicyError("go.mod inspection returned an invalid record") from exc
+    validate_module_record(module, policy, lambda: module_graph(root))
+
+
+def module_graph(root: Path) -> str:
+    result = subprocess.run(
+        ["go", "mod", "graph"],
+        cwd=root,
+        env=offline_go_environment(),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise PolicyError(f"offline go mod graph failed: {result.stderr.strip()}")
+    return result.stdout
+
+
+def modbus_requires_sys(graph: str, modbus_version: object) -> bool:
+    edge = (f"{PUBLIC_MODBUS}@{modbus_version}", f"{SYS_MODULE}@{SYS_VERSION}")
+    return any(tuple(line.split()) == edge for line in graph.splitlines())
+
+
+def validate_module_record(
+    module: object,
+    policy: dict[str, object],
+    graph: Callable[[], str],
+) -> None:
+    try:
         module_path = module["Module"]["Path"]
-    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+    except (KeyError, TypeError) as exc:
         raise PolicyError("go.mod inspection returned an invalid record") from exc
     if module_path != policy["module_path"]:
         raise PolicyError(f"unexpected Go module path: {module_path}")
-    requirements = {
-        item.get("Path")
+    records = {
+        item.get("Path"): item
         for item in (module.get("Require") or [])
         if isinstance(item, dict)
     }
     required = set(string_list(policy, "required_public_dependencies"))
-    if requirements != required:
+    optional = set(string_list(policy, "allowed_public_dependencies"))
+    if not required.issubset(records):
         raise PolicyError(
-            f"Go dependencies differ from the public boundary: {sorted(requirements)}"
+            f"Go dependencies differ from the public boundary: {sorted(records)}"
+        )
+    for path, record in records.items():
+        if path in required or path in optional:
+            continue
+        if path == SEMREG_TEXT and PUBLIC_SEMREG in records and record.get("Indirect") is True:
+            continue
+        if (
+            path == SYS_MODULE
+            and record.get("Indirect") is True
+            and record.get("Version") == SYS_VERSION
+            and modbus_requires_sys(graph(), records[PUBLIC_MODBUS].get("Version"))
+        ):
+            continue
+        raise PolicyError(
+            f"Go dependencies differ from the public boundary: {sorted(records)}"
         )
     if module.get("Replace"):
         raise PolicyError("Go dependency replacements are forbidden")
@@ -428,16 +505,13 @@ def offline_go_environment() -> dict[str, str]:
     }
 
 
-def go_imports(root: Path) -> list[str]:
+def go_imports(root: Path) -> list[tuple[str, str]]:
+    template = (
+        "{{$module := .Module.Path}}{{$package := .ImportPath}}"
+        '{{range .Imports}}{{$module}}{{"\\t"}}{{$package}}{{"\\t"}}{{.}}{{"\\n"}}{{end}}'
+    )
     result = subprocess.run(
-        [
-            "go",
-            "list",
-            "-mod=readonly",
-            "-f",
-            '{{range .Imports}}{{.}}{{"\\n"}}{{end}}',
-            "./...",
-        ],
+        ["go", "list", "-mod=readonly", "-f", template, "./..."],
         cwd=root,
         env=offline_go_environment(),
         check=False,
@@ -446,7 +520,19 @@ def go_imports(root: Path) -> list[str]:
     )
     if result.returncode != 0:
         raise PolicyError(f"offline go list failed: {result.stderr.strip()}")
-    return sorted({line for line in result.stdout.splitlines() if line})
+    pairs: set[tuple[str, str]] = set()
+    for line in result.stdout.splitlines():
+        if not line:
+            continue
+        module, package, import_path = line.split("\t")
+        if package == module:
+            directory = "."
+        elif package.startswith(module + "/"):
+            directory = package[len(module) + 1 :]
+        else:
+            raise PolicyError(f"go list returned a package outside its module: {package}")
+        pairs.add((import_path, directory))
+    return sorted(pairs)
 
 
 def validate(root: Path) -> None:

@@ -6,9 +6,20 @@
   "required_public_dependencies": [
     "github.com/Project-Helianthus/helianthus-modbus"
   ],
+  "allowed_public_dependencies": [
+    "github.com/Project-Helianthus/helianthus-semreg"
+  ],
   "allowed_project_import_prefixes": [
     "github.com/Project-Helianthus/helianthus-modbus",
     "github.com/Project-Helianthus/helianthus-modbusreg"
+  ],
+  "driver_leaf_directory": "driver",
+  "driver_leaf_allowed_import_prefixes": [
+    "github.com/Project-Helianthus/helianthus-semreg/semreg/v1/driver",
+    "github.com/Project-Helianthus/helianthus-semreg/semreg/v1/roweval",
+    "github.com/Project-Helianthus/helianthus-semreg/semreg/v1",
+    "github.com/Project-Helianthus/helianthus-semreg/semreg/v1/catalog",
+    "github.com/Project-Helianthus/helianthus-semreg/semreg/v1/operation"
   ],
   "allowed_non_io_net_imports": [
     "net/url"

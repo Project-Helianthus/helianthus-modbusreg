@@ -133,7 +133,12 @@ This repository owns:
 - strict bounded synthetic fixture corpus serialization, replay, mutation
   classification, and deterministic conformance reports; and
 - evidence-gated, versioned vendor flavors that cannot override standard model
-  semantics or create acquisition authority.
+  semantics or create acquisition authority;
+- the mapping of Modbus profile data and operations to SemReg through the SemReg
+  driver contract, in the `driver/` leaf, which imports only the exact public
+  SemReg packages `semreg/v1`, `semreg/v1/driver`, `semreg/v1/roweval`,
+  `semreg/v1/catalog` and `semreg/v1/operation` of
+  `github.com/Project-Helianthus/helianthus-semreg`.
 
 This repository does not own:
 
@@ -141,7 +146,7 @@ This repository does not own:
 - Modbus TCP/RTU framing or arbitrary protocol operations;
 - transport I/O behind the caller-supplied read-only probe interface or
   hardware qualification execution;
-- canonical energy/PV publication policy;
+- the SemReg catalog itself (owned by `helianthus-semreg`);
 - gateway composition or private output bindings.
 
 Transport and runtime authority come from the public
