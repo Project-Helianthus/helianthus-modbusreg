@@ -42,8 +42,25 @@ var packageImportRules = map[string][]string{
 	"tesla":                          {"."},
 }
 
+// driverLeafDirectory is the driver leaf: its packages need no row and may
+// import every package of the module, and they alone may import the SemReg
+// contract packages in driverLeafAllowedImports. It is the Go view of
+// driver_leaf_directory and driver_leaf_allowed_import_prefixes in
+// policy/registry-boundary.json.
+const driverLeafDirectory = "driver"
+
+const semregModulePath = "github.com/Project-Helianthus/helianthus-semreg"
+
+var driverLeafAllowedImports = []string{
+	semregModulePath + "/semreg/v1/driver",
+	semregModulePath + "/semreg/v1/roweval",
+	semregModulePath + "/semreg/v1",
+	semregModulePath + "/semreg/v1/catalog",
+	semregModulePath + "/semreg/v1/operation",
+}
+
 func TestPackageImportDirections(t *testing.T) {
-	if findings := packageImportFindings(t, ".", packageImportRules); len(findings) != 0 {
+	if findings := packageImportFindings(t, ".", packageImportRules, driverLeafDirectory, driverLeafAllowedImports); len(findings) != 0 {
 		t.Fatalf("package import directions: %v", findings)
 	}
 }
@@ -53,7 +70,10 @@ func TestPackageImportDirections(t *testing.T) {
 // a vendor, a standard family importing a vendor or its overlay, a vendor or
 // an overlay importing outside its row, a test-support package importing the
 // root, a data package importing the root or a vendor, a top-level or nested
-// package without a row and a row without a package. The unchanged module
+// package without a row and a row without a package. The driver leaf imports
+// the root, a vendor and the exact SemReg contract packages without a finding,
+// while a package outside the leaf importing a leaf package or any SemReg
+// package beyond the exact paths is a finding. The unchanged module
 // keeps an overlay importing its standard family, a vendor importing the data
 // package, and test files, testdata and tools importing a vendor, which the
 // production import rules do not cover.
@@ -72,6 +92,7 @@ func TestPackageImportDirectionsRejectEachViolation(t *testing.T) {
 		"overlay/o.go":          "package overlay\n\nimport (\n\t_ \"example.com/synthetic\"\n\t_ \"example.com/synthetic/standard\"\n)\n",
 		"internal/support/s.go": "package support\n",
 		"data/d.go":             "package data\n",
+		"driver/x/x.go":         "package x\n",
 		"testdata/t.go":         "package t\n\nimport _ \"example.com/synthetic/alpha\"\n",
 		"tools/x/x.go":          "package main\n\nimport _ \"example.com/synthetic/alpha\"\n",
 		"alpha/data/x.txt":      "not a package\n",
@@ -89,22 +110,56 @@ func TestPackageImportDirectionsRejectEachViolation(t *testing.T) {
 		rules      map[string][]string
 		want       []string
 	}{
-		"unchanged":                          {want: nil},
-		"vendor imports vendor":              {file: "beta/c.go", text: "package beta\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"beta imports alpha"}},
-		"root imports vendor":                {file: "root_extra.go", text: "package synthetic\n\nimport _ \"example.com/synthetic/beta\"\n", want: []string{". imports beta"}},
-		"standard imports vendor":            {file: "standard/v.go", text: "package standard\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"standard imports alpha"}},
-		"standard imports overlay":           {file: "standard/o.go", text: "package standard\n\nimport _ \"example.com/synthetic/overlay\"\n", want: []string{"standard imports overlay"}},
-		"vendor imports standard":            {file: "alpha/s.go", text: "package alpha\n\nimport _ \"example.com/synthetic/standard\"\n", want: []string{"alpha imports standard"}},
-		"overlay imports vendor":             {file: "overlay/v.go", text: "package overlay\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"overlay imports alpha"}},
-		"test support imports root":          {file: "internal/support/r.go", text: "package support\n\nimport _ \"example.com/synthetic\"\n", want: []string{"internal/support imports ."}},
-		"data imports root":                  {file: "data/r.go", text: "package data\n\nimport _ \"example.com/synthetic\"\n", want: []string{"data imports ."}},
-		"data imports vendor":                {file: "data/v.go", text: "package data\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"data imports alpha"}},
-		"vendor without data row":            {rules: withRow("alpha", "."), want: []string{"alpha imports data"}},
-		"package without row":                {file: "gamma/g.go", text: "package gamma\n", want: []string{"gamma has no import row"}},
-		"row without package":                {rules: withRow("delta", "."), want: []string{"delta has no package"}},
-		"nested package without row":         {file: "alpha/inner/i.go", text: "package inner\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"alpha/inner has no import row"}},
-		"internal package without row":       {file: "internal/other/o.go", text: "package other\n", want: []string{"internal/other has no import row"}},
-		"overlay row allows only its family": {rules: withRow("overlay", "."), want: []string{"overlay imports standard"}},
+		"unchanged":                                    {want: nil},
+		"vendor imports vendor":                        {file: "beta/c.go", text: "package beta\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"beta imports alpha"}},
+		"root imports vendor":                          {file: "root_extra.go", text: "package synthetic\n\nimport _ \"example.com/synthetic/beta\"\n", want: []string{". imports beta"}},
+		"standard imports vendor":                      {file: "standard/v.go", text: "package standard\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"standard imports alpha"}},
+		"standard imports overlay":                     {file: "standard/o.go", text: "package standard\n\nimport _ \"example.com/synthetic/overlay\"\n", want: []string{"standard imports overlay"}},
+		"vendor imports standard":                      {file: "alpha/s.go", text: "package alpha\n\nimport _ \"example.com/synthetic/standard\"\n", want: []string{"alpha imports standard"}},
+		"overlay imports vendor":                       {file: "overlay/v.go", text: "package overlay\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"overlay imports alpha"}},
+		"test support imports root":                    {file: "internal/support/r.go", text: "package support\n\nimport _ \"example.com/synthetic\"\n", want: []string{"internal/support imports ."}},
+		"data imports root":                            {file: "data/r.go", text: "package data\n\nimport _ \"example.com/synthetic\"\n", want: []string{"data imports ."}},
+		"data imports vendor":                          {file: "data/v.go", text: "package data\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"data imports alpha"}},
+		"vendor without data row":                      {rules: withRow("alpha", "."), want: []string{"alpha imports data"}},
+		"package without row":                          {file: "gamma/g.go", text: "package gamma\n", want: []string{"gamma has no import row"}},
+		"row without package":                          {rules: withRow("delta", "."), want: []string{"delta has no package"}},
+		"nested package without row":                   {file: "alpha/inner/i.go", text: "package inner\n\nimport _ \"example.com/synthetic/alpha\"\n", want: []string{"alpha/inner has no import row"}},
+		"internal package without row":                 {file: "internal/other/o.go", text: "package other\n", want: []string{"internal/other has no import row"}},
+		"overlay row allows only its family":           {rules: withRow("overlay", "."), want: []string{"overlay imports standard"}},
+		"driver leaf imports root vendor and standard": {file: "driver/x/x.go", text: "package x\n\nimport (\n\t_ \"example.com/synthetic\"\n\t_ \"example.com/synthetic/beta\"\n\t_ \"example.com/synthetic/standard\"\n)\n", want: nil},
+		"driver leaf imports each contract path": {file: "driver/x/x.go", text: "package x\n\nimport (\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1/driver\"\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1/roweval\"\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1\"\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1/catalog\"\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1/operation\"\n" +
+			")\n", want: nil},
+		"driver leaf imports non contract semreg paths": {file: "driver/x/x.go", text: "package x\n\nimport (\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1/driverextra\"\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1/rowevalextra\"\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1/runtime\"\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1/driver/extra\"\n" +
+			")\n", want: []string{
+			"driver/x imports " + semregModulePath + "/semreg/v1/driver/extra",
+			"driver/x imports " + semregModulePath + "/semreg/v1/driverextra",
+			"driver/x imports " + semregModulePath + "/semreg/v1/rowevalextra",
+			"driver/x imports " + semregModulePath + "/semreg/v1/runtime",
+		}},
+		"alpha imports driver leaf": {file: "alpha/l.go", text: "package alpha\n\nimport _ \"example.com/synthetic/driver/x\"\n", want: []string{"alpha imports driver/x"}},
+		"beta imports each contract path": {file: "beta/c.go", text: "package beta\n\nimport (\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1\"\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1/catalog\"\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1/driver\"\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1/operation\"\n" +
+			"\t_ \"" + semregModulePath + "/semreg/v1/roweval\"\n" +
+			")\n", want: []string{
+			"beta imports " + semregModulePath + "/semreg/v1",
+			"beta imports " + semregModulePath + "/semreg/v1/catalog",
+			"beta imports " + semregModulePath + "/semreg/v1/driver",
+			"beta imports " + semregModulePath + "/semreg/v1/operation",
+			"beta imports " + semregModulePath + "/semreg/v1/roweval",
+		}},
+		"driver subpackage without row": {file: "driver/x/y/y.go", text: "package y\n\nimport _ \"example.com/synthetic/alpha\"\n", want: nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
@@ -128,7 +183,7 @@ func TestPackageImportDirectionsRejectEachViolation(t *testing.T) {
 			if test.rules != nil {
 				table = test.rules
 			}
-			if got := packageImportFindings(t, root, table); !reflect.DeepEqual(got, test.want) {
+			if got := packageImportFindings(t, root, table, driverLeafDirectory, driverLeafAllowedImports); !reflect.DeepEqual(got, test.want) {
 				t.Fatalf("findings=%q want=%q", got, test.want)
 			}
 		})
@@ -137,8 +192,12 @@ func TestPackageImportDirectionsRejectEachViolation(t *testing.T) {
 
 // packageImportFindings parses every Go package directory of the module at
 // root, skipping hidden, underscore, testdata and top-level tools directories,
-// and reports production imports of module packages outside the rules.
-func packageImportFindings(t *testing.T, root string, rules map[string][]string) []string {
+// and reports production imports that break the rules. A package at or below
+// leaf needs no row and may import every module package, and the SemReg
+// contract packages listed in leafImports only from there; every other
+// SemReg import is a finding, and no package outside leaf may import a
+// package at or below leaf.
+func packageImportFindings(t *testing.T, root string, rules map[string][]string, leaf string, leafImports []string) []string {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
 	if err != nil {
@@ -181,10 +240,13 @@ func packageImportFindings(t *testing.T, root string, rules map[string][]string)
 			if err != nil {
 				return err
 			}
-			if imported == module {
+			switch {
+			case imported == module:
 				imports[dir]["."] = true
-			} else if rest, ok := strings.CutPrefix(imported, module+"/"); ok {
-				imports[dir][rest] = true
+			case strings.HasPrefix(imported, module+"/"):
+				imports[dir][strings.TrimPrefix(imported, module+"/")] = true
+			case imported == semregModulePath || strings.HasPrefix(imported, semregModulePath+"/"):
+				imports[dir][imported] = true
 			}
 		}
 		return nil
@@ -194,13 +256,25 @@ func packageImportFindings(t *testing.T, root string, rules map[string][]string)
 	}
 	var findings []string
 	for dir, used := range imports {
+		inLeaf := directoryWithin(dir, leaf)
 		allowed, ok := rules[dir]
-		if !ok {
+		if !inLeaf && !ok {
 			findings = append(findings, dir+" has no import row")
 			continue
 		}
 		for imported := range used {
-			if !slices.Contains(allowed, imported) {
+			switch {
+			case imported == semregModulePath || strings.HasPrefix(imported, semregModulePath+"/"):
+				if !inLeaf || !slices.Contains(leafImports, imported) {
+					findings = append(findings, dir+" imports "+imported)
+				}
+			case directoryWithin(imported, leaf):
+				if !inLeaf {
+					findings = append(findings, dir+" imports "+imported)
+				}
+			case inLeaf:
+				// The driver leaf may import every package of the module.
+			case !slices.Contains(allowed, imported):
 				findings = append(findings, dir+" imports "+imported)
 			}
 		}
@@ -212,4 +286,8 @@ func packageImportFindings(t *testing.T, root string, rules map[string][]string)
 	}
 	sort.Strings(findings)
 	return findings
+}
+
+func directoryWithin(dir, leaf string) bool {
+	return dir == leaf || strings.HasPrefix(dir, leaf+"/")
 }

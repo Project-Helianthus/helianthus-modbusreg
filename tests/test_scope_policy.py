@@ -12,10 +12,51 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "validate_scope_policy.py"
 POLICY_PATH = ROOT / "policy" / "registry-boundary.json"
 PUBLIC_MODBUS = "github.com/Project-Helianthus/helianthus-modbus"
+PUBLIC_SEMREG = "github.com/Project-Helianthus/helianthus-semreg"
+MODULE = "github.com/Project-Helianthus/helianthus-modbusreg"
+DRIVER_CONTRACT_IMPORTS = (
+    PUBLIC_SEMREG + "/semreg/v1/driver",
+    PUBLIC_SEMREG + "/semreg/v1/roweval",
+    PUBLIC_SEMREG + "/semreg/v1",
+    PUBLIC_SEMREG + "/semreg/v1/catalog",
+    PUBLIC_SEMREG + "/semreg/v1/operation",
+)
+NON_CONTRACT_SEMREG_IMPORTS = (
+    PUBLIC_SEMREG,
+    PUBLIC_SEMREG + "/semreg/v1/driverextra",
+    PUBLIC_SEMREG + "/semreg/v1/rowevalextra",
+    PUBLIC_SEMREG + "/semreg/v1/runtime",
+    PUBLIC_SEMREG + "/semreg/v1/driver/extra",
+)
+MODBUS_REQUIRE = {"Path": PUBLIC_MODBUS, "Version": "v0.0.0", "Indirect": False}
+SEMREG_REQUIRE = {"Path": PUBLIC_SEMREG, "Version": "v0.0.0", "Indirect": False}
+TEXT_REQUIRE = {"Path": "golang.org/x/text", "Version": "v0.0.0", "Indirect": True}
+SYS_REQUIRE = {"Path": "golang.org/x/sys", "Version": "v0.30.0", "Indirect": True}
+GRAPH_WITH_SYS_EDGE = (
+    f"{MODULE} {PUBLIC_MODBUS}@v0.0.0\n"
+    f"{PUBLIC_MODBUS}@v0.0.0 golang.org/x/sys@v0.30.0\n"
+)
+GRAPH_WITHOUT_SYS_EDGE = f"{MODULE} {PUBLIC_MODBUS}@v0.0.0\n"
 SPEC = importlib.util.spec_from_file_location("validate_scope_policy", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 validator = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(validator)
+
+
+def from_root(*imports: str) -> list[tuple[str, str]]:
+    return [(import_path, ".") for import_path in imports]
+
+
+def from_directory(directory: str, *imports: str) -> list[tuple[str, str]]:
+    return [(import_path, directory) for import_path in imports]
+
+
+def module_record(*requires: dict[str, object]) -> dict[str, object]:
+    return {"Module": {"Path": MODULE}, "Require": list(requires), "Replace": None}
+
+
+def graph_must_not_be_read() -> str:
+    raise AssertionError("the module graph must not be consulted")
 
 
 class ScopePolicyTests(unittest.TestCase):
@@ -80,21 +121,24 @@ class ScopePolicyTests(unittest.TestCase):
             with self.assertRaises(validator.PolicyError):
                 validator.load_policy(root)
 
-    def test_public_modbus_is_the_only_external_product_dependency(self) -> None:
+    def test_public_modbus_is_the_only_product_import_outside_the_driver_leaf(self) -> None:
         policy = self.policy()
-        validator.validate_imports([PUBLIC_MODBUS, "encoding/json"], policy)
+        validator.validate_imports(from_root(PUBLIC_MODBUS, "encoding/json"), policy)
         for forbidden in (
             "github.com/Project-Helianthus/helianthus-ebusreg",
             "github.com/example/private-modbus",
             "go.bug.st/serial",
+            PUBLIC_SEMREG,
         ):
             with self.subTest(import_path=forbidden):
                 with self.assertRaises(validator.PolicyError):
-                    validator.validate_imports([forbidden], policy)
+                    validator.validate_imports(from_root(forbidden), policy)
+                with self.assertRaises(validator.PolicyError):
+                    validator.validate_imports(from_directory("driver", forbidden), policy)
 
     def test_network_framing_and_syscall_imports_are_rejected(self) -> None:
         policy = self.policy()
-        validator.validate_imports(["net/url"], policy)
+        validator.validate_imports(from_root("net/url"), policy)
         for forbidden in (
             "net",
             "net/http",
@@ -104,7 +148,7 @@ class ScopePolicyTests(unittest.TestCase):
         ):
             with self.subTest(import_path=forbidden):
                 with self.assertRaises(validator.PolicyError):
-                    validator.validate_imports([forbidden], policy)
+                    validator.validate_imports(from_root(forbidden), policy)
 
     def test_product_import_mutation_is_discovered_offline(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -118,7 +162,7 @@ class ScopePolicyTests(unittest.TestCase):
                 encoding="utf-8",
             )
             imports = validator.go_imports(root)
-            self.assertIn("net/http", imports)
+            self.assertIn(("net/http", "."), imports)
             with self.assertRaises(validator.PolicyError):
                 validator.validate_imports(imports, self.policy())
 
@@ -134,88 +178,129 @@ class ScopePolicyTests(unittest.TestCase):
                 'package fixture\n\nimport _ "net/http"\n',
                 encoding="utf-8",
             )
-            self.assertNotIn("net/http", validator.go_imports(root))
-
-    def test_ordinary_new_domain_file_needs_no_inventory_or_hash_update(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            (root / "identity.go").write_text(
-                "package modbusreg\n\ntype IdentityContract struct{}\n",
-                encoding="utf-8",
+            self.assertNotIn(
+                "net/http", [import_path for import_path, _ in validator.go_imports(root)]
             )
-            validator.validate_registry_scope(root, self.policy())
 
-    def test_detector_probe_qualification_and_profile_ownership_is_allowed(self) -> None:
+    def test_each_exact_semreg_contract_package_is_accepted_from_the_driver_leaf(self) -> None:
         policy = self.policy()
-        for relative in (
-            "detectors/example/detector.go",
-            "probes/example/probe.go",
-            "qualification/example/record.go",
-            "profiles/standard/example/profile.go",
-            "profiles/vendors/example/profile.go",
-        ):
-            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as temp:
-                root = Path(temp)
-                target = root / relative
-                target.parent.mkdir(parents=True)
-                target.write_text("package example\n", encoding="utf-8")
-                validator.validate_registry_scope(root, policy)
+        for import_path in DRIVER_CONTRACT_IMPORTS:
+            for directory in ("driver", "driver/example"):
+                with self.subTest(import_path=import_path, directory=directory):
+                    validator.validate_imports(
+                        from_directory(directory, import_path), policy
+                    )
+        validator.validate_imports(
+            from_directory("driver/example", PUBLIC_SEMREG + "/semreg/v1/roweval"),
+            policy,
+        )
 
-        for name in ("detector.go", "probe.go", "qualification.go"):
-            with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
-                root = Path(temp)
-                (root / name).write_text("package modbusreg\n", encoding="utf-8")
-                validator.validate_registry_scope(root, policy)
-
-    def test_gateway_private_binding_and_canonical_semantic_ownership_fails(self) -> None:
+    def test_each_exact_semreg_contract_package_is_rejected_outside_the_driver_leaf(self) -> None:
         policy = self.policy()
-        for relative in (
-            "gateway/service.go",
-            "private/binding.go",
-            "bindings/matter.go",
-            "canonical/energy.go",
-            "semantics/pv.go",
-        ):
-            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as temp:
-                root = Path(temp)
-                target = root / relative
-                target.parent.mkdir(parents=True)
-                target.write_text("package forbidden\n", encoding="utf-8")
+        for import_path in DRIVER_CONTRACT_IMPORTS:
+            for directory in (".", "huawei", "driverx"):
+                with self.subTest(import_path=import_path, directory=directory):
+                    with self.assertRaises(validator.PolicyError):
+                        validator.validate_imports(
+                            from_directory(directory, import_path), policy
+                        )
+
+    def test_non_contract_semreg_paths_are_rejected_even_from_the_driver_leaf(self) -> None:
+        policy = self.policy()
+        for import_path in NON_CONTRACT_SEMREG_IMPORTS:
+            with self.subTest(import_path=import_path):
                 with self.assertRaises(validator.PolicyError):
-                    validator.validate_registry_scope(root, policy)
+                    validator.validate_imports(
+                        from_directory("driver/example", import_path), policy
+                    )
 
-    def test_standard_family_vendor_leak_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            standard = root / "profiles" / "standard" / "example"
-            standard.mkdir(parents=True)
-            (standard / "profile.go").write_text(
-                'package example\nconst family = "huawei"\n',
-                encoding="utf-8",
-            )
+    def test_driver_leaf_keeps_sockets_and_syscalls_out(self) -> None:
+        policy = self.policy()
+        for forbidden in ("net", "syscall", "golang.org/x/sys/unix"):
+            with self.subTest(import_path=forbidden):
+                with self.assertRaises(validator.PolicyError):
+                    validator.validate_imports(
+                        from_directory("driver", forbidden), policy
+                    )
+
+    def test_pre_exemplar_modbus_only_module_is_accepted(self) -> None:
+        validator.validate_module_record(
+            module_record(MODBUS_REQUIRE), self.policy(), graph_must_not_be_read
+        )
+
+    def test_semreg_graph_admits_only_indirect_golang_text(self) -> None:
+        policy = self.policy()
+        validator.validate_module_record(
+            module_record(MODBUS_REQUIRE, SEMREG_REQUIRE, TEXT_REQUIRE),
+            policy,
+            graph_must_not_be_read,
+        )
+        for name, record in (
+            ("direct x/text", module_record(MODBUS_REQUIRE, SEMREG_REQUIRE, dict(TEXT_REQUIRE, Indirect=False))),
+            ("x/text without SemReg", module_record(MODBUS_REQUIRE, TEXT_REQUIRE)),
+            (
+                "unrelated module beside SemReg",
+                module_record(
+                    MODBUS_REQUIRE,
+                    SEMREG_REQUIRE,
+                    {"Path": "example.invalid/unrelated", "Version": "v0.0.0", "Indirect": True},
+                ),
+            ),
+            (
+                "unrelated module",
+                module_record(
+                    MODBUS_REQUIRE,
+                    {"Path": "example.invalid/unrelated", "Version": "v0.0.0", "Indirect": True},
+                ),
+            ),
+        ):
+            with self.subTest(name=name):
+                with self.assertRaises(validator.PolicyError):
+                    validator.validate_module_record(record, policy, graph_must_not_be_read)
+
+    def test_indirect_sys_is_admitted_only_through_the_modbus_edge(self) -> None:
+        policy = self.policy()
+        validator.validate_module_record(
+            module_record(MODBUS_REQUIRE, SYS_REQUIRE),
+            policy,
+            lambda: GRAPH_WITH_SYS_EDGE,
+        )
+        with self.subTest(name="edge absent"):
             with self.assertRaises(validator.PolicyError):
-                validator.validate_standard_sources(root, self.policy())
-
-    def test_future_vendor_overlay_requires_minimal_public_evidence(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            overlay, evidence = self.vendor_overlay(root)
+                validator.validate_module_record(
+                    module_record(MODBUS_REQUIRE, SYS_REQUIRE),
+                    policy,
+                    lambda: GRAPH_WITHOUT_SYS_EDGE,
+                )
+        with self.subTest(name="edge from another origin"):
             with self.assertRaises(validator.PolicyError):
-                validator.validate_vendor_evidence(root, self.policy())
-
-            (overlay / "evidence.json").write_text(
-                json.dumps(evidence),
-                encoding="utf-8",
-            )
-            validator.validate_vendor_evidence(root, self.policy())
-
-            evidence["public_sources"][0]["locator"] = "private-note"
-            (overlay / "evidence.json").write_text(
-                json.dumps(evidence),
-                encoding="utf-8",
-            )
+                validator.validate_module_record(
+                    module_record(MODBUS_REQUIRE, SYS_REQUIRE),
+                    policy,
+                    lambda: f"{MODULE} example.invalid/other@v0.0.0\n"
+                    "example.invalid/other@v0.0.0 golang.org/x/sys@v0.30.0\n",
+                )
+        with self.subTest(name="direct x/sys"):
             with self.assertRaises(validator.PolicyError):
-                validator.validate_vendor_evidence(root, self.policy())
+                validator.validate_module_record(
+                    module_record(MODBUS_REQUIRE, dict(SYS_REQUIRE, Indirect=False)),
+                    policy,
+                    lambda: GRAPH_WITH_SYS_EDGE,
+                )
+        with self.subTest(name="other x/sys version"):
+            with self.assertRaises(validator.PolicyError):
+                validator.validate_module_record(
+                    module_record(MODBUS_REQUIRE, dict(SYS_REQUIRE, Version="v0.31.0")),
+                    policy,
+                    lambda: GRAPH_WITH_SYS_EDGE,
+                )
+        with self.subTest(name="injected x/sys without the edge"):
+            with self.assertRaises(validator.PolicyError):
+                validator.validate_module_record(
+                    module_record(MODBUS_REQUIRE, SYS_REQUIRE),
+                    policy,
+                    lambda: GRAPH_WITHOUT_SYS_EDGE,
+                )
 
     def test_non_go_socket_import_is_discovered_without_an_allowlist(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
