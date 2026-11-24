@@ -3,6 +3,7 @@ package fronius
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -294,24 +295,14 @@ func TestSunSpecQualificationObservationFailsClosed(t *testing.T) {
 	registry := sunspecfixture.Registry(t)
 	valid := qualificationSnapshot(t, registry)
 
-	noMatchOccurrences := valid.Occurrences()
-	noMatchOccurrences[0] = sunspecfixture.CommonOccurrence(t, registry, "Fronius", "Symo GEN24 10.0", "1.41.11-2", 1)
-	noMatch := qualificationSnapshotWithOccurrences(t, registry, noMatchOccurrences)
-
-	unknownOccurrence := sunspecfixture.Occurrence(t, registry, []uint16{999, 1, 7}, 9)
-	if unknownOccurrence.Disposition != sunspec.ChainDispositionUnknownModel {
-		t.Fatalf("unknown occurrence disposition=%q", unknownOccurrence.Disposition)
-	}
-	unknown := qualificationSnapshotWithOccurrences(t, registry, append(valid.Occurrences(), unknownOccurrence))
-
-	unsupportedOccurrences := valid.Occurrences()
-	unsupportedWords := make([]uint16, 27)
-	unsupportedWords[0], unsupportedWords[1] = 123, 25
-	unsupportedOccurrences[5] = sunspecfixture.Occurrence(t, registry, unsupportedWords, 6)
-	if unsupportedOccurrences[5].Disposition != sunspec.ChainDispositionUnsupportedLength {
-		t.Fatalf("unsupported occurrence disposition=%q", unsupportedOccurrences[5].Disposition)
-	}
-	unsupported := qualificationSnapshotWithOccurrences(t, registry, unsupportedOccurrences)
+	sourceAbsent := qualificationSnapshotWithOccurrences(t, registry, []sunspec.Occurrence{
+		sunspecfixture.CommonOccurrence(t, registry, froniusTestManufacturer, froniusTestModel, froniusTestFirmwareV1, 1),
+	})
+	ambiguousSource := qualificationSnapshotWithOccurrences(t, registry, []sunspec.Occurrence{
+		sunspecfixture.CommonOccurrence(t, registry, froniusTestManufacturer, froniusTestModel, froniusTestFirmwareV1, 1),
+		sunspecfixture.InverterOccurrence(t, registry, 113, nil, 2),
+		sunspecfixture.InverterOccurrence(t, registry, 103, nil, 3),
+	})
 
 	// The selector itself must remain fail-closed if future registry definitions overlap.
 	if selected := selectSunSpecFroniusFlavor([]SunSpecFroniusFlavorDecision{EvaluateObservedFlavorV11(registry, valid), EvaluateObservedFlavorV11(registry, valid)}); selected.Matched() || selected.Reason() != SunSpecFroniusFlavorSelectionReasonAmbiguousMatch {
@@ -339,9 +330,8 @@ func TestSunSpecQualificationObservationFailsClosed(t *testing.T) {
 	})
 
 	for name, snapshot := range map[string]sunspec.ChainSnapshot{
-		"no match":           noMatch,
-		"unknown occurrence": unknown,
-		"unsupported":        unsupported,
+		"source absent":      sourceAbsent,
+		"ambiguous source":   ambiguousSource,
 		"ambiguous identity": ambiguous,
 		"nonterminal":        nonterminal,
 		"mixed provenance":   mixedProvenance,
@@ -352,6 +342,133 @@ func TestSunSpecQualificationObservationFailsClosed(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Each case changes one field of an otherwise matched identity. Poll generation
+// and deadline identity are distinct, so a swap of those two fields fails.
+// Matching a flavor anyway means the check for the changed field was dropped.
+// Rejecting the chain means an admitted chain was still refused because no
+// flavor matched.
+func TestSunSpecQualificationObservationAdmitsChainWhenFlavorIsNotObserved(t *testing.T) {
+	registry := sunspecfixture.Registry(t)
+	matched := qualificationSnapshot(t, registry)
+	unknownOccurrence := sunspecfixture.Occurrence(t, registry, []uint16{999, 1, 7}, 9)
+	if unknownOccurrence.Disposition != sunspec.ChainDispositionUnknownModel {
+		t.Fatalf("unknown occurrence disposition=%q", unknownOccurrence.Disposition)
+	}
+	unsupportedOccurrences := matched.Occurrences()
+	unsupportedWords := make([]uint16, 27)
+	unsupportedWords[0], unsupportedWords[1] = 123, 25
+	unsupportedOccurrences[5] = sunspecfixture.Occurrence(t, registry, unsupportedWords, 6)
+	if unsupportedOccurrences[5].Disposition != sunspec.ChainDispositionUnsupportedLength {
+		t.Fatalf("unsupported occurrence disposition=%q", unsupportedOccurrences[5].Disposition)
+	}
+	cases := []struct {
+		name           string
+		poll, deadline uint64
+		snapshot       sunspec.ChainSnapshot
+	}{
+		{name: "manufacturer", poll: 41, deadline: 42, snapshot: withQualificationIdentity(t, qualificationSnapshotWithCommonIdentity(t, registry, "Synthetic", froniusTestModel, froniusTestFirmwareV1), 41, 42)},
+		{name: "model", poll: 43, deadline: 44, snapshot: withQualificationIdentity(t, qualificationSnapshotWithCommonIdentity(t, registry, froniusTestManufacturer, "Public", froniusTestFirmwareV1), 43, 44)},
+		{name: "firmware", poll: 45, deadline: 46, snapshot: withQualificationIdentity(t, qualificationSnapshotWithCommonIdentity(t, registry, froniusTestManufacturer, froniusTestModel, "1.41.11-2"), 45, 46)},
+		{name: "chain", poll: 47, deadline: 48, snapshot: withQualificationIdentity(t, qualificationSnapshotWithOccurrences(t, registry, []sunspec.Occurrence{
+			sunspecfixture.CommonOccurrence(t, registry, froniusTestManufacturer, froniusTestModel, froniusTestFirmwareV1, 1),
+			sunspecfixture.InverterOccurrence(t, registry, 113, nil, 2),
+		}), 47, 48)},
+		{name: "unknown model", poll: 49, deadline: 50, snapshot: withQualificationIdentity(t, qualificationSnapshotWithOccurrences(t, registry, append(matched.Occurrences(), unknownOccurrence)), 49, 50)},
+		{name: "unsupported length", poll: 51, deadline: 52, snapshot: withQualificationIdentity(t, qualificationSnapshotWithOccurrences(t, registry, unsupportedOccurrences), 51, 52)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assertNotObservedObservation(t, registry, tc.snapshot, tc.poll, tc.deadline)
+		})
+	}
+}
+
+func assertNotObservedObservation(t *testing.T, registry sunspec.DecoderRegistry, snapshot sunspec.ChainSnapshot, poll, deadline uint64) {
+	t.Helper()
+	base, err := sunspec.NewObservation(registry, snapshot)
+	if err != nil {
+		t.Fatalf("NewObservation: %v", err)
+	}
+	observation, err := NewSunSpecQualificationObservation(registry, snapshot)
+	if err != nil {
+		t.Fatalf("NewSunSpecQualificationObservation: %v", err)
+	}
+	if !observation.Capability().Admitted() || observation.Capability().Reason() != sunspec.CapabilityReasonAdmitted || observation.Capability().ProfileID() != sunspec.ThreePhaseMonitoringCapabilityID || len(observation.Capability().Facts()) < len(sunspec.ThreePhaseMonitoringFieldIDs()) {
+		t.Fatalf("capability=%#v facts=%d", observation.Capability(), len(observation.Capability().Facts()))
+	}
+	flavor := observation.Flavor()
+	if flavor.Matched() || flavor.Reason() != SunSpecFroniusFlavorReason("NOT_OBSERVED") || flavor.FlavorID() != "sunspec.flavor.not_observed" || supportedSunSpecQualificationFlavorID(flavor.FlavorID()) || len(flavor.Chain()) != 0 || len(flavor.SourceViews()) != 0 {
+		t.Fatalf("flavor id=%q reason=%q matched=%t chain=%d views=%d", flavor.FlavorID(), flavor.Reason(), flavor.Matched(), len(flavor.Chain()), len(flavor.SourceViews()))
+	}
+	if observation.SampleID() != base.SampleID() || observation.SampleID() != fmt.Sprintf("sunspec-%d-%d", poll, deadline) {
+		t.Fatalf("sample id=%q base=%q", observation.SampleID(), base.SampleID())
+	}
+	identity := observation.SampleIdentity()
+	if identity.PollGeneration() != poll || identity.DeadlineIdentity() != deadline || base.SampleIdentity().PollGeneration() != poll || base.SampleIdentity().DeadlineIdentity() != deadline {
+		t.Fatalf("identity poll=%d deadline=%d base poll=%d deadline=%d", identity.PollGeneration(), identity.DeadlineIdentity(), base.SampleIdentity().PollGeneration(), base.SampleIdentity().DeadlineIdentity())
+	}
+	if !reflect.DeepEqual(observation.Chain(), base.Chain()) || !reflect.DeepEqual(observation.RawWords(), base.RawWords()) || !reflect.DeepEqual(observation.Occurrences(), base.Occurrences()) || !reflect.DeepEqual(observation.SourceViews(), base.SourceViews()) {
+		t.Fatal("qualification observation did not retain the vendor-neutral observation")
+	}
+	assertNotObservedQualificationJSON(t, observation, poll, deadline)
+}
+
+func assertNotObservedQualificationJSON(t *testing.T, observation SunSpecQualificationObservation, poll, deadline uint64) {
+	t.Helper()
+	first, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+	second, err := json.Marshal(observation)
+	if err != nil || !bytes.Equal(first, second) {
+		t.Fatalf("qualification JSON is not deterministic: %v", err)
+	}
+	var got serializedQualificationObservation
+	if err := json.Unmarshal(first, &got); err != nil {
+		t.Fatalf("unmarshal qualification JSON: %v", err)
+	}
+	if got.Schema != sunSpecQualificationObservationSchema || got.CapabilityReason != sunspec.CapabilityReasonAdmitted || got.CapabilityID != observation.Capability().ProfileID() || got.FlavorReason != SunSpecFroniusFlavorReason("NOT_OBSERVED") || got.FlavorID != "sunspec.flavor.not_observed" || got.SampleID != fmt.Sprintf("sunspec-%d-%d", poll, deadline) || got.SampleIdentity.PollGeneration != poll || got.SampleIdentity.DeadlineIdentity != deadline || !reflect.DeepEqual(got.Chain, observation.Chain()) || !reflect.DeepEqual(got.RawWords, observation.RawWords()) {
+		t.Fatalf("serialized observation schema=%s capability=%s/%s flavor=%s/%s sample=%s identity=%+v", got.Schema, got.CapabilityID, got.CapabilityReason, got.FlavorID, got.FlavorReason, got.SampleID, got.SampleIdentity)
+	}
+	if len(got.Occurrences) != len(observation.Occurrences()) || len(got.SourceViews) != len(observation.SourceViews()) || len(got.Occurrences) == 0 || len(got.SourceViews) == 0 {
+		t.Fatalf("serialized evidence occurrences=%d source_views=%d", len(got.Occurrences), len(got.SourceViews))
+	}
+	for index, gotOccurrence := range got.Occurrences {
+		wantOccurrence := observation.Occurrences()[index]
+		wantDecoderKey, wantHasDecoderKey := wantOccurrence.DecoderKey()
+		if gotOccurrence.Ordinal != wantOccurrence.Ordinal || gotOccurrence.WireKey != wantOccurrence.WireKey || gotOccurrence.SchemaRevision != wantOccurrence.SchemaRevision || gotOccurrence.HeaderOffset != wantOccurrence.HeaderOffset || gotOccurrence.PayloadOffset != wantOccurrence.PayloadOffset || gotOccurrence.Disposition != wantOccurrence.Disposition || !reflect.DeepEqual(gotOccurrence.Words, wantOccurrence.Words()) || !reflect.DeepEqual(gotOccurrence.SourceSpans, wantOccurrence.SourceSpans()) || (gotOccurrence.DecoderKey != nil) != wantHasDecoderKey || wantHasDecoderKey && *gotOccurrence.DecoderKey != wantDecoderKey {
+			t.Fatalf("serialized occurrence %d=%#v does not retain source=%#v", index, gotOccurrence, wantOccurrence)
+		}
+	}
+	for index, gotView := range got.SourceViews {
+		wantView := observation.SourceViews()[index].Record()
+		if gotView.LogicalViewID != wantView.LogicalViewID || gotView.WireResponseID != wantView.WireResponseID || gotView.PhysicalRequestID != wantView.PhysicalRequestID || gotView.Endpoint != wantView.Endpoint || gotView.ConnectionID != wantView.ConnectionID || gotView.Transport != wantView.Transport || gotView.TransportGeneration != wantView.TransportGeneration || gotView.UnitID != wantView.UnitID || gotView.RequestedFunction != wantView.RequestedFunction || gotView.ReceivedFunction != wantView.ReceivedFunction || gotView.Table != wantView.Table || gotView.PhysicalOffset != wantView.PhysicalOffset || gotView.PhysicalWordCount != wantView.PhysicalWordCount || gotView.AuthorizationScope != wantView.AuthorizationScope || gotView.PollGeneration != wantView.PollGeneration || gotView.DeadlineIdentity != wantView.DeadlineIdentity || gotView.LogicalOffset != wantView.LogicalOffset || gotView.LogicalWordCount != wantView.LogicalWordCount || gotView.SliceOffset != wantView.SliceOffset || gotView.SliceWordCount != wantView.SliceWordCount || !reflect.DeepEqual(gotView.Words, wantView.Words) || !reflect.DeepEqual(gotView.WireResponseBytes, wantView.WireResponseBytes) {
+			t.Fatalf("serialized source view %d does not retain source", index)
+		}
+		if gotView.PollGeneration != poll || gotView.DeadlineIdentity != deadline {
+			t.Fatalf("serialized source view %d identity poll=%d deadline=%d", index, gotView.PollGeneration, gotView.DeadlineIdentity)
+		}
+	}
+}
+
+func qualificationSnapshotWithCommonIdentity(t *testing.T, registry sunspec.DecoderRegistry, manufacturer, model, firmware string) sunspec.ChainSnapshot {
+	t.Helper()
+	occurrences := qualificationSnapshot(t, registry).Occurrences()
+	occurrences[0] = sunspecfixture.CommonOccurrence(t, registry, manufacturer, model, firmware, 1)
+	return qualificationSnapshotWithOccurrences(t, registry, occurrences)
+}
+
+func withQualificationIdentity(t *testing.T, snapshot sunspec.ChainSnapshot, poll, deadline uint64) sunspec.ChainSnapshot {
+	t.Helper()
+	return sunspecfixture.WithRecords(t, snapshot, func(records []modbusreg.LogicalViewRecord) []modbusreg.LogicalViewRecord {
+		for index := range records {
+			records[index].PollGeneration = poll
+			records[index].DeadlineIdentity = deadline
+		}
+		return records
+	})
 }
 
 func qualificationSnapshot(t *testing.T, registry sunspec.DecoderRegistry) sunspec.ChainSnapshot {
