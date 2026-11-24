@@ -180,8 +180,6 @@ const (
 	huaweiIdentityAdmitted     = "OFFLINE_IDENTITY_ADMITTED"
 	huaweiIdentityObservedOnly = "OBSERVED_TUPLE_ONLY"
 	huaweiProfileAdmitted      = "OFFLINE_PROFILE_ADMITTED"
-	huaweiStopObservedIdentity = "IDENTITY_OF_OBSERVED_TUPLE_ONLY"
-	huaweiLiveIOOperatorAtTime = "OPERATOR_APPROVAL_AT_ACTION_TIME"
 )
 
 // RecordedProviderDisposition returns the recorded disposition of a path.
@@ -199,7 +197,6 @@ func RecordedProviderDisposition(path ProviderPath) (ProviderDisposition, bool) 
 		return ProviderDisposition{
 			Path: path, IdentityCard: SDongleObservedQualificationCardID, IdentityStatus: huaweiIdentityAdmitted,
 			IdentityGateRegistered: true, IdentityScope: huaweiIdentityObservedOnly,
-			RecordedStop: huaweiStopObservedIdentity, FurtherLiveIO: huaweiLiveIOOperatorAtTime,
 			ChildProfiles: []ProviderChildDisposition{
 				{Family: huaweiSUN2000M1Family, ProfileID: SUN2000M1MonitoringProfileID, Outcome: huaweiProfileAdmitted},
 			},
@@ -243,9 +240,8 @@ type ProviderEnablement struct {
 
 // EvaluateHuaweiProviderEnablement admits a path only when its gateway
 // identity is admitted for the observed tuple, at least one child monitoring
-// profile of that gateway card is admitted, any recorded stop is superseded for
-// the observed identity, and every authority field is false. Anything else
-// refuses.
+// profile of that gateway card is admitted, no recorded stop is in force, and
+// every authority field is false. Anything else refuses.
 func EvaluateHuaweiProviderEnablement(d ProviderDisposition) ProviderEnablement {
 	refuse := func(reason ProviderEnablementReason, detail ...string) ProviderEnablement {
 		return ProviderEnablement{Path: d.Path, Reason: reason, Detail: detail}
@@ -286,10 +282,7 @@ func EvaluateHuaweiProviderEnablement(d ProviderDisposition) ProviderEnablement 
 	if d.IdentityCard != card || d.IdentityStatus != huaweiIdentityAdmitted || !d.IdentityGateRegistered || d.IdentityScope != huaweiIdentityObservedOnly {
 		return refuse(ProviderIdentityNotAdmitted)
 	}
-	switch {
-	case d.RecordedStop == "" && d.FurtherLiveIO == "":
-	case d.RecordedStop == huaweiStopObservedIdentity && d.FurtherLiveIO == huaweiLiveIOOperatorAtTime:
-	default:
+	if d.RecordedStop != "" || d.FurtherLiveIO != "" {
 		return refuse(ProviderRecordedStopInForce)
 	}
 	return ProviderEnablement{Path: d.Path, Admitted: true, Reason: ProviderEnabled, Profiles: admitted}
