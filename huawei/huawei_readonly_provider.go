@@ -3,6 +3,7 @@ package huawei
 import (
 	"context"
 	"errors"
+	"slices"
 	"strconv"
 	"time"
 
@@ -856,7 +857,7 @@ type huaweiProviderState struct {
 func (s *huaweiProviderState) clone() *huaweiProviderState {
 	copied := *s
 	copied.guard = append([]uint16(nil), s.guard...)
-	copied.listing = append([]GatewayInventoryChild(nil), s.listing...)
+	copied.listing = slices.Clone(s.listing)
 	copied.carriedRefusals = make(map[uint8]map[string]bool, len(s.carriedRefusals))
 	for unit, keys := range s.carriedRefusals {
 		copied.carriedRefusals[unit] = make(map[string]bool, len(keys))

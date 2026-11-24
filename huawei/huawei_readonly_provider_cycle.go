@@ -646,8 +646,16 @@ func (r *huaweiCycleRun) childAdmissionRead(child *huaweiChildState, result huaw
 		if result.last == ProviderExchangeTimeout {
 			reason = ProviderReasonChildTimeout
 		}
+		if child.emmaPlan != nil {
+			r.monitorEMMAChild(child, reason)
+			return false
+		}
 		r.out.Children = append(r.out.Children, r.childObservation(child, huaweiStaleOrWithheld(child), reason, nil))
 	case huaweiReadException:
+		if r.core.path == ProviderPathEMMA {
+			child.catalog = nil
+			return r.withholdEMMAChild(child, ProviderReasonIdentityInsuff, true)
+		}
 		child.withhold(ProviderReasonIdentityInsuff, nil)
 		r.out.Children = append(r.out.Children, r.childObservation(child, ProviderEvidenceWithheld, child.definitive, nil))
 	}

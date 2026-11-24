@@ -57,7 +57,7 @@ func (p *EMMAReadOnlyProvider) LastComplete() (ProviderCycle, bool) { return p.c
 func runHuaweiEMMACycle(r *huaweiCycleRun) {
 	s := r.state
 	defer func() { r.out.Gateway = s.gateway }()
-	if !s.identified && !r.identifyEMMA() {
+	if (!s.identified && !r.identifyEMMA()) || (s.listing == nil && !r.acquireEMMAListing()) {
 		if !r.stopped() {
 			r.readEMMASite(false)
 			r.staleChildren(r.out.Reason, true)
@@ -117,29 +117,37 @@ func (r *huaweiCycleRun) identifyEMMA() bool {
 	if fields[0] != card.FamilyLabel() || !decision.Matched() {
 		return r.rejectEMMAIdentity()
 	}
-	identifiedAt := r.link.lastEnd
 	model, build := decision.ModelVariant(), decision.Selection().Build()
-	listing, ok := r.readEMMAListing(card)
-	if r.stopped() {
-		return false
-	}
-	if ok && emmaSelfConflicts(listing.self, model, build, card.Product()) {
-		return r.rejectEMMAIdentity()
-	}
-	if s.gateway.Model != model || s.gateway.Firmware != build {
+	// Before the first committed identity, only refusals can have carried over.
+	if s.gateway.Model != "" && (s.gateway.Model != model || s.gateway.Firmware != build) {
 		r.clearEMMAReadings()
 	}
 	s.identified, s.identityGeneration, s.gatewayFenced, s.endpointFailures = true, r.generation, false, 0
 	s.gateway = ProviderGatewayIdentity{CardID: card.ID(), Class: card.CandidateClass(), UnitID: card.UnitID(), Model: model,
-		Firmware: build, State: ProviderGatewayIdentified, Generation: r.generation, IdentifiedAt: identifiedAt}
+		Firmware: build, State: ProviderGatewayIdentified, Generation: r.generation, IdentifiedAt: r.link.lastEnd}
 	s.listing = nil
-	if ok {
-		// Unguarded listing routes only; the child must corroborate its own identity.
-		s.listing = append([]GatewayInventoryChild{}, listing.inventory.Children()...)
-	}
 	for _, child := range s.children {
 		child.definitive, child.identifiedGeneration, child.skipUntil = "", 0, 0
 	}
+	return true
+}
+
+func (r *huaweiCycleRun) acquireEMMAListing() bool {
+	card := NewEMMAObservedQualificationCard()
+	listing, ok := r.readEMMAListing(card)
+	if r.stopped() {
+		return false
+	}
+	if !ok {
+		// Leave the listing unconfirmed for the next cycle; site identity still holds.
+		return true
+	}
+	gateway := r.state.gateway
+	if emmaSelfConflicts(listing.self, gateway.Model, gateway.Firmware, card.Product()) {
+		return r.rejectEMMAIdentity()
+	}
+	// Unguarded listing routes only; the child must corroborate its own identity.
+	r.state.listing = append([]GatewayInventoryChild{}, listing.inventory.Children()...)
 	return true
 }
 
@@ -150,6 +158,7 @@ func emmaSelfConflicts(self GatewayInventoryChild, model, build, product string)
 
 func (r *huaweiCycleRun) rejectEMMAIdentity() bool {
 	r.clearEMMAReadings()
+	r.state.identified = false
 	r.state.gateway = ProviderGatewayIdentity{State: ProviderGatewayInsufficient}
 	r.state.gatewayFenced = true
 	r.out.Outcome, r.out.Reason = ProviderCycleInsufficient, ProviderReasonGatewayMismatch
@@ -241,14 +250,14 @@ func (r *huaweiCycleRun) readEMMAChildren() {
 		case child.definitive != "":
 			r.withholdEMMAChild(child, child.definitive, false)
 		case child.skipUntil > r.cycle:
-			if child.identifiedGeneration == r.generation {
-				r.monitorEMMAChild(child, false)
+			if child.emmaPlan != nil {
+				r.monitorEMMAChild(child, ProviderReasonChildBackoff)
 			} else {
 				r.withholdEMMAChild(child, ProviderReasonChildBackoff, false)
 			}
 		default:
 			if child.identifiedGeneration == r.generation || r.identifyEMMAChild(child, entry.Attribute("model")) {
-				r.monitorEMMAChild(child, true)
+				r.monitorEMMAChild(child, "")
 			}
 		}
 		if r.stopped() {
@@ -341,13 +350,16 @@ func sameEMMAChildIdentity(old, next huaweiEMMAChildPlan, previous *SUN2000Catal
 	return oldID == id && oldRead == read && oldBuild == build && oldSource == source && previous.FirmwareText() == current.FirmwareText()
 }
 
-func (r *huaweiCycleRun) monitorEMMAChild(child *huaweiChildState, read bool) {
+// A stale reason renders the retained reading without admitting the child or
+// changing its history. An empty reason runs the admitted monitoring plan.
+func (r *huaweiCycleRun) monitorEMMAChild(child *huaweiChildState, staleReason ProviderReason) {
+	read := staleReason == ""
 	plan := child.emmaPlan
 	out := ProviderChildObservation{UnitID: child.unit, Model: plan.model, ProfileID: plan.profile.ID(), Family: plan.profile.Family(),
 		ListedClass: child.listedClass, IdentifiedGeneration: child.identifiedGeneration, Catalog: child.catalog, Fenced: child.fenced,
 		Evidence: ProviderEvidenceCurrent, Reason: ProviderReasonRead}
 	if !read {
-		out.Evidence, out.Reason = ProviderEvidenceStale, ProviderReasonChildBackoff
+		out.Evidence, out.Reason = ProviderEvidenceStale, staleReason
 	}
 	if plan.profile.ID() == "" {
 		if read {
@@ -367,7 +379,7 @@ func (r *huaweiCycleRun) monitorEMMAChild(child *huaweiChildState, read bool) {
 		if read {
 			outcome, code = r.readGatewayGroup(child.unit, step.Offset, step.Quantity, &kept)
 		}
-		if kept.refused {
+		if read && kept.refused {
 			child.refused[key] = true
 		}
 		if r.stopped() {
@@ -378,7 +390,9 @@ func (r *huaweiCycleRun) monitorEMMAChild(child *huaweiChildState, read bool) {
 		if len(kept.words) != 0 {
 			group.Outcome, group.ExceptionCode = SUN2000GroupAnswered, 0
 			group.Words, group.Cycle, group.Retained = kept.words, evidence.Cycle, evidence.Retained
-			child.groups[step.Offset] = kept.meta
+			if staleReason == "" {
+				child.groups[step.Offset] = kept.meta
+			}
 		}
 		groups, out.Groups = append(groups, group), append(out.Groups, evidence)
 		r.recordGatewayGroupLoss(child.unit, evidence, "inverter group did not answer")
@@ -401,6 +415,8 @@ func (r *huaweiCycleRun) monitorEMMAChild(child *huaweiChildState, read bool) {
 	if plan.profile.ID() != "" {
 		out.Reading.facts = plan.profile.catalogFacts(groups)
 	}
-	child.reading = out.Reading
+	if staleReason == "" {
+		child.reading = out.Reading
+	}
 	r.out.Children = append(r.out.Children, out)
 }
