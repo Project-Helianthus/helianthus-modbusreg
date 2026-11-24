@@ -10,6 +10,38 @@ import (
 
 const testSunSpecModelsRevision SchemaRevision = "sunspec.models@7abdf898-v1"
 
+func publishedTripLengths(pointBlock int) map[uint16]struct{} {
+	const maxLength = 65534
+	lengths := map[uint16]struct{}{7: {}}
+	for points := 0; ; points++ {
+		stride := 4 + pointBlock*points
+		if stride > maxLength-7 {
+			break
+		}
+		for curves := 1; ; curves++ {
+			total := 7 + curves*stride
+			if total > maxLength {
+				break
+			}
+			lengths[uint16(total)] = struct{}{}
+		}
+	}
+	return lengths
+}
+
+func publishedGridRepeatKeyCount() int {
+	total := 0
+	for _, span := range []struct{ base, stride, copies int }{
+		{10, 54, 3},
+		{10, 50, 12},
+		{6, 60, 1},
+		{10, 58, 1},
+	} {
+		total += span.copies * ((65534-span.base)/span.stride + 1)
+	}
+	return total
+}
+
 func admittedOccurrence(id, length uint16, words []uint16, ordinal uint32) Occurrence {
 	key := DecoderKey{ModelID: id, ModelLength: length, SchemaRevision: testSunSpecModelsRevision}
 	return Occurrence{Ordinal: ordinal, WireKey: WireKey{ModelID: id, ModelLength: length}, SchemaRevision: testSunSpecModelsRevision, Disposition: ChainDispositionAdmitted, decoderKey: &key, words: append([]uint16(nil), words...)}
@@ -49,6 +81,8 @@ func TestSunSpecDecoderRegistryUsesExactImmutableKeys(t *testing.T) {
 		{120, 26, testSunSpecModelsRevision}, {121, 30, testSunSpecModelsRevision},
 		{122, 44, testSunSpecModelsRevision}, {123, 24, testSunSpecModelsRevision},
 		{124, 24, testSunSpecModelsRevision},
+		{125, 8, testSunSpecModelsRevision}, {127, 10, testSunSpecModelsRevision},
+		{128, 14, testSunSpecModelsRevision}, {145, 8, testSunSpecModelsRevision},
 		{201, 105, testSunSpecModelsRevision}, {202, 105, testSunSpecModelsRevision},
 		{203, 105, testSunSpecModelsRevision}, {204, 105, testSunSpecModelsRevision},
 		{211, 124, testSunSpecModelsRevision}, {212, 124, testSunSpecModelsRevision},
@@ -72,7 +106,7 @@ func TestSunSpecDecoderRegistryUsesExactImmutableKeys(t *testing.T) {
 		}
 	}
 	const dynamicEnvironmentalKeys = 89561
-	if len(keys) != len(want)+3277+dynamicEnvironmentalKeys {
+	if len(keys) != len(want)+3277+dynamicEnvironmentalKeys+publishedGridRepeatKeyCount() {
 		t.Fatalf("decoder key total=%d", len(keys))
 	}
 	keys[0].ModelID = 999
@@ -90,6 +124,8 @@ func TestSunSpecDecoderRegistryUsesExactImmutableKeys(t *testing.T) {
 }
 
 func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
+	tripHigh := publishedTripLengths(9)
+	tripLow := publishedTripLengths(12)
 	standardSunSpecDecoderKeysCache.Lock()
 	priorCache := standardSunSpecDecoderKeysCache.keys
 	standardSunSpecDecoderKeysCache.keys = nil
@@ -129,7 +165,7 @@ func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
 			{ModelID: 808, ModelLength: 1, SchemaRevision: ModelsRevisionV2},
 			{ModelID: 809, ModelLength: 1, SchemaRevision: ModelsRevisionV2},
 		}
-		if len(v2Keys) != len(wantV2Static)+int(maxSunSpecDERPorts)+1+int(maxSunSpecBESSStrings)+1+int(maxSunSpecBESSModules)+1 {
+		if len(v2Keys) != len(wantV2Static)+int(maxSunSpecDERPorts)+1+int(maxSunSpecBESSStrings)+1+int(maxSunSpecBESSModules)+1+len(tripHigh)+len(tripLow) {
 			t.Fatalf("V2 key count=%d", len(v2Keys))
 		}
 		static := make(map[DecoderKey]bool, len(wantV2Static))
@@ -137,6 +173,7 @@ func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
 			static[key] = true
 		}
 		dynamicDER, dynamicBESSBanks, dynamicBESSStrings := 0, 0, 0
+		dynamicHigh, dynamicLow := 0, 0
 		for _, key := range v2Keys {
 			if key.ModelID == 714 {
 				if key.ModelLength < 18 || (key.ModelLength-18)%25 != 0 {
@@ -159,17 +196,38 @@ func TestSunSpecDecoderRegistryKeepsV2RevisionCacheIsolated(t *testing.T) {
 				dynamicBESSStrings++
 				continue
 			}
+			if key.ModelID == 708 || key.ModelID == 709 {
+				lengths := tripHigh
+				if key.ModelID == 709 {
+					lengths = tripLow
+				}
+				if _, ok := lengths[key.ModelLength]; !ok {
+					t.Fatalf("V2 trip key=%#v", key)
+				}
+				if key.ModelID == 708 {
+					dynamicHigh++
+				} else {
+					dynamicLow++
+				}
+				continue
+			}
 			if !static[key] {
 				t.Fatalf("unexpected V2 static key=%#v", key)
 			}
 			delete(static, key)
 		}
-		if dynamicDER != int(maxSunSpecDERPorts)+1 || dynamicBESSBanks != int(maxSunSpecBESSStrings)+1 || dynamicBESSStrings != int(maxSunSpecBESSModules)+1 || len(static) != 0 {
-			t.Fatalf("V2 DER=%d BESS banks=%d strings=%d missing static=%#v", dynamicDER, dynamicBESSBanks, dynamicBESSStrings, static)
+		if dynamicDER != int(maxSunSpecDERPorts)+1 || dynamicBESSBanks != int(maxSunSpecBESSStrings)+1 || dynamicBESSStrings != int(maxSunSpecBESSModules)+1 || dynamicHigh != len(tripHigh) || dynamicLow != len(tripLow) || len(static) != 0 {
+			t.Fatalf("V2 DER=%d BESS banks=%d strings=%d high=%d low=%d missing static=%#v", dynamicDER, dynamicBESSBanks, dynamicBESSStrings, dynamicHigh, dynamicLow, static)
 		}
-		for _, modelID := range []uint16{707, 708, 709} {
-			if _, ok := registries[ModelsRevisionV2].definition(DecoderKey{ModelID: modelID, ModelLength: 7, SchemaRevision: ModelsRevisionV2}); ok {
-				t.Fatalf("V2 resolved quarantined Model %d", modelID)
+		if _, ok := registries[ModelsRevisionV2].definition(DecoderKey{ModelID: 707, ModelLength: 7, SchemaRevision: ModelsRevisionV2}); ok {
+			t.Fatal("V2 resolved quarantined model 707")
+		}
+		for _, modelID := range []uint16{708, 709} {
+			if _, ok := registries[ModelsRevisionV2].definition(DecoderKey{ModelID: modelID, ModelLength: 7, SchemaRevision: ModelsRevisionV2}); !ok {
+				t.Fatalf("V2 missing trip length for model %d", modelID)
+			}
+			if _, ok := registries[ModelsRevisionV2].definition(DecoderKey{ModelID: modelID, ModelLength: 8, SchemaRevision: ModelsRevisionV2}); ok {
+				t.Fatalf("V2 resolved a non-formula trip length for model %d", modelID)
 			}
 		}
 		if _, ok := registries[ModelsRevisionV2].definition(DecoderKey{ModelID: 1, ModelLength: 65, SchemaRevision: ModelsRevisionV2}); ok {

@@ -214,9 +214,10 @@ func standardSunSpecDecoderKeys(revision SchemaRevision, definitions []sunSpecMo
 	capacity := len(definitions)
 	switch revision {
 	case ModelsRevisionV1:
-		capacity += 3277 + 89561
+		capacity += 3277 + 89561 + gridSupportRepeatKeyCount()
 	case ModelsRevisionV2:
 		capacity += int(maxSunSpecDERPorts) + 1 + int(maxSunSpecBESSStrings) + 1 + int(maxSunSpecBESSModules) + 1
+		capacity += len(derTripCurveLengthSet(9)) + len(derTripCurveLengthSet(12))
 	}
 	keys := make([]DecoderKey, 0, capacity)
 	for _, definition := range definitions {
@@ -228,6 +229,7 @@ func standardSunSpecDecoderKeys(revision SchemaRevision, definitions []sunSpecMo
 			keys = append(keys, DecoderKey{ModelID: 160, ModelLength: uint16(8 + 20*modules), SchemaRevision: revision})
 		}
 		keys = append(keys, environmentalSunSpecDecoderKeys(revision)...)
+		keys = append(keys, gridSupportRepeatKeys(revision)...)
 	case ModelsRevisionV2:
 		for ports := uint32(0); ports <= maxSunSpecDERPorts; ports++ {
 			keys = append(keys, DecoderKey{ModelID: 714, ModelLength: uint16(18 + 25*ports), SchemaRevision: revision})
@@ -238,6 +240,8 @@ func standardSunSpecDecoderKeys(revision SchemaRevision, definitions []sunSpecMo
 		for modules := uint32(0); modules <= maxSunSpecBESSModules; modules++ {
 			keys = append(keys, DecoderKey{ModelID: 804, ModelLength: uint16(46 + 16*modules), SchemaRevision: revision})
 		}
+		keys = append(keys, derTripCurveKeys(revision, 708, 9)...)
+		keys = append(keys, derTripCurveKeys(revision, 709, 12)...)
 	}
 	sort.Slice(keys, func(i, j int) bool {
 		if keys[i].ModelID != keys[j].ModelID {
@@ -307,6 +311,8 @@ func (r DecoderRegistry) definition(key DecoderKey) (sunSpecModelDefinition, boo
 			resolved, err = bessBankV2SunSpecDefinition(key.ModelLength)
 		case 804:
 			resolved, err = bessStringV2SunSpecDefinition(key.ModelLength)
+		case 708, 709:
+			resolved, err = gridSupportSunSpecDefinition(key.SchemaRevision, key.ModelID, key.ModelLength)
 		default:
 			return sunSpecModelDefinition{}, false
 		}
@@ -323,7 +329,7 @@ func (r DecoderRegistry) definition(key DecoderKey) (sunSpecModelDefinition, boo
 	case 302, 303, 304:
 		resolved, err = environmentalSunSpecDefinition(key.SchemaRevision, key.ModelID, key.ModelLength)
 	default:
-		return sunSpecModelDefinition{}, false
+		resolved, err = gridSupportSunSpecDefinition(key.SchemaRevision, key.ModelID, key.ModelLength)
 	}
 	return resolved, err == nil
 }
@@ -348,19 +354,27 @@ func (r DecoderRegistry) DecodeOccurrence(occurrence Occurrence) (DecodedModel, 
 		return DecodedModel{}, fmt.Errorf("SunSpec occurrence words contradict decoder key")
 	}
 	model := DecodedModel{key: key, ordinal: occurrence.Ordinal, topology: definition.topology, qualifies: true, geometryValid: true, raw: append([]uint16(nil), words...), spans: occurrence.SourceSpans()}
-	if definition.geometry != nil && !definition.geometry(words) {
+	if definition.layout != nil {
+		points, ok := definition.layout(words)
+		if !ok {
+			model.geometryValid = false
+			model.qualifies = false
+			return model, nil
+		}
+		definition.points = points
+	} else if definition.geometry != nil && !definition.geometry(words) {
 		model.geometryValid = false
 		model.qualifies = false
 		return model, nil
 	}
-	scales := make(map[string]Value)
+	scales := make(map[sunSpecScaleKey]Value)
 	for _, point := range definition.points {
 		if point.pointType != TypeScaleFactor {
 			continue
 		}
 		start := int(point.offset)
 		end := start + int(point.size)
-		scales[point.name] = decodeSunSpecValue(point, words[start:end], nil)
+		scales[sunSpecScaleKey{name: point.name, group: point.groupID, index: point.repeatIndex}] = decodeSunSpecValue(point, words[start:end], nil)
 	}
 	for _, point := range definition.points {
 		if point.offset < 2 {
@@ -368,7 +382,7 @@ func (r DecoderRegistry) DecodeOccurrence(occurrence Occurrence) (DecodedModel, 
 		}
 		var scale *Value
 		if point.scaleFactor != "" {
-			value, exists := scales[point.scaleFactor]
+			value, exists := sunSpecScaleValue(scales, point)
 			if !exists {
 				return DecodedModel{}, fmt.Errorf("SunSpec scale factor reference is missing")
 			}
@@ -386,6 +400,19 @@ func (r DecoderRegistry) DecodeOccurrence(occurrence Occurrence) (DecodedModel, 
 		model.facts = append(model.facts, Fact{FieldID: point.fieldID, PointName: point.name, Unit: point.unit, Required: point.required, GroupID: point.groupID, RepeatIndex: point.repeatIndex, Repeated: point.repeated, Value: value})
 	}
 	return model, nil
+}
+
+type sunSpecScaleKey struct {
+	name, group string
+	index       uint16
+}
+
+func sunSpecScaleValue(scales map[sunSpecScaleKey]Value, point sunSpecPointDefinition) (Value, bool) {
+	if value, ok := scales[sunSpecScaleKey{name: point.scaleFactor, group: point.groupID, index: point.repeatIndex}]; ok {
+		return value, true
+	}
+	value, ok := scales[sunSpecScaleKey{name: point.scaleFactor}]
+	return value, ok
 }
 
 func mandatorySunSpecValueQualifies(value Value) bool {
