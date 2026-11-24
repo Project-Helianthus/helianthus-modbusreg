@@ -27,13 +27,18 @@ type sunSpecWireSource struct {
 // Chain walks one SunSpec chain from planned reads to a
 // ChainSnapshot. The caller performs each request from NextRequests and
 // passes the logical view that answered it to AdmitReplay; the chain does no
-// I/O itself. All views must share one provenance. The walk ends at the end
+// I/O itself. All views must share one provenance. A chain started for an
+// allowlisted unit admits only views of that unit and endpoint; any other
+// view is rejected and leaves the walk unchanged. The walk ends at the end
 // marker or at the first structural failure, after which nothing is accepted.
 // Methods are safe for concurrent use. See
 // https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/protocols/sunspec/read-only-core-v1.md.
 type Chain struct {
 	mu         sync.Mutex
 	plan       ChainPlan
+	endpoint   string
+	unitID     byte
+	unitBound  bool
 	instance   uint64
 	seen       map[uint64]struct{}
 	physical   map[uint64]sunSpecPhysicalSource
@@ -73,6 +78,14 @@ func NewChain(p ChainPlan) *Chain {
 		next:     uint64(len(p.initial)),
 	}
 }
+func (c *Chain) bindAllowlistedUnit(endpoint string, unitID byte) {
+	if c == nil {
+		return
+	}
+	c.endpoint = endpoint
+	c.unitID = unitID
+	c.unitBound = true
+}
 func nextSunSpecChainInstance() uint64 {
 	for {
 		current := sunSpecChainInstance.Load()
@@ -101,8 +114,9 @@ func (c *Chain) NextRequests() []ReadRequest {
 // the walk. It returns a snapshot with raw words only when v completes the
 // chain at the end marker; a zero snapshot with a nil error means more
 // requests are pending. A request or view that does not belong to this walk
-// (another chain's, replayed, unplanned, a duplicated view, a mismatched range
-// or mixed provenance) is rejected and leaves the walk unchanged. An invalid
+// (another chain's, replayed, unplanned, a duplicated view, a mismatched range,
+// mixed provenance, or a unit or endpoint other than the allowlisted one) is
+// rejected and leaves the walk unchanged. An invalid
 // chain (ambiguous or absent signature, bad header, exceeded limit, address
 // overflow or contradictory source identity) fails the walk for good.
 func (c *Chain) AdmitReplay(r ReadRequest, v modbusreg.LogicalViewSnapshot) (ChainSnapshot, error) {
@@ -127,6 +141,9 @@ func (c *Chain) admitReplay(r ReadRequest, v modbusreg.LogicalViewSnapshot) (Cha
 	}
 	if x.RequestedFunction != modbusreg.FunctionReadHoldingRegisters || x.ReceivedFunction != modbusreg.FunctionReadHoldingRegisters || x.LogicalOffset != r.address || x.LogicalWordCount != r.words || len(x.Words) != int(r.words) {
 		return ChainSnapshot{}, fmt.Errorf("SunSpec view does not match request")
+	}
+	if c.unitBound && (x.Endpoint != c.endpoint || x.UnitID != c.unitID) {
+		return ChainSnapshot{}, fmt.Errorf("SunSpec view is outside the allowlisted unit")
 	}
 	if c.provenance != nil && !SameProvenance(*c.provenance, x) {
 		return ChainSnapshot{}, fmt.Errorf("SunSpec views have mixed provenance")
@@ -282,18 +299,23 @@ func (c *Chain) payload(r ReadRequest, v modbusreg.LogicalViewSnapshot, x modbus
 	}
 	wk := WireKey{c.current.id, c.current.length}
 	d := ChainDispositionUnknownModel
+	// An admitted occurrence carries its decoder key's revision, so the
+	// registry that owns the key can decode it. A model with no key keeps
+	// the plan revision.
+	revision := c.plan.revision
 	var key *DecoderKey
 	if k, ok := c.plan.keys[wk]; ok {
 		d = ChainDispositionAdmitted
 		z := k
 		key = &z
+		revision = k.SchemaRevision
 	} else if _, ok := c.plan.known[c.current.id]; ok {
 		d = ChainDispositionUnsupportedLength
 	}
 	c.occ = append(c.occ, Occurrence{
 		Ordinal:             uint32(len(c.occ) + 1),
 		WireKey:             wk,
-		SchemaRevision:      c.plan.revision,
+		SchemaRevision:      revision,
 		HeaderOffset:        c.current.header,
 		PayloadOffset:       c.current.header + 2,
 		Disposition:         d,
