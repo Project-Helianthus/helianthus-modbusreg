@@ -212,7 +212,7 @@ func TestH18EMMADispositionSupersedesTheNoResponseRecordForIdentityOnly(t *testi
 		t.Fatalf("timing: %#v", timing)
 	}
 
-	// Monitoring and batteries are not admitted, and the battery group stays Unknown.
+	// The monitoring declaration does not establish an inverter-side battery profile.
 	batteries := huaweiObject(t, observed["batteries"])
 	requireHuaweiKeys(t, batteries, "status", "listed_in_inventory", "addressing", "profile", "profile_outcome")
 	if batteries["status"] != "NOT_ADMITTED" || batteries["listed_in_inventory"] != false || batteries["addressing"] != "UNKNOWN" ||
@@ -225,7 +225,7 @@ func TestH18EMMADispositionSupersedesTheNoResponseRecordForIdentityOnly(t *testi
 	}
 	profile := huaweiObject(t, observed["profile_status"])
 	requireHuaweiKeys(t, profile, "outcome", "monitoring", "batteries")
-	if profile["outcome"] != record["outcome"] || profile["monitoring"] != "NOT_ADMITTED" || profile["batteries"] != "NOT_ADMITTED" {
+	if profile["outcome"] != record["outcome"] || profile["monitoring"] != "MONITORING_BY_CONTRACT" || profile["batteries"] != "NOT_ADMITTED" {
 		t.Fatalf("profile status: %#v", profile)
 	}
 	for _, name := range []string{"battery_addressing_behind_gateway_fixture"} {

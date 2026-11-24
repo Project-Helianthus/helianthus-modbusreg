@@ -312,6 +312,9 @@ func (p *huaweiProviderCore) carryRefusals(from *huaweiProviderState) {
 	for index, group := range from.plant {
 		p.state.plant[index].refused = p.state.plant[index].refused || group.refused
 	}
+	for index, group := range from.emmaSite {
+		p.state.emmaSite[index].refused = p.state.emmaSite[index].refused || group.refused
+	}
 	for unit, child := range from.children {
 		for key := range child.refused {
 			if kept, ok := p.state.children[unit]; ok {
@@ -533,25 +536,31 @@ func (r *huaweiCycleRun) readHolding(unit uint8, offset, quantity uint16) ([]uin
 func (r *huaweiCycleRun) readPlantGroups(plan huaweiPlantPlan) {
 	for index, extent := range plan.groups {
 		kept := &r.state.plant[index]
-		outcome, code := SUN2000GroupNotRead, uint8(0)
-		if !kept.refused {
-			words, result := r.readHolding(plan.unit, extent.offset, extent.quantity)
-			code = result.exceptionCode
-			kept.refused = code == huaweiSUN2000RefusalCode
-			switch result.status {
-			case huaweiReadStopped:
-				return
-			case huaweiReadAnswered:
-				outcome = SUN2000GroupAnswered
-				kept.words = words
-				kept.meta = huaweiGroupMeta{cycle: r.cycle, readAt: r.link.lastEnd, generation: r.generation}
-			case huaweiReadException:
-				outcome = SUN2000GroupException
-			case huaweiReadFailed:
-				outcome = SUN2000GroupFailed
-			}
+		outcome, code := r.readGatewayGroup(plan.unit, extent.offset, extent.quantity, kept)
+		if r.stopped() {
+			return
 		}
 		r.recordPlantGroup(kept.observation(plan.unit, extent, outcome, code))
+	}
+}
+
+func (r *huaweiCycleRun) readGatewayGroup(unit uint8, offset, quantity uint16, kept *huaweiPlantState) (SUN2000GroupOutcome, uint8) {
+	if kept.refused {
+		return SUN2000GroupNotRead, 0
+	}
+	words, result := r.readHolding(unit, offset, quantity)
+	kept.refused = result.exceptionCode == huaweiSUN2000RefusalCode
+	switch result.status {
+	case huaweiReadAnswered:
+		kept.words = words
+		kept.meta = huaweiGroupMeta{cycle: r.cycle, readAt: r.link.lastEnd, generation: r.generation}
+		return SUN2000GroupAnswered, 0
+	case huaweiReadException:
+		return SUN2000GroupException, result.exceptionCode
+	case huaweiReadFailed:
+		return SUN2000GroupFailed, 0
+	default:
+		return SUN2000GroupNotRead, 0
 	}
 }
 
@@ -571,14 +580,18 @@ func (r *huaweiCycleRun) finishPlantGroups(plan huaweiPlantPlan) {
 
 func (r *huaweiCycleRun) recordPlantGroup(group ProviderPlantGroup) {
 	r.out.Plant = append(r.out.Plant, group)
-	loss := ProviderLoss{HasUnit: true, UnitID: group.UnitID, Offset: group.Offset, Quantity: group.Quantity}
+	r.recordGatewayGroupLoss(group.UnitID, group.ProviderGroupEvidence, "plant group did not answer")
+}
+
+func (r *huaweiCycleRun) recordGatewayGroupLoss(unit uint8, group ProviderGroupEvidence, failure string) {
+	loss := ProviderLoss{HasUnit: true, UnitID: unit, Offset: group.Offset, Quantity: group.Quantity}
 	switch {
 	case group.Refused:
 		loss.Kind, loss.Detail = ProviderLossRefusedGroup, huaweiRuntimeRefusalDetail(huaweiSUN2000RefusalCode)
 	case group.Outcome == SUN2000GroupException:
 		loss.Kind, loss.Detail = ProviderLossRefusedGroup, huaweiRuntimeRefusalDetail(group.ExceptionCode)
 	case group.Outcome == SUN2000GroupFailed:
-		loss.Kind, loss.Detail = ProviderLossFailedGroup, "plant group did not answer"
+		loss.Kind, loss.Detail = ProviderLossFailedGroup, failure
 	default:
 		return
 	}
@@ -633,8 +646,16 @@ func (r *huaweiCycleRun) childAdmissionRead(child *huaweiChildState, result huaw
 		if result.last == ProviderExchangeTimeout {
 			reason = ProviderReasonChildTimeout
 		}
+		if child.emmaPlan != nil {
+			r.monitorEMMAChild(child, reason)
+			return false
+		}
 		r.out.Children = append(r.out.Children, r.childObservation(child, huaweiStaleOrWithheld(child), reason, nil))
 	case huaweiReadException:
+		if r.core.path == ProviderPathEMMA {
+			child.catalog = nil
+			return r.withholdEMMAChild(child, ProviderReasonIdentityInsuff, true)
+		}
 		child.withhold(ProviderReasonIdentityInsuff, nil)
 		r.out.Children = append(r.out.Children, r.childObservation(child, ProviderEvidenceWithheld, child.definitive, nil))
 	}

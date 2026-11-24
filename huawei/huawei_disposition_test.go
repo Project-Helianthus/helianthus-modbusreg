@@ -267,7 +267,7 @@ func TestHuaweiEMMAOfflineDispositionIsDefaultDeniedAndPinnedToDocs(t *testing.T
 		t.Fatal("disposition contains private endpoint or credential material")
 	}
 	record := decodeHuaweiObject(t, path)
-	requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "observed_identity", "offline_identity_gate_registered", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "detector", "software_selection", "child_enumeration", "private_functions", "decoder_keys", "reopen_requires", "qualified", "hardware_test")
+	requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "observed_identity", "monitoring", "offline_identity_gate_registered", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "detector", "software_selection", "child_enumeration", "private_functions", "decoder_keys", "reopen_requires", "qualified", "hardware_test")
 	if record["schema"] != "helianthus-modbusreg-huawei-emma-disposition/v3" || record["profile"] != EMMAReadOnlyProfileID ||
 		record["profile_version"] != "1.0.0" || record["outcome"] != "OFFLINE_IDENTITY_ADMITTED" ||
 		record["offline_identity_gate_registered"] != true || record["catalog_registered"] != false ||

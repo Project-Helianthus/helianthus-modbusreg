@@ -92,12 +92,13 @@ type huaweiPlantState struct {
 
 func (g huaweiPlantState) observation(unit uint8, extent huaweiPlantExtent, outcome SUN2000GroupOutcome, code uint8) ProviderPlantGroup {
 	return ProviderPlantGroup{
-		UnitID: unit,
-		ProviderGroupEvidence: ProviderGroupEvidence{
-			Offset: extent.offset, Quantity: extent.quantity, Outcome: outcome, ExceptionCode: code, Refused: g.refused,
-			Retained: len(g.words) != 0 && outcome != SUN2000GroupAnswered,
-			Cycle:    g.meta.cycle, ReadAt: g.meta.readAt, Generation: g.meta.generation,
-		},
-		Words: g.words, Facts: extent.decode(g.words),
+		UnitID:                unit,
+		ProviderGroupEvidence: g.evidence(extent.offset, extent.quantity, outcome, code),
+		Words:                 g.words, Facts: extent.decode(g.words),
 	}
+}
+
+func (g huaweiPlantState) evidence(offset, quantity uint16, outcome SUN2000GroupOutcome, code uint8) ProviderGroupEvidence {
+	return ProviderGroupEvidence{Offset: offset, Quantity: quantity, Outcome: outcome, ExceptionCode: code, Refused: g.refused,
+		Retained: len(g.words) != 0 && outcome != SUN2000GroupAnswered, Cycle: g.meta.cycle, ReadAt: g.meta.readAt, Generation: g.meta.generation}
 }

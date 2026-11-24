@@ -4,7 +4,7 @@ This is a partial implementation of [#318](https://github.com/Project-Helianthus
 
 The [public native transaction contract](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/emma-provider-transactions.md) and its linked Huawei native read-only and qualification contracts own native predicates, target validation, encoding and limits. The [identity implementation boundary](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/emma-identity-transaction-implementation.md) describes the merged component reused here. This page adds application composition only, with no new register or probing rule.
 
-Merge remains held for the independently authored A23 [public cycle companion](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/emma-offline-provider-cycle.md). That companion must merge before or with this code. Its reviewed actual signatures, results and transitions must be compared with this implementation before the hold is released; the link is the required destination, not a claim that the companion is already published.
+The [public offline cycle companion](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/emma-offline-provider-cycle.md) describes the detached identity seam. The read-only site cycle below uses a separate, caller-supplied session; it does not turn an offline identity snapshot into admission.
 
 ## Local API and ownership
 
@@ -34,9 +34,25 @@ Merge remains held for the independently authored A23 [public cycle companion](h
 
 For example, synthetic parent P at revision R can commit a complete supplied tuple while optional MEI fails and requested inventory stays blocked. Attempt B with missing FC03 retains A's original observation but has no current match. A blocked A completion after B starts cannot replace B. These examples describe local supplied records, not device acquisition.
 
-## Evidence and remaining acceptance
+## Read-only site cycle
 
-| Axis | Current boundary |
+[`NewEMMAReadOnlyProvider`](../huawei/huawei_emma_readonly_provider.go) uses the shared read-only session lifecycle. Each connection starts with the unit 0 identity tuple. Extended inventory routes listed and allowed inverter units only; it does not establish child identity or give the listing a guard. Failed inventory withholds children but not admitted site reads; the next cycle retries inventory without rereading the gateway tuple. A conflicting gateway identity, including a conflict found on an inventory retry, withholds monitoring. Each routed inverter must match its listed model before catalogue selection. A child without a row keeps the status, string and energy groups by their native offsets, with no typed inverter facts. An identifier conflict does not take that native fallback. After reconnect, a transient child identity read failure leaves prior groups stale at their original epochs; a definitive refusal keeps them only as fenced history.
+
+The three site reads are FC03 at unit 0. `ProviderCycle.EMMASite` carries the words and per-group outcome, cycle, connection generation and read time; each `EMMASiteFact` carries the native key, source register, type, unit and availability. The coefficient and exponent are exact, including for a `U64` counter above the signed 64-bit range.
+
+| Read | Native fields |
+| --- | --- |
+| 30306 / 46 | Day and total battery charge (30306/30308), battery discharge (30312/30314), household consumption (30324/30326), grid export (30330/30332), grid import (30336/30338) and PV energy (30346/30348). Day counters are `U32`, totals `U64`, in kWh with gain 100. The same read carries rated storage capacity at 30322 (`U32`, kWh, gain 1000). |
+| 30354 / 12 | Site PV and consumption (30354/30356, `U32`), grid exchange, battery and inverter AC power (30358/30360/30364, `I32`), in kW with gain 1000. Signed values retain their native polarity; no flow direction is inferred. |
+| 30368 / 1 | Battery state of charge (`U16`, %, gain 100). |
+
+`EMMASiteFact("gateway-self.30324")` and `EMMASiteFact("gateway-self.30326")` are separate readings from the same energy block. The daily counter may restart on the operating-day boundary without changing how the total is decoded. Neither counter is synthesized from the other. A malformed or unavailable group contributes no new facts: last-known-good words retain their original epoch and are marked retained; without them the affected facts are Unknown. Other groups can still answer.
+
+[The disposition](../profiles/vendors/huawei/emma-disposition.json) declares monitoring by contract for every declared family. Without documented inverter-side battery fields, battery readings on this path are site-level only; site readings do not establish per-inverter or per-pack values. No meter or derived-polarity operation is added. Scripted tests prove the read plan and decoding, not hardware behavior.
+
+## Evidence and remaining acceptance of the detached seam
+
+| Axis | Offline identity boundary |
 | --- | --- |
 | Proven | Synthetic focused tests exercise the local callback invocation, independent context/identity comparisons, post-reader cancellation and expiry, replacement barriers, error refusal, bounded evidence, detached slices and retained age. Mutation checks concern these offline code paths only. |
 | Hypothesis | A future acquisition owner can supply validated records and cooperative work accounting through this seam. |
