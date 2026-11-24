@@ -347,9 +347,16 @@
     ],
     "profile_status": {
       "outcome": "OFFLINE_IDENTITY_ADMITTED",
-      "monitoring": "NOT_ADMITTED",
+      "monitoring": "MONITORING_BY_CONTRACT",
       "batteries": "NOT_ADMITTED"
     }
+  },
+  "monitoring": {
+    "status": "MONITORING_BY_CONTRACT",
+    "scope": "EVERY_DECLARED_FAMILY",
+    "provider_id": "huawei.emma.readonly-provider@1.0.0",
+    "uncovered_child": "NATIVE_ONLY",
+    "battery_fallback": "SITE_LEVEL_ONLY"
   },
   "offline_identity_gate_registered": true,
   "catalog_registered": false,

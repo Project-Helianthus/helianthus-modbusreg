@@ -129,7 +129,7 @@ func TestH06ANonAdmissibleDispositionMakesConstructionRefuse(t *testing.T) {
 	}
 }
 
-func TestH06EMMAPathHasNoProviderAndKeepsTheMAP0Reason(t *testing.T) {
+func TestEMMAProviderPacingAndDeclaredEnablement(t *testing.T) {
 	recorded, ok := RecordedProviderDisposition(ProviderPathEMMA)
 	if !ok {
 		t.Fatal("no recorded EMMA disposition")
@@ -153,8 +153,11 @@ func TestH06EMMAPathHasNoProviderAndKeepsTheMAP0Reason(t *testing.T) {
 	if EvaluateHuaweiProviderEnablement(wrongCard).Admitted {
 		t.Fatal("an EMMA disposition with another path's card was admitted")
 	}
-	if _, ok := ProviderPacingFor(ProviderPathEMMA); ok {
-		t.Fatal("the EMMA path has a provider pacing envelope")
+	if emma, ok := ProviderPacingFor(ProviderPathEMMA); !ok || emma.Gap != 750*time.Millisecond ||
+		emma.Cycle != 60*time.Second || emma.AttemptDeadline != 5*time.Second || emma.MaxAttempts != 4 ||
+		!reflect.DeepEqual(emma.Backoff, []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}) ||
+		emma.FirstRequestExtraAttempt || emma.PromptBound != 100*time.Millisecond {
+		t.Fatalf("EMMA pacing: %+v, found %v", emma, ok)
 	}
 	if _, ok := RecordedProviderDisposition("Other"); ok {
 		t.Fatal("an unknown path has a recorded disposition")

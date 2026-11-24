@@ -10,8 +10,8 @@ import (
 )
 
 // The shared mechanics of the Huawei read-only production providers. One
-// provider exists per gateway path whose disposition admits one: the observed
-// SmartLogger path and the observed S-Dongle path. A provider drives a supplied
+// provider exists per gateway path whose disposition admits one: SmartLogger,
+// EMMA and S-Dongle. A provider drives a supplied
 // read-only session through the gateway identity card, child routing, the
 // child's admission (its identity words read at the routed unit and the SUN2000
 // capability selection over the catalog decision) and the monitoring cycle
@@ -22,8 +22,7 @@ import (
 // ProviderPath names a Huawei gateway path.
 type ProviderPath string
 
-// The Huawei gateway paths. Only the SmartLogger and S-Dongle paths have a
-// provider; the EMMA path is named so its recorded disposition can be read.
+// The Huawei gateway paths.
 const (
 	ProviderPathSmartLogger ProviderPath = "SmartLogger"
 	ProviderPathEMMA        ProviderPath = "EMMA"
@@ -124,7 +123,7 @@ func (p ProviderPacing) clone() ProviderPacing {
 // ProviderPacingFor returns the pacing envelope of a path with a provider.
 func ProviderPacingFor(path ProviderPath) (ProviderPacing, bool) {
 	switch path {
-	case ProviderPathSmartLogger:
+	case ProviderPathSmartLogger, ProviderPathEMMA:
 		return ProviderPacing{
 			Gap: 750 * time.Millisecond, Cycle: 60 * time.Second, AttemptDeadline: 5 * time.Second, MaxAttempts: 4,
 			Backoff: []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}, PromptBound: 100 * time.Millisecond,
@@ -629,6 +628,7 @@ type ProviderCycle struct {
 	Reason       ProviderReason
 	Gateway      ProviderGatewayIdentity
 	Plant        []ProviderPlantGroup `json:",omitempty"`
+	EMMASite     []EMMASiteGroup      `json:",omitempty"`
 	Children     []ProviderChildObservation
 	Exchanges    []ProviderExchange
 	Loss         []ProviderLoss
@@ -648,6 +648,13 @@ func (c ProviderCycle) clone() ProviderCycle {
 			plant[index] = group.clone()
 		}
 		c.Plant = plant
+	}
+	if c.EMMASite != nil {
+		site := make([]EMMASiteGroup, len(c.EMMASite))
+		for index, group := range c.EMMASite {
+			site[index] = group.clone()
+		}
+		c.EMMASite = site
 	}
 	c.Exchanges = append([]ProviderExchange(nil), c.Exchanges...)
 	c.Loss = append([]ProviderLoss(nil), c.Loss...)
@@ -743,7 +750,8 @@ type huaweiChildState struct {
 	fenced     *ProviderFencedReading
 	// catalog is the decision of the last completed admission. It describes
 	// identity while one is bound, and otherwise the definitive withhold.
-	catalog *SUN2000CatalogDecision
+	catalog  *SUN2000CatalogDecision
+	emmaPlan *huaweiEMMAChildPlan
 }
 
 func (c *huaweiChildState) clone() *huaweiChildState {
@@ -839,6 +847,7 @@ type huaweiProviderState struct {
 	sdongle            *SDongleObservedQualificationInput
 	children           map[uint8]*huaweiChildState
 	plant              [2]huaweiPlantState
+	emmaSite           [len(huaweiEMMASite)]huaweiPlantState
 	// carriedRefusals keeps exception 3 refusals learned in a cycle that was
 	// cancelled before it could commit, for children not yet in children.
 	carriedRefusals map[uint8]map[string]bool
