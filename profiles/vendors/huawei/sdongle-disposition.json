@@ -8,11 +8,6 @@
     "candidate_id": "huawei.sdongle.v1",
     "source_license": "CC0-1.0",
     "eligible": false,
-    "missing_evidence": [
-      "sanitized_basic_mei_product_model_fixture",
-      "exact_protocol_version_encoding_fixture",
-      "pairwise_negative_overlap_with_emma_fixture"
-    ],
     "closed_evidence": [
       {
         "gap": "separately_qualified_child_unit_inventory_fixture",
@@ -382,12 +377,7 @@
     ],
     "profile_status": {
       "outcome": "PRE_LIVE_INSUFFICIENT_EVIDENCE",
-      "monitoring": "NOT_ADMITTED",
-      "blocked_by": [
-        "sanitized_basic_mei_product_model_fixture",
-        "exact_protocol_version_encoding_fixture",
-        "pairwise_negative_overlap_with_emma_fixture"
-      ]
+      "monitoring": "NOT_ADMITTED"
     }
   },
   "admission": {
@@ -548,7 +538,7 @@
   "production_provider": {
     "issue": 349,
     "provider_id": "huawei.sdongle.observed-readonly-provider@1.0.0",
-    "enablement": "PROVIDER_ADMITTED_FOR_OBSERVED_TUPLE",
+    "enablement": "PROVIDER_ADMITTED_FOR_DECLARED_IDENTITY",
     "scope": "OBSERVED_TUPLE_ONLY",
     "requires": [
       "observed_identity_offline_admitted",
@@ -634,5 +624,10 @@
     "sanitized_basic_mei_product_model_fixture",
     "exact_protocol_version_encoding_fixture",
     "pairwise_negative_overlap_with_emma_fixture"
-  ]
+  ],
+  "qualified": true,
+  "hardware_test": {
+    "level": "TESTED_ON_HARDWARE",
+    "changes_qualified": false
+  }
 }

@@ -13,7 +13,7 @@ func TestHuaweiSDongleDispositionPinsFloorCandidateAndNoSend(t *testing.T) {
 		"schema", "profile", "profile_version", "outcome", "evidence", "admission", "software_selection",
 		"protocol_version", "search_sequence", "capacity", "child_enumeration",
 		"private_functions", "decoder_keys", "catalog_registered",
-		"automatic_runtime_admission", "support_claim", "write_authority", "qualification_plan", "observed_identity", "production_provider", "reopen_requires",
+		"automatic_runtime_admission", "support_claim", "write_authority", "qualification_plan", "observed_identity", "production_provider", "reopen_requires", "qualified", "hardware_test",
 	)
 	if record["schema"] != "helianthus-modbusreg-huawei-sdongle-disposition/v2" ||
 		record["profile"] != "huawei.sdongle" || record["profile_version"] != "1.0.0" ||
@@ -23,19 +23,19 @@ func TestHuaweiSDongleDispositionPinsFloorCandidateAndNoSend(t *testing.T) {
 		t.Fatalf("unexpected S-Dongle disposition: %#v", record)
 	}
 
-	// The child inventory gap closes for the observed tuple and leaves the list;
-	// the product string, the protocol encoding and the EMMA overlap stay open.
+	// The child inventory gap closes for the observed tuple; the product string,
+	// the protocol encoding and the EMMA overlap stay on reopen_requires.
 	missing := []string{
 		"sanitized_basic_mei_product_model_fixture",
 		"exact_protocol_version_encoding_fixture",
 		"pairwise_negative_overlap_with_emma_fixture",
 	}
 	evidence := huaweiObject(t, record["evidence"])
-	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence",
+	requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible",
 		"closed_evidence", "partially_closed_evidence", "unknown_after_observation", "live_qualification", "docs_contract", "vendor_documentation")
 	if evidence["docs_merge_sha"] != sdongleDocsMergeSHA || evidence["candidate_id"] != "huawei.sdongle.v1" ||
 		evidence["source_license"] != "CC0-1.0" || evidence["eligible"] != false ||
-		!reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), missing) {
+		!reflect.DeepEqual(huaweiStringSlice(t, record["reopen_requires"]), missing) {
 		t.Fatalf("unexpected S-Dongle evidence: %#v", evidence)
 	}
 	live := huaweiObject(t, evidence["live_qualification"])
@@ -180,7 +180,7 @@ func TestHuaweiSDongleDispositionPinsFloorCandidateAndNoSend(t *testing.T) {
 		!reflect.DeepEqual(huaweiStringSlice(t, plan["promotion_outcomes"]), []string{
 			"PROFILE_ADMITTED", "NO_ADMISSIBLE_PROFILE",
 		}) ||
-		!reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), missing) {
+		!reflect.DeepEqual(huaweiStringSlice(t, record["reopen_requires"]), missing) {
 		t.Fatalf("unexpected S-Dongle qualification plan: %#v", plan)
 	}
 }

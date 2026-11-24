@@ -8,9 +8,6 @@
     "candidate_id": "huawei.smartlogger.v1",
     "source_license": "CC0-1.0",
     "eligible": false,
-    "missing_evidence": [
-      "pairwise_negative_overlap_with_emma_fixture"
-    ],
     "closed_evidence": [
       {
         "gap": "sanitized_extended_mei_self_entry_fixture",
@@ -231,10 +228,7 @@
     ],
     "profile_status": {
       "outcome": "NO_ADMISSIBLE_PROFILE",
-      "monitoring": "NOT_ADMITTED",
-      "blocked_by": [
-        "pairwise_negative_overlap_with_emma_fixture"
-      ]
+      "monitoring": "NOT_ADMITTED"
     }
   },
   "change_counter": {
@@ -279,7 +273,7 @@
   "production_provider": {
     "issue": 349,
     "provider_id": "huawei.smartlogger.observed-readonly-provider@1.0.0",
-    "enablement": "PROVIDER_ADMITTED_FOR_OBSERVED_TUPLE",
+    "enablement": "PROVIDER_ADMITTED_FOR_DECLARED_IDENTITY",
     "scope": "OBSERVED_TUPLE_ONLY",
     "requires": [
       "observed_identity_offline_admitted",
@@ -363,5 +357,10 @@
   },
   "reopen_requires": [
     "pairwise_negative_overlap_with_emma_fixture"
-  ]
+  ],
+  "qualified": true,
+  "hardware_test": {
+    "level": "TESTED_ON_HARDWARE",
+    "changes_qualified": false
+  }
 }

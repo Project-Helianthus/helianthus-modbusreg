@@ -99,11 +99,12 @@ func TestH15SDongleDispositionSupersedesHardStopForIdentityOnly(t *testing.T) {
 		t.Fatalf("a no-send rule opened: %#v %#v", private, enumeration)
 	}
 
-	// Evidence: one gap closes for the observed tuple, three stay open, the
-	// closed gap is not in the open list, and every row points at a committed fixture.
+	// Evidence: one gap closes for the observed tuple, three stay on
+	// reopen_requires, the closed gap is not in that list, and every row
+	// points at a committed fixture.
 	evidence := huaweiObject(t, record["evidence"])
-	if !reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), missing) || evidence["eligible"] != false {
-		t.Fatalf("missing evidence: %#v", evidence["missing_evidence"])
+	if _, ok := evidence["missing_evidence"]; ok || evidence["eligible"] != false {
+		t.Fatalf("evidence: %#v", evidence)
 	}
 	closed := h03Array(t, evidence["closed_evidence"])
 	if len(closed) != 1 {
@@ -224,8 +225,8 @@ func TestH15SDongleDispositionSupersedesHardStopForIdentityOnly(t *testing.T) {
 		t.Fatalf("timing: %#v", timing)
 	}
 	profile := huaweiObject(t, observed["profile_status"])
-	requireHuaweiKeys(t, profile, "outcome", "monitoring", "blocked_by")
-	if profile["outcome"] != record["outcome"] || profile["monitoring"] != "NOT_ADMITTED" || !reflect.DeepEqual(huaweiStringSlice(t, profile["blocked_by"]), missing) {
+	requireHuaweiKeys(t, profile, "outcome", "monitoring")
+	if profile["outcome"] != record["outcome"] || profile["monitoring"] != "NOT_ADMITTED" {
 		t.Fatalf("profile status: %#v", profile)
 	}
 }

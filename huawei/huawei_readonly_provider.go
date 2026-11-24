@@ -145,8 +145,14 @@ func ProviderPacingFor(path ProviderPath) (ProviderPacing, bool) {
 type ProviderChildDisposition struct {
 	Family    string
 	ProfileID string
-	Outcome   string
-	Reason    string
+	// Model is the catalogue model token of the child. An empty model uses
+	// the model of the named hand profile.
+	Model string
+	// Unit is the configured child unit. Zero means the row names none.
+	// A unit through 247 is a configured child on every path, including a dongle.
+	Unit    uint8
+	Outcome string
+	Reason  string
 }
 
 // ProviderDisposition is the part of a path's recorded disposition that
@@ -169,6 +175,10 @@ type ProviderDisposition struct {
 	AutomaticRuntimeAdmission bool
 	SupportClaim              bool
 	WriteAuthority            bool
+	// Qualified is the declared runtime binding. HardwareTest records a
+	// hardware test beside it and never changes Qualified.
+	Qualified    bool
+	HardwareTest string
 }
 
 func (d ProviderDisposition) clone() ProviderDisposition {
@@ -180,6 +190,7 @@ const (
 	huaweiIdentityAdmitted     = "OFFLINE_IDENTITY_ADMITTED"
 	huaweiIdentityObservedOnly = "OBSERVED_TUPLE_ONLY"
 	huaweiProfileAdmitted      = "OFFLINE_PROFILE_ADMITTED"
+	huaweiHardwareTested       = "TESTED_ON_HARDWARE"
 )
 
 // RecordedProviderDisposition returns the recorded disposition of a path.
@@ -190,24 +201,27 @@ func RecordedProviderDisposition(path ProviderPath) (ProviderDisposition, bool) 
 			Path: path, IdentityCard: SmartLoggerObservedQualificationCardID, IdentityStatus: huaweiIdentityAdmitted,
 			IdentityGateRegistered: true, IdentityScope: huaweiIdentityObservedOnly,
 			ChildProfiles: []ProviderChildDisposition{
-				{Family: huaweiSUN2000M3Family, ProfileID: SUN2000M3MonitoringProfileID, Outcome: huaweiProfileAdmitted},
+				{Family: huaweiSUN2000M3Family, ProfileID: SUN2000M3MonitoringProfileID, Model: huaweiSUN2000M3Model, Outcome: huaweiProfileAdmitted},
 			},
+			Qualified: true, HardwareTest: huaweiHardwareTested,
 		}, true
 	case ProviderPathSDongle:
 		return ProviderDisposition{
 			Path: path, IdentityCard: SDongleObservedQualificationCardID, IdentityStatus: huaweiIdentityAdmitted,
 			IdentityGateRegistered: true, IdentityScope: huaweiIdentityObservedOnly,
 			ChildProfiles: []ProviderChildDisposition{
-				{Family: huaweiSUN2000M1Family, ProfileID: SUN2000M1MonitoringProfileID, Outcome: huaweiProfileAdmitted},
+				{Family: huaweiSUN2000M1Family, ProfileID: SUN2000M1MonitoringProfileID, Model: huaweiSDongleObservedChildModel, Outcome: huaweiProfileAdmitted},
 			},
+			Qualified: true, HardwareTest: huaweiHardwareTested,
 		}, true
 	case ProviderPathEMMA:
 		return ProviderDisposition{
 			Path: path, IdentityCard: EMMAObservedQualificationCardID, IdentityStatus: huaweiIdentityAdmitted,
 			IdentityGateRegistered: true, IdentityScope: huaweiIdentityObservedOnly,
 			ChildProfiles: []ProviderChildDisposition{
-				{Family: "SUN2000 MAP0 series", Outcome: "NO_ADMISSIBLE_PROFILE", Reason: "catalog_card_without_monitoring_profile"},
+				{Family: "SUN2000 MAP0 series", Model: "SUN2000_12K_MAP0", Outcome: huaweiProfileAdmitted},
 			},
+			Qualified: true, HardwareTest: huaweiHardwareTested,
 		}, true
 	}
 	return ProviderDisposition{}, false
@@ -219,13 +233,14 @@ type ProviderEnablementReason string
 // The enablement reasons. ProviderEnabled is the only reason of an admitted
 // path; every other reason refuses it.
 const (
-	ProviderEnabled                   ProviderEnablementReason = "PROVIDER_ADMITTED_FOR_OBSERVED_TUPLE"
+	ProviderEnabled                   ProviderEnablementReason = "PROVIDER_ADMITTED_FOR_DECLARED_IDENTITY"
 	ProviderUnknownPath               ProviderEnablementReason = "UNKNOWN_PATH"
 	ProviderAuthorityFieldSet         ProviderEnablementReason = "AUTHORITY_FIELD_SET"
 	ProviderNoAdmittedChildProfile    ProviderEnablementReason = "NO_ADMITTED_CHILD_PROFILE"
 	ProviderIdentityNotAdmitted       ProviderEnablementReason = "GATEWAY_IDENTITY_NOT_ADMITTED"
 	ProviderRecordedStopInForce       ProviderEnablementReason = "RECORDED_STOP_IN_FORCE"
 	ProviderChildProfileNotRecognised ProviderEnablementReason = "CHILD_PROFILE_NOT_RECOGNISED"
+	ProviderDeclaredBindingAbsent     ProviderEnablementReason = "DECLARED_BINDING_ABSENT"
 )
 
 // ProviderEnablement is the gate's decision for one disposition.
@@ -238,26 +253,27 @@ type ProviderEnablement struct {
 	Profiles []string
 }
 
-// EvaluateHuaweiProviderEnablement admits a path only when its gateway
-// identity is admitted for the observed tuple, at least one child monitoring
-// profile of that gateway card is admitted, no recorded stop is in force, and
-// every authority field is false. Anything else refuses.
+// EvaluateHuaweiProviderEnablement admits a path when the catalogue declares
+// its gateway identity and at least one routed child has a declared monitoring
+// profile. The identity read at runtime stays a separate check. WriteAuthority
+// and the hardware-test level do not decide enablement. Qualified is the
+// declared runtime binding.
 func EvaluateHuaweiProviderEnablement(d ProviderDisposition) ProviderEnablement {
 	refuse := func(reason ProviderEnablementReason, detail ...string) ProviderEnablement {
 		return ProviderEnablement{Path: d.Path, Reason: reason, Detail: detail}
 	}
-	var card string
-	switch d.Path {
-	case ProviderPathSmartLogger:
-		card = SmartLoggerObservedQualificationCardID
-	case ProviderPathSDongle:
-		card = SDongleObservedQualificationCardID
-	case ProviderPathEMMA:
-	default:
+	card, known := huaweiDeclaredGatewayCard(d.Path)
+	if !known || !huaweiCatalogDeclaresGateway(d.Path) {
 		return refuse(ProviderUnknownPath)
 	}
-	if d.CatalogRegistered || d.AutomaticRuntimeAdmission || d.SupportClaim || d.WriteAuthority {
+	if d.CatalogRegistered || d.AutomaticRuntimeAdmission || d.SupportClaim {
 		return refuse(ProviderAuthorityFieldSet)
+	}
+	if !d.Qualified {
+		return refuse(ProviderDeclaredBindingAbsent)
+	}
+	if d.IdentityCard != card || d.IdentityStatus != huaweiIdentityAdmitted || !d.IdentityGateRegistered {
+		return refuse(ProviderIdentityNotAdmitted)
 	}
 	var admitted, detail []string
 	for _, row := range d.ChildProfiles {
@@ -265,27 +281,99 @@ func EvaluateHuaweiProviderEnablement(d ProviderDisposition) ProviderEnablement 
 			detail = append(detail, row.Family+": "+row.Reason)
 			continue
 		}
-		known := false
-		for _, profile := range SUN2000MonitoringProfiles() {
-			if profile.ID() == row.ProfileID && profile.Family() == row.Family && profile.IdentityCard() == card && card != "" {
-				known = true
-			}
-		}
-		if !known {
+		name, ok := huaweiDeclaredChildName(row)
+		if !ok {
 			return refuse(ProviderChildProfileNotRecognised, row.Family+": "+row.ProfileID)
 		}
-		admitted = append(admitted, row.ProfileID)
+		admitted = append(admitted, name)
 	}
 	if len(admitted) == 0 {
 		return refuse(ProviderNoAdmittedChildProfile, detail...)
-	}
-	if d.IdentityCard != card || d.IdentityStatus != huaweiIdentityAdmitted || !d.IdentityGateRegistered || d.IdentityScope != huaweiIdentityObservedOnly {
-		return refuse(ProviderIdentityNotAdmitted)
 	}
 	if d.RecordedStop != "" || d.FurtherLiveIO != "" {
 		return refuse(ProviderRecordedStopInForce)
 	}
 	return ProviderEnablement{Path: d.Path, Admitted: true, Reason: ProviderEnabled, Profiles: admitted}
+}
+
+func huaweiDeclaredGatewayCard(path ProviderPath) (string, bool) {
+	switch path {
+	case ProviderPathSmartLogger:
+		return SmartLoggerObservedQualificationCardID, true
+	case ProviderPathSDongle:
+		return SDongleObservedQualificationCardID, true
+	case ProviderPathEMMA:
+		return EMMAObservedQualificationCardID, true
+	default:
+		return "", false
+	}
+}
+
+func huaweiCatalogDeclaresGateway(path ProviderPath) bool {
+	var family string
+	switch path {
+	case ProviderPathSmartLogger:
+		family = SmartLoggerCanonicalClass
+	case ProviderPathSDongle:
+		family = SDongleCanonicalClass
+	case ProviderPathEMMA:
+		family = EMMACanonicalClass
+	default:
+		return false
+	}
+	catalog := huaweiGatewayLoadedCatalog()
+	if catalog.err != nil {
+		return false
+	}
+	_, ok := catalog.families[family]
+	return ok
+}
+
+func huaweiCatalogDeclaresInverterModel(model string) bool {
+	if model == "" {
+		return false
+	}
+	catalog := huaweiSUN2000LoadedCatalog()
+	if catalog.err != nil {
+		return false
+	}
+	for _, entry := range catalog.entries {
+		if entry.row.Token == model {
+			return true
+		}
+		for _, alias := range entry.aliases {
+			if alias.token == model {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func huaweiDeclaredChildName(row ProviderChildDisposition) (string, bool) {
+	if row.Unit > huaweiSUN2000MaxUnit {
+		return "", false
+	}
+	if row.ProfileID != "" {
+		for _, profile := range SUN2000MonitoringProfiles() {
+			if profile.ID() != row.ProfileID || profile.Family() != row.Family {
+				continue
+			}
+			model := row.Model
+			if model == "" {
+				model = profile.Model()
+			}
+			if model != profile.Model() || !huaweiCatalogDeclaresInverterModel(model) {
+				return "", false
+			}
+			return profile.ID(), true
+		}
+		return "", false
+	}
+	if huaweiCatalogDeclaresInverterModel(row.Model) {
+		return row.Model, true
+	}
+	return "", false
 }
 
 // ---- output ----------------------------------------------------------------

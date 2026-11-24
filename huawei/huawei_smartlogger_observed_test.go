@@ -744,7 +744,7 @@ func TestH03SDongleHardStopIsPreservedWithoutRespondingGatewayUnitTuple(t *testi
 	// The S-Dongle non-response asks no approval: further reads follow the transport backoff (DD05 step 2).
 	if disposition["outcome"] != "PRE_LIVE_INSUFFICIENT_EVIDENCE" || plan["further_live_io"] != "TRANSPORT_BACKOFF_NO_APPROVAL" ||
 		live["recorded_status"] != "LIVE_STOPPED_PERSISTENT_NON_RESPONSE" || huaweiInt(t, live["subsequent_modbus_requests_sent"]) != 0 ||
-		len(huaweiStringSlice(t, evidence["missing_evidence"])) != 3 {
+		len(huaweiStringSlice(t, disposition["reopen_requires"])) != 3 {
 		t.Fatalf("S-Dongle disposition changed: %#v", disposition)
 	}
 }

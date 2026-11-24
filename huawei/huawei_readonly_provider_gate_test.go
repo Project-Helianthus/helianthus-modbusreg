@@ -11,34 +11,35 @@ import (
 
 // h06Mutation changes one field of a recorded disposition. field names the
 // struct field it covers; production names the mutation of the gate that the
-// case catches.
+// case catches. refuses is false when that mutation must still admit.
 type h06Mutation struct {
 	field      string
 	production string
+	refuses    bool
 	mutate     func(*ProviderDisposition)
 }
 
 func h06DispositionMutations() []h06Mutation {
 	return []h06Mutation{
-		{"Path", "a gate that ignores the path or admits an unknown path", func(d *ProviderDisposition) { d.Path = "SmartLoggerX" }},
-		{"Path", "a gate that admits the EMMA path with another path's card", func(d *ProviderDisposition) { d.Path = ProviderPathEMMA }},
-		{"IdentityCard", "a gate that accepts any card", func(d *ProviderDisposition) { d.IdentityCard = EMMAObservedQualificationCardID }},
-		{"IdentityStatus", "a gate that skips the identity status", func(d *ProviderDisposition) { d.IdentityStatus = "INSUFFICIENT_EVIDENCE" }},
-		{"IdentityGateRegistered", "a gate that skips the registration of the identity gate", func(d *ProviderDisposition) { d.IdentityGateRegistered = false }},
-		{"IdentityScope", "a gate that widens the observed-tuple scope", func(d *ProviderDisposition) { d.IdentityScope = "ALL_TUPLES" }},
-		{"RecordedStop", "a gate that ignores a stop in force", func(d *ProviderDisposition) {
+		{"Path", "a gate that ignores the path or admits an unknown path", true, func(d *ProviderDisposition) { d.Path = "SmartLoggerX" }},
+		{"Path", "a gate that admits the EMMA path with another path's card", true, func(d *ProviderDisposition) { d.Path = ProviderPathEMMA }},
+		{"IdentityCard", "a gate that accepts any card", true, func(d *ProviderDisposition) { d.IdentityCard = EMMAObservedQualificationCardID }},
+		{"IdentityStatus", "a gate that skips the identity status", true, func(d *ProviderDisposition) { d.IdentityStatus = "INSUFFICIENT_EVIDENCE" }},
+		{"IdentityGateRegistered", "a gate that skips the registration of the identity gate", true, func(d *ProviderDisposition) { d.IdentityGateRegistered = false }},
+		{"IdentityScope", "a gate that treats the observed-tuple scope as an enablement condition", false, func(d *ProviderDisposition) { d.IdentityScope = "ALL_TUPLES" }},
+		{"RecordedStop", "a gate that ignores a stop in force", true, func(d *ProviderDisposition) {
 			d.RecordedStop = "IN_FORCE"
 			d.FurtherLiveIO = "OPERATOR_APPROVAL_AT_ACTION_TIME"
 		}},
-		{"FurtherLiveIO", "a gate that ignores a hard stop on further reads", func(d *ProviderDisposition) {
+		{"FurtherLiveIO", "a gate that ignores a hard stop on further reads", true, func(d *ProviderDisposition) {
 			d.RecordedStop = "IDENTITY_OF_OBSERVED_TUPLE_ONLY"
 			d.FurtherLiveIO = "HARD_STOP"
 		}},
-		{"ChildProfiles", "a gate that admits without a child profile", func(d *ProviderDisposition) { d.ChildProfiles = nil }},
-		{"ChildProfiles", "a gate that ignores the child outcome", func(d *ProviderDisposition) { d.ChildProfiles[0].Outcome = "NO_ADMISSIBLE_PROFILE" }},
-		{"ChildProfiles", "a gate that admits an unknown profile identifier", func(d *ProviderDisposition) { d.ChildProfiles[0].ProfileID += "x" }},
-		{"ChildProfiles", "a gate that admits a profile of another family", func(d *ProviderDisposition) { d.ChildProfiles[0].Family = "SUN2000 MAP0 series" }},
-		{"ChildProfiles", "a gate that admits the other path's profile", func(d *ProviderDisposition) {
+		{"ChildProfiles", "a gate that admits without a child profile", true, func(d *ProviderDisposition) { d.ChildProfiles = nil }},
+		{"ChildProfiles", "a gate that ignores the child outcome", true, func(d *ProviderDisposition) { d.ChildProfiles[0].Outcome = "NO_ADMISSIBLE_PROFILE" }},
+		{"ChildProfiles", "a gate that admits an unknown profile identifier", true, func(d *ProviderDisposition) { d.ChildProfiles[0].ProfileID += "x" }},
+		{"ChildProfiles", "a gate that admits a profile of another family", true, func(d *ProviderDisposition) { d.ChildProfiles[0].Family = "SUN2000 MAP0 series" }},
+		{"ChildProfiles", "a gate that admits the other path's profile when its model does not match", true, func(d *ProviderDisposition) {
 			for _, profile := range SUN2000MonitoringProfiles() {
 				if profile.ID() != d.ChildProfiles[0].ProfileID {
 					d.ChildProfiles[0].ProfileID, d.ChildProfiles[0].Family = profile.ID(), profile.Family()
@@ -46,10 +47,19 @@ func h06DispositionMutations() []h06Mutation {
 				}
 			}
 		}},
-		{"CatalogRegistered", "a gate that ignores catalog registration", func(d *ProviderDisposition) { d.CatalogRegistered = true }},
-		{"AutomaticRuntimeAdmission", "a gate that ignores automatic admission", func(d *ProviderDisposition) { d.AutomaticRuntimeAdmission = true }},
-		{"SupportClaim", "a gate that ignores a support claim", func(d *ProviderDisposition) { d.SupportClaim = true }},
-		{"WriteAuthority", "a gate that ignores write authority", func(d *ProviderDisposition) { d.WriteAuthority = true }},
+		{"ChildProfiles", "a gate that admits a model the catalogue does not declare", true, func(d *ProviderDisposition) { d.ChildProfiles[0].Model = "NOT-A-CATALOG-ROW" }},
+		{"ChildProfiles", "a gate that admits a child unit above 247", true, func(d *ProviderDisposition) { d.ChildProfiles[0].Unit = 248 }},
+		{"ChildProfiles", "a gate that accepts only the observed child unit", false, func(d *ProviderDisposition) { d.ChildProfiles[0].Unit = 2 }},
+		{"ChildProfiles", "a gate that requires a model token when the hand profile already names one", false, func(d *ProviderDisposition) { d.ChildProfiles[0].Model = "" }},
+		{"ChildProfiles", "a gate that treats a child reason as an enablement condition", false, func(d *ProviderDisposition) {
+			d.ChildProfiles[0].Reason = "catalog_card_without_monitoring_profile"
+		}},
+		{"CatalogRegistered", "a gate that ignores catalog registration", true, func(d *ProviderDisposition) { d.CatalogRegistered = true }},
+		{"AutomaticRuntimeAdmission", "a gate that ignores automatic admission", true, func(d *ProviderDisposition) { d.AutomaticRuntimeAdmission = true }},
+		{"SupportClaim", "a gate that ignores a support claim", true, func(d *ProviderDisposition) { d.SupportClaim = true }},
+		{"WriteAuthority", "a gate that treats write authority as an enablement condition", false, func(d *ProviderDisposition) { d.WriteAuthority = true }},
+		{"Qualified", "a gate that admits a disposition that is not the declared binding", true, func(d *ProviderDisposition) { d.Qualified = false }},
+		{"HardwareTest", "a gate that lets a hardware test change qualified or enablement", false, func(d *ProviderDisposition) { d.HardwareTest = "NOT_TESTED" }},
 	}
 }
 
@@ -75,11 +85,19 @@ func TestH06ANonAdmissibleDispositionMakesConstructionRefuse(t *testing.T) {
 		}
 		for _, mutation := range h06DispositionMutations() {
 			d := recorded.clone()
+			qualified := d.Qualified
 			mutation.mutate(&d)
-			if EvaluateHuaweiProviderEnablement(d).Admitted {
-				t.Fatalf("%s %s: admitted; catches %s", path, mutation.field, mutation.production)
-			}
-			if err := construct(d); !errors.Is(err, ErrHuaweiProviderNotAdmitted) {
+			got := EvaluateHuaweiProviderEnablement(d)
+			if mutation.refuses {
+				if got.Admitted {
+					t.Fatalf("%s %s: admitted; catches %s", path, mutation.field, mutation.production)
+				}
+				if err := construct(d); !errors.Is(err, ErrHuaweiProviderNotAdmitted) {
+					t.Fatalf("%s %s: construction %v; catches %s", path, mutation.field, err, mutation.production)
+				}
+			} else if !got.Admitted || got.Reason != ProviderEnabled || d.Qualified != qualified {
+				t.Fatalf("%s %s: %+v qualified %v; catches %s", path, mutation.field, got, d.Qualified, mutation.production)
+			} else if err := construct(d); err != nil {
 				t.Fatalf("%s %s: construction %v; catches %s", path, mutation.field, err, mutation.production)
 			}
 			covered[mutation.field] = true
@@ -117,15 +135,23 @@ func TestH06EMMAPathHasNoProviderAndKeepsTheMAP0Reason(t *testing.T) {
 		t.Fatal("no recorded EMMA disposition")
 	}
 	enablement := EvaluateHuaweiProviderEnablement(recorded)
-	if enablement.Admitted || enablement.Reason != ProviderNoAdmittedChildProfile ||
-		!reflect.DeepEqual(enablement.Detail, []string{"SUN2000 MAP0 series: catalog_card_without_monitoring_profile"}) {
+	if !enablement.Admitted || enablement.Reason != ProviderEnabled ||
+		!reflect.DeepEqual(enablement.Profiles, []string{"SUN2000_12K_MAP0"}) {
 		t.Fatalf("EMMA enablement: %+v", enablement)
 	}
-	// Even an identity card of the observed SmartLogger kind would not admit
-	// the path while its only child row admits nothing.
-	recorded.IdentityCard, recorded.IdentityScope = SmartLoggerObservedQualificationCardID, huaweiIdentityObservedOnly
-	if EvaluateHuaweiProviderEnablement(recorded).Admitted {
-		t.Fatal("an EMMA disposition without an admitted child profile was admitted")
+	// A child that admits nothing still refuses the path. Another path's card
+	// does not become the energy-manager identity.
+	withoutChild := recorded.clone()
+	withoutChild.ChildProfiles[0].Outcome = "NO_ADMISSIBLE_PROFILE"
+	withoutChild.ChildProfiles[0].Reason = "catalog_card_without_monitoring_profile"
+	if got := EvaluateHuaweiProviderEnablement(withoutChild); got.Admitted || got.Reason != ProviderNoAdmittedChildProfile ||
+		!reflect.DeepEqual(got.Detail, []string{"SUN2000 MAP0 series: catalog_card_without_monitoring_profile"}) {
+		t.Fatalf("an EMMA disposition without an admitted child profile: %+v", got)
+	}
+	wrongCard := recorded.clone()
+	wrongCard.IdentityCard = SmartLoggerObservedQualificationCardID
+	if EvaluateHuaweiProviderEnablement(wrongCard).Admitted {
+		t.Fatal("an EMMA disposition with another path's card was admitted")
 	}
 	if _, ok := ProviderPacingFor(ProviderPathEMMA); ok {
 		t.Fatal("the EMMA path has a provider pacing envelope")
@@ -147,6 +173,9 @@ func TestH06RecordedDispositionsAgreeWithTheDispositionFiles(t *testing.T) {
 			child := ProviderChildDisposition{Family: row["family"].(string), Outcome: row["outcome"].(string)}
 			if id, ok := row["profile_id"].(string); ok {
 				child.ProfileID = id
+			}
+			if model, ok := row["model"].(string); ok {
+				child.Model = model
 			}
 			if reason, ok := row["reason"].(string); ok {
 				child.Reason = reason
@@ -180,6 +209,12 @@ func TestH06RecordedDispositionsAgreeWithTheDispositionFiles(t *testing.T) {
 			observed := huaweiObject(t, record["observed_identity"])
 			want.IdentityCard, want.IdentityStatus = observed["qualification_card"].(string), observed["status"].(string)
 			want.IdentityGateRegistered, want.IdentityScope = observed["gate_registered"].(bool), observed["scope"].(string)
+			want.Qualified = record["qualified"].(bool)
+			hardware := huaweiObject(t, record["hardware_test"])
+			want.HardwareTest = hardware["level"].(string)
+			if hardware["changes_qualified"] != false {
+				t.Fatal("a hardware test changes qualified")
+			}
 			if stop, ok := observed["hard_stop"]; ok {
 				want.RecordedStop = huaweiObject(t, stop)["superseded_for"].(string)
 				want.FurtherLiveIO = huaweiObject(t, stop)["further_live_io"].(string)
@@ -335,5 +370,120 @@ func TestSDongleNonResponseAsksNoApproval(t *testing.T) {
 	}
 	if enablement := EvaluateHuaweiProviderEnablement(recorded); !enablement.Admitted {
 		t.Fatalf("S-Dongle path refused without a stop: %+v", enablement)
+	}
+}
+
+// TestHuaweiEnablementAdmitsDeclaredIdentity covers the declared-identity gate.
+// Each case names the field it varies and the production mutation a passing
+// run catches. The companion mutation loop covers the same disposition fields
+// on the recorded logger and dongle rows, including construction.
+//
+//	Path: refuses the energy-manager path, or a routed child of a declared model.
+//	IdentityCard: accepts another path's card.
+//	WriteAuthority: treats write authority as an enablement condition.
+//	Qualified: admits a disposition that is not the declared binding.
+//	HardwareTest: lets a hardware test change qualified or enablement.
+//	Family, ProfileID, Model: refuses a routed child whose catalogue model is declared.
+//	Model empty: requires a model token when the hand profile already names one.
+//	Model undeclared: admits a model the catalogue does not declare.
+//	Unit: accepts only the observed child unit, or a unit above 247.
+//	Outcome, Reason: admits a child that is not a declared profile, or drops the child reason.
+//	ProfileID unknown: treats an unknown profile identifier as declared.
+func TestHuaweiEnablementAdmitsDeclaredIdentity(t *testing.T) {
+	declared := func(path ProviderPath, card string, child ProviderChildDisposition) ProviderDisposition {
+		return ProviderDisposition{
+			Path: path, IdentityCard: card, IdentityStatus: huaweiIdentityAdmitted, IdentityGateRegistered: true,
+			IdentityScope: huaweiIdentityObservedOnly, ChildProfiles: []ProviderChildDisposition{child},
+			Qualified: true, HardwareTest: "TESTED_ON_HARDWARE", WriteAuthority: true,
+		}
+	}
+	varied := map[string]bool{}
+	emmaChild := ProviderChildDisposition{Family: "SUN2000 MAP0 series", Model: "SUN2000_12K_MAP0", Outcome: huaweiProfileAdmitted}
+	varied["Family"], varied["Model"], varied["Outcome"] = true, true, true
+	emma := declared(ProviderPathEMMA, EMMAObservedQualificationCardID, emmaChild)
+	if ProviderEnabled != "PROVIDER_ADMITTED_FOR_DECLARED_IDENTITY" {
+		t.Fatalf("enablement reason %s", ProviderEnabled)
+	}
+	enablement := EvaluateHuaweiProviderEnablement(emma)
+	if !enablement.Admitted || enablement.Reason != ProviderEnabled ||
+		!reflect.DeepEqual(enablement.Profiles, []string{"SUN2000_12K_MAP0"}) {
+		t.Fatalf("energy-manager path: %+v", enablement)
+	}
+	// WriteAuthority: a gate that treats write authority as an enablement condition.
+	emma.WriteAuthority = false
+	if again := EvaluateHuaweiProviderEnablement(emma); again.Admitted != enablement.Admitted || again.Reason != enablement.Reason {
+		t.Fatalf("write authority changed enablement: %+v", again)
+	}
+	// IdentityCard: a gate that accepts another path's card.
+	emma.IdentityCard = SmartLoggerObservedQualificationCardID
+	if got := EvaluateHuaweiProviderEnablement(emma); got.Admitted || got.Reason != ProviderIdentityNotAdmitted {
+		t.Fatalf("another path's card: %+v", got)
+	}
+	emma.IdentityCard = EMMAObservedQualificationCardID
+	// Family, ProfileID and Model: a gate that refuses a routed child of a declared model.
+	loggerChild := ProviderChildDisposition{Family: huaweiSUN2000M1Family, ProfileID: SUN2000M1MonitoringProfileID, Model: huaweiSDongleObservedChildModel, Outcome: huaweiProfileAdmitted}
+	varied["ProfileID"] = true
+	logger := declared(ProviderPathSmartLogger, SmartLoggerObservedQualificationCardID, loggerChild)
+	if routed := EvaluateHuaweiProviderEnablement(logger); !routed.Admitted || !reflect.DeepEqual(routed.Profiles, []string{SUN2000M1MonitoringProfileID}) {
+		t.Fatalf("routed declared model: %+v", routed)
+	}
+	// Model empty: a gate that requires a model token when the hand profile already names one.
+	logger.ChildProfiles[0].Model = ""
+	if got := EvaluateHuaweiProviderEnablement(logger); !got.Admitted || !reflect.DeepEqual(got.Profiles, []string{SUN2000M1MonitoringProfileID}) {
+		t.Fatalf("empty hand-profile model: %+v", got)
+	}
+	// Unit: a gate that accepts only the observed child unit.
+	for _, unit := range []uint8{0, 1, 2, 100, 247} {
+		varied["Unit"] = true
+		dongleChild := ProviderChildDisposition{Family: huaweiSUN2000M3Family, ProfileID: SUN2000M3MonitoringProfileID, Model: huaweiSUN2000M3Model, Unit: unit, Outcome: huaweiProfileAdmitted}
+		dongle := declared(ProviderPathSDongle, SDongleObservedQualificationCardID, dongleChild)
+		if got := EvaluateHuaweiProviderEnablement(dongle); !got.Admitted {
+			t.Fatalf("configured dongle child unit %d: %+v", unit, got)
+		}
+	}
+	over := declared(ProviderPathSDongle, SDongleObservedQualificationCardID, ProviderChildDisposition{
+		Family: huaweiSUN2000M3Family, ProfileID: SUN2000M3MonitoringProfileID, Model: huaweiSUN2000M3Model, Unit: 248, Outcome: huaweiProfileAdmitted,
+	})
+	if got := EvaluateHuaweiProviderEnablement(over); got.Admitted || got.Reason != ProviderChildProfileNotRecognised {
+		t.Fatalf("unit above 247: %+v", got)
+	}
+	// HardwareTest: a gate that lets a hardware test change qualified or enablement.
+	qualified := emma.Qualified
+	emma.HardwareTest = "NOT_TESTED"
+	if EvaluateHuaweiProviderEnablement(emma).Admitted != enablement.Admitted || emma.Qualified != qualified {
+		t.Fatal("a hardware test changed qualified or enablement")
+	}
+	// Qualified: a gate that admits a disposition that is not the declared binding.
+	emma.HardwareTest = "TESTED_ON_HARDWARE"
+	emma.Qualified = false
+	if got := EvaluateHuaweiProviderEnablement(emma); got.Admitted || got.Reason != ProviderDeclaredBindingAbsent {
+		t.Fatalf("an unbound disposition was admitted: %+v", got)
+	}
+	emma.Qualified = true
+	// Model: a gate that admits a model the catalogue does not declare.
+	emma.ChildProfiles[0].Model = "NOT-A-CATALOG-ROW"
+	if got := EvaluateHuaweiProviderEnablement(emma); got.Admitted || got.Reason != ProviderChildProfileNotRecognised {
+		t.Fatalf("an undeclared model was admitted: %+v", got)
+	}
+	// Outcome and Reason: a gate that admits a non-declared child, or drops the child reason.
+	emma.ChildProfiles[0].Model = "SUN2000_12K_MAP0"
+	emma.ChildProfiles[0].Outcome = "NO_ADMISSIBLE_PROFILE"
+	emma.ChildProfiles[0].Reason = "catalog_card_without_monitoring_profile"
+	varied["Reason"] = true
+	if got := EvaluateHuaweiProviderEnablement(emma); got.Admitted || got.Reason != ProviderNoAdmittedChildProfile ||
+		!reflect.DeepEqual(got.Detail, []string{"SUN2000 MAP0 series: catalog_card_without_monitoring_profile"}) {
+		t.Fatalf("child outcome: %+v", got)
+	}
+	// ProfileID: a gate that treats an unknown profile identifier as declared.
+	emma.ChildProfiles[0].Outcome = huaweiProfileAdmitted
+	emma.ChildProfiles[0].ProfileID = "not-a-hand-profile"
+	if got := EvaluateHuaweiProviderEnablement(emma); got.Admitted || got.Reason != ProviderChildProfileNotRecognised {
+		t.Fatalf("unknown profile identifier: %+v", got)
+	}
+	kind := reflect.TypeOf(ProviderChildDisposition{})
+	for index := 0; index < kind.NumField(); index++ {
+		if !varied[kind.Field(index).Name] {
+			t.Fatalf("child field %s is not varied", kind.Field(index).Name)
+		}
 	}
 }

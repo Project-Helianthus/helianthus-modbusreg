@@ -62,8 +62,10 @@ time but reports no current match. A late attempt 2 completion against attempt
 | Proven | Synthetic focused tests establish detached values, independent optional status, context fencing and last valid identity retention. This is offline implementation evidence. |
 | Hypothesis | A later coordinator can use this pure transition within its atomic per-parent publication boundary. Integration is not implemented or tested here. |
 | Unknown | Qualified inventory-guard acquisition, live correlation, capabilities and hardware behavior. |
-| Qualification | Always evidence blocked, independently of a local identity match. |
-| Admission | Default denied; catalog registration, automatic admission, live qualification, support claim and write authority remain false. |
+| Qualification | The identity-transaction result stays evidence blocked, independently of a local identity match. Enablement of the energy-manager path is separate: a catalogue-declared gateway identity and a declared child admit the path, and `qualified` on the disposition is that declared runtime binding. |
+| Admission | The identity-transaction result stays default denied. Catalog registration, automatic admission, live qualification and the support claim stay false. Write authority does not decide provider enablement. |
+
+The energy-manager disposition records `qualified` as the declared runtime binding and a hardware-test level beside it. A hardware test does not change `qualified`. The disposition carries neither `blocked_by` nor `missing_evidence`. The path still has no provider pacing. The enablement reason is `PROVIDER_ADMITTED_FOR_DECLARED_IDENTITY`.
 
 No registration, transport, scheduling, retry, gateway integration, consumer
 binding or authorization gate is added. MCP and GraphQL are unchanged; later

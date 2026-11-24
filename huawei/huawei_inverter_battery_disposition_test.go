@@ -90,6 +90,7 @@ func TestHuaweiInverterBatteryDispositionsKeepAuthorityClosed(t *testing.T) {
 				"firmware_ranges", "capability_detection", "registers", "optional_groups",
 				"private_functions", "writes", "decoder_keys", "catalog_registered",
 				"automatic_runtime_admission", "support_claim", "write_authority", "reopen_requires", "observation_pointer",
+				"qualified", "hardware_test",
 			}
 			if tc.optional {
 				keys = append(keys, "battery_groups")
@@ -109,7 +110,7 @@ func TestHuaweiInverterBatteryDispositionsKeepAuthorityClosed(t *testing.T) {
 			}
 
 			evidence := huaweiObject(t, record["evidence"])
-			requireHuaweiKeys(t, evidence, "source_document", "docs_modbus_page", "monitoring_contract", "eligible", "missing_evidence", "vendor_documentation")
+			requireHuaweiKeys(t, evidence, "source_document", "docs_modbus_page", "monitoring_contract", "eligible", "vendor_documentation")
 			huaweiRequireMonitoringContract(t, evidence["monitoring_contract"])
 			source := huaweiObject(t, evidence["source_document"])
 			requireHuaweiKeys(t, source, "name", "classification", "present_in_repository", "publication_policy", "redistributable")
@@ -130,8 +131,8 @@ func TestHuaweiInverterBatteryDispositionsKeepAuthorityClosed(t *testing.T) {
 				evidence["eligible"] != !tc.optional {
 				t.Fatalf("unexpected docs-modbus page state: %#v", page)
 			}
-			missing := huaweiStringSlice(t, evidence["missing_evidence"])
 			wantMissing := []string{"catalog_monitoring_profile"}
+			hardwareLevel := "TESTED_ON_HARDWARE"
 			if tc.optional {
 				wantMissing = []string{
 					"pinned_vendor_document_identity",
@@ -140,9 +141,12 @@ func TestHuaweiInverterBatteryDispositionsKeepAuthorityClosed(t *testing.T) {
 					"clean_room_sanitized_monitoring_fixture",
 					"negative_overlap_with_smartlogger_emma_sdongle",
 				}
+				hardwareLevel = "NOT_TESTED"
 			}
-			if !reflect.DeepEqual(missing, wantMissing) || !reflect.DeepEqual(huaweiStringSlice(t, record["reopen_requires"]), missing) {
-				t.Fatalf("missing_evidence=%v reopen_requires=%v want %v", missing, record["reopen_requires"], wantMissing)
+			hardware := huaweiObject(t, record["hardware_test"])
+			if record["qualified"] != true || hardware["level"] != hardwareLevel || hardware["changes_qualified"] != false ||
+				!reflect.DeepEqual(huaweiStringSlice(t, record["reopen_requires"]), wantMissing) {
+				t.Fatalf("qualified=%v hardware=%v reopen_requires=%v want %v", record["qualified"], hardware, record["reopen_requires"], wantMissing)
 			}
 
 			families := huaweiObject(t, record["model_families"])

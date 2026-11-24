@@ -3,8 +3,12 @@
 This registry slice turns one read-only observation of an S-Dongle fronting one
 inverter into synthetic fixtures, one inert qualification card and a revised
 disposition. It admits an identity tuple offline. It registers no catalog entry,
-grants no runtime admission, support claim or write authority, sends no request,
-and leaves the profile and monitoring outcomes where they were.
+sets no support claim or write authority, and sends no request. Provider
+enablement admits the dongle when the catalogue declares the gateway identity
+and a routed child has a declared monitoring profile, including any configured
+child unit. The enablement reason is `PROVIDER_ADMITTED_FOR_DECLARED_IDENTITY`.
+Write authority does not decide that enablement. The profile outcome and the
+monitoring field stay where they were.
 
 The protocol facts, their Proven, Hypothesis and Unknown grades and the
 exact-tuple semantics are owned by the public documentation, not by this page:
@@ -151,7 +155,11 @@ tolerances, the forbidden identities and the negative-overlap rows. The
 observed-identity hard stop is no longer recorded: further live reads need no
 operator approval at action time, and a persistent non-response leaves the child
 stale while the transport backs off and identifies again. The profile
-outcome stays `PRE_LIVE_INSUFFICIENT_EVIDENCE` and monitoring is not admitted.
+outcome stays `PRE_LIVE_INSUFFICIENT_EVIDENCE` and the monitoring field stays
+`NOT_ADMITTED`. The observed tuple is the hardware-test level
+`TESTED_ON_HARDWARE`. `qualified` is the declared runtime binding, and that
+hardware-test record does not change it. The disposition carries neither
+`blocked_by` nor `missing_evidence`; the open gaps stay on `reopen_requires`.
 The child inventory gap closes for the observed tuple. The product string, the
 encoding of the protocol words and the EMMA overlap in its reverse direction stay
 open, and the first two are closed only in part.
@@ -163,7 +171,11 @@ an absent S-Dongle result all leave the hard stop in force.
 
 The negative-overlap rows name their fixture, and a test reads each claimed
 outcome back out of that fixture. The EMMA, SmartLogger, SUN2000 and LUNA2000
-dispositions are unchanged.
+dispositions record the same declared binding. Their observed tuples are the
+hardware-test level `TESTED_ON_HARDWARE`, except LUNA2000, whose hardware-test
+level is `NOT_TESTED`. A hardware test does not change `qualified`. Those files
+likewise carry neither `blocked_by` nor `missing_evidence`. Their observation
+facts stay as the pages that own them record them.
 
 ## Rollback
 

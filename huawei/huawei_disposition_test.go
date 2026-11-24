@@ -143,12 +143,11 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 			},
 			remaining: func(t *testing.T, record map[string]any) {
 				t.Helper()
-				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "software_selection", "observed_identity", "change_counter", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "production_provider", "reopen_requires")
+				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "software_selection", "observed_identity", "change_counter", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "production_provider", "reopen_requires", "qualified", "hardware_test")
 				m86RequireSoftwareSelection(t, record, SmartLoggerCanonicalClass, 0)
 				evidence := huaweiObject(t, record["evidence"])
-				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "closed_evidence", "partially_closed_evidence", "unknown_after_observation", "docs_contract", "vendor_documentation")
-				if evidence["candidate_id"] != "huawei.smartlogger.v1" || evidence["source_license"] != "CC0-1.0" ||
-					!reflect.DeepEqual(huaweiStringSlice(t, evidence["missing_evidence"]), []string{"pairwise_negative_overlap_with_emma_fixture"}) {
+				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "closed_evidence", "partially_closed_evidence", "unknown_after_observation", "docs_contract", "vendor_documentation")
+				if evidence["candidate_id"] != "huawei.smartlogger.v1" || evidence["source_license"] != "CC0-1.0" {
 					t.Fatalf("unexpected SmartLogger evidence: %#v", evidence)
 				}
 				counter := huaweiObject(t, record["change_counter"])
@@ -192,10 +191,10 @@ func TestHuaweiV1FamilyDispositionsRetainFailClosedContracts(t *testing.T) {
 			},
 			remaining: func(t *testing.T, record map[string]any) {
 				t.Helper()
-				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "software_selection", "protocol_version", "search_sequence", "capacity", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "qualification_plan", "observed_identity", "production_provider", "reopen_requires")
+				requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "admission", "software_selection", "protocol_version", "search_sequence", "capacity", "child_enumeration", "private_functions", "decoder_keys", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "qualification_plan", "observed_identity", "production_provider", "reopen_requires", "qualified", "hardware_test")
 				m86RequireSoftwareSelection(t, record, SDongleCanonicalClass, 100)
 				evidence := huaweiObject(t, record["evidence"])
-				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "missing_evidence", "closed_evidence", "partially_closed_evidence", "unknown_after_observation", "live_qualification", "docs_contract", "vendor_documentation")
+				requireHuaweiKeys(t, evidence, "docs_merge_sha", "candidate_id", "source_license", "eligible", "closed_evidence", "partially_closed_evidence", "unknown_after_observation", "live_qualification", "docs_contract", "vendor_documentation")
 				live := huaweiObject(t, evidence["live_qualification"])
 				requireHuaweiKeys(t, live, "status", "recorded_status", "superseded_by", "identification_claim", "incompatibility_claim", "subsequent_modbus_requests_sent", "attempts", "retry_matrix")
 				if evidence["candidate_id"] != "huawei.sdongle.v1" || evidence["source_license"] != "CC0-1.0" || live["status"] != "SUPERSEDED_FOR_OBSERVED_IDENTITY" ||
@@ -268,7 +267,7 @@ func TestHuaweiEMMAOfflineDispositionIsDefaultDeniedAndPinnedToDocs(t *testing.T
 		t.Fatal("disposition contains private endpoint or credential material")
 	}
 	record := decodeHuaweiObject(t, path)
-	requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "observed_identity", "offline_identity_gate_registered", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "detector", "software_selection", "child_enumeration", "private_functions", "decoder_keys", "reopen_requires")
+	requireHuaweiKeys(t, record, "schema", "profile", "profile_version", "outcome", "evidence", "observed_identity", "offline_identity_gate_registered", "catalog_registered", "automatic_runtime_admission", "support_claim", "write_authority", "detector", "software_selection", "child_enumeration", "private_functions", "decoder_keys", "reopen_requires", "qualified", "hardware_test")
 	if record["schema"] != "helianthus-modbusreg-huawei-emma-disposition/v3" || record["profile"] != EMMAReadOnlyProfileID ||
 		record["profile_version"] != "1.0.0" || record["outcome"] != "OFFLINE_IDENTITY_ADMITTED" ||
 		record["offline_identity_gate_registered"] != true || record["catalog_registered"] != false ||
@@ -315,4 +314,58 @@ func TestHuaweiFamilyDispositionsPinOwnDocumentation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHuaweiDispositionHardwareTestLeavesQualifiedUnchanged pins the five
+// disposition files: qualified is the declared binding, a hardware test is
+// recorded beside it, and blocked_by and missing_evidence are absent.
+func TestHuaweiDispositionHardwareTestLeavesQualifiedUnchanged(t *testing.T) {
+	files := []struct{ name, level string }{
+		{"smartlogger-disposition.json", "TESTED_ON_HARDWARE"},
+		{"sdongle-disposition.json", "TESTED_ON_HARDWARE"},
+		{"emma-disposition.json", "TESTED_ON_HARDWARE"},
+		{"sun2000-disposition.json", "TESTED_ON_HARDWARE"},
+		{"luna2000-disposition.json", "NOT_TESTED"},
+	}
+	for _, file := range files {
+		record := decodeHuaweiObject(t, "../profiles/vendors/huawei/"+file.name)
+		if found := huaweiDispositionForbiddenKey(record); found != "" {
+			t.Fatalf("%s still carries %s", file.name, found)
+		}
+		hardware := huaweiObject(t, record["hardware_test"])
+		if record["qualified"] != true || hardware["changes_qualified"] != false || hardware["level"] != file.level {
+			t.Fatalf("%s qualified=%v hardware=%v", file.name, record["qualified"], hardware)
+		}
+	}
+	for _, name := range []string{"smartlogger-disposition.json", "sdongle-disposition.json"} {
+		record := decodeHuaweiObject(t, "../profiles/vendors/huawei/"+name)
+		if huaweiObject(t, record["production_provider"])["enablement"] != "PROVIDER_ADMITTED_FOR_DECLARED_IDENTITY" {
+			t.Fatalf("%s enablement changed", name)
+		}
+	}
+}
+
+func huaweiDispositionForbiddenKey(value any) string {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			if key == "blocked_by" || strings.Contains(key, "missing_evidence") {
+				return key
+			}
+			if found := huaweiDispositionForbiddenKey(child); found != "" {
+				return found
+			}
+		}
+	case []any:
+		for _, child := range typed {
+			if found := huaweiDispositionForbiddenKey(child); found != "" {
+				return found
+			}
+		}
+	case string:
+		if strings.Contains(typed, "missing_evidence") || strings.Contains(typed, "blocked_by") {
+			return typed
+		}
+	}
+	return ""
 }

@@ -224,9 +224,8 @@ func TestH18EMMADispositionSupersedesTheNoResponseRecordForIdentityOnly(t *testi
 		t.Fatalf("the battery disposition moved: %#v", luna["outcome"])
 	}
 	profile := huaweiObject(t, observed["profile_status"])
-	requireHuaweiKeys(t, profile, "outcome", "monitoring", "batteries", "blocked_by")
-	if profile["outcome"] != record["outcome"] || profile["monitoring"] != "NOT_ADMITTED" || profile["batteries"] != "NOT_ADMITTED" ||
-		!reflect.DeepEqual(huaweiStringSlice(t, profile["blocked_by"]), missing) {
+	requireHuaweiKeys(t, profile, "outcome", "monitoring", "batteries")
+	if profile["outcome"] != record["outcome"] || profile["monitoring"] != "NOT_ADMITTED" || profile["batteries"] != "NOT_ADMITTED" {
 		t.Fatalf("profile status: %#v", profile)
 	}
 	for _, name := range []string{"battery_addressing_behind_gateway_fixture"} {

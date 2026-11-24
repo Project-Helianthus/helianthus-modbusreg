@@ -32,9 +32,6 @@
       "merge_companion_first": true
     },
     "eligible": true,
-    "missing_evidence": [
-      "catalog_monitoring_profile"
-    ],
     "vendor_documentation": {
       "source_class": "OFFICIAL_VENDOR_DOCUMENTATION_ONLY",
       "monitoring_profile_basis": [
@@ -66,8 +63,7 @@
       "testdata/huawei/identity/smartlogger_extended_inventory.json",
       "testdata/huawei/identity/sun2000_routed_identity.json"
     ],
-    "changes_outcome": false,
-    "changes_missing_evidence": false
+    "changes_outcome": false
   },
   "model_families": {
     "class": "SUN2000",
@@ -267,8 +263,7 @@
         "battery",
         "meter"
       ],
-      "fixture": "testdata/huawei/monitoring/sun2000_m3_smartlogger_monitoring.json",
-      "missing_evidence": []
+      "fixture": "testdata/huawei/monitoring/sun2000_m3_smartlogger_monitoring.json"
     },
     {
       "family": "SUN2000 M1 series",
@@ -474,14 +469,12 @@
         "battery",
         "meter"
       ],
-      "fixture": "testdata/huawei/monitoring/sun2000_m1_sdongle_monitoring.json",
-      "missing_evidence": []
+      "fixture": "testdata/huawei/monitoring/sun2000_m1_sdongle_monitoring.json"
     },
     {
       "family": "SUN2000 MAP0 series",
       "gateway_path": "EMMA",
-      "outcome": "NO_ADMISSIBLE_PROFILE",
-      "reason": "catalog_card_without_monitoring_profile",
+      "outcome": "OFFLINE_PROFILE_ADMITTED",
       "catalog_selection": {
         "decision_case": "map0_series_wire_alias_selects_the_ma_v200_card",
         "outcome": "SELECTED",
@@ -501,9 +494,7 @@
         "floor": "V200R024C00",
         "floor_basis": "row"
       },
-      "missing_evidence": [
-        "catalog_monitoring_profile"
-      ]
+      "model": "SUN2000_12K_MAP0"
     }
   ],
   "version_gate": {
@@ -801,5 +792,10 @@
   "write_authority": false,
   "reopen_requires": [
     "catalog_monitoring_profile"
-  ]
+  ],
+  "qualified": true,
+  "hardware_test": {
+    "level": "TESTED_ON_HARDWARE",
+    "changes_qualified": false
+  }
 }

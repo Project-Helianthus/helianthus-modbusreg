@@ -1261,7 +1261,7 @@ func TestH05ProfilesAgreeWithTheDisposition(t *testing.T) {
 			row["identity_card"] != profile.IdentityCard() || row["outcome"] != "OFFLINE_PROFILE_ADMITTED" ||
 			row["edition_binding"] != string(profile.EditionBinding()) || row["fixture"] != h05FixtureDirectory+"/"+h05FixtureFor(profile.ID()) ||
 			document["title"] != profile.Document().Title || document["version"] != profile.Document().Version || document["date"] != profile.Document().Date ||
-			len(h03Array(t, row["missing_evidence"])) != 0 {
+			row["missing_evidence"] != nil {
 			t.Fatalf("row %d disagrees with %s: %#v", index, profile.ID(), row)
 		}
 		h03RequireFiles(t, []string{row["fixture"].(string)})
@@ -1318,9 +1318,9 @@ func TestH05ProfilesAgreeWithTheDisposition(t *testing.T) {
 		t.Fatalf("decoder keys %v want %v", record["decoder_keys"], keys)
 	}
 	mapZero := huaweiObject(t, rows[len(rows)-1])
-	requireHuaweiKeys(t, mapZero, "family", "gateway_path", "outcome", "reason", "catalog_selection", "missing_evidence")
-	if mapZero["family"] != "SUN2000 MAP0 series" || mapZero["gateway_path"] != "EMMA" || mapZero["outcome"] != "NO_ADMISSIBLE_PROFILE" ||
-		mapZero["reason"] != "catalog_card_without_monitoring_profile" || !reflect.DeepEqual(huaweiStringSlice(t, mapZero["missing_evidence"]), []string{"catalog_monitoring_profile"}) {
+	requireHuaweiKeys(t, mapZero, "family", "gateway_path", "model", "outcome", "catalog_selection")
+	if mapZero["family"] != "SUN2000 MAP0 series" || mapZero["gateway_path"] != "EMMA" || mapZero["model"] != "SUN2000_12K_MAP0" ||
+		mapZero["outcome"] != "OFFLINE_PROFILE_ADMITTED" {
 		t.Fatalf("MAP0 row: %#v", mapZero)
 	}
 	for _, profile := range profiles {
