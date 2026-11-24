@@ -132,6 +132,198 @@ func (p ChainPlan) structuralCandidate(wireKey WireKey, words []uint16, spans []
 	}
 	return sunSpecV2DERTripLVStructuralCandidate(p.revision, wireKey, words, spans)
 }
+
+// sunSpecDERTripStructuralCandidate is the model identifier a V2 plan opts
+// into post-payload structural validation. The occurrence stays an unknown
+// model; the existing projection reads the retained candidate.
+const sunSpecDERTripStructuralCandidate uint16 = 707
+
+// ChainUnitKind is the configured role of one allowlisted unit.
+type ChainUnitKind string
+
+// Allowlisted unit roles. An inverter and a meter on one endpoint are read
+// as separate chains.
+const (
+	ChainUnitInverter ChainUnitKind = "inverter"
+	ChainUnitMeter    ChainUnitKind = "meter"
+)
+
+// AllowlistedUnit is one configured unit whose SunSpec chain is read.
+// ListedModels are the model identifiers the chain lists; an empty list
+// selects the whole V1 registry.
+type AllowlistedUnit struct {
+	UnitID       byte
+	Kind         ChainUnitKind
+	ListedModels []uint16
+}
+
+// UnitAllowlist is the configured set of units read on one endpoint.
+type UnitAllowlist struct {
+	Endpoint       string
+	Units          []AllowlistedUnit
+	BaseCandidates []uint16
+	Limits         ChainLimits
+}
+
+// UnitChain is one allowlisted unit's chain walk and its own plan state.
+type UnitChain struct {
+	unitID   byte
+	kind     ChainUnitKind
+	endpoint string
+	chain    *Chain
+}
+
+// UnitID returns the configured unit identifier.
+func (u UnitChain) UnitID() byte { return u.unitID }
+
+// Kind returns the configured role of the unit.
+func (u UnitChain) Kind() ChainUnitKind { return u.kind }
+
+// Endpoint returns the endpoint the unit is read on.
+func (u UnitChain) Endpoint() string { return u.endpoint }
+
+// Plan returns the chain plan that walks this unit.
+func (u UnitChain) Plan() ChainPlan {
+	if u.chain == nil {
+		return ChainPlan{}
+	}
+	return u.chain.plan
+}
+
+// NextRequests returns the outstanding reads of this unit's chain.
+func (u UnitChain) NextRequests() []ReadRequest {
+	if u.chain == nil {
+		return nil
+	}
+	return u.chain.NextRequests()
+}
+
+// AdmitReplay admits the logical view that answered request on this unit's
+// chain. A view for another unit or endpoint is rejected and leaves the walk
+// unchanged.
+func (u UnitChain) AdmitReplay(r ReadRequest, v modbusreg.LogicalViewSnapshot) (ChainSnapshot, error) {
+	if u.chain == nil {
+		return ChainSnapshot{}, fmt.Errorf("SunSpec chain is unavailable")
+	}
+	return u.chain.AdmitReplay(r, v)
+}
+
+// AllowlistPlan holds one independent chain per allowlisted unit.
+type AllowlistPlan struct {
+	units []UnitChain
+}
+
+// Units returns the planned chains in allowlist order.
+func (p AllowlistPlan) Units() []UnitChain {
+	return append([]UnitChain(nil), p.units...)
+}
+
+// PlanAllowlistedUnits plans one chain walk per configured unit, a meter unit
+// on the same endpoint included. Each chain has its own plan state. The plan
+// for a unit uses NewListedChainPlan on that unit's listed models.
+func PlanAllowlistedUnits(list UnitAllowlist) (AllowlistPlan, error) {
+	if err := validateUnitAllowlist(list); err != nil {
+		return AllowlistPlan{}, err
+	}
+	units := make([]UnitChain, 0, len(list.Units))
+	for _, unit := range list.Units {
+		plan, err := NewListedChainPlan(unit.ListedModels, list.BaseCandidates, list.Limits)
+		if err != nil {
+			return AllowlistPlan{}, err
+		}
+		chain := NewChain(plan)
+		chain.bindAllowlistedUnit(list.Endpoint, unit.UnitID)
+		units = append(units, UnitChain{unitID: unit.UnitID, kind: unit.Kind, endpoint: list.Endpoint, chain: chain})
+	}
+	return AllowlistPlan{units: units}, nil
+}
+
+func validateUnitAllowlist(list UnitAllowlist) error {
+	if list.Endpoint == "" || len(list.Units) == 0 {
+		return fmt.Errorf("SunSpec allowlist requires an endpoint and a unit")
+	}
+	seen := make(map[byte]struct{}, len(list.Units))
+	for _, unit := range list.Units {
+		if unit.UnitID == 0 || unit.UnitID > 247 || (unit.Kind != ChainUnitInverter && unit.Kind != ChainUnitMeter) {
+			return fmt.Errorf("SunSpec allowlisted unit is invalid")
+		}
+		if _, duplicate := seen[unit.UnitID]; duplicate {
+			return fmt.Errorf("SunSpec allowlisted unit is duplicated")
+		}
+		seen[unit.UnitID] = struct{}{}
+	}
+	return nil
+}
+
+// NewListedChainPlan builds the read plan for a chain that lists modelIDs.
+// An identifier in the 700s or 800s selects the V2 registry and the model 707
+// structural-candidate selection. Every other chain uses the V1 registry.
+// Decoder keys are the registry keys of the listed identifiers. An empty list
+// carries the whole V1 registry. A listed model 120 keeps its V1 nameplate key.
+func NewListedChainPlan(modelIDs, bases []uint16, limits ChainLimits) (ChainPlan, error) {
+	revision := sunSpecChainRevision(modelIDs)
+	registry, err := NewStandardSunSpecDecoderRegistry(revision)
+	if err != nil {
+		return ChainPlan{}, err
+	}
+	keys := sunSpecListedDecoderKeys(registry, modelIDs)
+	if err := sunSpecRequireListedNameplate(keys, modelIDs, revision); err != nil {
+		return ChainPlan{}, err
+	}
+	spec := ChainPlanSpec{SchemaRevision: revision, BaseCandidates: bases, Limits: limits, DecoderKeys: keys}
+	if revision == ModelsRevisionV2 {
+		spec.StructuralCandidateIDs = []uint16{sunSpecDERTripStructuralCandidate}
+	}
+	return NewChainPlan(spec)
+}
+
+func sunSpecChainRevision(modelIDs []uint16) SchemaRevision {
+	for _, id := range modelIDs {
+		if id >= 700 && id <= 899 {
+			return ModelsRevisionV2
+		}
+	}
+	return ModelsRevisionV1
+}
+
+func sunSpecListedDecoderKeys(registry DecoderRegistry, modelIDs []uint16) []DecoderKey {
+	if len(modelIDs) == 0 {
+		return registry.DecoderKeys()
+	}
+	listed := make(map[uint16]struct{}, len(modelIDs))
+	for _, id := range modelIDs {
+		listed[id] = struct{}{}
+	}
+	keys := make([]DecoderKey, 0, len(modelIDs))
+	for _, key := range registry.DecoderKeys() {
+		if _, ok := listed[key.ModelID]; ok {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+func sunSpecRequireListedNameplate(keys []DecoderKey, modelIDs []uint16, revision SchemaRevision) error {
+	if revision != ModelsRevisionV1 || !sunSpecModelListed(modelIDs, 120) {
+		return nil
+	}
+	for _, key := range keys {
+		if key.ModelID == 120 && key.ModelLength == 26 && key.SchemaRevision == revision {
+			return nil
+		}
+	}
+	return fmt.Errorf("SunSpec nameplate model is absent from the read plan")
+}
+
+func sunSpecModelListed(modelIDs []uint16, modelID uint16) bool {
+	for _, id := range modelIDs {
+		if id == modelID {
+			return true
+		}
+	}
+	return false
+}
+
 func sortedRequests(m map[uint64]ReadRequest) []ReadRequest {
 	ids := make([]uint64, 0, len(m))
 	for id := range m {
