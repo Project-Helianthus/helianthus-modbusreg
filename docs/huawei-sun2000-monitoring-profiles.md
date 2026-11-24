@@ -25,20 +25,20 @@ date `2023-03-17`.
 | `huawei.sun2000.m1.monitoring-readonly@1.0.0` | SUN2000 M1 series behind the S-Dongle | the observed S-Dongle card matches, which binds the child model, the unit is the observed child unit 1, and the catalogue selects the M1 series row of the MA-C00 card | the edition does not list the model; the contract checked the edition's layout against the child's reading | 32000/16, 32016/24, 32064/32, 32106/14 |
 
 The catalogue places the M1 series on the MA-C00 card, whose edition lists its
-model and identifier; the profile keeps the groups and layout that the
-monitoring contract checked against the SUN2000MC edition, and the selection
-record names the MA-C00 row. The MA-C00 card documents four string channels
-and no current-hour energy counter where the profile decodes eight and one;
-reconciling a profile with its card belongs to the monitoring profiles built on
-the catalogue.
+model and identifier; the observed hand profile keeps the groups and layout
+that the monitoring contract checked against the SUN2000MC edition, and the
+selection record names the MA-C00 row. The MA-C00 card documents four string
+channels. The catalogue profile of that family, below, keeps the hand
+identifier and reads the card's own string count.
 
 The SUN2000 MAP0 series behind the EMMA has a catalogue row: its identifier,
 reported with the recorded hyphenated wire alias of its underscored source
-token, selects the MA-V200 card. It has no monitoring profile, and no EMMA path
-input reaches the selection. Its disposition row records the catalogue
+token, selects the MA-V200 card. That card has a catalogue profile. No EMMA
+path input reaches the observed-path selector, which still routes only the two
+hand profiles. The disposition row of that observed path records the catalogue
 selection, the outcome `NO_ADMISSIBLE_PROFILE` and the reason
-`catalogue_card_without_monitoring_profile`; it has no profile, fixture,
-decoder key or read plan.
+`catalogue_card_without_monitoring_profile`; that selector has no hand fixture,
+hand decoder key or hand read plan for the card.
 
 ## Capability detection
 
@@ -121,10 +121,12 @@ runs it and the rules on the committed catalogue.
 The version gate of the refused groups is a fact per family, not a software
 predicate, and it stays fail closed. The power group (32064/32) was refused with
 exception 3 on the M3 series and answered on the M1 series, so it is in the M1
-plan only. The inverter-exposed meter group (37100/38) was refused on the M3
-series and is in no plan. The candidate extents 32064/31 and 32064/33 stay
-Unknown and unplanned. Every row of the disposition's decision table is executed
-by `TestH05CapabilityDecisionTableRowsAreExecutable`.
+hand plan only. The inverter-exposed meter group (37100/38) was refused on the
+M3 series and is in no hand plan. The observed hand plans do not adopt the
+candidate extents 32064/31 and 32064/33. The catalogue profiles below do read
+offset 32064 with quantity 33 where the card documents that block. Every row of
+the disposition's decision table is executed by
+`TestH05CapabilityDecisionTableRowsAreExecutable`.
 
 ## Facts
 
@@ -146,12 +148,15 @@ An Unknown fact carries no value, never a zero.
 | `energy_current_year` | 32118 | U32, kWh, gain 100 | Hypothesis | Hypothesis |
 
 A Proven field is graded Hypothesis at an M3 series unit other than units 1 and
-2, which answered identity reads but were not read for monitoring. The status
-group yields no fact; its words are retained as native evidence, as are the
-string words past string 8, the four words at 32108 where no numeric source
-field is named, and the anchor words of the power group. The commercial card
-and the HA and HD cards name that interval as a hole and name the month and
-year yields above. Both yields stay Hypothesis on both profiles.
+2, which answered identity reads but were not read for monitoring. On the
+observed hand profiles the status group yields no fact; its words are retained
+as native evidence, as are the string words past string 8, the four words at
+32108 where the hand decoder names no numeric source field, and the anchor
+words of the power group. The commercial card and the HA and HD cards name that
+interval as a hole and name the month and year yields above. Both yields stay
+Hypothesis on both hand profiles. The catalogue profiles in the next section
+consume the words their cards document, including 32108 where that section
+says so.
 
 The supported field name is `status`; the former name is not accepted by
 `Fact` or emitted by `DecoderKeys`. Profile namespaces and string indexes stay
@@ -162,6 +167,63 @@ total accumulation across both families, so its existing key is unchanged.
 Proven, Hypothesis and Unknown remain evidence grades, separate from qualification.
 This artifact-changing contract requires renewed affected security, hardware and
 candidate evidence before release; synthetic replay establishes no qualification.
+
+## Catalogue card profiles
+
+`CatalogMonitoringProfiles` returns one profile for every catalogue card. The
+groups are the string, power, energy, alarm, tracker and rating rows the card
+documents at the inverter. A row whose class is raw-only or conflict is not
+decoded. Aggregate PV voltages that are not string channels are not counted as
+strings. The string count is the number of documented string voltage channels.
+
+The MC card keeps the identifier
+`huawei.sun2000.m3.monitoring-readonly@1.0.0` and the family SUN2000 M3 series.
+The MA-C00 card keeps
+`huawei.sun2000.m1.monitoring-readonly@1.0.0` and the family SUN2000 M1 series.
+Every other card uses
+`huawei.sun2000.<card>.monitoring-readonly@1.0.0`, with the card key in lower
+case, and the family name `SUN2000` followed by the card key. Catalogue facts
+are documentary, so their grade is Hypothesis.
+
+Where the card documents the power block at offset 32064, that group is read
+with quantity 33. It decodes input power, reactive power, the line and phase
+voltages, the phase currents, frequency, power factor, efficiency, internal
+temperature, insulation resistance and the status code, with the card's types
+and gains. A card that does not document offset 32064 keeps the power words it
+does document and does not gain an invented read at 32064. Words inside the
+read that the card does not define stay undecoded.
+
+The status code uses that card's dictionary. A code the dictionary lists is
+published under the dictionary's meaning. A code it does not list stays
+Unknown, with no value. One card's dictionary is not applied to another card.
+A raw-only status row is not given a meaning.
+
+Active power is the documented signed value. A negative reading stays negative.
+The same holds for the other documented signed measurements in the group.
+
+The direct-current input counter at 32108, U32, kWh, gain 100, is a field on
+the two hand-family profiles and on every card that documents it. The M1 hand
+profile is bound to the SUN2000MC edition, which documents that counter, so the
+MA-C00 catalogue profile decodes it inside the energy read at offset 32106,
+quantity 14. A card that names the interval as a hole does not gain the field.
+On the two hand-family profiles the energy read is offset 32106, quantity 14,
+so a refused or unread power group still leaves the counter in the energy group.
+
+Alarm words are read where the card's alarm-bit dictionary defines the word
+and the row is reviewed or conditional. A set bit with a dictionary label is
+published under that label. A set bit with no label keeps a native name and
+grade Unknown. A clear bit is not a fact.
+
+Tracker power and tracker energy are separate groups where the card documents
+them, below offset 40000, and predicted tracker power is not included. Rating
+rows at the documented nameplate and limit offsets are a group when the card
+gives a power unit. A card without one of these classes has no invented group.
+
+A group the unit answers with an exception is a loss for that unit, naming the
+unit, the offset and the quantity. The other groups of the same reading still
+decode. Battery and meter facts stay unadmitted: those losses remain, and the
+holes the hand decoder still leaves unconsumed are unchanged on the hand
+profiles.
 
 ## Battery and meters
 
