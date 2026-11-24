@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -120,8 +121,14 @@ func TestH06ACompleteCycleYieldsTypedPerChildResults(t *testing.T) {
 						expected = reading.Expected
 					}
 				}
-				if len(expected) == 0 || len(child.Reading.Facts()) != len(expected) {
-					t.Fatalf("unit %d: %d facts, want %d", unit, len(child.Reading.Facts()), len(expected))
+				facts := child.Reading.Facts()
+				if test.profile == SUN2000M1MonitoringProfileID {
+					facts = slices.DeleteFunc(facts, func(fact SUN2000Fact) bool {
+						return strings.HasPrefix(fact.Key, "huawei.sun2000.m1.storage.") && fact.Availability == FactUnknown
+					})
+				}
+				if len(expected) == 0 || len(facts) != len(expected) {
+					t.Fatalf("unit %d: %d facts outside unknown storage, want %d", unit, len(facts), len(expected))
 				}
 				for _, want := range expected {
 					fact := h05FactValue(t, child.Reading, want.Key, want.Index)
@@ -368,6 +375,9 @@ func TestH06ProvidersReadOnlyAllowlistedPDUs(t *testing.T) {
 				sets[path][allowed{unit, step.Function, step.Offset, step.Quantity, 0}] = true
 			}
 		}
+	}
+	for _, extent := range batteryTestExtents {
+		sets["S-Dongle"][allowed{1, 0x03, extent[0], extent[1], 0}] = true
 	}
 	for _, name := range h06FixtureNames() {
 		t.Run(name, func(t *testing.T) {

@@ -698,6 +698,7 @@ func (r *huaweiCycleRun) bindChildSelection(child *huaweiChildState, selection S
 	}
 	profile, ok := selection.Profile()
 	if selection.Outcome() == SUN2000ProfileSelected && ok && decision != nil && decision.Outcome() == SUN2000CatalogSelected {
+		profile.battery = huaweiBatteryPlanFor(decision)
 		identity := &huaweiChildIdentity{profile: profile, model: profile.Model()}
 		if child.identity != nil && child.identity.key() != identity.key() {
 			child.fence()
@@ -818,7 +819,7 @@ func (r *huaweiCycleRun) monitorChild(child *huaweiChildState) (ProviderEvidence
 	if err != nil {
 		return ProviderEvidenceStale, ProviderReasonChildReadFailed, current
 	}
-	retained := RetainHuaweiSUN2000Monitoring(child.reading, decoded)
+	retained := profile.retain(child.reading, decoded)
 	for offset, at := range readAt {
 		child.groups[offset] = huaweiGroupMeta{cycle: r.cycle, readAt: at, generation: r.generation}
 	}
@@ -852,7 +853,7 @@ func (r *huaweiCycleRun) childObservation(child *huaweiChildState, state Provide
 			current = map[uint16]SUN2000GroupReading{}
 			if empty, err := child.identity.profile.Decode(child.unit, nil); err == nil {
 				view := *child
-				view.reading = RetainHuaweiSUN2000Monitoring(child.reading, empty)
+				view.reading = child.identity.profile.retain(child.reading, empty)
 				out.Reading, out.Groups = view.reading, view.groupEvidence(current)
 				return r.recordChildLoss(out, state, reason)
 			}
@@ -868,7 +869,9 @@ func (r *huaweiCycleRun) recordChildLoss(out ProviderChildObservation, state Pro
 		r.out.Loss = append(r.out.Loss, ProviderLoss{Kind: ProviderLossWithheldChild, HasUnit: true, UnitID: out.UnitID, Detail: huaweiWithheldDetail(reason, out.Catalog)})
 	}
 	for _, group := range out.Groups {
-		if group.Refused {
+		if huaweiBatteryOffset(int(group.Offset)) {
+			r.recordGatewayGroupLoss(out.UnitID, group, "battery group did not answer")
+		} else if group.Refused {
 			r.out.Loss = append(r.out.Loss, ProviderLoss{Kind: ProviderLossRefusedGroup, HasUnit: true, UnitID: out.UnitID,
 				Offset: group.Offset, Quantity: group.Quantity, Detail: huaweiRuntimeRefusalDetail(huaweiSUN2000RefusalCode)})
 		}
@@ -887,15 +890,16 @@ func huaweiRuntimeRefusalDetail(code uint8) string {
 // CatalogProfileLosses is what a catalogue profile still does not publish.
 // The hand profiles keep their own holes; a catalogue profile consumes the
 // status, string, power and energy words its card documents, and it does not
-// list those words as unconsumed. Battery and meter facts stay unadmitted.
+// list decoded words as unconsumed.
 func CatalogProfileLosses(profile CatalogMonitoringProfile) []ProviderLoss {
 	if profile.ID() == "" {
 		return nil
 	}
-	return []ProviderLoss{
-		{Kind: ProviderLossBattery, Detail: "battery offsets are never read; a zero word is never a battery value"},
-		{Kind: ProviderLossMeter, Detail: "meter values are not part of the inverter catalogue profile"},
+	loss := []ProviderLoss{{Kind: ProviderLossMeter, Detail: "meter values are not part of the inverter catalogue profile"}}
+	if len(profile.battery.fields) == 0 {
+		loss = append(loss, ProviderLoss{Kind: ProviderLossBattery, Detail: "no documented inverter-side battery decoder"})
 	}
+	return loss
 }
 
 // huaweiWithheldDetail names why a child is withheld. A catalog withhold
@@ -966,11 +970,12 @@ func huaweiChildProfileLoss(profile SUN2000MonitoringProfile) []ProviderLoss {
 			Detail: "status group retained as native evidence; no state is published from it"},
 		ProviderLoss{Kind: ProviderLossUnconsumedWords, Offset: 32032, Quantity: 8, Detail: "string words past string 8"},
 		ProviderLoss{Kind: ProviderLossUnconsumedWords, Offset: 32108, Quantity: 4, Detail: "no numeric source field detected in interval"},
-		ProviderLoss{Kind: ProviderLossBattery, Detail: "battery offsets are never read; a zero word is never a battery value"},
 	)
 	if profile.ID() == SUN2000M1MonitoringProfileID {
 		loss = append(loss, ProviderLoss{Kind: ProviderLossUnconsumedWords, Offset: huaweiSUN2000PowerGroup.offset, Quantity: huaweiSUN2000PowerGroup.quantity,
 			Detail: "power group words other than input power, active power and the observed status code"})
+	} else if profile.ID() == SUN2000M3MonitoringProfileID {
+		loss = append(loss, ProviderLoss{Kind: ProviderLossBattery, Detail: "no documented inverter-side battery decoder"})
 	}
 	return loss
 }

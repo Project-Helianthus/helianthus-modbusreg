@@ -347,14 +347,14 @@ func TestCatalogProfileLossDropsFilledHoles(t *testing.T) {
 		}
 		var battery, meter bool
 		for _, loss := range CatalogProfileLosses(profile) {
-			if loss.Kind == ProviderLossBattery && loss.Detail == "battery offsets are never read; a zero word is never a battery value" {
+			if loss.Kind == ProviderLossBattery && loss.Detail == "no documented inverter-side battery decoder" {
 				battery = true
 			}
 			if loss.Kind == ProviderLossMeter && loss.Detail == "meter values are not part of the inverter catalogue profile" {
 				meter = true
 			}
 		}
-		if !battery || !meter {
+		if battery != (card == "MC") || !meter {
 			t.Fatalf("%s battery %v meter %v", card, battery, meter)
 		}
 	}

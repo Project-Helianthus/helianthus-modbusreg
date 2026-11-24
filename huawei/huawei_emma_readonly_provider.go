@@ -370,6 +370,10 @@ func (r *huaweiCycleRun) monitorEMMAChild(child *huaweiChildState, staleReason P
 		r.out.Loss = append(r.out.Loss, ProviderLoss{Kind: ProviderLossUnconsumedWords, HasUnit: true, UnitID: child.unit,
 			Detail: "no catalogue card; groups remain native"})
 	}
+	if len(plan.profile.battery.fields) == 0 {
+		r.out.Loss = append(r.out.Loss, ProviderLoss{Kind: ProviderLossBattery, HasUnit: true, UnitID: child.unit,
+			Detail: "site level only: no documented inverter-side battery decoder for the child"})
+	}
 	groups := make([]SUN2000GroupReading, 0, len(plan.steps))
 	for index, step := range plan.steps {
 		key := huaweiRefusalKey(out.ProfileID, step.Offset, step.Quantity)

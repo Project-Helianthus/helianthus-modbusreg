@@ -648,8 +648,8 @@ func withSyntheticPlantReads(path string, script []h06Expected) []h06Expected {
 	})
 }
 
-// The legacy scripts predate meter monitoring. Extend completed scripts with
-// synthetic meter replies without changing their inverter or plant vectors.
+// Extend legacy snapshots with synthetic storage and meter replies without
+// changing their inverter or plant vectors.
 func withLegacyMeterReads(path string, script []h06Expected, allowed []uint8) []h06Expected {
 	if path == "SmartLogger" {
 		if slices.Contains(allowed, 11) {
@@ -659,6 +659,7 @@ func withLegacyMeterReads(path string, script []h06Expected, allowed []uint8) []
 			script = append(script, loggerMeterReplies(19, 202)...)
 		}
 	} else if len(script) != 0 && script[len(script)-1].offset == 32106 {
+		script = append(script, batteryTestReplies(1, nil, 0)...)
 		script = append(script, dongleMeterReplies()...)
 	}
 	return script
@@ -795,8 +796,14 @@ func h06RequireExpect(t testing.TB, name string, cycle ProviderCycle, expect h06
 				retained = append(retained, group.Offset)
 			}
 		}
-		if fmt.Sprint(retained) != fmt.Sprint(append([]uint16(nil), want.Retained...)) {
-			t.Fatalf("%s: unit %d retained groups=%v want %v", name, got.UnitID, retained, want.Retained)
+		wantRetained := slices.Clone(want.Retained)
+		if cycle.Path == ProviderPathSDongle && slices.Contains(wantRetained, 32106) {
+			for _, extent := range batteryTestExtents {
+				wantRetained = append(wantRetained, extent[0])
+			}
+		}
+		if !slices.Equal(retained, wantRetained) {
+			t.Fatalf("%s: unit %d retained groups=%v want %v", name, got.UnitID, retained, wantRetained)
 		}
 	}
 }

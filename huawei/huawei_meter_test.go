@@ -39,7 +39,7 @@ func TestHuaweiMeterReadsFollowEachProviderPath(t *testing.T) {
 		fixture, start := h06FixtureCycle(t, "sdongle_provider_cycles.json", "start_identification")
 		rig := newH06Rig(t, fixture.Path, []uint8{1})
 		script := withSyntheticPlantReads(fixture.Path, scriptWithoutPlantReads(t, rig.sources, fixture.Path, start))
-		cycle := rig.refresh(t, append(script, dongleMeterReplies()...)...)
+		cycle := rig.refresh(t, withLegacyMeterReads(fixture.Path, script, rig.sources.allowed)...)
 		requireDongleMeter(t, cycle)
 		requireDongleRawOnly(t, rig, fixture, cycle.Meter[1])
 	})
@@ -165,6 +165,7 @@ func requireDongleRawOnly(t *testing.T, rig *h06Rig, fixture h06Fixture, kept Pr
 	t.Helper()
 	held := fixture.Cycles[1]
 	script := withSyntheticPlantReads(fixture.Path, scriptWithoutPlantReads(t, rig.sources, fixture.Path, held))
+	script = append(script, batteryTestReplies(1, nil, 0)...)
 	replies := dongleMeterReplies()
 	replies[1].answer = h06Answer{err: h06Exception(3, 3)}
 	replies[3].answer = h06Answer{err: h06Exception(3, 3)}
