@@ -24,7 +24,7 @@ func TestEMMASiteCyclePublishesIndependentHouseholdCounters(t *testing.T) {
 	}
 
 	first := refreshEMMASite(t, provider)
-	if first.PlannedReads != 14 || first.WireAttempts != 14 {
+	if first.PlannedReads != 19 || first.WireAttempts != 19 {
 		t.Fatalf("initial request count: %d/%d", first.PlannedReads, first.WireAttempts)
 	}
 	firstEpoch := first.StartedAt.Add(4*750*time.Millisecond + 5*20*time.Millisecond)
@@ -35,7 +35,7 @@ func TestEMMASiteCyclePublishesIndependentHouseholdCounters(t *testing.T) {
 
 	clock.Advance(24 * time.Hour)
 	second := refreshEMMASite(t, provider)
-	if second.PlannedReads != 6 || second.WireAttempts != 6 {
+	if second.PlannedReads != 11 || second.WireAttempts != 11 {
 		t.Fatalf("rollover request count: %d/%d", second.PlannedReads, second.WireAttempts)
 	}
 	requireEMMAEnergy(t, second, "gateway-self.30324", 30324, "U32", 113, 2, second.StartedAt.Add(20*time.Millisecond))
@@ -73,7 +73,7 @@ func emmaTextReply(unit uint8, offset, quantity uint16, text string) h06Expected
 }
 
 func emmaSiteScript(dayHigh, dayLow, total0, total1, total2, total3 uint16) []h06Expected {
-	return []h06Expected{
+	return append([]h06Expected{
 		h06FC03(0, 30306, 46, h06Answer{words: []uint16{
 			0, 201, 0, 1, 2, 202, 0, 203, 0, 3, 4, 204, 41, 53, 67, 79, 0, 4321,
 			dayHigh, dayLow, total0, total1, total2, total3,
@@ -81,7 +81,7 @@ func emmaSiteScript(dayHigh, dayLow, total0, total1, total2, total3 uint16) []h0
 		}}),
 		h06FC03(0, 30354, 12, h06Answer{words: []uint16{0, 1234, 0, 2345, 0xffff, 0xf16c, 0, 4567, 4, 99, 0xffff, 0xe9d2}}),
 		h06FC03(0, 30368, 1, h06Answer{words: []uint16{7890}}),
-	}
+	}, emmaMeterReplies()...)
 }
 
 func emmaUncoveredChildIdentityScript() []h06Expected {
@@ -194,6 +194,7 @@ func TestEMMASiteCycleKeepsEpochOfMalformedGroup(t *testing.T) {
 	session.Append(failed, failed, failed, failed)
 	session.Append(h06FC03(0, 30354, 12, h06Answer{words: []uint16{0, 987, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}))
 	session.Append(h06FC03(0, 30368, 1, h06Answer{err: h06Exception(3, 3)}))
+	session.Append(emmaMeterReplies()...)
 	provider := startEMMASite(t, clock, session, nil)
 	first := refreshEMMASite(t, provider)
 	want := first.EMMASite[0].clone()

@@ -790,7 +790,7 @@ func TestH06WithheldChildStaysWithheldAcrossAGatewayFailure(t *testing.T) {
 	for _, step := range h06IdentificationSteps() {
 		script = append(script, h06Script(t, sources, fixture.Path, h06Cycle{Steps: []h06Step{step}})...)
 	}
-	withheld := rig.refresh(t, withSyntheticPlantReads(rig.path, script)...)
+	withheld := rig.refresh(t, withLegacyMeterReads(rig.path, withSyntheticPlantReads(rig.path, script), rig.sources.allowed)...)
 	if child, _ := withheld.Child(1); child.Evidence != ProviderEvidenceWithheld || child.Reason != ProviderReasonNoClassContract {
 		t.Fatalf("re-enumeration: %+v", child)
 	}

@@ -23,8 +23,8 @@ const (
 // firmware text, read on each identification event only), plant power and
 // energy at unit 0, and the M3 series
 // monitoring groups at each child whose catalog decision selects the M3
-// series row. The PLC, meter and every other unit without a class contract are
-// never read. Do not copy it.
+// series row. Listed and allowlisted meter units serve their meter groups.
+// The PLC and other child classes are not read. Do not copy it.
 type SmartLoggerReadOnlyProvider struct {
 	core *huaweiProviderCore
 }
@@ -279,7 +279,6 @@ func (r *huaweiCycleRun) identifySmartLogger() {
 	}
 	s.unstable, s.endpointFailures = 0, 0
 	s.identified, s.identityGeneration, s.reidentify, s.gatewayFenced = true, r.generation, false, false
-	s.guard = []uint16{after[0]}
 	s.smartLogger = &input
 	// The identity publishes the software text that was read, which may be a
 	// build above the card's observed one.
@@ -287,6 +286,8 @@ func (r *huaweiCycleRun) identifySmartLogger() {
 	if selection, selected := evaluation.Selection(); selected && selection.Build() != "" {
 		software = selection.Build()
 	}
+	r.fenceChangedLoggerMeterRoute(after[0], software)
+	s.guard = []uint16{after[0]}
 	s.listing = inventory.Children()
 	s.gateway = ProviderGatewayIdentity{
 		CardID: card.ID(), Class: card.CandidateClass(), UnitID: card.UnitID(), Model: card.Model(), Firmware: software,
@@ -314,7 +315,7 @@ func (r *huaweiCycleRun) readSmartLoggerMonitoring() {
 
 // readSmartLoggerChildren handles the union of the validated listing and the
 // operator allowlist in ascending unit order. Only listed and allowed units
-// whose listing label names the SUN2000 class are read.
+// whose listing label names the inverter or meter class are read.
 func (r *huaweiCycleRun) readSmartLoggerChildren() {
 	s := r.state
 	listed := map[uint8]GatewayInventoryChild{}
@@ -340,6 +341,7 @@ func (r *huaweiCycleRun) readSmartLoggerChildren() {
 	for unit, child := range s.children {
 		if !units[unit] {
 			child.ineligible = ProviderReasonNotListed
+			child.meter = huaweiMeterState{}
 		}
 	}
 	for _, value := range ordered {
@@ -354,6 +356,9 @@ func (r *huaweiCycleRun) readSmartLoggerChildren() {
 			}
 		}
 		child.ineligible = ""
+		if !allowed[unit] || !isLoggerMeter(entry) {
+			child.meter = huaweiMeterState{}
+		}
 		withhold := func(reason ProviderReason) {
 			r.out.Children = append(r.out.Children, r.childObservation(child, ProviderEvidenceWithheld, reason, nil))
 		}
@@ -363,7 +368,16 @@ func (r *huaweiCycleRun) readSmartLoggerChildren() {
 			withhold(ProviderReasonNotListed)
 			continue
 		case !allowed[unit]:
+			if isLoggerMeter(entry) {
+				child.ineligible = ProviderReasonNotAllowlisted
+			}
 			withhold(ProviderReasonNotAllowlisted)
+			continue
+		case isLoggerMeter(entry):
+			r.monitorLoggerMeter(child)
+			if r.stopped() {
+				return
+			}
 			continue
 		case entry.Attribute("product_type") != huaweiSUN2000ClassLabel:
 			child.ineligible = ProviderReasonNoClassContract

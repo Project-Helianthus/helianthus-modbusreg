@@ -339,8 +339,10 @@ func TestH06ProvidersReadOnlyAllowlistedPDUs(t *testing.T) {
 		"SmartLogger": {
 			{0, 0x03, 65521, 1, 0}: true, {0, 0x2b, 0, 0, 3}: true, {0, 0x2b, 0, 0, 1}: true,
 			{0, 0x03, 40521, 6, 0}: true, {0, 0x03, 40560, 4, 0}: true,
+			{11, 0x03, 32260, 33, 0}: true, {11, 0x03, 32335, 30, 0}: true,
 		},
 		"S-Dongle": {
+			{1, 0x03, 37100, 1, 0}: true, {1, 0x03, 37101, 24, 0}: true, {1, 0x03, 37125, 1, 0}: true, {1, 0x03, 37126, 13, 0}: true,
 			{100, 0x03, 37498, 8, 0}: true, {100, 0x03, 37516, 2, 0}: true,
 			{100, 0x03, 37410, 3, 0}: true, {100, 0x03, 37411, 1, 0}: true, {100, 0x03, 30068, 2, 0}: true, {100, 0x03, 37429, 1, 0}: true,
 			{100, 0x03, 30050, 15, 0}: true, {100, 0x2b, 0, 0, 1}: true, {1, 0x03, 30000, 15, 0}: true, {1, 0x2b, 0, 0, 1}: true, {1, 0x2b, 0, 0, 3}: true,
@@ -406,8 +408,8 @@ func TestH06ProvidersReadOnlyAllowlistedPDUs(t *testing.T) {
 				if rig.path == "S-Dongle" && call.unit != 100 && call.unit != 1 {
 					t.Fatalf("unit %d was addressed on the S-Dongle path", call.unit)
 				}
-				if rig.path == "SmartLogger" && (call.unit == 9 || call.unit == 11 || call.unit == 19) {
-					t.Fatalf("a PLC or meter unit %d was read", call.unit)
+				if rig.path == "SmartLogger" && (call.unit == 9 || call.unit == 19) {
+					t.Fatalf("a PLC or non-allowlisted meter unit %d was read", call.unit)
 				}
 			}
 		})

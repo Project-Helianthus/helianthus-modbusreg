@@ -88,6 +88,7 @@ func (r *huaweiCycleRun) readEMMASite(identified bool) {
 		r.out.EMMASite = append(r.out.EMMASite, group)
 		r.recordGatewayGroupLoss(group.UnitID, group.ProviderGroupEvidence, "site group did not answer")
 	}
+	r.readMeterGroups(0, huaweiEMMAMeter[:], r.state.emmaMeter[:], MeterPolarityUnknown, identified)
 }
 
 func (r *huaweiCycleRun) identifyEMMA() bool {
@@ -168,6 +169,7 @@ func (r *huaweiCycleRun) rejectEMMAIdentity() bool {
 func (r *huaweiCycleRun) clearEMMAReadings() {
 	s := r.state
 	s.emmaSite = [len(huaweiEMMASite)]huaweiPlantState{}
+	s.emmaMeter = huaweiMeterState{}
 	s.children = map[uint8]*huaweiChildState{}
 	s.listing, s.carriedRefusals = nil, nil
 }

@@ -350,7 +350,7 @@ func TestCatalogProfileLossDropsFilledHoles(t *testing.T) {
 			if loss.Kind == ProviderLossBattery && loss.Detail == "battery offsets are never read; a zero word is never a battery value" {
 				battery = true
 			}
-			if loss.Kind == ProviderLossMeter && loss.Detail == "every meter value stays Unknown; no meter class contract" {
+			if loss.Kind == ProviderLossMeter && loss.Detail == "meter values are not part of the inverter catalogue profile" {
 				meter = true
 			}
 		}

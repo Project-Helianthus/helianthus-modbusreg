@@ -288,13 +288,13 @@
       "FC03",
       "FC2B_MEI_0E"
     ],
-    "units": "GATEWAY_UNIT_0_AND_LISTED_ALLOWLISTED_SUN2000_UNITS",
+    "units": "GATEWAY_UNIT_0_AND_LISTED_ALLOWLISTED_INVERTER_AND_METER_UNITS",
     "never_read": [
       "planned_logger_plant_groups",
       "refused_groups",
       "battery_offsets",
       "units_without_class_contract",
-      "meter_units",
+      "meter_number_and_configuration_groups",
       "plc_unit"
     ],
     "child_admission": {

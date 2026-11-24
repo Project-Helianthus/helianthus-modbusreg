@@ -24,8 +24,8 @@ const (
 // firmware text at the child unit, before the M1 series groups are read there
 // once its catalog decision selects the M1 series row. Only the gateway unit
 // and the observed child unit are addressed. The two plant power groups are
-// read at the gateway after its identity or guard is confirmed. No meter is
-// read. Do not copy it.
+// read at the gateway after its identity or guard is confirmed. Meter groups
+// are read at the admitted inverter child. Do not copy it.
 type SDongleReadOnlyProvider struct {
 	core *huaweiProviderCore
 }
@@ -47,10 +47,7 @@ func newHuaweiSDongleReadOnlyProvider(config ProviderConfig, disposition Provide
 		return nil, ErrHuaweiProviderConfig
 	}
 	profile, _ := huaweiProfileByID(SUN2000M1MonitoringProfileID)
-	loss := []ProviderLoss{
-		{Kind: ProviderLossMeter, HasUnit: true, UnitID: card.ChildUnit(), Offset: 37100, Quantity: 39, Detail: "inverter-exposed meter group: planned until a meter class contract exists"},
-	}
-	loss = append(loss, huaweiChildProfileLoss(profile)...)
+	loss := huaweiChildProfileLoss(profile)
 	core, err := newHuaweiProviderCore(ProviderPathSDongle, SDongleReadOnlyProviderID, config, disposition, runHuaweiSDongleCycle, loss)
 	if err != nil {
 		return nil, err

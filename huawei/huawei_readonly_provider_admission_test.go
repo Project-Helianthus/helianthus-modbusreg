@@ -121,6 +121,12 @@ func TestM89IdentityWordsAreReadAtAdmissionOnly(t *testing.T) {
 					}
 				}
 				for _, child := range cycle.Children {
+					if child.ListedClass == "PowerMeter" && fixture.Path == "SmartLogger" {
+						if len(firsts[child.UnitID]) != 0 || child.ProfileID != "" || child.Catalog != nil {
+							t.Fatalf("meter unit %d acquired an inverter identity", child.UnitID)
+						}
+						continue
+					}
 					if cycle.Reason == ProviderReasonGuardHeld && admitted[child.UnitID] && len(firsts[child.UnitID]) == 0 {
 						steady++
 					}
@@ -529,7 +535,7 @@ func TestM89AGuardChangeMakesTheAdmissionRunAgainAfterAFailedRead(t *testing.T) 
 	for _, step := range h05Profile(t, SUN2000M1MonitoringProfileID).Plan(1) {
 		retry = append(retry, h06FC03(1, step.Offset, step.Quantity, h06MonitoringAnswer(t, rig.sources.m1, 1, step.Offset, step.Quantity)))
 	}
-	again := rig.refresh(t, withSyntheticPlantReads(rig.path, retry)...)
+	again := rig.refresh(t, withLegacyMeterReads(rig.path, withSyntheticPlantReads(rig.path, retry), rig.sources.allowed)...)
 	if child, _ := again.Child(1); again.Reason != ProviderReasonGuardHeld || child.Evidence != ProviderEvidenceCurrent ||
 		child.IdentifiedGeneration != again.Generation || child.Catalog == nil {
 		t.Fatalf("retried admission: %s %+v", again.Reason, child)

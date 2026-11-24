@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -357,6 +358,7 @@ func h06Load(t testing.TB, name string) (h06Fixture, []byte) {
 
 // h06Sources resolves "source" replies from the committed fixtures.
 type h06Sources struct {
+	allowed              []uint8
 	smartLoggerInventory h03InventoryFixture
 	smartLoggerBasic     h03BasicFixture
 	routed               h03ProbeFixture
@@ -580,7 +582,7 @@ func h06Script(t testing.TB, sources h06Sources, path string, cycle h06Cycle) []
 	t.Helper()
 	script := scriptWithoutPlantReads(t, sources, path, cycle)
 	if cycle.Expect.Outcome == string(ProviderCycleComplete) {
-		return withSyntheticPlantReads(path, script)
+		return withLegacyMeterReads(path, withSyntheticPlantReads(path, script), sources.allowed)
 	}
 	return script
 }
@@ -646,6 +648,22 @@ func withSyntheticPlantReads(path string, script []h06Expected) []h06Expected {
 	})
 }
 
+// The legacy scripts predate meter monitoring. Extend completed scripts with
+// synthetic meter replies without changing their inverter or plant vectors.
+func withLegacyMeterReads(path string, script []h06Expected, allowed []uint8) []h06Expected {
+	if path == "SmartLogger" {
+		if slices.Contains(allowed, 11) {
+			script = append(script, loggerMeterReplies(11, 101)...)
+		}
+		if slices.Contains(allowed, 19) {
+			script = append(script, loggerMeterReplies(19, 202)...)
+		}
+	} else if len(script) != 0 && script[len(script)-1].offset == 32106 {
+		script = append(script, dongleMeterReplies()...)
+	}
+	return script
+}
+
 func insertPlantReads(script, reads []h06Expected) []h06Expected {
 	step := 0
 	for index, read := range script {
@@ -694,6 +712,7 @@ func h06Config(clock *h06Clock, waits *h06Waits, allowed []uint8) ProviderConfig
 func newH06Rig(t testing.TB, path string, allowed []uint8) *h06Rig {
 	t.Helper()
 	rig := &h06Rig{clock: newH06Clock(), recorder: &h06Recorder{}, sources: h06LoadSources(t), path: path}
+	rig.sources.allowed = allowed
 	rig.waits = newH06Waits(rig.clock)
 	config := h06Config(rig.clock, rig.waits, allowed)
 	var err error
@@ -746,7 +765,7 @@ func (rig *h06Rig) refresh(t testing.TB, script ...h06Expected) ProviderCycle {
 	return cycle
 }
 
-func h06RequireExpect(t testing.TB, name string, cycle ProviderCycle, expect h06Expect) {
+func h06RequireExpect(t testing.TB, name string, cycle ProviderCycle, expect h06Expect, allowed []uint8) {
 	t.Helper()
 	if string(cycle.Outcome) != expect.Outcome || string(cycle.Reason) != expect.Reason {
 		t.Fatalf("%s: outcome=%s reason=%s want %s %s", name, cycle.Outcome, cycle.Reason, expect.Outcome, expect.Reason)
@@ -755,6 +774,14 @@ func h06RequireExpect(t testing.TB, name string, cycle ProviderCycle, expect h06
 		t.Fatalf("%s: %d children, want %d: %+v", name, len(cycle.Children), len(expect.Children), h06ChildSummary(cycle))
 	}
 	for index, want := range expect.Children {
+		if cycle.Path == ProviderPathSmartLogger && want.Unit == 11 && slices.Contains(allowed, 11) {
+			switch ProviderReason(want.Reason) {
+			case ProviderReasonNoClassContract:
+				want.Evidence, want.Reason = string(ProviderEvidenceCurrent), string(ProviderReasonRead)
+			case ProviderReasonListingUnstable, ProviderReasonListingUnconfirmed:
+				want.Evidence = string(ProviderEvidenceStale)
+			}
+		}
 		got := cycle.Children[index]
 		if got.UnitID != want.Unit || string(got.Evidence) != want.Evidence || string(got.Reason) != want.Reason {
 			t.Fatalf("%s: child %d = unit %d %s %s, want unit %d %s %s", name, index, got.UnitID, got.Evidence, got.Reason, want.Unit, want.Evidence, want.Reason)
@@ -791,7 +818,7 @@ func h06RunFixture(t testing.TB, name string) (*h06Rig, []ProviderCycle) {
 	var cycles []ProviderCycle
 	for _, cycle := range fixture.Cycles {
 		out := rig.refresh(t, h06Script(t, rig.sources, fixture.Path, cycle)...)
-		h06RequireExpect(t, fixture.Path+"/"+cycle.Name, out, cycle.Expect)
+		h06RequireExpect(t, fixture.Path+"/"+cycle.Name, out, cycle.Expect, rig.sources.allowed)
 		cycles = append(cycles, out)
 	}
 	return rig, cycles
