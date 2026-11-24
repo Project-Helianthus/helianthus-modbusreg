@@ -356,30 +356,30 @@ func TestM203BoundedMultiPreservesCanonicalSourceSkew(t *testing.T) {
 func TestM203RejectedQualificationMatchesUnqualifiedDetection(t *testing.T) {
 	profile := detectionProfile(t, "synthetic.standard.unqualified", "1.0.0", reg.MaturityExperimental, reg.ProfileActive, false)
 	record := m203Record(t, "fixture-unqualified", profile, 20, 601)
-	record.Qualification.Expected = detection.FixtureQualificationDispositionRejected
-	record.Detection.Expected = detection.FixtureDetectionExpectation{Outcome: detection.NoMatch, Reason: detection.ReasonProfileUnqualified, Evidence: []detection.FixtureDetectionEvidenceExpectation{{ProfileID: profile.ID(), ProfileVersion: profile.Version(), Score: 100, Reason: detection.ReasonProfileUnqualified, DetectorVersion: profile.DetectorVersion(), QualificationVersion: profile.QualificationVersion()}}}
+	record.Qualification.Expected = detection.FixtureQualificationDispositionQualified
+	record.Detection.Expected = detection.FixtureDetectionExpectation{Outcome: detection.Matched, Reason: detection.ReasonSelected, SelectedProfileID: profile.ID(), SelectedProfileVersion: profile.Version(), Evidence: []detection.FixtureDetectionEvidenceExpectation{{ProfileID: profile.ID(), ProfileVersion: profile.Version(), Score: 100, Reason: detection.ReasonSelected, MatchedGates: []detection.ProbeIdentityField{detection.ProbeIdentityManufacturer, detection.ProbeIdentityModel, detection.ProbeIdentityFirmware}, ProbeEvidenceIDs: []string{"probe-evidence-manufacturer", "probe-evidence-model", "probe-evidence-firmware"}, DetectorVersion: profile.DetectorVersion(), QualificationVersion: profile.QualificationVersion()}}}
 	spec := detection.FixtureConformanceCorpusSpec{SchemaVersion: version(t, "1.0.0"), Metadata: detection.SanitizedFixtureMetadata{CorpusID: "fixture-unqualified-corpus", LicenseExpression: "CC0-1.0", Provenance: "public synthetic fixture"}, Profiles: []reg.ProfileDescriptor{profile}, Records: []detection.FixtureConformanceRecordSpec{record}}
 	corpus, err := detection.NewFixtureConformanceCorpus(spec)
 	if err != nil {
-		t.Fatalf("unqualified/rejected corpus: %v", err)
+		t.Fatalf("experimental/qualified corpus: %v", err)
 	}
 	report, err := corpus.Replay()
 	if err != nil {
 		t.Fatalf("Replay: %v", err)
 	}
 	result := report.Records()[0]
-	if result.Qualification() != detection.FixtureQualificationDispositionRejected || result.Detection().Actual.Outcome() != detection.NoMatch || result.Detection().Actual.Reason() != detection.ReasonProfileUnqualified || !result.Detection().MatchesExpected() {
-		t.Fatalf("unqualified result = %#v", result)
+	if result.Qualification() != detection.FixtureQualificationDispositionQualified || result.Detection().Actual.Outcome() != detection.Matched || !result.Detection().MatchesExpected() {
+		t.Fatalf("experimental result = %#v", result)
+	}
+	rejected := spec
+	rejected.Records = append([]detection.FixtureConformanceRecordSpec(nil), spec.Records...)
+	rejected.Records[0].Qualification.Expected = detection.FixtureQualificationDispositionRejected
+	if _, err := detection.NewFixtureConformanceCorpus(rejected); !detection.IsFixtureMutationReason(err, detection.FixtureMutationReasonContradictory) {
+		t.Fatalf("experimental/rejected error = %v", err)
 	}
 	qualifiedRejected := m203SyntheticCorpus(t)
 	qualifiedRejected.Records[0].Qualification.Expected = detection.FixtureQualificationDispositionRejected
 	if _, err := detection.NewFixtureConformanceCorpus(qualifiedRejected); !detection.IsFixtureMutationReason(err, detection.FixtureMutationReasonContradictory) {
 		t.Fatalf("qualified/rejected error = %v", err)
-	}
-	unqualifiedQualified := spec
-	unqualifiedQualified.Records = append([]detection.FixtureConformanceRecordSpec(nil), spec.Records...)
-	unqualifiedQualified.Records[0].Qualification.Expected = detection.FixtureQualificationDispositionQualified
-	if _, err := detection.NewFixtureConformanceCorpus(unqualifiedQualified); !detection.IsFixtureMutationReason(err, detection.FixtureMutationReasonContradictory) {
-		t.Fatalf("unqualified/qualified error = %v", err)
 	}
 }

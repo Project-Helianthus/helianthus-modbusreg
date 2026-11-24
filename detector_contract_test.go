@@ -512,8 +512,6 @@ func TestDetectorExplicitNoMatchAndFixtureOptIn(t *testing.T) {
 func TestActiveSelectionRejectsIneligibleProfilesBeforeScoring(t *testing.T) {
 	eligible := detectionProfile(t, "example.standard.eligible", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	disabled := detectionProfile(t, "example.standard.disabled", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
-	defaultOff := detectionProfile(t, "example.standard.default-off", "1.0.0", reg.MaturityQualified, reg.ProfileActive, false)
-	unqualified := detectionProfile(t, "example.standard.unqualified", "1.0.0", reg.MaturityExperimental, reg.ProfileActive, false)
 	revoked := detectionProfile(t, "example.standard.revoked", "1.0.0", reg.MaturityQualified, reg.ProfileRevoked, false)
 	replacement := detectionProfile(t, "example.standard.replacement", "2.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	supersededSpec := detectionProfile(t, "example.standard.superseded", "1.0.0", reg.MaturityQualified, reg.ProfileActive, false).Spec()
@@ -526,9 +524,7 @@ func TestActiveSelectionRejectsIneligibleProfilesBeforeScoring(t *testing.T) {
 	}
 	catalog, err := reg.NewCatalog(
 		revoked,
-		defaultOff,
 		eligible,
-		unqualified,
 		disabled,
 		superseded,
 		replacement,
@@ -539,8 +535,6 @@ func TestActiveSelectionRejectsIneligibleProfilesBeforeScoring(t *testing.T) {
 	detector := newDetector(t, catalog,
 		detectionCandidate(t, revoked, 100, true, false),
 		detectionCandidate(t, disabled, 100, false, false),
-		detectionCandidate(t, defaultOff, 100, true, false),
-		detectionCandidate(t, unqualified, 100, true, false),
 		detectionCandidate(t, superseded, 100, true, false),
 		detectionCandidate(t, eligible, 1, true, false),
 	)
@@ -554,11 +548,9 @@ func TestActiveSelectionRejectsIneligibleProfilesBeforeScoring(t *testing.T) {
 		reasons[evidence.ProfileID] = evidence.Reason
 	}
 	want := map[string]detection.Reason{
-		revoked.ID():     detection.ReasonProfileRevoked,
-		disabled.ID():    detection.ReasonCandidateDisabled,
-		defaultOff.ID():  detection.ReasonProfileDefaultOff,
-		unqualified.ID(): detection.ReasonProfileUnqualified,
-		superseded.ID():  detection.ReasonProfileSuperseded,
+		revoked.ID():    detection.ReasonProfileRevoked,
+		disabled.ID():   detection.ReasonCandidateDisabled,
+		superseded.ID(): detection.ReasonProfileSuperseded,
 	}
 	for profileID, reason := range want {
 		if reasons[profileID] != reason {

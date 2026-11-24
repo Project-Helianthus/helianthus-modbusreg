@@ -255,7 +255,6 @@ func TestMixedCatalogExclusiveSelectionRejectsUnequalScoreOverlap(t *testing.T) 
 
 func TestMixedCatalogExclusiveSelectionPreservesEligibilityLifecycle(t *testing.T) {
 	eligible := detectionProfile(t, "fixture.sunspec.eligible", "1.0.0", reg.MaturityQualified, reg.ProfileActive, true)
-	unqualified := detectionProfile(t, "fixture.huawei.emma", "1.0.0", reg.MaturityExperimental, reg.ProfileActive, false)
 	revoked := detectionProfile(t, "fixture.huawei.smartlogger", "1.0.0", reg.MaturityQualified, reg.ProfileRevoked, false)
 	replacement := detectionProfile(t, "fixture.huawei.sdongle.v2", "2.0.0", reg.MaturityQualified, reg.ProfileActive, true)
 	supersededSpec := detectionProfile(t, "fixture.huawei.sdongle", "1.0.0", reg.MaturityQualified, reg.ProfileActive, false).Spec()
@@ -266,12 +265,11 @@ func TestMixedCatalogExclusiveSelectionPreservesEligibilityLifecycle(t *testing.
 	if err != nil {
 		t.Fatalf("NewProfileDescriptor(superseded): %v", err)
 	}
-	catalog, err := reg.NewCatalog(eligible, unqualified, revoked, superseded, replacement)
+	catalog, err := reg.NewCatalog(eligible, revoked, superseded, replacement)
 	if err != nil {
 		t.Fatalf("NewCatalog: %v", err)
 	}
 	detector := newDetector(t, catalog,
-		detectionCandidate(t, unqualified, 400, true, true),
 		detectionCandidate(t, revoked, 300, true, true),
 		detectionCandidate(t, superseded, 200, true, true),
 		detectionCandidate(t, eligible, 1, true, true),
@@ -289,9 +287,8 @@ func TestMixedCatalogExclusiveSelectionPreservesEligibilityLifecycle(t *testing.
 		reasons[evidence.ProfileID] = evidence.Reason
 	}
 	want := map[string]detection.Reason{
-		unqualified.ID(): detection.ReasonProfileUnqualified,
-		revoked.ID():     detection.ReasonProfileRevoked,
-		superseded.ID():  detection.ReasonProfileSuperseded,
+		revoked.ID():    detection.ReasonProfileRevoked,
+		superseded.ID(): detection.ReasonProfileSuperseded,
 	}
 	for profileID, reason := range want {
 		if reasons[profileID] != reason {

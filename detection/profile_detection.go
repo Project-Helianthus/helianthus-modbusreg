@@ -415,12 +415,6 @@ func candidateEligibilityReason(
 	default:
 		return ReasonInvalidIdentity
 	}
-	if profile.Maturity() != modbusreg.MaturityQualified {
-		return ReasonProfileUnqualified
-	}
-	if !profile.DefaultEnabled() {
-		return ReasonProfileDefaultOff
-	}
 	if !candidate.Enabled {
 		return ReasonCandidateDisabled
 	}
@@ -486,8 +480,6 @@ func noMatchReason(evidence []CandidateEvidence) Reason {
 		ReasonFixtureOptInRequired,
 		ReasonProfileRevoked,
 		ReasonProfileSuperseded,
-		ReasonProfileUnqualified,
-		ReasonProfileDefaultOff,
 		ReasonCandidateDisabled,
 	}
 	for _, priority := range priorities {
