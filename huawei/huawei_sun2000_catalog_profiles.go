@@ -340,7 +340,7 @@ func catalogLoad() catalogBundle {
 	if err != nil {
 		return catalogBundle{labelErr: err}
 	}
-	cards, err := huaweiSUN2000MonitoringRegisterCards()
+	cards, err := huaweiInverterMonitoringRegisterCards()
 	if err != nil || len(cards) == 0 {
 		return catalogBundle{}
 	}

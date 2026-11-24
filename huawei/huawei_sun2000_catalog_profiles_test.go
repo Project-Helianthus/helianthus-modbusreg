@@ -40,7 +40,7 @@ func TestCatalogProfilesDoNotReadTheEmbeddedCatalog(t *testing.T) {
 			t.Fatalf("catalogue profiles read the embedded catalogue via %s", marker)
 		}
 	}
-	cards, err := huaweiSUN2000MonitoringRegisterCards()
+	cards, err := huaweiInverterMonitoringRegisterCards()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,6 +50,18 @@ func TestCatalogProfilesDoNotReadTheEmbeddedCatalog(t *testing.T) {
 	}
 	if len(cards) == 0 || len(cards) != len(profiles) {
 		t.Fatalf("retained cards %d profiles %d", len(cards), len(profiles))
+	}
+	selection, err := os.ReadFile("huawei_sun2000_catalog_selection.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"huaweiSUN2000MonitoringRegisterCards",
+		"huaweiSUN2000RetainedRegisterCard",
+	} {
+		if bytes.Contains(selection, []byte("func "+name)) {
+			t.Fatalf("declaration %s", name)
+		}
 	}
 }
 

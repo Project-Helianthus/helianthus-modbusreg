@@ -363,7 +363,7 @@ func huaweiSUN2000LoadedCatalog() huaweiSUN2000Catalog {
 			if readErr != nil {
 				return nil, readErr
 			}
-			kept, retain, retainErr := huaweiSUN2000RetainedRegisterCard(name, data)
+			kept, retain, retainErr := huaweiInverterRetainedRegisterCard(name, data)
 			if retainErr != nil {
 				return nil, retainErr
 			}
@@ -390,9 +390,9 @@ func huaweiSUN2000LoadedCatalog() huaweiSUN2000Catalog {
 	return huaweiSUN2000CatalogLoaded
 }
 
-// huaweiSUN2000RetainedRegisterCard keeps a card document the selection already
+// huaweiInverterRetainedRegisterCard keeps a card document the selection already
 // read. Monitoring profiles decode that document and do not open the catalogue.
-func huaweiSUN2000RetainedRegisterCard(name string, data []byte) (catalogRegisterFile, bool, error) {
+func huaweiInverterRetainedRegisterCard(name string, data []byte) (catalogRegisterFile, bool, error) {
 	if !strings.HasPrefix(name, "registers-") || !strings.HasSuffix(name, ".json") {
 		return catalogRegisterFile{}, false, nil
 	}
@@ -406,9 +406,9 @@ func huaweiSUN2000RetainedRegisterCard(name string, data []byte) (catalogRegiste
 	return file, true, nil
 }
 
-// huaweiSUN2000MonitoringRegisterCards returns the card documents retained by
+// huaweiInverterMonitoringRegisterCards returns the card documents retained by
 // the inverter selection. The caller decodes them and does not open the catalogue.
-func huaweiSUN2000MonitoringRegisterCards() ([]catalogRegisterFile, error) {
+func huaweiInverterMonitoringRegisterCards() ([]catalogRegisterFile, error) {
 	catalog := huaweiSUN2000LoadedCatalog()
 	if catalog.err != nil {
 		return nil, catalog.err
