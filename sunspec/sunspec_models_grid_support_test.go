@@ -60,6 +60,15 @@ func tripField(id uint16, name string) string {
 
 func decodeRegisteredChain(t *testing.T, registry DecoderRegistry, blocks ...[]uint16) DecodedChain {
 	t.Helper()
+	decoded, err := registry.DecodeChain(walkRegisteredGridChain(t, registry, blocks...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return decoded
+}
+
+func walkRegisteredGridChain(t *testing.T, registry DecoderRegistry, blocks ...[]uint16) ChainSnapshot {
+	t.Helper()
 	keys := make([]DecoderKey, 0, len(blocks))
 	seen := make(map[DecoderKey]bool, len(blocks))
 	occurrences := make([]Occurrence, len(blocks))
@@ -116,11 +125,7 @@ func decodeRegisteredChain(t *testing.T, registry DecoderRegistry, blocks ...[]u
 			t.Fatalf("model %d disposition %q", occurrence.ModelID(), occurrence.Disposition)
 		}
 	}
-	decoded, err := registry.DecodeChain(snapshot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return decoded
+	return snapshot
 }
 
 func requireDecodedModel(t *testing.T, decoded DecodedChain, id, length uint16, revision SchemaRevision) DecodedModel {
@@ -548,7 +553,7 @@ func TestGridSupportRepeatKeysFollowPublishedStrides(t *testing.T) {
 func TestEnterServiceKeepsItsDecoder(t *testing.T) {
 	registry := mustSunSpecRegistry(t, ModelsRevisionV2)
 	words := modelBlock(703, 17)
-	words[2], words[3] = 1, 2300
+	words[2], words[3], words[4], words[17] = 1, 1100, 900, 0xffff
 	putUint32(words, 5, 5000)
 	decoded := decodeRegisteredChain(t, registry, modelBlock(1, 66), words)
 	model := requireDecodedModel(t, decoded, 703, 17, ModelsRevisionV2)
@@ -558,7 +563,8 @@ func TestEnterServiceKeepsItsDecoder(t *testing.T) {
 	if !ok || number != 1 || symbol != "" {
 		t.Fatalf("enter service enum %d %q", number, symbol)
 	}
-	requireDecimalFact(t, model, "sunspec.der.v2.703.ESVHi", "ESVHi", "", "V", 0, TypeUint16, false, 2300, 0)
+	requireDecimalFact(t, model, "sunspec.der.v2.703.ESVHi", "ESVHi", "", "Pct", 0, TypeUint16, false, 1100, -1)
+	requireDecimalFact(t, model, "sunspec.der.v2.703.ESVLo", "ESVLo", "", "Pct", 0, TypeUint16, false, 900, -1)
 	delay := oneFact(t, model, "sunspec.der.v2.703.ESDlyTms", "ESDlyTms", "", 0)
 	requireShape(t, delay, "", TypeUint32, false)
 	rejectDecoderKey(t, mustSunSpecRegistry(t, ModelsRevisionV1), 703, 17)
