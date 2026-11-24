@@ -159,6 +159,7 @@ type SUN2000MonitoringProfile struct {
 	refused       []SUN2000RefusedGroup
 	observedUnits []uint8
 	fields        []huaweiSUN2000Field
+	battery       huaweiBatteryPlan
 }
 
 // ID returns the versioned profile identifier.
@@ -239,9 +240,8 @@ func (SUN2000MonitoringProfile) SupportClaim() bool { return false }
 // WriteAuthority is always false: the plan holds FC03 reads only.
 func (SUN2000MonitoringProfile) WriteAuthority() bool { return false }
 
-// BatteryFactsAdmitted is false: the battery groups are present on the MAP0
-// series and answer zero words elsewhere, and no battery fact is admitted.
-func (SUN2000MonitoringProfile) BatteryFactsAdmitted() bool { return false }
+// BatteryFactsAdmitted reports whether the bound card has battery decoders.
+func (p SUN2000MonitoringProfile) BatteryFactsAdmitted() bool { return len(p.battery.fields) != 0 }
 
 // MeterFactsAdmitted is false: no meter register was read on any path.
 func (SUN2000MonitoringProfile) MeterFactsAdmitted() bool { return false }
@@ -343,7 +343,7 @@ func (p SUN2000MonitoringProfile) Plan(unit uint8) []SUN2000ReadStep {
 	for _, group := range p.groups {
 		steps = append(steps, SUN2000ReadStep{Function: uint8(modbusreg.FunctionReadHoldingRegisters), UnitID: unit, Offset: group.offset, Quantity: group.quantity})
 	}
-	return steps
+	return p.battery.appendSteps(steps, unit)
 }
 
 // SUN2000GroupOutcome is the outcome of one group read.
@@ -479,8 +479,9 @@ func (r SUN2000MonitoringReading) Fact(key string, index int) (SUN2000Fact, bool
 	return SUN2000Fact{}, false
 }
 
-// BatteryFactsAdmitted is always false: a reading holds no battery fact.
-func (SUN2000MonitoringReading) BatteryFactsAdmitted() bool { return false }
+// BatteryFactsAdmitted reports whether this reading carries any decoded
+// battery values, including retained ones. It says nothing about presence.
+func (r SUN2000MonitoringReading) BatteryFactsAdmitted() bool { return huaweiHasBatteryFacts(r.facts) }
 
 // MeterFactsAdmitted is always false: a reading holds no meter fact.
 func (SUN2000MonitoringReading) MeterFactsAdmitted() bool { return false }
@@ -501,15 +502,16 @@ func (p SUN2000MonitoringProfile) Decode(unit uint8, readings []SUN2000GroupRead
 	if p.id == "" || unit == 0 || unit > huaweiSUN2000MaxUnit {
 		return SUN2000MonitoringReading{}, errHuaweiSUN2000ReadingInvalid
 	}
-	groups := make([]SUN2000GroupReading, len(p.groups))
-	for index, group := range p.groups {
-		groups[index] = SUN2000GroupReading{Offset: group.offset, Quantity: group.quantity, Outcome: SUN2000GroupNotRead}
+	plan := p.Plan(unit)
+	groups := make([]SUN2000GroupReading, len(plan))
+	for index, step := range plan {
+		groups[index] = SUN2000GroupReading{Offset: step.Offset, Quantity: step.Quantity, Outcome: SUN2000GroupNotRead}
 	}
-	seen := make([]bool, len(p.groups))
+	seen := make([]bool, len(plan))
 	for _, reading := range readings {
 		position := -1
-		for index, group := range p.groups {
-			if reading.Offset == group.offset && reading.Quantity == group.quantity {
+		for index, step := range plan {
+			if reading.Offset == step.Offset && reading.Quantity == step.Quantity {
 				position = index
 			}
 		}
@@ -564,7 +566,7 @@ func (p SUN2000MonitoringProfile) decodeFacts(unit uint8, groups []SUN2000GroupR
 		}
 		facts = append(facts, fact)
 	}
-	return facts
+	return p.battery.appendFacts(facts, groups)
 }
 
 func decodeHuaweiSUN2000Field(field huaweiSUN2000Field, words []uint16) (Decimal, string, bool) {
@@ -612,7 +614,12 @@ func RetainHuaweiSUN2000Monitoring(previous, current SUN2000MonitoringReading) S
 			profile = candidate
 		}
 	}
-	if profile.id == "" || len(previous.groups) != len(current.groups) {
+	return profile.retain(previous, current)
+}
+
+func (p SUN2000MonitoringProfile) retain(previous, current SUN2000MonitoringReading) SUN2000MonitoringReading {
+	if p.id == "" || p.id != current.profileID || previous.profileID != current.profileID ||
+		previous.unitID != current.unitID || len(previous.groups) != len(current.groups) {
 		return current
 	}
 	groups := current.Groups()
@@ -625,5 +632,5 @@ func RetainHuaweiSUN2000Monitoring(previous, current SUN2000MonitoringReading) S
 			groups[index] = kept
 		}
 	}
-	return SUN2000MonitoringReading{profileID: current.profileID, unitID: current.unitID, groups: groups, facts: profile.decodeFacts(current.unitID, groups)}
+	return SUN2000MonitoringReading{profileID: current.profileID, unitID: current.unitID, groups: groups, facts: p.decodeFacts(current.unitID, groups)}
 }

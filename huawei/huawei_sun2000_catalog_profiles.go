@@ -24,6 +24,7 @@ type CatalogMonitoringProfile struct {
 	fields  []catalogField
 	states  map[uint16]string
 	alarms  map[uint16]map[int]string
+	battery huaweiBatteryPlan
 }
 
 // CatalogMonitoringReading is one decoded catalogue profile.
@@ -241,7 +242,7 @@ func (p CatalogMonitoringProfile) catalogFacts(groups []SUN2000GroupReading) []S
 		facts = append(facts, p.catalogFact(field, groups))
 	}
 	facts = append(facts, p.catalogAlarmFacts(groups)...)
-	return facts
+	return p.battery.appendFacts(facts, groups)
 }
 
 func (p CatalogMonitoringProfile) catalogFact(field catalogField, groups []SUN2000GroupReading) SUN2000Fact {
@@ -349,7 +350,10 @@ func catalogLoad() catalogBundle {
 		if file.Card == "" {
 			return catalogBundle{}
 		}
-		built = append(built, catalogBuild(file, states[file.Card], alarms[file.Card]))
+		profile := catalogBuild(file, states[file.Card], alarms[file.Card])
+		profile.battery = huaweiBuildBatteryPlan(file, profile.prefix)
+		profile.groups = append(profile.groups, profile.battery.groups...)
+		built = append(built, profile)
 	}
 	sort.Slice(built, func(i, j int) bool { return built[i].card < built[j].card })
 	return catalogBundle{profiles: built}

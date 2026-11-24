@@ -14,11 +14,41 @@ telemetry. The caller supplies documentary observations; this API supplies no
 native presence decoder. An event named documentary presence describes the
 supplied evidence, without establishing a native encoding or battery support.
 
-Proven: the cited public disposition denies profile admission. Hypothesis:
-synthetic transition tests exercise the proposed retention decisions. Unknown:
-native battery presence/absence encoding, register applicability, monitoring
-values, scales, and live behavior. These evidence labels remain separate from
-observation state, qualification, acquisition, and admission.
+Proven: scripted cycles exercise battery reads, decoding and partial retention.
+The decoded register facts have the `HYPOTHESIS` evidence grade, separate from
+hardware qualification. Unknown: native battery and pack presence or absence,
+and live behavior. These evidence labels remain separate from observation
+state, qualification, acquisition, and admission.
+
+## Battery values on the provider cycle
+
+An admitted inverter with a qualifying card reads that card’s numeric storage
+rows in the 37000 and 37741 ranges and the documented pack rows. Each pack
+keeps its register position under its storage unit; a reply does not establish
+that a slot is occupied. `ProviderChildObservation.Reading` carries numeric
+values and named running states as `<profile-prefix>.storage.<offset>` facts
+(index 0). Native words are available in `Reading.Groups()` with read time,
+cycle, generation and outcomes in `ProviderChildObservation.Groups`. The
+battery fact predicate reports decoded values, not presence or qualification.
+
+Every zero battery field stays Unknown while presence is unresolved. A zero
+reply remains in native evidence; it is not a presence, absence or numeric
+measurement. Running-state codes, other nonzero words, successful reads,
+refusals, and site rated capacity never change the reducer’s presence state.
+Failed or refused groups retain last-known-good values at their original
+read time. A fresh zero response is not a failed read and does not publish a
+current value. Partial retention does not refresh untouched groups.
+
+Raw-only status and calibration words remain native. Unknown code meanings
+and unresolved gains do not become typed values. Power keeps the native sign
+without assigning an undocumented charge or discharge direction. Battery
+identity and software text are outside the telemetry plan.
+
+An EMMA child with a covered card gets its inverter-side readings. Without a
+battery decoder the child has no typed battery values; the cycle names the
+reason as a unit-scoped site-only loss. Battery measurements then appear only
+in `ProviderCycle.EMMASite`, not as fabricated child or pack facts. No guessed
+battery extent is requested on a child with no card.
 
 ## Inputs and immutable result
 
@@ -119,21 +149,10 @@ false. There are no absence or qualified event constants and no caller boolean
 can enable those transitions. Existing trust/admission boundaries remain in
 place; this API introduces no authentication or authorization gate.
 
-## Delivery and remaining acceptance
+## Reducer companion and verification
 
-The docs-modbus owner must publish
-[architecture/luna-optional-state-reducer-implementation.md](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/luna-optional-state-reducer-implementation.md)
-before or with this change, describing the reviewed API and citing the native
-contract above. That companion is required application documentation; its
-publication is not asserted here. Merge remains on hold until the companion
-requirement is satisfied. Application lifecycle material belongs outside the
-companion repository's `protocols/` and `types/` directories.
-
-Focused synthetic tests validate reducer decisions only. They establish no
-hardware qualification, transport conformance, passive capture evidence, device
-acceptance, runtime integration, or parent-issue completion. Existing eBUS MCP
-and GraphQL surfaces are untouched; downstream composition must separately
-preserve their parity, native provenance, partial last-known-good semantics and
-explicit projection loss. G5 D1-D5/O8 and the driver-owned eeBUS output binding
-remain unchanged. Future per-field numerical monitoring needs its own accepted
-native contract and implementation.
+The [reducer implementation contract](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/main/architecture/luna-optional-state-reducer-implementation.md)
+describes the standalone API. The child monitoring decoder does not call the
+reducer or change its transitions. These checks establish offline behavior,
+not hardware qualification, transport conformance or live device acceptance.
+Existing eBUS MCP and GraphQL surfaces are untouched.

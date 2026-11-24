@@ -227,21 +227,18 @@ gives a power unit. A card without one of these classes has no invented group.
 
 A group the unit answers with an exception is a loss for that unit, naming the
 unit, the offset and the quantity. The other groups of the same reading still
-decode. Battery and meter facts stay unadmitted: those losses remain, and the
-holes the hand decoder still leaves unconsumed are unchanged on the hand
-profiles.
+decode. The holes the hand decoder leaves unconsumed are unchanged on the
+standalone hand profiles.
 
 ## Battery and meters
 
-No battery or meter fact is admitted. The LUNA2000 disposition records the
-battery groups (37000/30, 37066/4, 47000/1) as present but not admitted: they
-answered with data on the MAP0 series (Proven), their meanings are Unknown, and
-the rule that a battery offset answers zero at an inverter without a battery is
-a Hypothesis. The single reads at 37000 and 47000 answered one zero word on the
-M3 and M1 series; such a zero is never published as a state of charge, power or
-energy, and a battery offset is outside every read plan. No LUNA2000 profile is
-selected, whether or not the parent inverter is identified. Every meter value
-stays Unknown.
+Catalogue plans include [storage groups](luna-optional-state-reducer.md#battery-values-on-the-provider-cycle)
+where the card defines them. The provider augments a bound hand profile with
+the selected card’s storage decoder without changing the standalone hand
+observer. Uncovered storage words remain native; a zero battery field is not
+published as a state of charge, power or energy. Neither a decoded value nor a
+successful read establishes presence or admits a standalone LUNA2000 profile.
+Meter values are separate from the inverter catalogue profiles.
 
 ## Observer and retention
 

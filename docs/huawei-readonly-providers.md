@@ -253,8 +253,11 @@ admission, typed reading and group provenance, every wire attempt, and the named
 loss. Its authority methods all return false.
 
 The loss names the groups refused by the family, the status group and the
-other unconsumed words, unadmitted inverter battery values, withheld children,
-and plant and meter groups refused or failed at runtime.
+other unconsumed words, withheld children, and plant, meter and battery groups
+refused or failed at runtime. A child with a qualifying card carries
+[storage facts](luna-optional-state-reducer.md#battery-values-on-the-provider-cycle)
+in its inverter reading; without a documented decoder, EMMA records a
+unit-scoped site-only battery loss.
 When there is no last-known-good reading, missing facts are Unknown, never
 substituted with zero, empty or false.
 
