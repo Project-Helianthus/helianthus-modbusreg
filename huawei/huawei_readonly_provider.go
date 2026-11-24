@@ -636,6 +636,9 @@ type ProviderCycle struct {
 	Loss         []ProviderLoss
 	PlannedReads int
 	WireAttempts int
+
+	// EMMASitePower keeps inferred site directions separate from native facts.
+	EMMASitePower []EMMASitePowerReading `json:",omitempty"`
 }
 
 func (c ProviderCycle) clone() ProviderCycle {
@@ -658,6 +661,7 @@ func (c ProviderCycle) clone() ProviderCycle {
 		}
 		c.EMMASite = site
 	}
+	c.EMMASitePower = slices.Clone(c.EMMASitePower)
 	c.Meter = slices.Clone(c.Meter)
 	for index := range c.Meter {
 		c.Meter[index] = c.Meter[index].clone()

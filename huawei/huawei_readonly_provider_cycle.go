@@ -298,6 +298,9 @@ func (p *huaweiProviderCore) refresh(ctx context.Context) (ProviderCycle, error)
 	}
 	run.out.CompletedAt = end
 	run.out.Loss = append(append([]ProviderLoss(nil), p.staticLoss...), run.out.Loss...)
+	if len(run.out.EMMASite) != 0 {
+		run.out.deriveEMMASitePower(p.state.emmaSite[0])
+	}
 	p.state = run.state
 	result := run.out.clone()
 	if result.Outcome == ProviderCycleComplete {
