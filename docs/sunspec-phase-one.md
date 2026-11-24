@@ -1,55 +1,98 @@
 # SunSpec phase one
 
-Issue #9 adds the small public, standard-family surface for a read-only SunSpec
-phase-one discovery image. It is vendor-neutral: it makes no manufacturer,
-product, unit-identity, endpoint, or transport-family decision.
+The SunSpec phase-one standard-family profile is **qualified and default-enabled**.
+`NewSunSpecPhaseOneProfile` declares Common model 1 and integer inverter models
+101, 102, and 103. Qualification describes the standard-family profile, not a
+particular device or live installation. Detection does not require a Fronius
+flavor match.
 
-## API and compatibility
+## Discovery and compatibility
 
-`NewSunSpecPhaseOneProfile` accepts only profile and codec version `1.0.0` and
-returns an immutable `ProfileDescriptor`. `NewPhaseOneDecoder` accepts
-only that standard-family profile. `DiscoveryRequest` describes FC03 holding
-register discovery at PDU offset `40000`, the normalized form of documentary
-register `40001`. No write or control operation is exported.
+`NewSunSpecPhaseOneProfile` accepts profile and codec version `1.0.0`, and
+`NewPhaseOneDecoder` accepts that exact profile. Its `DiscoveryRequest` is a
+read-only FC03 holding-register request at PDU offset `40000` (register `40001`
+in one-based notation).
 
-`Parse` accepts a bounded raw image (at most 512 words), requires the `SunS`
-signature, Common model 1 first and exactly once, and a zero-length end marker
-that consumes all input. It validates every declared extent.
-It semantically exposes models 1, 101, 102, and 103; it structurally skips
-unknown models only after their bounds validate; and it explicitly rejects the
-deferred model families. `Int16`, `Acc32`, `ScaleFactor`, and `String` encode
-the phase-one signedness, high-word ordering, scale-factor range/sentinel, and
-first-NUL fixed-width string rules.
+The compatibility parser accepts at most 512 words. It requires the `SunS`
+signature, exactly one Common model first, valid model extents, and a terminal
+zero-length end marker with no trailing words. It exposes models 1, 101, 102,
+and 103, skips bounded unknown models, and rejects explicitly deferred
+families. Common lengths 65 and 66 are accepted; the extra pad in length 66
+stays in the raw words, not in the typed values. `Activate` binds the parsed
+chain to the exact contiguous FC03 source views and the observation dependency
+to the captured base view. These are rules of the compatibility API, not of the
+general chain walk below.
 
-The semantic coordinates are pinned to official SunSpec models revision
-`7abdf8982d5364f8ae916deee18aac86c11be36d`. Common model 1 uses payload
-coordinates `Mn 0:16`, `Md 16:32`, `Opt 32:40`, `Vr 40:48`, `SN 48:64`, and
-`DA 64`. The exact accepted Common length set is `{65,66}`: the qualified
-vendor package uses length 65, while the pinned official model uses length 66
-with a non-semantic Pad at payload offset 65. The Pad remains present in raw
-words and model extent but is not published as a typed value. Inverter models
-101, 102, and 103 use `W 12`, `W_SF 13`, `WH 22:24`
-with the high word first, and `WH_SF 24`. No legacy offset fallback is applied.
+## Vendor-neutral observation and Common segments
 
-`Activate` is stateless across polls. Each call takes a
-`PhaseOneCapture` containing ordered `LogicalViewSnapshot` source views,
-derives the exact raw chain from contiguous FC03 views beginning at offset
-`40000`, and requires the observation dependency to be the exact captured base
-view. It then passes the caller-provided `ObservationSpec` into the existing
-immutable admission path, so sample, poll, dependency, wire/logical view,
-timing, version, and coherence facts remain validated and retained exactly.
+`sunspec.NewObservation` builds an immutable, vendor-neutral `Observation`
+from a verified terminal chain with one consistent sample identity and an
+admitted three-phase monitoring decision. It retains the sample identity, raw
+words, ordered model occurrences, source views, wire chain, and capability
+decision. The Fronius inverter-family wrapper,
+`fronius.NewSunSpecQualificationObservation`, records a unique matching flavor
+as hardware test evidence. A missing flavor is recorded as not observed, even
+in the JSON evidence, and does not reject the admitted chain. An ambiguous
+match is rejected.
 
-## Evidence, limits, and rollback
+`PlanAllowlistedUnits` keeps a separate chain walk for each configured unit,
+including a meter on the same endpoint as an inverter. A listed 7xx or 8xx model
+selects the V2 registry alongside applicable V1 definitions, including the
+nameplate model 120 when listed.
 
-The documentary source is the merged M3-01 evidence packet at
-`helianthus-docs-ebus` commit
-`59218d21163acb868687ed3d8196f0aa1496aab7`, specifically
-`docs/platform/fronius-sunspec-evidence-v1.md` and its phase-one manifest.
-This implementation contains only the standard contract from that packet; it
-does not imply qualification of any product or live installation.
+`SegmentChain` starts a device segment at each Common model (model 1). A segment
+includes that Common and every model after it up to the next Common or the end
+marker. An inverter and a meter under different Common models are separate
+devices even when read in the same chain. A source before the first Common has
+no device anchor and is reported as ambiguous by `EvaluateCapabilities`.
 
-The raw-chain 512-word limit is an API validation limit, not a request-size or
-scheduler policy. Parsing and activation are memory-only. They open no socket,
-perform no framing, and execute no live access. To roll back phase one, remove
-the profile from a caller catalog and stop invoking the decoder; retained
-observations remain immutable evidence and are not rewritten.
+## Capability evaluators
+
+`EvaluateCapabilities` applies the same evaluation table to every Common
+segment and keeps separate decisions for distinct source occurrences. The
+three-phase compatibility evaluator retains its existing identifier and
+required facts.
+
+| Evaluator identifier | Family and facts |
+| --- | --- |
+| `sunspec.inverter.three_phase.monitoring@1.0.0` | `EvaluateThreePhaseMonitoring`: three-phase inverter models 103 and 113, with the required monitoring set and valid optional inverter facts. |
+| `sunspec.inverter.monitoring` | Single-, split-, and three-phase inverters (101–103 and 111–113). Reports only the phases the model defines, along with decoded AC, DC, temperature, state, and event facts. |
+| `sunspec.der.state` | DER models 120–123: nameplate ratings, settings, connection status, and observed controls. |
+| `sunspec.mppt.monitoring` | One entry per model 160 module, with its index and available identifier, label, and measurements. The module role is unknown; a label alone does not establish it. |
+| `sunspec.storage.monitoring` | Storage nameplate ratings and state or control facts (models 120 and 124), V2 storage capacity (713), and battery facts (802–805). |
+| `sunspec.meter.monitoring` | Meter models 201–204 and 211–214. Retains each meter occurrence and the native sign convention of its measurements. |
+| `sunspec.der.measurement` | V2 DER AC measurements (701) and DC measurements (714), retaining the type of each DC port when available. Reuses a V1 fact identifier only when the quantity and sign agree. |
+
+Facts retain native values and units. Absent or unimplemented points, including
+values whose scale factor is unimplemented, are omitted rather than reported
+as zero. An invalid required fact rejects that capability decision without
+invalidating otherwise valid sibling sources.
+
+## Grid support and hand writes
+
+Native reads cover grid-support models **125 to 145**, the V2 enter-service
+model **703**, and the V2 DER trip curves **708** (high voltage) and **709**
+(low frequency). Models 708 and 709 use their own field definitions and curve
+layouts, not the model 707 layout. Model 707 (low voltage) remains a structural
+read through `ProjectSunSpecStructuralFacts`, without a decoder key.
+
+For manual writes, `sunspec.PointWrites` lists writable points for a selected
+occurrence in a verified chain. This includes documented writable points in
+models 120 to 145, 703, 708, and 709, and writable points in the validated
+structural layout for 707. Read-only points and read-only curve instances
+remain reads; a scaled point without a usable scale offers no write.
+`PointWrite.Encode` takes a typed value in the point's native unit and returns
+the register words and a single FC16 request for that point's span. If the
+value cannot be encoded exactly, it returns an error and no request.
+
+For grid-code settings with no SemReg element, the same native hand-write
+operation is for use through MCP and GraphQL in the `modbusreg` namespace. This
+is separate from semantic-operation dispatch and does not change the raw-bus
+command policy. Discovery and monitoring never write, and the registry encodes
+but does not send a write request. A live write requires an explicit call and
+operator confirmation at the time of the action.
+
+## Rollback
+
+To stop using the phase-one compatibility profile, remove it from the caller's
+catalog and stop invoking its decoder. Retained observations remain immutable.
