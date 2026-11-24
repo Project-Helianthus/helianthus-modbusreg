@@ -30,9 +30,101 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 -m pip install -r requirements-lint.txt
-      - run: ./scripts/ci_local.sh
+      - id: suite
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REPO: ${{ github.event.pull_request.base.repo.id }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          echo "run_full=true" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
+            exit 0
+          fi
+          if ! bash scripts/preflight/acquire.sh tool "$RUNNER_TEMP/qq06-classify" > "$RUNNER_TEMP/qq06-classify.sha"; then
+            exit 0
+          fi
+          git fetch --no-tags --depth=1 origin "${BASE_REF}"
+          git diff --name-status FETCH_HEAD HEAD > "$RUNNER_TEMP/name-status.txt"
+          export PULLS_OUT="$RUNNER_TEMP/pulls.json"
+          python3 - <<'PY'
+          import importlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, "scripts/preflight")
+          import classify
+          client = importlib.import_module("urllib.request")
+
+          def opener(request, timeout=30):
+              outgoing = client.Request(request.full_url, headers=dict(request.headers))
+              return client.urlopen(outgoing, timeout=timeout)
+
+          destination = Path(os.environ["PULLS_OUT"])
+          try:
+              token = os.environ.get("GITHUB_TOKEN") or None
+              pulls = classify.fetch_open_pulls(
+                  os.environ["GITHUB_REPOSITORY"], opener=opener, token=token
+              )
+          except Exception:
+              pulls = None
+          if isinstance(pulls, list):
+              destination.write_text(json.dumps(pulls) + "\n", encoding="utf-8")
+          else:
+              destination.write_text("null\n", encoding="utf-8")
+          PY
+          python3 scripts/preflight/classify.py \
+            --event pull_request \
+            --manifests-dir "$RUNNER_TEMP/qq06-classify/acceptance/manifests" \
+            --name-status "$RUNNER_TEMP/name-status.txt" \
+            --current-number "${PR_NUMBER}" \
+            --base-ref "${BASE_REF}" \
+            --head-ref "${HEAD_REF}" \
+            --base-repo-id "${BASE_REPO}" \
+            --head-repo-id "${HEAD_REPO}" \
+            --pulls-file "$RUNNER_TEMP/pulls.json" \
+            --github-output "$GITHUB_OUTPUT" \
+            --acquisition "$RUNNER_TEMP/acquisition.txt" \
+            --packages-file "$RUNNER_TEMP/packages.txt" \
+            --selected-file "$RUNNER_TEMP/selected.txt"
+          if [ "$(cat "$RUNNER_TEMP/selected.txt")" != "true" ]; then
+            exit 0
+          fi
+          bash scripts/preflight/acquire.sh rest \
+            "$RUNNER_TEMP/qq06-classify" \
+            "$RUNNER_TEMP/donor" \
+            "$RUNNER_TEMP/acquisition.txt"
+          manifest="$(sed -n 's/^manifest=//p' "$GITHUB_OUTPUT" | tail -n 1)"
+          python3 "$RUNNER_TEMP/qq06-classify/acceptance/tools/manifest/main.py" check \
+            --manifest "$manifest" \
+            --donor "$RUNNER_TEMP/donor"
+      - if: success() && steps.suite.outputs.run_full != 'false'
+        run: ./scripts/ci_local.sh
         env:
           HELIANTHUS_EXTERNAL_LINT_JOB: "1"
+      - id: staged
+        if: always()
+        run: |
+          set -euo pipefail
+          if ! bash scripts/preflight/acquire.sh tool "$RUNNER_TEMP/qq06-selftest" > "$RUNNER_TEMP/qq06-selftest.sha"; then
+            echo "main=" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "main=$RUNNER_TEMP/qq06-selftest/acceptance/tools/manifest/main.py" >> "$GITHUB_OUTPUT"
+      - if: always()
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.11.4
+          install-only: true
+      - if: always()
+        run: python3 -m unittest discover -s scripts/preflight -p 'test_*.py' -v
+        env:
+          QQ06_MAIN_PY: ${{ steps.staged.outputs.main }}
+          GOWORK: "off"
+          GOFLAGS: "-mod=mod"
 
   lint:
     # fork pull requests never run on the persistent runners
