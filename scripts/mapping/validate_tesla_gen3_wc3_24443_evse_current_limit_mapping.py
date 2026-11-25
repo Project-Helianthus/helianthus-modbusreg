@@ -579,7 +579,7 @@ def check_native_page():
     """The staged ND02 page must exist and state what this gate relies on; absence is never a pass."""
     if not NATIVE_PAGE.is_file():
         fail("native_page_missing")
-    text = " ".join(NATIVE_PAGE.read_text(encoding="utf-8").split())
+    text = " ".join(re.sub(r"<!--.*?-->", "", NATIVE_PAGE.read_text(encoding="utf-8"), flags=re.S).split())
     if any(statement not in text for statement in NATIVE_STATEMENTS):
         fail("native_page_disagrees")
     if not re.search(r"(?<![A-Za-z0-9])IEC 61851-1 Annex A(?![A-Za-z0-9])", text):

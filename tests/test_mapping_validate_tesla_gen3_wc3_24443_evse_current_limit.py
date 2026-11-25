@@ -695,6 +695,7 @@ def native_page_text_cases():
     pages.append(("charging_citation_absent", full.replace("IEC 61851-1 Annex A", "")))
     pages.append(("charging_citation_other_annex", full.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex B")))
     pages.append(("charging_citation_annex_prefix", full.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex AA")))
+    pages.append(("charging_citation_hidden_in_comment", full.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex B") + " <!-- IEC 61851-1 Annex A -->"))
     pages.append(("charging_citation_other_part", full.replace("IEC 61851-1 Annex A", "IEC 61851-23 Annex A")))
     pages.append(("pause_encoding_contradicted", full.replace("The pause encodes 6 A with inhibit", "The pause encodes 0 A without inhibit")))
     with tempfile.TemporaryDirectory() as directory:
