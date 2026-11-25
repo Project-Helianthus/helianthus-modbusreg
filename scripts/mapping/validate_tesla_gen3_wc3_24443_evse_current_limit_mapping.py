@@ -304,17 +304,22 @@ def provisional_valid(case):
 
 
 def bound_to_lifecycle(evidence, lifecycle):
-    """A candidate belongs to the case lifecycle unless it names a different epoch or generation."""
-    return all(key not in evidence or (type(evidence[key]) is type(lifecycle.get(key)) and evidence[key] == lifecycle.get(key)) for key in BINDING_KEYS)
+    """A candidate belongs to the case lifecycle only when it names the same epoch and generations; a member it leaves out leaves its membership unestablished."""
+    return isinstance(evidence, dict) and isinstance(lifecycle, dict) and all(key in evidence and type(evidence[key]) is type(lifecycle.get(key)) and evidence[key] == lifecycle.get(key) for key in BINDING_KEYS)
+
+
+def foreign_to_lifecycle(evidence, lifecycle):
+    """A candidate that explicitly names a different epoch or generation is excluded and cannot veto the projection of the current lifecycle."""
+    return isinstance(evidence, dict) and isinstance(lifecycle, dict) and any(key in evidence and not (type(evidence[key]) is type(lifecycle.get(key)) and evidence[key] == lifecycle.get(key)) for key in BINDING_KEYS)
 
 
 def publish_configured_current(case, provisional, facts, withheld):
-    """Section 6.1: the t28 and the t8 configured current are each sufficient; the later receipt wins among candidates of the same epoch and generation."""
+    """Section 6.1: the t28 and the t8 configured current are each sufficient; the later receipt wins only among candidates whose membership in the case epoch and generations is established."""
     candidates = []
     if provisional is not None and "ConfiguredCurrentAmps" in provisional:
         candidates.append((case["evidence"]["provisional"], provisional["ConfiguredCurrentAmps"]))
     if "persistent" in case:
-        candidates.append((case["evidence"]["persistent"], case["persistent"]["MaxOutputCurrentAmps"]))
+        candidates.append((case["evidence"]["persistent"], case["persistent"].get("MaxOutputCurrentAmps") if isinstance(case["persistent"], dict) else None))
     if not candidates:
         withheld.append({"id": "evse.limit.configured_current", "reason": "configured_current_absent"})
         return
@@ -336,7 +341,7 @@ def project(case, contract):
     for error in ERRORS:
         if error in errors: fail(error)
     persistent = case.get("persistent")
-    if "persistent" in case and (not isinstance(persistent, dict) or not non_negative_int(persistent.get("MaxOutputCurrentAmps"))): fail(ERRORS[3])
+    if "persistent" in case and not foreign_to_lifecycle(case.get("evidence", {}).get("persistent"), case.get("lifecycle")) and (not isinstance(persistent, dict) or not non_negative_int(persistent.get("MaxOutputCurrentAmps"))): fail(ERRORS[3])
     facts, withheld, native = [], [], []
     publish_limits(case, facts, withheld, native)
     return {"facts": facts, "withheld": withheld, "native": native, "operations": list(OPERATION_NAMES)}
@@ -351,7 +356,7 @@ def case_errors(case, contract):
     if case.get("source_path") != contract["projection"]["source_path"]: errors.add(ERRORS[2])
     evidence = case.get("evidence", {})
     if "persistent" in case:
-        if not valid_evidence(evidence.get("persistent"), PERSISTENT_REFS): errors.add(ERRORS[3])
+        if not foreign_to_lifecycle(evidence.get("persistent"), case.get("lifecycle")) and not valid_evidence(evidence.get("persistent"), PERSISTENT_REFS): errors.add(ERRORS[3])
     elif not provisional_valid(case):
         errors.add(ERRORS[3])
     if not lifecycle_valid(case.get("lifecycle", {})): errors.add(ERRORS[4])
@@ -386,8 +391,9 @@ def publish_limits(case, facts, withheld, native):
         withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_evidence_invalid"})
         publish_allocated = False
     publish_configured_current(case, provisional, facts, withheld)
-    if provisional is not None and publish_allocated:
-        publish_allocated_current(case, provisional, facts, withheld)
+    if provisional is not None:
+        if publish_allocated:
+            publish_allocated_current(case, provisional, facts, withheld)
         publish_native_timeout(provisional, native)
         publish_native_expiry(case, native)
 

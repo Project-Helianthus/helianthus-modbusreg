@@ -44,11 +44,17 @@ required. The allocated current requires the provisional readback: its absence,
 or an invalid or mismatched provisional evidence set, withholds it, while the
 configured current may still come from the persistent candidate. Evidence from
 observations, epochs, generations, or revisions cannot be combined within either
-fact path. For the configured current, a candidate that names a source epoch,
-driver generation or lifecycle generation other than those of its case does not
-take part; the later receipt wins only among candidates of the same source epoch
+fact path. For the configured current, a candidate takes part only when its
+evidence names the source epoch, driver generation and lifecycle generation of
+its case; a candidate that names another one, or leaves one out, does not take
+part. The later receipt wins only among candidates of the same source epoch
 and generation, and with none left the fact is withheld as
-`configured_current_other_epoch`. Permitted last-known-good retention remains the native owner's
+`configured_current_other_epoch`. A persistent candidate that names another
+source epoch or generation is excluded and does not invalidate the projection of
+the candidates of the case. A readback outside the case's epoch and generation
+withholds the allocated current and the configured current, and the native
+timeout and the known expiry it carries stay served in the modbusreg
+namespace. Permitted last-known-good retention remains the native owner's
 lifecycle decision.
 
 ## Resources, relations, and identity

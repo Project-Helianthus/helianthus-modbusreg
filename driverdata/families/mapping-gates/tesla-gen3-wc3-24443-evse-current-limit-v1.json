@@ -491,7 +491,10 @@
             "payload_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "persistent_request": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             "persistent_terminal": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-            "receipt_timestamp": "2026-09-10T00:00:00Z"
+            "receipt_timestamp": "2026-09-10T00:00:00Z",
+            "source_epoch": "epoch.wc3.1",
+            "driver_generation": 1,
+            "lifecycle_generation": 1
           },
           "provisional": {
             "immutable_evidence_id": "evidence.wc3.provisional.0001",
@@ -501,7 +504,10 @@
             "provisional_ack": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
             "provisional_readback_request": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
             "provisional_readback_terminal": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-            "receipt_timestamp": "2026-09-10T00:00:01Z"
+            "receipt_timestamp": "2026-09-10T00:00:01Z",
+            "source_epoch": "epoch.wc3.1",
+            "driver_generation": 1,
+            "lifecycle_generation": 1
           }
         },
         "lifecycle": {

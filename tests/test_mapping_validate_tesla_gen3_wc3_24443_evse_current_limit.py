@@ -233,30 +233,71 @@ def candidate_cases(baseline, contract):
     print("no_configured_candidate: REJECTED")
 
 
-def epoch_cases(baseline, contract):
-    """Section 6.1: the later receipt wins only among candidates of the case's own epoch and generation; every binding member is varied on the newer t28."""
+BOUND = {"source_epoch": "epoch.wc3.1", "driver_generation": 1, "lifecycle_generation": 1}
+OTHER = {"source_epoch": "epoch.wc3.2", "driver_generation": 2, "lifecycle_generation": 2}
+
+
+def newer_t28_cases(baseline, contract):
+    """Every binding member is varied, removed and kept on the newer t28; the configured current, allocated current and retained native timeout follow."""
     newer = [("set", "provisional.ConfiguredCurrentAmps", 32), ("set", "evidence.provisional.receipt_timestamp", "2026-09-10T00:00:05Z")]
-    bound = {"source_epoch": "epoch.wc3.1", "driver_generation": 1, "lifecycle_generation": 1}
-    other = {"source_epoch": "epoch.wc3.2", "driver_generation": 2, "lifecycle_generation": 2}
+    bound, other = BOUND, OTHER
     cases = [("newer_t28_same_binding_wins", {}, "32")]
     for key in bound:
         cases.append((f"newer_t28_same_{key}_wins", {key: bound[key]}, "32"))
         cases.append((f"newer_t28_other_{key}_loses", {key: other[key]}, "16"))
+        cases.append((f"newer_t28_without_{key}_loses", {key: None}, "16"))
     cases.append(("newer_t28_all_bound_wins", dict(bound), "32"))
     cases.append(("newer_t28_all_other_loses", dict(other), "16"))
+    cases.append(("newer_t28_without_any_binding_loses", {key: None for key in bound}, "16"))
     cases.append(("newer_t28_bool_generation_loses", {"driver_generation": True}, "16"))
     for name, binding, expected in cases:
         candidate = copy.deepcopy(baseline)
         for op, path, value in newer:
             edit(candidate, op, path, value)
-        candidate["evidence"]["provisional"].update(binding)
-        configured = [coefficient for fact, coefficient in facts_of(mapping.project(candidate, contract)) if fact == "evse.limit.configured_current"]
+        for key, value in binding.items():
+            if value is None:
+                candidate["evidence"]["provisional"].pop(key)
+            else:
+                candidate["evidence"]["provisional"][key] = value
+        result = mapping.project(candidate, contract)
+        configured = [coefficient for fact, coefficient in facts_of(result) if fact == "evse.limit.configured_current"]
         if configured != [expected]:
             raise AssertionError(f"{name}: configured current {configured}")
-        allocated = [coefficient for fact, coefficient in facts_of(mapping.project(candidate, contract)) if fact == "evse.limit.allocated_current"]
+        allocated = [coefficient for fact, coefficient in facts_of(result) if fact == "evse.limit.allocated_current"]
         if (allocated != ["12"]) != (expected == "16"):
             raise AssertionError(f"{name}: allocated current {allocated}")
+        if expected == "16" and result["native"] != [{"namespace": "modbusreg", "field": "LimitTimeoutSeconds", "value": 600}]:
+            raise AssertionError(f"{name}: a t28 outside the lifecycle removed the retained native timeout: {result['native']}")
         print(name + ": EPOCH")
+
+
+def foreign_t8_cases(baseline, contract):
+    """A t8 of another epoch or generation, with a malformed current, is excluded and does not veto the current lifecycle; a malformed t8 that merely leaves a member out is still rejected."""
+    bound, other = BOUND, OTHER
+    for key in bound:
+        foreign_t8 = copy.deepcopy(baseline)
+        foreign_t8["evidence"]["persistent"][key] = other[key]
+        foreign_t8["persistent"]["MaxOutputCurrentAmps"] = -1
+        result = mapping.project(foreign_t8, contract)
+        if facts_of(result) != [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")]:
+            raise AssertionError(f"a t8 of another {key} with a malformed current vetoed the current lifecycle: {facts_of(result)}")
+        unbound_t8 = copy.deepcopy(baseline)
+        unbound_t8["evidence"]["persistent"].pop(key)
+        unbound_t8["persistent"]["MaxOutputCurrentAmps"] = -1
+        try:
+            mapping.project(unbound_t8, contract)
+        except ValueError as error:
+            if str(error) != "evidence_binding_invalid":
+                raise AssertionError(f"malformed t8 without {key}: {error}")
+        else:
+            raise AssertionError(f"a malformed t8 without {key} was accepted")
+
+
+def epoch_cases(baseline, contract):
+    """Section 6.1: the later receipt wins only among candidates of the case's own epoch and generation."""
+    bound, other = BOUND, OTHER
+    newer_t28_cases(baseline, contract)
+    foreign_t8_cases(baseline, contract)
     for key in bound:
         older_other = copy.deepcopy(baseline)
         older_other["evidence"]["persistent"][key] = other[key]
