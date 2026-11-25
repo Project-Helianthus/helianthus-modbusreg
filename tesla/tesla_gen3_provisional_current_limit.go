@@ -145,7 +145,12 @@ func (acquisition *Gen3ReadAcquisition) applyProvisionalLimit(ctx context.Contex
 	if !seen {
 		result.Prerequisite = acquisition.mutationReadback(ctx)
 		result.Bound = result.Prerequisite
-	} else if !retained.Fresh || !retained.Current {
+		if result.Prerequisite.State == Gen3ReadEvidenceTimeout && result.Prerequisite.RequestID != 0 {
+			result.Outcome, result.Reason = result.Prerequisite.State, result.Prerequisite.Cause
+			result.PossiblyTransmitted, result.EffectIndeterminate = true, true
+			return result, nil
+		}
+	} else if !retained.Current {
 		return result.reject(fmt.Errorf("%w: latest t28 is not reusable", modbusreg.ErrQualifiedFunctionNoSend))
 	}
 	bound, ok := result.Bound.ProvisionalReadback()
@@ -181,6 +186,7 @@ func (acquisition *Gen3ReadAcquisition) applyProvisionalLimit(ctx context.Contex
 		return result, nil
 	}
 	result.Comparison = compareTeslaProvisional(input, readback, false)
+	result.EffectIndeterminate = result.Comparison == CurrentLimitUnknown
 	if result.Comparison == CurrentLimitMatch {
 		result.Validated, err = NewGen3ProvisionalCurrentLimit(Gen3ProvisionalCurrentLimitSpec{
 			OperationVersion:    HSCFC100OperationCompatibilityV1,

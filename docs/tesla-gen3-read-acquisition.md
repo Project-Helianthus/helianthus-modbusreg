@@ -72,7 +72,8 @@ for those versions. A correlated status error does not acknowledge the set.
 
 One deadline covers the initial t27 if needed, the t25/t26 exchange, and the
 confirmation t27/t28. The current upper bound is taken from the latest usable
-t28 in the same generation. If that generation has seen a t28, loss of its
+t28 in the same generation, even after it stops being fresh, until the
+retention window expires. If that generation has seen a t28, loss of its
 reusable payload through expiry does not authorize a new prerequisite read.
 An absent or explicit-zero configured current, or a bound below the encoded
 current, denies the set. The positive path sends at least 6 A, 900 seconds,
@@ -84,9 +85,13 @@ t28 reports remaining time, not an echo, and expiry restores the default
 The setter keeps intent, the encoded triple, the bound, each correlated native
 receipt, and the returned values separately. `match`, `mismatch` and `unknown`
 compare the observed tuple with what was sent; wire absence does not become a
-zero or false observation. A t26 alone says nothing about applied current. A
-failed readback retains the ACK and leaves the effect indeterminate; deadline
-expiry remains `timeout`.
+zero or false observation. A t26 alone says nothing about applied current.
+Only a same-generation confirmation that yields `match` or `mismatch` makes
+the effect determinate. A failed confirmation retains the ACK. A deadline
+that expires before any request is sent is a no-send rejection. A timeout
+during the transmitted prerequisite t27 or t25, or expiry while awaiting
+confirmation after t26, is reported as `timeout` with possible transmission
+and indeterminate effect.
 
 `ConfigurePersistentCurrent` is a separate native call; it accepts only signed
 current, a caller operation identity, and a deadline. It requires an explicit

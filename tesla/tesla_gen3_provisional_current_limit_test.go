@@ -92,6 +92,9 @@ func TestTeslaProvisionalCurrentLimitSetReadback(t *testing.T) {
 			if err != nil || result.Requested != tc.request || result.Encoded != tc.encoded || result.Comparison != tc.comparison || result.HasValidated != tc.validated || !result.Acknowledged || h.endpoint().exchanges() != 3 {
 				t.Fatalf("result=%+v, err=%v", result, err)
 			}
+			if result.EffectIndeterminate != (tc.comparison == CurrentLimitUnknown) {
+				t.Fatalf("comparison %s: effect indeterminate = %t", result.Comparison, result.EffectIndeterminate)
+			}
 			got, ok := result.Readback.ProvisionalReadback()
 			if !ok || got.LimitCurrentMaxAmps != tc.returned.LimitCurrentMaxAmps || got.HasInhibit == tc.omitInhibit || got.HasConfiguredCurrent == tc.omitConfigured || !sameTeslaReceiptGeneration(result.Set, result.Readback) || !sameTeslaReceiptGeneration(result.Prerequisite, result.Set) {
 				t.Fatalf("readback=%+v", got)
@@ -113,6 +116,37 @@ func TestTeslaProvisionalCurrentLimitSetReadback(t *testing.T) {
 				t.Fatalf("off-poll retention missing: %+v", retained)
 			}
 		})
+	}
+}
+
+func TestTeslaProvisionalCurrentLimitUsesBoundUntilRetentionExpires(t *testing.T) {
+	h := teslaProvisionalHarness(t, false)
+	ctx := context.Background()
+	input := ProvisionalCurrentLimitRequest{16, 900, false}
+	bound := uint32(32)
+	body := teslaReadbackBody(input, &bound, false)
+	teslaPushTerminal(t, h, FC100OperationWCGetProvisional, body)
+	seed, err := h.acquisition.SetProvisionalCurrentLimit(ctx, ProvisionalCurrentLimitRequest{33, 900, false})
+	if err == nil || !seed.NoSend || seed.Prerequisite.State != Gen3ReadEvidenceAck || h.endpoint().exchanges() != 1 {
+		t.Fatalf("initial bound: %+v, %v", seed, err)
+	}
+
+	h.clock.advance(1500 * time.Millisecond)
+	retained, ok := h.acquisition.Retained(FC100OperationWCGetProvisional)
+	if !ok || !retained.Current || retained.Fresh {
+		t.Fatalf("expected a non-fresh but retained bound: %+v", retained)
+	}
+	teslaPushTerminal(t, h, FC100OperationWCSetProvisional, nil)
+	teslaPushTerminal(t, h, FC100OperationWCGetProvisional, body)
+	result, err := h.acquisition.SetProvisionalCurrentLimit(ctx, input)
+	if err != nil || !result.Acknowledged || result.Comparison != CurrentLimitMatch || result.Prerequisite.State != "" || result.Bound.RequestID != seed.Prerequisite.RequestID || h.endpoint().exchanges() != 3 {
+		t.Fatalf("retained bound: %+v, %v", result, err)
+	}
+
+	h.clock.advance(3 * time.Second)
+	result, err = h.acquisition.SetProvisionalCurrentLimit(ctx, input)
+	if err == nil || !result.NoSend || result.Outcome != Gen3ReadEvidenceRejected || h.endpoint().exchanges() != 3 {
+		t.Fatalf("expired bound: %+v, %v", result, err)
 	}
 }
 
@@ -188,6 +222,30 @@ func TestTeslaProvisionalCurrentLimitFailurePhases(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTeslaProvisionalCurrentLimitPrerequisiteDeadline(t *testing.T) {
+	input := ProvisionalCurrentLimitRequest{16, 900, false}
+	t.Run("after send", func(t *testing.T) {
+		h := teslaProvisionalHarness(t, false)
+		h.endpoint().push(teslaGen3FakeStep{outcome: "timeout"})
+		result, err := h.acquisition.SetProvisionalCurrentLimit(context.Background(), input)
+		if err != nil || result.Outcome != Gen3ReadEvidenceTimeout || result.NoSend || !result.PossiblyTransmitted || !result.EffectIndeterminate || result.Acknowledged || result.HasEncoded || result.Set.State != "" || result.Comparison != CurrentLimitUnknown {
+			t.Fatalf("prerequisite timeout: %+v, %v", result, err)
+		}
+		if result.Prerequisite.State != Gen3ReadEvidenceTimeout || result.Prerequisite.RequestID == 0 || result.Reason != result.Prerequisite.Cause || h.endpoint().exchanges() != 1 || h.acquisition.State() != Gen3ReadLifecycleUnavailable {
+			t.Fatalf("prerequisite receipt or lifecycle fence lost: %+v", result)
+		}
+	})
+	t.Run("before send", func(t *testing.T) {
+		h := teslaProvisionalHarness(t, false)
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		defer cancel()
+		result, err := h.acquisition.SetProvisionalCurrentLimit(ctx, input)
+		if err != context.DeadlineExceeded || result.Outcome != Gen3ReadEvidenceRejected || !result.NoSend || result.PossiblyTransmitted || result.EffectIndeterminate || result.Acknowledged || h.endpoint().exchanges() != 0 {
+			t.Fatalf("expired context: %+v, %v", result, err)
+		}
+	})
 }
 
 func TestTeslaProvisionalCurrentLimitCountdownComparison(t *testing.T) {
