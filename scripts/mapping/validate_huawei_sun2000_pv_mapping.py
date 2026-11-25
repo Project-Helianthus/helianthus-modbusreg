@@ -61,7 +61,6 @@ QUANTITY_RULE_MEMBERS = {"native_id", "native", "requested", "target", "dimensio
 STATUS_RULE_MEMBERS = {"native_id", "native", "requested", "target", "dimension", "subject_kind", "measurement_point", "unit", "disposition", "grade_ceiling", "symbols"}
 # EN-1: the measurement point of each mapped native fact. Subject kind and dimension come from the element catalog.
 MEASUREMENT_POINTS = {
-    "pv_string_voltage": "dc_input_terminals", "pv_string_current": "dc_input_terminals",
     "input_power": "inverter_dc_side", "active_power": "inverter_ac_output",
     "device_status": "inverter_as_a_whole", "energy_accumulated": "inverter_ac_output_lifetime_counter",
     "energy_current_day": "inverter_ac_output_day_counter",
@@ -91,7 +90,7 @@ IDENTITY_CONTRACT = {
 STATED_RELATIONS = [
     ("relation.relays", "native_observation", "each_admitted_child_is_read_through_the_gateway_path_its_profile_names"),
     ("pv.relation.system_inverter", "gate_rule", "one_pv_system_per_admitted_inverter_child"),
-    ("pv.relation.inverter_input", "gate_rule", "native_string_index_1_to_8_with_a_nonzero_voltage_or_current_word"),
+    ("pv.relation.inverter_input", "gate_rule", "an_input_a_native_word_names_none_in_this_edition"),
     ("pv.relation.inverter_phase", "gate_rule", "phase_values_are_dimensions_of_the_inverter"),
 ]
 # Section 6.4: an inverter relayed by its gateway path and also seen directly.
@@ -145,9 +144,12 @@ READ_PLAN = {
     M1: [(32000, 16, "retained_no_facts"), (32016, 24, "consumed"), (32064, 32, "consumed"), (32106, 10, "consumed")],
 }
 REFUSED = {M3: [(32064, 32, 3), (37100, 38, 3)], M1: []}
-RUNTIME_REASONS = {"pv.reason.native_fact_unknown", "pv.reason.value_outside_pack_range", "pv.reason.input_presence_unknown", "pv.reason.state_code_not_observed", "pv.reason.power_group_refused"}
+RUNTIME_REASONS = {"pv.reason.native_fact_unknown", "pv.reason.value_outside_pack_range", "pv.reason.state_code_not_observed", "pv.reason.power_group_refused"}
 UNSUPPORTED = ["per_phase_values", "array_or_string_topology", "tracker_pairing", "plant_or_site_aggregate", "planned_plant_groups", "derived_energy", "active_power_limit", "export_power_limit", "enable_disable", "write_operations", "acknowledgement", "readback", "retry", "control_routes"]
-REQUESTED = ["pv.ac.aggregate_active_power", "pv.dc.aggregate_power", "pv.dc.current", "pv.dc.voltage", "pv.energy.generated", "pv.energy.yield_day", "pv.status.operating"]
+STRING_NATIVES = ("pv_string_voltage", "pv_string_current")
+STRING_REASON = "pv.reason.string_reading_names_no_distinct_input"
+INPUT_RULE_MEMBERS = {"requested", "target", "dimension", "subject_kind", "measurement_point", "unit", "conversion"}
+REQUESTED = ["pv.ac.aggregate_active_power", "pv.dc.aggregate_power", "pv.energy.generated", "pv.energy.yield_day", "pv.status.operating"]
 DOC_TOKENS = ("gateway-allocated", "operator label", "class token", "unknown, not absent", "section 15", "en-1", "per-asset configuration field is not required", "no binary floating point", "no derived energy", "unknown is never zero", "outbound_allowed=false", "one atomic cutover", "proven only where the monitoring contract is proven")
 
 
@@ -418,9 +420,13 @@ def expected_strings(catalog):
 
 
 def check_strings(document, catalog):
-    """The string declaration is exactly the one above and the string dimension is the catalog's string dimension."""
+    """The string declaration is exactly the one above and the string dimension is the catalog's string dimension. The native string words
+    stay on that declaration: each is native-only with the string reason and maps to no DC-input element."""
     if catalog.dimensions.get("pv.dimension.string") != catalog.role_kinds()["strings"] or document.get("strings") != expected_strings(catalog):
         fail("strings")
+    for rule in document["field_rules"]:
+        if rule.get("native_id") in STRING_NATIVES and (rule["disposition"] != {"outcome": "native_only", "reason": STRING_REASON} or set(rule) & INPUT_RULE_MEMBERS):
+            fail("strings")
 
 
 def string_power(voltage, current):
@@ -847,7 +853,9 @@ def project(case, contract):
             hold(native_rows, item_reasons, rule, None, "pv.reason.power_group_refused")
             continue
         if state != "admitted" or not rule.get("target"):
-            native_rows.append({"native_id": nid, "outcome": rule["disposition"]["outcome"], "reason": rule["disposition"]["reason"]})
+            count = (rule.get("native") or {}).get("count") or 1
+            for n in range(1, count + 1) if count > 1 else [None]:
+                native_rows.append({"native_id": nid, **({} if n is None else {"index": n}), "outcome": rule["disposition"]["outcome"], "reason": rule["disposition"]["reason"]})
             continue
         count = rule["native"]["count"]
         for n in range(1, count + 1) if count > 1 else [0]:
@@ -884,10 +892,6 @@ def fact_outcome(nid, rule, n, fact, facts, groups, catalog):
     if nid == "device_status":
         return None, {"kind": "symbol", "symbol": {"namespace": rule["target"], "token": rule["symbols"][fact["state"]], "known": True}}
     raw = int(fact["value"]["coefficient"])
-    if nid in ("pv_string_voltage", "pv_string_current"):
-        pair = [facts[("pv_string_voltage", n)], facts[("pv_string_current", n)]]
-        if not any(int(item["value"]["coefficient"]) for item in pair if item["availability"] == "VALUE"):
-            return "pv.reason.input_presence_unknown", None
     number = convert(raw, fact["value"]["exponent10"], rule["conversion"])
     bounds = catalog[rule["target"]]["bounds"]
     if decimal_of(bounds["minimum"]) <= decimal_of(number) <= decimal_of(bounds["maximum"]):

@@ -127,7 +127,7 @@ def test_no_binary_floating_point_anywhere():
     ("rule-removed", lambda d: v.mutate(d, {"path": "field_rules.0", "remove": True}), "missing disposition"),
     ("rule-duplicated", lambda d: d["field_rules"].append(copy.deepcopy(d["field_rules"][0])), "duplicate disposition"),
     ("rule-without-native-field", lambda d: d["field_rules"].append({**copy.deepcopy(d["field_rules"][-1]), "native_id": "battery_power"}), "disposition without native field"),
-    ("exact-with-loss", lambda d: set_path(d, "field_rules.0.disposition.loss", [{"kind": "policy"}]), "exact loss"),
+    ("exact-with-loss", lambda d: set_path(d, "field_rules.2.disposition.outcome", "exact"), "exact loss"),
     ("transformed-without-loss", lambda d: set_path(d, "field_rules.2.disposition.loss", []), "transformed loss"),
     ("loss-kind", lambda d: set_path(d, "field_rules.5.disposition.loss.0.kind", "native_enum"), "transformed loss"),
     ("loss-not-reversible-flag", lambda d: set_path(d, "field_rules.5.disposition.loss.0.reversible", "no"), "transformed loss"),
@@ -135,13 +135,13 @@ def test_no_binary_floating_point_anywhere():
     ("withheld-without-reason", lambda d: v.mutate(d, {"path": "field_rules.6.disposition.reason", "remove": True}), "withheld reason"),
     ("withheld-unknown-reason", lambda d: set_path(d, "field_rules.6.disposition.reason", "pv.reason.invented"), "withheld reason"),
     ("withheld-with-loss", lambda d: set_path(d, "field_rules.6.disposition.loss", []), "withheld reason"),
-    ("target-other-fact", lambda d: set_path(d, "field_rules.0.target", "pv.dc.current"), "target definition"),
-    ("target-not-in-pack", lambda d: set_path(d, "field_rules.0.target", "pv.dc.invented"), "target definition"),
-    ("unit-other-than-pack", lambda d: set_path(d, "field_rules.0.unit", "unit.watt"), "target definition"),
-    ("dimension-other-than-pack", lambda d: set_path(d, "field_rules.0.dimension", "pv.dimension.string"), "target definition"),
-    ("dimension-text-restored", lambda d: set_path(d, "field_rules.0.dimension_text", "input:{n}"), "unit conversion"),
+    ("target-other-fact", lambda d: set_path(d, "field_rules.2.target", "pv.dc.current"), "target definition"),
+    ("target-not-in-pack", lambda d: set_path(d, "field_rules.2.target", "pv.dc.invented"), "target definition"),
+    ("unit-other-than-pack", lambda d: set_path(d, "field_rules.2.unit", "unit.joule"), "target definition"),
+    ("dimension-other-than-pack", lambda d: set_path(d, "field_rules.2.dimension", "pv.dimension.string"), "target definition"),
+    ("dimension-text-restored", lambda d: set_path(d, "field_rules.2.dimension_text", "input:{n}"), "unit conversion"),
     ("status-dimension-text-restored", lambda d: set_path(d, "field_rules.4.dimension_text", "inverter:{asset_suffix}"), "status symbols"),
-    ("native-gain", lambda d: set_path(d, "field_rules.0.native.gain", 7), "native form"),
+    ("native-gain", lambda d: set_path(d, "field_rules.2.native.gain", 7), "native form"),
     ("native-words", lambda d: set_path(d, "field_rules.2.native.words", 1), "native form"),
     ("unit-conversion-factor", lambda d: set_path(d, "field_rules.2.conversion.factor", ONE), "unit conversion"),
     ("silent-unit-conversion", lambda d: set_path(d, "field_rules.2.disposition.loss", [{"kind": "provenance", "source_items": ["native.huawei.sun2000.input_power"], "description": "x", "reversible": True}]), "silent unit conversion"),
@@ -260,8 +260,8 @@ def test_words_decode_with_the_contract_word_form():
 
 ADMITTED = [("pv_string_voltage", 1), ("pv_string_voltage", 2), ("pv_string_current", 1), ("pv_string_current", 2),
             ("input_power", 0), ("active_power", 0), ("energy_accumulated", 0), ("energy_current_hour", 0), ("energy_current_day", 0)]
-OWN_FACT = {("pv_string_voltage", 1): ("pv.dc.voltage", INPUTS[0]), ("pv_string_voltage", 2): ("pv.dc.voltage", INPUTS[1]),
-            ("pv_string_current", 1): ("pv.dc.current", INPUTS[0]), ("pv_string_current", 2): ("pv.dc.current", INPUTS[1]),
+OWN_FACT = {("pv_string_voltage", 1): None, ("pv_string_voltage", 2): None,
+            ("pv_string_current", 1): None, ("pv_string_current", 2): None,
             ("input_power", 0): ("pv.dc.aggregate_power", INVERTER), ("active_power", 0): ("pv.ac.aggregate_active_power", INVERTER),
             ("energy_accumulated", 0): ("pv.energy.generated", SYSTEM), ("energy_current_hour", 0): None, ("energy_current_day", 0): ("pv.energy.yield_day", SYSTEM)}
 
@@ -284,8 +284,7 @@ def test_each_consumed_word_changes_exactly_its_own_fact(key, index):
 
 def test_scale_gain_and_unit_conversion_for_each_form():
     out = by_key(project(case()))
-    assert out[("pv.dc.voltage", INPUTS[0])]["value"]["quantity"] == {"number": {"coefficient": "6012", "exponent10": -1}, "unit": "unit.volt"}
-    assert out[("pv.dc.current", INPUTS[0])]["value"]["quantity"] == {"number": {"coefficient": "75", "exponent10": -1}, "unit": "unit.ampere"}
+    assert not any(fact_id in ("pv.dc.voltage", "pv.dc.current") for fact_id, _ in out)
     assert out[("pv.dc.aggregate_power", INVERTER)]["value"]["quantity"] == {"number": {"coefficient": "9", "exponent10": 3}, "unit": "unit.watt"}
     assert out[("pv.ac.aggregate_active_power", INVERTER)]["value"]["quantity"] == {"number": {"coefficient": "864", "exponent10": 1}, "unit": "unit.watt"}
     native = next(fact for fact in case()["facts"] if fact["key"] == "energy_accumulated")["value"]
@@ -328,7 +327,7 @@ def test_each_quantity_rule_states_its_conversion_and_a_unit_loss_when_not_ident
     ("conversion-missing", lambda d: v.mutate(d, {"path": "field_rules.%d.conversion" % ENERGY_RULE, "remove": True}), "unit conversion"),
     ("conversion-extra-member", lambda d: d["field_rules"][ENERGY_RULE]["conversion"].update(rounding="half_even"), "unit conversion"),
     ("earlier-shift-member", lambda d: d["field_rules"][ENERGY_RULE].update({EARLIER_SHIFT: 0}), "unit conversion"),
-    ("identity-earlier-shift-member", lambda d: d["field_rules"][0].update({EARLIER_SHIFT: 0}), "unit conversion"),
+    ("identity-earlier-shift-member", lambda d: d["field_rules"][2].update({EARLIER_SHIFT: 0}), "unit conversion"),
     ("silent-joule-conversion", lambda d: set_path(d, "field_rules.%d.disposition.loss" % ENERGY_RULE, d["field_rules"][ENERGY_RULE]["disposition"]["loss"][1:]), "silent unit conversion"),
     ("status-with-conversion", lambda d: d["field_rules"][4].update(conversion={"factor": ONE, "offset": ZERO}), "status symbols"),
 ])
@@ -367,18 +366,20 @@ def test_negative_active_power_is_published_as_signed_watts():
     assert row == {"native_id": "active_power", "outcome": "transformed", "target": "pv.ac.aggregate_active_power"}
 
 
-def test_zero_pair_never_creates_an_input_and_a_single_nonzero_word_does():
+def test_a_string_pair_never_creates_an_input_whatever_its_words_are():
     document = case()
-    for key, raw in (("pv_string_voltage", 0), ("pv_string_current", 0)):
-        position = fact_position(document, key, 3)
-        assert int(document["facts"][position]["value"]["coefficient"]) == raw
+    for key in ("pv_string_voltage", "pv_string_current"):
+        assert int(document["facts"][fact_position(document, key, 3)]["value"]["coefficient"]) == 0
     assert not any(text == INPUTS[2] for _, text in by_key(project(document)))
     position = fact_position(document, "pv_string_current", 3)
     document["facts"][position]["value"]["coefficient"] = "1"
     document["facts"][position]["words"] = [1]
-    out = by_key(project(document))
-    assert out[("pv.dc.current", INPUTS[2])]["value"]["quantity"]["number"] == {"coefficient": "1", "exponent10": -2}
-    assert out[("pv.dc.voltage", INPUTS[2])]["value"]["quantity"]["number"] == {"coefficient": "0", "exponent10": 0}
+    output = project(document)
+    assert not any(fact_id in ("pv.dc.voltage", "pv.dc.current") or text == INPUTS[2] for fact_id, text in by_key(output))
+    assert not any(record["kind"] == "resource.dc_input" for record in output["resources"]) and not any(rel["definition"] == "pv.relation.inverter_input" for rel in output["relations"])
+    rows = [row for row in output["native_dispositions"] if row["native_id"] in ("pv_string_voltage", "pv_string_current")]
+    assert len(rows) == 16 and {(row["outcome"], row["reason"]) for row in rows} == {("native_only", "pv.reason.string_reading_names_no_distinct_input")}
+    assert sorted({row["index"] for row in rows}) == list(range(1, 9)) and not any("target" in row for row in rows)
 
 
 def test_unknown_is_absence_and_never_zero():
@@ -430,11 +431,11 @@ def test_energy_counter_policy_publishes_lifetime_and_day_and_no_derivation():
 def test_grade_is_inherited_and_never_raised():
     m3 = case("m3")
     for position, fact in enumerate(m3["facts"]):
-        if fact["key"] == "pv_string_current":
+        if fact["key"] == "energy_current_day":
             fact["grade"] = "proven"
     out = project(m3)
     grades = {(f["key"]["fact_id"]): f["evidence_grade"] for f in out["facts"]}
-    assert grades["pv.dc.current"] == "hypothesis" and grades["pv.dc.voltage"] == "proven" and grades["pv.energy.generated"] == "proven"
+    assert grades["pv.energy.yield_day"] == "hypothesis" and grades["pv.energy.generated"] == "proven"
     m1 = project(case())
     grades = {f["key"]["fact_id"]: f["evidence_grade"] for f in m1["facts"]}
     assert grades["pv.energy.generated"] == "hypothesis" and grades["pv.status.operating"] == "hypothesis" and grades["pv.dc.aggregate_power"] == "proven"
@@ -566,7 +567,6 @@ def test_fact_keys_follow_the_pack_dimensions_and_relations():
         assert [dimension["id"] for dimension in key["dimensions"]] == [pack[key["fact_id"]]["dimension"]]
         assert not any(dimension["id"] == "pv.dimension.phase" for dimension in key["dimensions"])
     assert [(r["definition"], r["from"], r["to"], r["basis_class"]) for r in out["relations"]] == [
-        ("pv.relation.inverter_input", INVERTER, INPUTS[0], "gate_rule"), ("pv.relation.inverter_input", INVERTER, INPUTS[1], "gate_rule"),
         ("pv.relation.system_inverter", SYSTEM, INVERTER, "gate_rule"), ("relation.relays", LOGGER, INVERTER, "native_observation")]
 
 
@@ -574,9 +574,9 @@ def test_relation_endpoints_and_dimension_values_are_published_resources():
     """REL-8 and RES-5: every endpoint and every subject is a published ResourceID, never dimension text."""
     out = project(case())
     kinds = {r["resource_id"]: r["kind"] for r in out["resources"]}
-    assert kinds == {LOGGER: "resource.equipment", SYSTEM: "resource.pv_system", INVERTER: "resource.inverter", INPUTS[0]: "resource.dc_input", INPUTS[1]: "resource.dc_input"}
+    assert kinds == {LOGGER: "resource.equipment", SYSTEM: "resource.pv_system", INVERTER: "resource.inverter"}
     assert [r["resource_id"] for r in out["resources"]] == sorted(kinds)
-    assert {r["resource_id"]: r.get("parent") for r in out["resources"]} == {LOGGER: None, SYSTEM: None, INVERTER: None, INPUTS[0]: INVERTER, INPUTS[1]: INVERTER}
+    assert {r["resource_id"]: r.get("parent") for r in out["resources"]} == {LOGGER: None, SYSTEM: None, INVERTER: None}
     for record in out["relations"]:
         assert record["from"] in kinds and record["to"] in kinds
     for fact in out["facts"]:
@@ -588,7 +588,7 @@ def test_relation_endpoints_and_dimension_values_are_published_resources():
     lambda o: o["relations"].append({"definition": "relation.relays", "from": INVERTER, "to": "resource:demo-battery-alpha", "basis_class": "native_observation"}),
     lambda o: o["relations"].append({"definition": "pv.relation.inverter_input", "from": INVERTER, "to": "input:1", "basis_class": "gate_rule"}),
     lambda o: o.update(resources=[r for r in o["resources"] if r["resource_id"] != INVERTER]),
-    lambda o: o.update(resources=[r for r in o["resources"] if r["resource_id"] != INPUTS[0]]),
+    lambda o: o.update(resources=[r for r in o["resources"] if r["resource_id"] != SYSTEM]),
 ])
 def test_a_dangling_endpoint_or_subject_is_rejected(damage):
     out = project(case())
@@ -624,10 +624,10 @@ def normalized(value):
     return value
 
 
-INVERTER_PLACES = {"resource", "parent", "fact:pv.ac.aggregate_active_power", "fact:pv.dc.aggregate_power", "fact:pv.status.operating",
+INVERTER_PLACES = {"resource", "fact:pv.ac.aggregate_active_power", "fact:pv.dc.aggregate_power", "fact:pv.status.operating",
                    "source_key:pv.ac.aggregate_active_power", "source_key:pv.dc.aggregate_power", "source_key:pv.status.operating",
-                   "relation:pv.relation.system_inverter:to", "relation:pv.relation.inverter_input:from", "relation:relation.relays:to"}
-INPUT_PLACES = {"resource", "fact:pv.dc.voltage", "fact:pv.dc.current", "source_key:pv.dc.voltage", "source_key:pv.dc.current", "relation:pv.relation.inverter_input:to"}
+                   "relation:pv.relation.system_inverter:to", "relation:relation.relays:to"}
+INPUT_PLACES = set()  # no native word names an input, so an input resource reaches no record
 
 
 # Resource identity coverage: each row varies one field of `identity.resources` (and the asset) and states where it must
@@ -669,9 +669,9 @@ def test_resource_identities_fail_closed(path, value):
 def test_published_facts_do_not_depend_on_the_asset():
     base, varied = case(), case()
     set_path(varied, "identity.asset_id", "asset:demo-omega")
-    left = {f["key"]["dimensions"][0]["value"]["text"] for f in project(base)["facts"] if f["key"]["fact_id"] == "pv.dc.voltage"}
-    right = {f["key"]["dimensions"][0]["value"]["text"] for f in project(varied)["facts"] if f["key"]["fact_id"] == "pv.dc.voltage"}
-    assert left == right == set(INPUTS[:2])
+    left = {f["key"]["dimensions"][0]["value"]["text"] for f in project(base)["facts"] if f["key"]["fact_id"] == "pv.dc.aggregate_power"}
+    right = {f["key"]["dimensions"][0]["value"]["text"] for f in project(varied)["facts"] if f["key"]["fact_id"] == "pv.dc.aggregate_power"}
+    assert left == right == {INVERTER}
 
 
 @parametrize("scenario_id,member,message", [
@@ -820,9 +820,9 @@ def page():
 
 
 @parametrize("old,new", [
-    ("| `pv_string_voltage` | I16, V, gain 10 | `pv.dc.voltage` | `unit.volt`, factor 1, offset 0 | `pv.dimension.input` | exact |", "| `pv_string_voltage` | I16, V, gain 10 | `pv.dc.voltage` | `unit.volt`, factor 1, offset 0 | `pv.dimension.input` | transformed |"),
+    ("| `pv_string_voltage` | native_only | `pv.reason.string_reading_names_no_distinct_input` | capability | unrepresentable |", "| `pv_string_voltage` | native_only | `pv.reason.string_reading_names_no_distinct_input` | capability | withheld |"),
     ("| `input_power` | I32, kW, gain 1000 | `pv.dc.aggregate_power` |", "| `input_power` | I32, kW, gain 1000 | `pv.dc.power` |"),
-    ("| `pv_string_current` | I16, A, gain 100 | `pv.dc.current` | `unit.ampere`, factor 1, offset 0 | `pv.dimension.input` | exact | none | Hypothesis | Proven |", "| `pv_string_current` | I16, A, gain 100 | `pv.dc.current` | `unit.ampere`, factor 1, offset 0 | `pv.dimension.input` | exact | none | Proven | Proven |"),
+    ("| `pv_string_current` | native_only | `pv.reason.string_reading_names_no_distinct_input` | capability | unrepresentable |", "| `pv_string_current` | withheld | `pv.reason.string_reading_names_no_distinct_input` | capability | withheld |"),
     ("| `pv.energy.generated` | `unit.joule`, factor 3600000, offset 0 |", "| `pv.energy.generated` | `unit.kilowatt_hour`, factor 1, offset 0 |"),
     ("| `pv.energy.generated` | `unit.joule`, factor 3600000, offset 0 |", "| `pv.energy.generated` | `unit.joule`, factor 3600, offset 0 |"),
     ("| `pv.dc.aggregate_power` | `unit.watt`, factor 1000, offset 0 |", "| `pv.dc.aggregate_power` | `unit.watt`, factor 1000, offset 1 |"),
@@ -1074,9 +1074,9 @@ GRAPH_NEGATIVES = [
     ("identity_logger_kind", [("set", "identity.resources.logger.kind", "resource.meter")], "identity contract"),
     ("identity_input_slots", [("set", "identity.resources.inputs.slots", 9)], "identity contract"),
     # EN-1: every mapped field rule names its subject kind and measurement point.
-    ("field_rule_subject_kind", [("set", "field_rules.0.subject_kind", "resource.inverter")], "field rule subject"),
+    ("field_rule_subject_kind", [("set", "field_rules.2.subject_kind", "resource.pv_system")], "field rule subject"),
     ("field_rule_subject_missing", [("delete", "field_rules.2.subject_kind", None)], "field rule subject"),
-    ("field_rule_measurement_point_blank", [("set", "field_rules.0.measurement_point", "")], "field rule subject"),
+    ("field_rule_measurement_point_blank", [("set", "field_rules.2.measurement_point", "")], "field rule subject"),
     ("field_rule_measurement_point_moved", [("set", "field_rules.3.measurement_point", "inverter_dc_side")], "field rule subject"),
     ("field_rule_dimension", [("set", "field_rules.5.dimension", "pv.dimension.inverter")], "target definition"),
 ]
@@ -1097,7 +1097,7 @@ def catalog_with(element_id, mutate_attributes):
 
 # Constants that repeat a catalog fact are lookups: a changed catalog entry changes the outcome.
 @parametrize("element_id,mutate_attributes,expected", [
-    ("pv.dc.voltage", lambda a: a["subject"].update(kind="resource.inverter"), "field rule subject"),
+    ("pv.status.operating", lambda a: a["subject"].update(kind="resource.pv_system"), "field rule subject"),
     ("pv.energy.generated", lambda a: a["subject"].update(kind="resource.inverter"), "graph subject_kind_mismatch $.graph.aggregates[2].subject_kind"),
     ("pv.dimension.input", lambda a: a.update(resource_kind="resource.pv_string"), "graph_resources"),
     ("pv.relation.inverter_input", lambda a: a.update(basis_classes=["configuration"]), "graph basis_class_not_admitted $.graph.relations[2].basis_class"),
@@ -1182,8 +1182,38 @@ def test_string_declaration_is_a_string_resource_and_not_a_dc_input():
     assert {quantity["subject_kind"] for quantity in document["strings"]["quantities"]} == {"resource.pv_string"}
     assert {quantity["dimension"] for quantity in document["strings"]["quantities"]} == {"pv.dimension.string"}
     assert document["strings"]["resource"]["parent_kind"] == kinds["inverter"]
-    # The DC input rules of the frozen catalog stay on the input subject.
-    assert {rule["subject_kind"] for rule in document["field_rules"] if rule["native_id"] in ("pv_string_voltage", "pv_string_current")} == {"resource.dc_input"}
+    # The native string words stay on the string declaration: native-only, no DC-input element, subject or dimension.
+    rules = [rule for rule in document["field_rules"] if rule["native_id"] in ("pv_string_voltage", "pv_string_current")]
+    assert len(rules) == 2 and all(rule["disposition"] == {"outcome": "native_only", "reason": "pv.reason.string_reading_names_no_distinct_input"} for rule in rules)
+    assert not any(set(rule) & v.INPUT_RULE_MEMBERS for rule in rules)
+    assert not {"pv.dc.voltage", "pv.dc.current"} & {item["item_id"] for item in document["projection"]["requested_items"]}
+
+
+@parametrize("name,substitute", [
+    ("input-target", lambda rule: rule.update(target="pv.dc.voltage")),
+    ("input-subject", lambda rule: rule.update(subject_kind="resource.dc_input")),
+    ("input-dimension", lambda rule: rule.update(dimension="pv.dimension.input")),
+    ("input-measurement-point", lambda rule: rule.update(measurement_point="dc_input_terminals")),
+    ("mapped-outcome", lambda rule: rule.update(disposition={"outcome": "exact", "loss": []})),
+    ("other-reason", lambda rule: rule.update(disposition={"outcome": "native_only", "reason": "pv.reason.no_defined_input_beyond_eighth"})),
+])
+def test_a_dc_input_substitution_of_a_string_rule_is_rejected(name, substitute):
+    for native_id in ("pv_string_voltage", "pv_string_current"):
+        document = contract()
+        substitute(next(rule for rule in document["field_rules"] if rule["native_id"] == native_id))
+        with Raises(ValueError):
+            v.validate_contract(document)
+    document = contract()
+    document["projection"]["requested_items"] += [{"kind": "fact", "item_id": "pv.dc.voltage"}]
+    with Raises(ValueError, match="requested items"):
+        v.validate_contract(document)
+
+
+def test_the_m1_string_readings_publish_no_input_voltage_or_current():
+    output = project(case())
+    assert not any(fact["key"]["fact_id"] in ("pv.dc.voltage", "pv.dc.current") for fact in output["facts"])
+    assert not any(item["item_id"] in ("pv.dc.voltage", "pv.dc.current") for item in output["dispositions"])
+    assert not any(fact["key"]["dimensions"][0]["id"] == "pv.dimension.input" for fact in output["facts"])
 
 
 def test_string_power_is_the_product_of_the_voltage_and_current_of_the_same_read():

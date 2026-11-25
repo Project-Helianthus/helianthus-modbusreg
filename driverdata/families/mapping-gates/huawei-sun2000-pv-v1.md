@@ -149,7 +149,7 @@ The validity scope of every row is the two admitted profiles at version 1.0.0.
 | --- | --- | --- | --- | --- |
 | `relation.relays` | `native_observation` | `resource.equipment` | `resource.inverter` | `each_admitted_child_is_read_through_the_gateway_path_its_profile_names` |
 | `pv.relation.system_inverter` | `gate_rule` | `resource.pv_system` | `resource.inverter` | `one_pv_system_per_admitted_inverter_child` |
-| `pv.relation.inverter_input` | `gate_rule` | `resource.inverter` | `resource.dc_input` | `native_string_index_1_to_8_with_a_nonzero_voltage_or_current_word` |
+| `pv.relation.inverter_input` | `gate_rule` | `resource.inverter` | `resource.dc_input` | `an_input_a_native_word_names_none_in_this_edition` |
 | `pv.relation.inverter_phase` | `gate_rule` | `resource.inverter` | `resource.phase` | `phase_values_are_dimensions_of_the_inverter` |
 
 - Each profile names the gateway path its reads go through, so the binding that
@@ -157,9 +157,10 @@ The validity scope of every row is the two admitted profiles at version 1.0.0.
   Hypothesis until the native owner's review confirms its scope. One record is
   emitted whenever the inverter is published.
 - The gate emits one system-to-inverter record when a system or inverter fact
-  is published, and one inverter-to-input record for each published input.
-- The gate makes no absence statement. A zero pair does not show that an input
-  is absent, and a withheld child is not absent.
+  is published. An inverter-to-input record is published only for an input a
+  native word names, and this edition names none.
+- The gate makes no absence statement. A zero string pair does not show that a
+  string or an input is absent, and a withheld child is not absent.
 - The inverter-to-phase relation is a gate rule: phase components are allocated
   under the inverter at their native position, and their values are phase
   dimensions of the inverter. No phase is published by these profiles.
@@ -206,8 +207,11 @@ the product of the voltage and the current of the same read and the same
 index, so a voltage and a current of two reads never combine. The frozen
 catalog has no string-scoped element for these quantities, so each is served in
 the modbusreg namespace until a string-scoped catalog row exists; this gate
-names no element id for them. The DC input resources and their facts stay where
-the vendor names inputs and are unchanged.
+names no element id for them. The native string words are therefore native-only
+on this declaration with `pv.reason.string_reading_names_no_distinct_input`:
+they publish no DC input fact, because the native index names a string and no
+word names a distinct input. The DC input resources stay where the vendor names
+inputs.
 
 | Quantity | Native id | Subject kind | Dimension | Unit | Transform |
 | --- | --- | --- | --- | --- | --- |
@@ -223,8 +227,6 @@ point. The subject kind and the dimension are looked up in the
 
 | Native fact | Target fact | Subject kind | Measurement point |
 | --- | --- | --- | --- |
-| `pv_string_voltage` | `pv.dc.voltage` | `resource.dc_input` | `dc_input_terminals` |
-| `pv_string_current` | `pv.dc.current` | `resource.dc_input` | `dc_input_terminals` |
 | `input_power` | `pv.dc.aggregate_power` | `resource.inverter` | `inverter_dc_side` |
 | `active_power` | `pv.ac.aggregate_active_power` | `resource.inverter` | `inverter_ac_output` |
 | `device_status` | `pv.status.operating` | `resource.inverter` | `inverter_as_a_whole` |
@@ -260,8 +262,6 @@ offset.
 
 | Native fact | Native form | Target fact | SI unit and conversion | Dimension | Disposition | Loss | M3 grade | M1 grade |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pv_string_voltage` | I16, V, gain 10 | `pv.dc.voltage` | `unit.volt`, factor 1, offset 0 | `pv.dimension.input` | exact | none | Proven | Proven |
-| `pv_string_current` | I16, A, gain 100 | `pv.dc.current` | `unit.ampere`, factor 1, offset 0 | `pv.dimension.input` | exact | none | Hypothesis | Proven |
 | `input_power` | I32, kW, gain 1000 | `pv.dc.aggregate_power` | `unit.watt`, factor 1000, offset 0 | `pv.dimension.inverter` | transformed | unit+provenance | Unknown | Proven |
 | `active_power` | I32, kW, gain 1000 | `pv.ac.aggregate_active_power` | `unit.watt`, factor 1000, offset 0 | `pv.dimension.inverter` | transformed | unit+provenance | Unknown | Proven |
 | `device_status` | U16, code | `pv.status.operating` | none | `pv.dimension.inverter` | transformed | symbol | Unknown | Hypothesis |
@@ -302,13 +302,12 @@ Rules, each with the grade of the contract row it restates:
    of the native words kept as provenance, because the contract does not state
    it (Unknown) and the pack assumes none. They are never split into per-input
    or per-phase values.
-6. **Input presence.** The profiles decode eight string slots whether or not an
-   input exists behind them. A slot whose voltage and current words are both
-   zero does not show that the input exists, so neither is published and no
-   membership record is created (`pv.reason.input_presence_unknown`; Hypothesis,
-   an inference of this gate). The words stay native evidence. A slot with any
-   non-zero word is present, and a zero current at a non-zero voltage is
-   published as zero.
+6. **String readings.** The profiles decode eight string slots. The native
+   index names a string and no native word names a distinct input, so a string
+   reading is native-only on the string declaration
+   (`pv.reason.string_reading_names_no_distinct_input`) and publishes no DC
+   input fact, whatever its value. The words stay native evidence, and an
+   all-zero pair does not show that a string or an input is absent.
 7. **Status symbol.** Only the observed grid-connected state has a symbol, and it
    is published as `pv.status.operating.generating` with a `symbol` loss that is
    not reversible. The contract grades its meaning for the family as a
@@ -342,6 +341,8 @@ names a reason that declares its loss.
 
 | Native item | Disposition | Reason | Loss kind | Kernel outcome |
 | --- | --- | --- | --- | --- |
+| `pv_string_voltage` | native_only | `pv.reason.string_reading_names_no_distinct_input` | capability | unrepresentable |
+| `pv_string_current` | native_only | `pv.reason.string_reading_names_no_distinct_input` | capability | unrepresentable |
 | `energy_current_hour` | withheld | `pv.reason.period_counter_time_domain_not_represented` | time | withheld |
 | `status_group_words` | native_only | `pv.reason.state_and_alarm_meanings_unknown` | symbol | unrepresentable |
 | `string_group_tail_words` | native_only | `pv.reason.no_defined_input_beyond_eighth` | capability | unrepresentable |
@@ -402,15 +403,15 @@ files use synthetic identifiers and values only.
 
 | Vector | What it proves |
 | --- | --- |
-| `PV-POS-001-m1-baseline` | Two populated inputs publish, six empty inputs are withheld, and the observed status symbol, both powers and the counter publish with unit conversion and canonical decimals. |
-| `PV-POS-002-m3-baseline` | Eight populated inputs publish and the refused power group withholds power and status, while the accumulated counter is Proven. |
+| `PV-POS-001-m1-baseline` | Two populated string slots stay on the string declaration and publish no input fact, and the observed status symbol, both powers and the counter publish with unit conversion and canonical decimals. |
+| `PV-POS-002-m3-baseline` | Eight populated string slots stay on the string declaration and the refused power group withholds power and status, while the accumulated counter is Proven. |
 | `PV-POS-003-negative-active-power` | A negative active power is withheld and every other fact is published. |
 | `PV-POS-004-retained-energy-group` | A failed energy group keeps its last complete reading with its original observation, marked retained. |
 | `PV-POS-005-unobserved-status-code` | An unobserved status code stays unknown and publishes no symbol. |
 | `PV-POS-006-unobserved-unit-grade-cap` | A unit that was not read for monitoring carries Hypothesis and the gate keeps it. |
-| `PV-POS-007-grade-capped-at-contract-ceiling` | A grade above the contract's grade is capped at the ceiling. |
-| `PV-POS-008-voltage-out-of-range` | A voltage beyond the pack bound is withheld and not clamped. |
-| `PV-POS-009-all-inputs-zero` | Zero pairs publish no input and create no input relation. |
+| `PV-POS-007-grade-capped-at-contract-ceiling` | A grade above the contract's grade is capped at the ceiling; the day yield stays Hypothesis on the M3 profile. |
+| `PV-POS-008-input-power-out-of-range` | A negative input power is outside the pack bound and is withheld, not clamped. |
+| `PV-POS-009-all-inputs-zero` | Zero string pairs publish no input fact and create no input relation. |
 | `PV-POS-010-power-group-not-answered` | A power group that did not answer leaves the three power facts unknown and publishes the rest. |
 | `PV-POS-011-canonical-decimal` | A trailing zero moves into the exponent and a zero power has exponent zero. |
 | `PV-NEG-001-emma-map0-not-admitted` | The MAP0 series has no consulted edition and publishes nothing. |
@@ -445,8 +446,8 @@ files use synthetic identifiers and values only.
 | Which native token identifies an inverter stably, and in which canonical form? | The native owner states the child key's stability and a scheme is listed for the family; the inverter anchor is then upgraded by supersession. | Unknown |
 | Does the gateway path relay each child as a native observation for both profiles? | The native owner's review states another scope, or names configuration as the basis. | Hypothesis |
 | Should the lifetime energy counter have the inverter as subject? | An inverter-subject energy definition in the PV pack; until then the counter stays on the one-inverter PV system. | Hypothesis |
-| Do the string slots map to the pack's input one to one? | A ratings read that gives the string and tracker counts, or a disagreeing independent check. | Hypothesis |
-| Is an all-zero pair an absent input? | A second operating point or a ratings read that shows a present input reading zero. | Hypothesis |
+| Do the string slots map to the pack's input one to one? | A native word that names an input, or a ratings read that gives the string and tracker counts. | Hypothesis |
+| Is an all-zero string pair an absent string? | A second operating point or a ratings read that shows a present input reading zero. | Hypothesis |
 | Does the observed grid-connected state mean generating? | An observation where that state reads zero active power while producing nothing, or a consulted edition that states another meaning. | Hypothesis |
 | Why does the M3 series refuse the power group? | An operator-approved read of a value-aligned extent. | Unknown |
 | Do the energy counters reset or roll over? | An observation across a reset or the day boundary. | Unknown |

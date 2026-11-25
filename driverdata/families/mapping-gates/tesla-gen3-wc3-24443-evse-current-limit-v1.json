@@ -68,7 +68,7 @@
     "meter_id": {
       "source": "gateway_allocated_resource_id",
       "dimension": "evse.dimension.meter",
-      "required": true,
+      "required": false,
       "non_secret": true
     }
   },
@@ -353,7 +353,8 @@
     "native_namespace": {
       "namespace": "modbusreg",
       "fields": [
-        "LimitTimeoutSeconds"
+        "LimitTimeoutSeconds",
+        "AllocationExpiry"
       ],
       "reason": "no_catalog_element"
     }
@@ -1030,6 +1031,11 @@
             "namespace": "modbusreg",
             "field": "LimitTimeoutSeconds",
             "value": 600
+          },
+          {
+            "namespace": "modbusreg",
+            "field": "AllocationExpiry",
+            "value": "2026-09-10T00:01:00Z"
           }
         ],
         "operations": [

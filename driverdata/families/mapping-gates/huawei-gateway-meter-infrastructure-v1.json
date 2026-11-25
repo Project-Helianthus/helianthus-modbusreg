@@ -52,7 +52,12 @@
   "admission": {
     "meter_class_contract": false,
     "meter_identity": {
-      "declared_from": "documented_gateway_listing",
+      "status": "unknown",
+      "reason": "the_documented_listing_establishes_no_meter_at_the_route",
+      "published_as": "no_meter_attribution"
+    },
+    "exposure": {
+      "declared_from": "documented_plant_group",
       "source": {
         "repository": "helianthus-docs-modbus",
         "pages": [
@@ -60,11 +65,9 @@
           "protocols/huawei/monitoring-readonly-v1.md"
         ]
       },
-      "exposure": {
-        "path": "sdongle_plant_group",
-        "routed_unit": 100
-      },
-      "runtime_check": "the_identity_read_equals_the_declaration",
+      "path": "sdongle_plant_group",
+      "routed_unit": 100,
+      "runtime_check": "the_route_read_equals_the_declaration",
       "on_mismatch": "reported_never_guessed_and_never_a_replacement"
     },
     "selection": {
@@ -88,8 +91,8 @@
     "decisions": [
       {
         "precondition": "meter_identity",
-        "decision": "declared_from_the_documented_gateway_listing_and_checked_at_runtime",
-        "grade": "hypothesis"
+        "decision": "unknown_the_listing_establishes_no_meter_at_the_route",
+        "grade": "unknown"
       },
       {
         "precondition": "exposure_path",
@@ -194,7 +197,7 @@
         "parent_kind": null,
         "evidence": [
           "native_contract:meter_contract",
-          "native_contract:meter_identity_declared_from_the_documented_gateway_listing",
+          "native_contract:meter_identity_unknown_no_meter_class_contract",
           "native_owner_token_stability:unknown_until_the_native_owner_states_an_identity_read",
           "identification_scheme:none_listed_for_family"
         ]

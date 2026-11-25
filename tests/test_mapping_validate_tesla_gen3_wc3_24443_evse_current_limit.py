@@ -203,6 +203,61 @@ def native_timeout_cases(baseline, contract):
     print("native-timeout: PASS")
 
 
+def native_expiry_cases(baseline, contract):
+    """ND02 SemReg mapping, field rules: at or after a known managed expiry the allocation is withheld and the known expiry and native timeout are retained; an unresolved timeout gives no expiry."""
+    expiry = {"namespace": "modbusreg", "field": "AllocationExpiry", "value": "2026-09-10T00:01:00Z"}
+    timeout = {"namespace": "modbusreg", "field": "LimitTimeoutSeconds", "value": 600}
+    for name, receipt, inhibited in (("t28_70s_after_60s_set", "2026-09-10T00:01:10Z", False), ("t28_at_cutoff", "2026-09-10T00:01:00Z", False), ("inhibited_t28_70s_after_60s_set", "2026-09-10T00:01:10Z", True)):
+        candidate = copy.deepcopy(baseline)
+        for path, value in (("managed_set", managed_set()), ("evidence.provisional.receipt_timestamp", receipt), ("provisional.InhibitCharging", inhibited)):
+            mapping.mutate(candidate, {"path": path, "value": value})
+        result = mapping.project(candidate, contract)
+        if withheld_of(result) != [("evse.limit.allocated_current", "allocation_expired")] or result["native"] != [timeout, expiry]:
+            raise AssertionError(f"{name}: withheld {withheld_of(result)} native {result['native']}")
+    for name, mutations in (("within_cutoff", [("managed_set", managed_set()), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:00:59Z")]),
+                            ("another_set", [("managed_set", managed_set(set_ref="sha256:" + "a" * 64)), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:05:00Z")]),
+                            ("zero_duration", [("managed_set", {**managed_set(), "duration_seconds": 0}), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:05:00Z")]),
+                            ("unresolved_timeout_without_managed_set", [("provisional.LimitTimeoutSeconds", 0), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:05:00Z")])):
+        candidate = copy.deepcopy(baseline)
+        for path, value in mutations:
+            mapping.mutate(candidate, {"path": path, "value": value})
+        if any(entry["field"] == "AllocationExpiry" for entry in mapping.project(candidate, contract)["native"]):
+            raise AssertionError(f"{name}: an expiry was served without a known cutoff")
+    print("native-expiry: PASS")
+
+
+def expect_identity_invalid(name, candidate, contract):
+    try:
+        mapping.project(candidate, contract)
+    except ValueError as error:
+        if str(error) != "identity_invalid":
+            raise
+    else:
+        raise AssertionError(name + " accepted")
+
+
+def identity_without_meter_cases(baseline, contract):
+    """The meter relation is defined for a configured energy counter: no meter identifier is valid, an invalid or reused one is not."""
+    for name, mutations in (("t8_acknowledged_record", []), ("t28_only_record", [("delete", "persistent", None), ("delete", "evidence.persistent", None), ("delete", "evidence.provisional.provisional_set", None), ("delete", "evidence.provisional.provisional_ack", None)])):
+        with_meter = copy.deepcopy(baseline)
+        without = copy.deepcopy(baseline)
+        for candidate in (with_meter, without):
+            for op, path, value in mutations:
+                edit(candidate, op, path, value)
+        del without["identity"]["meter_id"]
+        result, expected = mapping.project(without, contract), mapping.project(with_meter, contract)
+        if result != expected or ("evse.limit.configured_current", "16") not in facts_of(result):
+            raise AssertionError(f"{name}: configured current depends on the meter identifier: {facts_of(result)}")
+    for name, value in (("blank_meter", ""), ("meter_reuses_connector", baseline["identity"]["connector_id"]), ("meter_null", None)):
+        candidate = copy.deepcopy(baseline)
+        candidate["identity"]["meter_id"] = value
+        expect_identity_invalid(name, candidate, contract)
+    required = copy.deepcopy(baseline)
+    del required["identity"]["connector_id"]
+    expect_identity_invalid("missing_connector_identifier", required, contract)
+    print("identity-without-meter: PASS")
+
+
 def edit(contract, op, path, value):
     if op == "append":
         target = contract
@@ -224,7 +279,9 @@ def main():
     operation_vectors()
     candidate_cases(baseline, contract)
     native_timeout_cases(baseline, contract)
-    cases = [("status_read_only", "status", "accepted_source_specific_read_only_mapping_gate", "contract"), ("pin", "pins.gateway_main", "0" * 40, "contract"), ("profile", "native_contract.profile", "wc3_24_44_4", "native_contract"), ("outbound", "native_contract.outbound_allowed", True, "native_contract"), ("identity_derivation", "identity.forbidden_derivations.0", "serial", "identity_contract"), ("identity_reuse", "identity.failure", "allow_reuse", "identity_contract"), ("lifecycle", "lifecycle.required.0", "timestamp", "lifecycle_contract"), ("persistent_target", "field_rules.0.target", "evse.limit.allocated_current", "field_rules"), ("provisional_disposition", "field_rules.2.disposition", "always", "field_rules"), ("unsupported", "unsupported.0", "power_allowed", "withheld_or_unsupported"), ("precedence", "projection.error_precedence.0", "x", "projection"), ("operations", "projection.operations", "available", "projection"), ("operation_unlisted", "projection.operations.0.name", "evse.operation.release_allocated_current", "projection"), ("operation_timeout_range_open", "projection.operations.0.argument_rules.timeout_seconds.interoperable_range", [0, 86399], "projection"), ("operation_pause_encoding_dropped", "projection.operations.0.argument_rules.amperes.pause.encoding", "none", "projection"), ("operation_refused_range_widened", "projection.operations.0.argument_rules.amperes.refused_range.maximum_refused_nonzero_amperes", 4, "projection"), ("cutover", "consumer_cutover.forbidden.0", "allowed", "consumer_cutover")]
+    native_expiry_cases(baseline, contract)
+    identity_without_meter_cases(baseline, contract)
+    cases = [("status_read_only", "status", "accepted_source_specific_read_only_mapping_gate", "contract"), ("pin", "pins.gateway_main", "0" * 40, "contract"), ("profile", "native_contract.profile", "wc3_24_44_4", "native_contract"), ("outbound", "native_contract.outbound_allowed", True, "native_contract"), ("identity_derivation", "identity.forbidden_derivations.0", "serial", "identity_contract"), ("identity_reuse", "identity.failure", "allow_reuse", "identity_contract"), ("meter_identity_required", "identity.meter_id.required", True, "identity_contract"), ("connector_identity_optional", "identity.connector_id.required", False, "identity_contract"), ("lifecycle", "lifecycle.required.0", "timestamp", "lifecycle_contract"), ("persistent_target", "field_rules.0.target", "evse.limit.allocated_current", "field_rules"), ("provisional_disposition", "field_rules.2.disposition", "always", "field_rules"), ("unsupported", "unsupported.0", "power_allowed", "withheld_or_unsupported"), ("precedence", "projection.error_precedence.0", "x", "projection"), ("operations", "projection.operations", "available", "projection"), ("operation_unlisted", "projection.operations.0.name", "evse.operation.release_allocated_current", "projection"), ("operation_timeout_range_open", "projection.operations.0.argument_rules.timeout_seconds.interoperable_range", [0, 86399], "projection"), ("operation_pause_encoding_dropped", "projection.operations.0.argument_rules.amperes.pause.encoding", "none", "projection"), ("operation_refused_range_widened", "projection.operations.0.argument_rules.amperes.refused_range.maximum_refused_nonzero_amperes", 4, "projection"), ("cutover", "consumer_cutover.forbidden.0", "allowed", "consumer_cutover")]
     for case in cases: reject(*case)
     for name, path, value, expected in [("blank_identity", "identity.asset_id", "", "identity_invalid"), ("managed_set_without_its_acknowledgement_ref", "managed_set", {"ack_receipt_timestamp": "2026-09-10T00:00:00Z", "duration_seconds": 60}, "evidence_binding_invalid"), ("wrong_unit_profile", "profile", "other", "profile_or_version_invalid"), ("missing_receipt", "lifecycle.receipt_timestamp", "", "lifecycle_invalid"), ("operation_attempt", "operation", "evse.operation.release_allocated_current", "unsupported_fact_or_operation"), ("persistent_evidence", "evidence.persistent.persistent_terminal", "bad", "evidence_binding_invalid"), ("persistent_receipt", "evidence.persistent.receipt_timestamp", "", "evidence_binding_invalid")]:
         candidate = copy.deepcopy(baseline); mapping.mutate(candidate, {"path": path, "value": value})

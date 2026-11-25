@@ -74,16 +74,17 @@ EVIDENCE = {
     "sibling_gates": ["huawei-sun2000-pv-v1", "huawei-luna2000-storage-v1"],
     "grades": ["proven", "hypothesis", "unknown"],
 }
-# The meter identity and its exposure path are declared from the documented gateway listing; the identity read at runtime is checked against the declaration.
+# The exposure path is declared from the documented plant group; the listing establishes no meter at that route, so the meter identity stays unknown.
 ADMISSION = {
     "meter_class_contract": False,
-    "meter_identity": {"declared_from": "documented_gateway_listing", "source": {"repository": "helianthus-docs-modbus", "pages": ["protocols/huawei/gateway-power-meter-v1.md", "protocols/huawei/monitoring-readonly-v1.md"]},
-                       "exposure": {"path": "sdongle_plant_group", "routed_unit": 100}, "runtime_check": "the_identity_read_equals_the_declaration",
-                       "on_mismatch": "reported_never_guessed_and_never_a_replacement"},
+    "meter_identity": {"status": "unknown", "reason": "the_documented_listing_establishes_no_meter_at_the_route", "published_as": "no_meter_attribution"},
+    "exposure": {"declared_from": "documented_plant_group", "source": {"repository": "helianthus-docs-modbus", "pages": ["protocols/huawei/gateway-power-meter-v1.md", "protocols/huawei/monitoring-readonly-v1.md"]},
+                 "path": "sdongle_plant_group", "routed_unit": 100, "runtime_check": "the_route_read_equals_the_declaration",
+                 "on_mismatch": "reported_never_guessed_and_never_a_replacement"},
     "selection": {"admitting": "DECLARED_FROM_LISTING", "unresolved": ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"], "refused": ["PROFILE_SELECTED"], "unresolved_outcome": "withheld_never_zero"},
     "registry_flags": REGISTRY_FLAGS,
     "decisions": [
-        {"precondition": "meter_identity", "decision": "declared_from_the_documented_gateway_listing_and_checked_at_runtime", "grade": "hypothesis"},
+        {"precondition": "meter_identity", "decision": "unknown_the_listing_establishes_no_meter_at_the_route", "grade": "unknown"},
         {"precondition": "exposure_path", "decision": "the_documented_plant_group_of_the_gateway_at_its_routed_unit", "grade": "proven"},
         {"precondition": "word_form", "decision": "type_word_order_gain_and_unit_stated_per_row", "grade": "hypothesis"},
         {"precondition": "sign_reference", "decision": "plant_group_states_positive_import_and_is_never_mixed_with_another_source", "grade": "hypothesis"},
@@ -627,7 +628,7 @@ def gate_reason(case, declared, rule, read):
     meter = case["meter"]
     if meter["identity_read"] is None:
         return "infrastructure.reason.identity_not_read"
-    if meter["identity_read"] != meter["declared"] or meter["declared"] != {"exposure": ADMISSION["meter_identity"]["exposure"]["path"], "routed_unit": ADMISSION["meter_identity"]["exposure"]["routed_unit"]}:
+    if meter["identity_read"] != meter["declared"] or meter["declared"] != {"exposure": ADMISSION["exposure"]["path"], "routed_unit": ADMISSION["exposure"]["routed_unit"]}:
         return "infrastructure.reason.identity_mismatch"
     if case.get("routed_unit") != meter["declared"]["routed_unit"]:
         return "infrastructure.reason.identity_mismatch"
@@ -653,7 +654,7 @@ def active_facts(case, rule, reads, fields):
         return "infrastructure.reason.value_outside_pack_range", []
     resource = case["meter"]["resources"]["grid_connection"]
     return None, [{"item_id": direction, "subject": {"dimension": row["dimension"], "resource": resource}, "value": {"number": number, "unit": row["unit"]}, "grade": rule["grade"],
-                   "provenance": {"native_id": rule["native_id"], "sign_reference": row["sign_reference"], "meter": copy.deepcopy(case["meter"]["declared"])},
+                   "provenance": {"native_id": rule["native_id"], "sign_reference": row["sign_reference"], "exposure": copy.deepcopy(case["meter"]["declared"])},
                    "observation_id": case["lifecycle"]["observation_id"], "observation_revision": case["lifecycle"]["observation_revision"]}]
 
 

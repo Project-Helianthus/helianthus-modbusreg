@@ -6,7 +6,7 @@ import copy
 import importlib.util
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,6 +21,8 @@ PACK = {"id": "helianthus.pack.evse", "version": "1.0.0"}
 DIMENSION_PREFIX = "evse.dimension."
 # Identity keys name the pack's resource dimensions; each value is the gateway-allocated ResourceID (graph.md 6.3).
 IDENTITY_KEYS = ("asset_id", "evse_id", "connector_id", "meter_id")
+# The meter relation is defined for a configured energy counter, so only an identity the operator configures is checked.
+OPTIONAL_IDENTITY_KEYS = ("meter_id",)
 IDENTITY_SOURCE = "gateway_allocated_resource_id"
 FORBIDDEN_DERIVATIONS = ["unit_id", "firmware_text", "observation_values", "payload_bytes", "request_order", "network_address", "ordinal_of_sorted_identifiers", "asset_identifier"]
 IDENTITY_FAILURE = "missing_blank_invalid_reused_or_ambiguous_identity_fails_closed"
@@ -70,7 +72,7 @@ OPAQUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 PERSISTENT_REFS = ["persistent_request", "persistent_terminal"]
 # Section 6.2 and the projection: the native timeout has no EVSE fact; it is served in the modbusreg namespace.
-NATIVE_NAMESPACE = {"namespace": "modbusreg", "fields": ["LimitTimeoutSeconds"], "reason": "no_catalog_element"}
+NATIVE_NAMESPACE = {"namespace": "modbusreg", "fields": ["LimitTimeoutSeconds", "AllocationExpiry"], "reason": "no_catalog_element"}
 READBACK_REFS = ["provisional_readback_request", "provisional_readback_terminal"]
 # Set and acknowledgement references exist only where a managed mutation ran; a standalone t27 to t28 read carries none.
 MUTATION_REFS = ["provisional_set", "provisional_ack"]
@@ -205,7 +207,7 @@ def validate_graph(contract, catalog):
 
 
 def validate_identity(identity):
-    expected = {key: {"source": IDENTITY_SOURCE, "dimension": DIMENSION_PREFIX + identity_stem(key), "required": True, "non_secret": True} for key in IDENTITY_KEYS}
+    expected = {key: {"source": IDENTITY_SOURCE, "dimension": DIMENSION_PREFIX + identity_stem(key), "required": key not in OPTIONAL_IDENTITY_KEYS, "non_secret": True} for key in IDENTITY_KEYS}
     expected.update(forbidden_derivations=FORBIDDEN_DERIVATIONS, failure=IDENTITY_FAILURE)
     if identity != expected:
         fail("identity_contract")
@@ -317,8 +319,8 @@ def case_errors(case, contract):
     errors = set()
     if case.get("profile") != "wc3_24_44_3": errors.add(ERRORS[0])
     identity = case.get("identity", {})
-    values = [identity.get(k) for k in IDENTITY_KEYS]
-    if not all(valid_id(v) for v in values) or len(set(values)) != len(IDENTITY_KEYS): errors.add(ERRORS[1])
+    values = [identity.get(k) for k in IDENTITY_KEYS if k in identity or k not in OPTIONAL_IDENTITY_KEYS]
+    if not all(valid_id(v) for v in values) or len(set(values)) != len(values): errors.add(ERRORS[1])
     if case.get("source_path") != contract["projection"]["source_path"]: errors.add(ERRORS[2])
     evidence = case.get("evidence", {})
     if "persistent" in case:
@@ -353,6 +355,7 @@ def publish_limits(case, facts, withheld, native):
     if provisional is not None:
         publish_allocated_current(case, provisional, facts, withheld)
         publish_native_timeout(provisional, native)
+        publish_native_expiry(case, native)
 
 
 def managed_set_valid(managed):
@@ -368,15 +371,26 @@ def receipt_text(text):
     return value if value.tzinfo is not None else None
 
 
-def allocation_expired(case):
-    """ND02 SemReg mapping, field rules: a known nonzero managed timeout ends at the set acknowledgement plus the requested duration; a readback that names that set and acknowledgement and is received at or after the cutoff is expired."""
+def allocation_cutoff(case):
+    """ND02 SemReg mapping, field rules: a known nonzero managed timeout ends at the set acknowledgement plus the requested duration; the cutoff is known only for a readback that names that set and acknowledgement. An unresolved timeout gives no cutoff."""
     managed = case.get("managed_set")
     if managed is None or managed["duration_seconds"] == 0:
-        return False
+        return None
     if any(managed[key] != case["evidence"]["provisional"].get(key) for key in MUTATION_REFS):
-        return False
-    cutoff = receipt_text(managed["ack_receipt_timestamp"]) + timedelta(seconds=managed["duration_seconds"])
-    return receipt_of(case["evidence"]["provisional"]) >= cutoff
+        return None
+    return receipt_text(managed["ack_receipt_timestamp"]) + timedelta(seconds=managed["duration_seconds"])
+
+
+def allocation_expired(case):
+    """A readback received at or after its known cutoff is expired."""
+    cutoff = allocation_cutoff(case)
+    return cutoff is not None and receipt_of(case["evidence"]["provisional"]) >= cutoff
+
+
+def publish_native_expiry(case, native):
+    """ND02 SemReg mapping, field rules: at or after expiry the current allocation is withheld and the known expiry is retained, served natively because no catalog element gives it one."""
+    if allocation_expired(case):
+        native.append({"namespace": NATIVE_NAMESPACE["namespace"], "field": "AllocationExpiry", "value": allocation_cutoff(case).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")})
 
 
 def publish_native_timeout(provisional, native):

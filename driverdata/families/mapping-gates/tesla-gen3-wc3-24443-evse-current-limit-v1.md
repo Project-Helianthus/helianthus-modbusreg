@@ -27,9 +27,9 @@ is nonzero, whatever `LimitTimeoutSeconds` is. A zero or unresolved timeout
 leaves only the expiry unknown. A managed set with a known nonzero duration ends
 at its acknowledgement plus that duration; a readback that names that set and
 acknowledgement and is received at or after that cutoff withholds the nonzero allocation as `allocation_expired` and keeps the
-native timeout. The timeout is served in the modbusreg
-namespace as a native value, because no catalog element yet gives it one; it is
-never published as an EVSE fact or as an expiry. An inhibited readback maps to 0 A at the
+native timeout and the known expiry, the cutoff itself. The timeout and the expiry are served in the modbusreg
+namespace as native values (`LimitTimeoutSeconds` and `AllocationExpiry`), because no catalog element yet gives
+either one; neither is published as an EVSE fact. An unresolved or zero timeout gives no expiry, and none is derived from it. An inhibited readback maps to 0 A at the
 connector, not to the 6 A a pause carries natively. A zero current with inhibit
 false leaves the allocated current unknown. Timeout and inhibit have no EVSE
 fact of their own.
@@ -80,7 +80,10 @@ identifier never makes two identities one. The identifiers must be stable,
 non-secret and distinct, and cannot be derived from unit ID, firmware text,
 observation values, payload bytes, request order, a network address, an
 ordinal of sorted identifiers, or the asset identifier. Missing, blank,
-invalid, reused, or ambiguous identifiers fail closed.
+invalid, reused, or ambiguous identifiers fail closed. The meter identifier is
+configuration: it is checked, and must be distinct from the other three, only
+when the operator configures the charger's energy counter. A case with no meter
+identifier is valid, publishes the same limits, and states no meter resource.
 
 The station-to-EVSE and EVSE-to-connector relations are stated with basis
 class `configuration`, scoped to this profile and its version, and with no

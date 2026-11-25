@@ -34,20 +34,22 @@ goes beyond the contract is a Hypothesis.
 
 ## Admission state
 
-The meter identity and its exposure path are declared from the documented
-gateway listing of `helianthus-docs-modbus`
-(`protocols/huawei/gateway-power-meter-v1.md` and the monitoring contract): the
-documented plant group of the gateway at routed unit 100 (Proven as an
-observation, with a Hypothesis value form). The registry outcome
+The exposure path is declared from the documented plant group of the gateway
+at routed unit 100 in `helianthus-docs-modbus`
+(`protocols/huawei/gateway-power-meter-v1.md` and the monitoring contract)
+(Proven as an observation, with a Hypothesis value form). The listing
+establishes no meter at that route, so the meter identity is Unknown: a
+published fact names the grid connection resource and carries the exposure in
+its provenance, and no meter. The registry outcome
 `DECLARED_FROM_LISTING` applies the mapping; `INSUFFICIENT_EVIDENCE`,
 `NO_ADMISSIBLE_PROFILE` and `AMBIGUOUS` are unresolved inputs and withhold every
 mapped item, never zero. A meter selected by a registry profile, or a meter
 asset identifier, fails closed with `gate_revision_required`: no meter class
 contract exists.
 
-The identity read at runtime is still checked. It must equal the declaration
-from the listing, and the reading must come from the routed unit that
-declaration names. A read that differs, or a reading from another routed unit, is
+The route read at runtime is still checked. It must equal the exposure
+declaration, and the reading must come from the routed unit that declaration
+names. A read that differs, or a reading from another routed unit, is
 reported with `infrastructure.reason.identity_mismatch`: nothing is guessed, the declared meter
 is not replaced by the meter that was read, and no fact is published. An
 identity that was not read is `infrastructure.reason.identity_not_read`. All
@@ -55,8 +57,8 @@ registry flags stay false, and `outbound_allowed=false` grants no operation.
 
 Each remaining precondition is decided from the documents, with its grade:
 
-1. the meter identity is declared from the documented gateway listing and
-   checked at runtime (Hypothesis);
+1. the meter identity is Unknown: the documented listing establishes no meter
+   at the route (Unknown);
 2. the exposure path is the documented plant group at its routed unit (Proven);
 3. type, word order, gain and unit of the consumed word are stated (Hypothesis);
 4. the sign reference is graded per source and never mixed: the plant group
@@ -114,8 +116,8 @@ The source identifier is gateway-configured, non-secret and opaque to this gate,
 and it must not be derived from a serial number, an ESN, the vendor, the model,
 firmware or any version text, a routed unit alone, or an endpoint address; a
 missing or invalid one fails closed. No meter asset identifier exists, because no
-make, model or firmware of any meter is established. The meter identity is the
-declaration from the documented listing, and the grid connection resource that
+make, model or firmware of any meter is established. The meter identity is
+Unknown, and the grid connection resource that
 a published fact names is gateway-allocated. The routed unit and the
 source key the role. The keying follows the multi-endpoint contract of
 `helianthus-docs-ebus` issue 746 (pull request 748, open): one source per

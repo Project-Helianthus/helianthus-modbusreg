@@ -72,10 +72,13 @@ def test_no_binary_floating_point():
     ("evidence-amendment", lambda d: set_path(d, "evidence.meter_observation_amendment.issue", 255), "evidence"),
     ("evidence-page", lambda d: d["evidence"]["monitoring_contract"]["pages"].pop(), "evidence"),
     ("class-contract-claimed", lambda d: set_path(d, "admission.meter_class_contract", True), "admission"),
-    ("meter-identity-not-from-the-listing", lambda d: set_path(d, "admission.meter_identity.declared_from", "operator_label"), "admission"),
-    ("meter-exposure-moved", lambda d: set_path(d, "admission.meter_identity.exposure.routed_unit", 11), "admission"),
-    ("identity-mismatch-replaces", lambda d: set_path(d, "admission.meter_identity.on_mismatch", "replace_the_declared_meter"), "admission"),
-    ("identity-check-dropped", lambda d: v.mutate(d, {"path": "admission.meter_identity.runtime_check", "remove": True}), "admission"),
+    ("exposure-not-from-the-documented-plant-group", lambda d: set_path(d, "admission.exposure.declared_from", "operator_label"), "admission"),
+    ("meter-exposure-moved", lambda d: set_path(d, "admission.exposure.routed_unit", 11), "admission"),
+    ("identity-mismatch-replaces", lambda d: set_path(d, "admission.exposure.on_mismatch", "replace_the_declared_meter"), "admission"),
+    ("identity-check-dropped", lambda d: v.mutate(d, {"path": "admission.exposure.runtime_check", "remove": True}), "admission"),
+    ("meter-identity-declared-from-the-listing", lambda d: set_path(d, "admission.meter_identity", {"declared_from": "documented_gateway_listing", "exposure": {"path": "sdongle_plant_group", "routed_unit": 100}}), "admission"),
+    ("meter-identity-status-declared", lambda d: set_path(d, "admission.meter_identity.status", "declared_from_listing"), "admission"),
+    ("meter-identity-decision-graded-hypothesis", lambda d: set_path(d, "admission.decisions.0.grade", "hypothesis"), "admission"),
     ("registry-profile-admitted", lambda d: d["admission"]["selection"]["refused"].clear(), "admission"),
     ("unresolved-publishes", lambda d: set_path(d, "admission.selection.unresolved_outcome", "published_as_zero"), "admission"),
     ("sign-reference-graded-proven", lambda d: set_path(d, "admission.decisions.3.grade", "proven"), "admission"),
@@ -214,7 +217,7 @@ def test_a_documented_plant_grid_power_publishes_the_stated_direction_in_watts(r
     fact = output["facts"][0]
     assert watts(fact) == expected and fact["value"]["unit"] == "unit.watt"
     assert fact["subject"] == {"dimension": "infrastructure.dimension.grid_connection", "resource": "resource:demo-grid-delta"}
-    assert fact["provenance"]["sign_reference"] == "positive_import" and fact["provenance"]["meter"] == {"exposure": "sdongle_plant_group", "routed_unit": 100}
+    assert fact["provenance"]["sign_reference"] == "positive_import" and fact["provenance"]["exposure"] == {"exposure": "sdongle_plant_group", "routed_unit": 100} and "meter" not in fact["provenance"]
     held = {row["item_id"]: row for row in output["dispositions"]}
     assert held[other]["outcome"] == "withheld" and held[other]["reason"] == "infrastructure.reason.opposite_direction"
 
@@ -244,7 +247,14 @@ def test_a_reading_from_a_routed_unit_other_than_the_declared_one_publishes_noth
 
 def test_a_reading_from_the_declared_routed_unit_publishes_with_that_unit_in_its_provenance():
     output = project(with_plant(1500))
-    assert [fact["provenance"]["meter"]["routed_unit"] for fact in output["facts"]] == [100] and output["role"]["keyed_to"]["routed_unit"] == 100
+    assert [fact["provenance"]["exposure"]["routed_unit"] for fact in output["facts"]] == [100] and output["role"]["keyed_to"]["routed_unit"] == 100
+
+
+def test_a_plant_group_reading_attributes_no_meter_identity_to_the_route():
+    output = project(with_plant(1500))
+    fact = output["facts"][0]
+    assert fact["subject"]["resource"] == "resource:demo-grid-delta" and "meter" not in fact["provenance"]
+    assert v.load()["admission"]["meter_identity"]["status"] == "unknown"
 
 
 def test_an_identity_that_was_not_read_confirms_and_replaces_nothing():
@@ -288,11 +298,13 @@ def test_a_group_without_a_documented_word_position_publishes_nothing_even_when_
     assert project(document)["facts"] == []
 
 
-def test_the_sign_reference_is_graded_hypothesis_and_the_identity_is_declared_from_the_listing():
+def test_the_sign_reference_is_graded_hypothesis_and_the_meter_identity_stays_unknown_while_the_exposure_is_declared():
     admission = v.load()["admission"]
     decisions = {item["precondition"]: item for item in admission["decisions"]}
-    assert decisions["sign_reference"]["grade"] == "hypothesis" and decisions["meter_identity"]["decision"].startswith("declared_from_the_documented_gateway_listing")
-    assert admission["meter_identity"]["on_mismatch"] == "reported_never_guessed_and_never_a_replacement"
+    assert decisions["sign_reference"]["grade"] == "hypothesis"
+    assert decisions["meter_identity"]["grade"] == "unknown" and decisions["exposure_path"]["grade"] == "proven"
+    assert admission["meter_identity"]["status"] == "unknown" and admission["meter_identity"]["published_as"] == "no_meter_attribution"
+    assert admission["exposure"]["declared_from"] == "documented_plant_group" and admission["exposure"]["on_mismatch"] == "reported_never_guessed_and_never_a_replacement"
     assert admission["selection"]["refused"] == ["PROFILE_SELECTED"]
 
 
