@@ -109,6 +109,10 @@ func BuildTeslaFC100OperationRequest(version string, operation FC100Operation, b
 	if !ok {
 		return modbus.PrivateFunctionRequest{}, fmt.Errorf("tesla FC100 operation is unsupported")
 	}
+	return buildTeslaOperationRequest(spec, body)
+}
+
+func buildTeslaOperationRequest(spec teslaFC100OperationSpec, body []byte) (modbus.PrivateFunctionRequest, error) {
 	inner := appendTeslaFC100Varint(nil, spec.requestTag<<3|2)
 	inner = appendTeslaFC100Varint(inner, uint64(len(body)))
 	inner = append(inner, body...)
@@ -128,7 +132,14 @@ func DecodeTeslaFC100OperationSequence(version string, operation FC100Operation,
 		return nil, fmt.Errorf("tesla FC100 operation compatibility is unsupported")
 	}
 	spec, ok := teslaFC100OperationSpecs[operation]
-	if !ok || len(payloads) == 0 || len(payloads) > 8 {
+	if !ok {
+		return nil, fmt.Errorf("tesla FC100 operation sequence is invalid")
+	}
+	return decodeTeslaOperationSequence(spec, requestPayload, payloads)
+}
+
+func decodeTeslaOperationSequence(spec teslaFC100OperationSpec, requestPayload []byte, payloads [][]byte) ([]FC100OperationResult, error) {
+	if spec.family == 0 || len(payloads) == 0 || len(payloads) > 8 {
 		return nil, fmt.Errorf("tesla FC100 operation sequence is invalid")
 	}
 	request, err := DecodeTeslaHSCEnvelope(teslaHSCFunction100, requestPayload)
@@ -143,7 +154,7 @@ func DecodeTeslaFC100OperationSequence(version string, operation FC100Operation,
 			return nil, err
 		}
 		message := response.Payload()
-		if bytes.Equal(message, request.Payload()) {
+		if spec.requestTag != spec.responseTag && bytes.Equal(message, request.Payload()) {
 			if terminal {
 				return nil, fmt.Errorf("tesla FC100 operation echo follows terminal")
 			}

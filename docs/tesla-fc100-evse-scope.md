@@ -13,7 +13,7 @@ is not a firmware range or a qualification claim.
 | `wc.get_system_info` | 6 | 9 → 10 | Hardware identity and capability provenance |
 | `wc.get_load_sharing_state` | 6 | 11 → 12 | Native current capability and limits |
 | `wc.get_provisional` | 6 | 27 → 28 | Provisional parameters and separate configured-current scalar |
-| `wc.set_provisional` | 6 | 25 → 26 | Explicitly qualified t26 compatibility path only |
+| `wc.set_provisional` | 6 | 25 → 25 (26.34.0, 26.42.0); 25 → 26 (qualified 24.44.3 compatibility only) | Provisional parameters; a separate 27 → 28 read establishes returned state |
 | `wc.configure_settings` | 6 | 7 → 8 | Current-only persistent configuration; t8 is returned settings |
 
 ## Vitals
@@ -43,14 +43,23 @@ operations offline.
 
 ## Selected native mutations and readback
 
-The TEDAPI Specification §§6.4.10–6.4.11 and 7.1 defines the
-provisional pair. On RS-485, 26.34.0 and 26.42.0 return t25, not
-a specified t26; neither version is admitted to this driver's t26 path.
-The typed readback preserves presence independently of the decoded value.
-On 26.34.0 the timeout is remaining time, and zero current or zero
-request timeout removes the limit. This driver does not add a release command
-or infer behavior on another build. A status-bearing error is not an ACK,
-and an ACK is not readback.
+The TEDAPI Specification §§6.4.10–6.4.11 and 7.1 and the RS-485 Site
+Controller Protocol §5.4 define the RS-485 exchange on 26.34.0 and 26.42.0.
+The t25 terminal can equal the request or omit default-valued members; it is
+not a readback. A correlated status error is a rejection, not an ACK.
+The specification does not define this exchange on 24.44.3; its explicitly
+qualified t26 compatibility path is unchanged. The catalog codec still
+represents that compatibility contract, not the firmware-selected reply.
+
+On the documented path the setter queries installation settings (6/5 → 6/6)
+under the same reservation and deadline. It uses the returned installation
+maximum as its current ceiling, not the t28 configured-current scalar, whose
+meaning is not specified (TEDAPI Specification §§6.4.3, 6.4.11 and 7.8). The
+query is private to the setter, not a public catalog operation. After a
+successful t25 reply, the setter reads t27 → t28. It preserves presence
+independently of value. On 26.34.0 the timeout reports remaining time and
+zero current or zero request timeout removes the limit. This driver adds no
+release command. The effect of a current limit on 26.42.0 is not specified.
 
 The TEDAPI Specification §§6.4.4, 6.6.2 and 7.8 defines the settings
 pair on RS-485 for 26.34.0 and 26.42.0. The specification does not say

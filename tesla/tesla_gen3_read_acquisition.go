@@ -790,19 +790,20 @@ type teslaGen3ReadDenyRegisterReads struct{}
 
 func (teslaGen3ReadDenyRegisterReads) AdmitRTURead(modbus.RTUReadAdmissionRequest) bool { return false }
 
-// teslaGen3ReadClassifier marks the exact FC100 request echo as an
-// intermediate frame. Any other frame is terminal only when it is the
+// teslaGen3ReadClassifier marks an exact request echo as intermediate except
+// when the selected exchange specifies a same-tag terminal. Any other frame
+// is terminal only when it is the
 // selected operation's exact family/terminal-tag container or a TEDAPI
 // application error; every other frame is a classifier fault, which fences
 // the transport generation so no later request can be satisfied by it.
 type teslaGen3ReadClassifier struct {
-	operation FC100Operation
-	request   []byte
+	spec    teslaFC100OperationSpec
+	request []byte
 }
 
 func (classifier teslaGen3ReadClassifier) ClassifyRTUPrivateFunctionResponse(response modbus.RTUPrivateFunctionResponseADU) (modbus.RTUPrivateFunctionDisposition, error) {
 	payload := response.Payload()
-	if bytes.Equal(payload, classifier.request) {
+	if classifier.spec.requestTag != classifier.spec.responseTag && bytes.Equal(payload, classifier.request) {
 		return modbus.RTUPrivateFunctionContinue, nil
 	}
 	envelope, err := DecodeTeslaHSCEnvelope(teslaHSCFunction100, payload)
@@ -813,8 +814,8 @@ func (classifier teslaGen3ReadClassifier) ClassifyRTUPrivateFunctionResponse(res
 	if _, ok := decodeTeslaFC100ApplicationError(message); ok {
 		return modbus.RTUPrivateFunctionTerminal, nil
 	}
-	spec, ok := teslaFC100OperationSpecs[classifier.operation]
-	if !ok {
+	spec := classifier.spec
+	if spec.family == 0 {
 		return 0, fmt.Errorf("tesla Gen3 read operation is not correlated")
 	}
 	family, err := decodeExactLengthDelimitedField(message, spec.family)

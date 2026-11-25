@@ -173,6 +173,11 @@ func teslaFC100SourceScopeFindings(directory string, allowed map[FC100Operation]
 				return true
 			}
 			operation := constant.StringVal(value.Value)
+			// The documented setter can query the installation bound without
+			// exposing the configuration operation in the catalog or poll plan.
+			if operation == "wc.get_config" && filepath.Base(fileSet.Position(expression.Pos()).Filename) == "tesla_provisional_documented.go" {
+				return true
+			}
 			if !allowed[FC100Operation(operation)] {
 				findings = append(findings, fmt.Sprintf("%s: operation %q is outside the retained EVSE scope", fileSet.Position(expression.Pos()), operation))
 			}
