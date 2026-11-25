@@ -253,6 +253,9 @@ def epoch_cases(baseline, contract):
         configured = [coefficient for fact, coefficient in facts_of(mapping.project(candidate, contract)) if fact == "evse.limit.configured_current"]
         if configured != [expected]:
             raise AssertionError(f"{name}: configured current {configured}")
+        allocated = [coefficient for fact, coefficient in facts_of(mapping.project(candidate, contract)) if fact == "evse.limit.allocated_current"]
+        if (allocated != ["12"]) != (expected == "16"):
+            raise AssertionError(f"{name}: allocated current {allocated}")
         print(name + ": EPOCH")
     for key in bound:
         older_other = copy.deepcopy(baseline)
@@ -265,7 +268,7 @@ def epoch_cases(baseline, contract):
     for op, path, value in (("delete", "persistent", None), ("delete", "evidence.persistent", None), ("set", "evidence.provisional.source_epoch", "epoch.wc3.2")):
         edit(alone, op, path, value)
     result = mapping.project(alone, contract)
-    if withheld_of(result) != [("evse.limit.configured_current", "configured_current_other_epoch")]:
+    if withheld_of(result) != [("evse.limit.allocated_current", "provisional_evidence_invalid"), ("evse.limit.configured_current", "configured_current_other_epoch")]:
         raise AssertionError("a lone candidate of another epoch was not withheld: " + repr(withheld_of(result)))
     print("epoch: PASS")
 

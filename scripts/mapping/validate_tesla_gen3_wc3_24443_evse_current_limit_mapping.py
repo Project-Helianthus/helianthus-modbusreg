@@ -372,14 +372,21 @@ def lifecycle_valid(lifecycle):
 def publish_limits(case, facts, withheld, native):
     provisional = case.get("provisional")
     evidence = case.get("evidence", {})
+    publish_allocated = provisional is not None
     if not isinstance(provisional, dict):
         withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_record_absent"})
         provisional = None
+        publish_allocated = False
     elif not provisional_evidence_valid(evidence.get("provisional")):
         withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_evidence_invalid"})
         provisional = None
+        publish_allocated = False
+    elif not bound_to_lifecycle(evidence["provisional"], case["lifecycle"]):
+        # A readback of another epoch or generation yields no allocated current; the configured-current selector drops it too.
+        withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_evidence_invalid"})
+        publish_allocated = False
     publish_configured_current(case, provisional, facts, withheld)
-    if provisional is not None:
+    if provisional is not None and publish_allocated:
         publish_allocated_current(case, provisional, facts, withheld)
         publish_native_timeout(provisional, native)
         publish_native_expiry(case, native)
