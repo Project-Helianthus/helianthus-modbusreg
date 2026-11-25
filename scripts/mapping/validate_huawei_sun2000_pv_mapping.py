@@ -49,9 +49,18 @@ def _owner_destination(link):
     return None
 
 
+CODE_RE = re.compile(r"^[ ]{0,3}(?P<fence>`{3,}|~{3,})[^\n]*\n.*?(?:^[ ]{0,3}(?P=fence)[`~]*[ \t]*$|\Z)|^(?: {4}|\t)[^\n]*$|(?P<tick>`+)(?:(?!(?P=tick))[^`]|`+(?!(?P=tick)(?!`)))*?(?<!`)(?P=tick)(?!`)", re.MULTILINE | re.DOTALL)
+
+
 def unowned_text(text):
-    """The published text with the destination of each complete Markdown link to an approved owner URL removed; its label and every other link stay visible."""
-    return MD_LINK_RE.sub(lambda link: (link.group("label") or link.group("ref") or "") if _owner_destination(link) else link.group(0), text)
+    """The published text with the destination of each complete Markdown link to an approved owner URL removed; its label and every other link stay visible, and a link inside a code block or code span is literal text that stays visible."""
+    literal = [code.span() for code in CODE_RE.finditer(text)]
+
+    def strip(link):
+        inside = any(start <= link.start() < stop for start, stop in literal)
+        return (link.group("label") or link.group("ref") or "") if not inside and _owner_destination(link) else link.group(0)
+
+    return MD_LINK_RE.sub(strip, text)
 ID_FORBIDDEN_TEXT = ("serial", "esn", "sun2000", "huawei", "luna", "smartlogger", "sdongle", "s-dongle", "emma")
 ID_ADDRESS_RE = re.compile(r"(\d{1,3}\.){3}\d{1,3}|:\d{3,5}$")
 WORD_TYPES = {"I16": (1, True), "U16": (1, False), "I32": (2, True), "U32": (2, False)}
@@ -957,6 +966,7 @@ def graph_records(published, resources, contract, phase_positions=()):
     inverter, system = resources["inverter"], resources["system"]
     pairs = [("pv.relation.system_inverter", system, inverter)] if subjects & {inverter, system} else []
     pairs += [("pv.relation.inverter_input", inverter, item) for item in resources["inputs"] if item in subjects]
+    position_of = {resources["phases"][position - 1]: position for position in phase_positions}
     phases = [resources["phases"][position - 1] for position in sorted(phase_positions)]
     pairs += [("pv.relation.inverter_phase", inverter, item) for item in phases]
     if inverter in subjects or pairs:
@@ -967,7 +977,10 @@ def graph_records(published, resources, contract, phase_positions=()):
     named = subjects | {end for pair in pairs for end in pair[1:]}
     records = []
     for item in sorted(named):
-        records.append({"resource_id": item, "kind": kind_of[item], "parent": inverter} if kind_of[item] in (kinds["inputs"], kinds["phases"]) else {"resource_id": item, "kind": kind_of[item]})
+        record = {"resource_id": item, "kind": kind_of[item], "parent": inverter} if kind_of[item] in (kinds["inputs"], kinds["phases"]) else {"resource_id": item, "kind": kind_of[item]}
+        if item in position_of:
+            record["native_position"] = position_of[item]
+        records.append(record)
     return relations, records
 
 

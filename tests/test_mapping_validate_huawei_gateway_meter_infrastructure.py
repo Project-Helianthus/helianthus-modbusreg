@@ -334,12 +334,23 @@ def test_a_plant_group_read_from_a_routed_unit_other_than_the_plant_unit_publish
         assert row_reasons(output)["sdongle_plant_grid_power"] == "infrastructure.reason.group_not_read"
 
 
-def test_a_configured_listed_meter_does_not_withhold_or_publish_the_plant_group_of_its_own_unit():
-    document = with_plant(1500)
-    document["meter"]["declared"] = route(SMARTLOGGER, 100)
-    document["meter"]["identity_read"] = route(SMARTLOGGER, 19)
-    output = project(document)
-    assert [fact["item_id"] for fact in output["facts"]] == ["infrastructure.power.import_active"]
+def test_a_meter_route_at_the_plant_unit_is_no_evidence_of_the_plant_route():
+    for identity_read in (route(SMARTLOGGER, 100), route(SMARTLOGGER, 19), None):
+        document = with_plant(1500)
+        document["meter"]["declared"] = route(SMARTLOGGER, 100)
+        document["meter"]["identity_read"] = copy.deepcopy(identity_read)
+        output = project(document)
+        assert output["facts"] == []
+        assert row_reasons(output)["sdongle_plant_grid_power"] == "infrastructure.reason.group_not_read"
+
+
+def test_a_configured_meter_at_another_unit_neither_withholds_nor_publishes_the_plant_group():
+    for identity_read in (route(SMARTLOGGER, 11), route(SMARTLOGGER, 19)):
+        document = with_plant(1500)
+        document["meter"]["declared"] = route(SMARTLOGGER, 11)
+        document["meter"]["identity_read"] = copy.deepcopy(identity_read)
+        output = project(document)
+        assert [fact["item_id"] for fact in output["facts"]] == ["infrastructure.power.import_active"]
 
 
 @parametrize("outcome", ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"])
@@ -1000,6 +1011,13 @@ def test_owner_link_in_a_foreign_link_title_gets_no_exception():
     for quote in ('"', "'"):
         with Raises(ValueError, match="publication"):
             v.check_document(v.load(), page() + "\n[owner](https://example.invalid/x " + quote + "see " + OWNER_BASE + "api/v1/graph.md" + quote + ")\n")
+
+
+def test_owner_link_in_code_or_a_continuation_title_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for text in ("```\n[a](" + approved + ")\n```", "~~~\n[a](" + approved + ")\n~~~", "`[a](" + approved + ")`", "    [a](" + approved + ")", "[r]: https://example.invalid/x\n  \"" + approved + "\"", "[r]: https://example.invalid/x\n  (" + approved + ")"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
 
 
 def test_owner_link_exception_needs_a_complete_approved_destination_not_a_markdown_shaped_title():

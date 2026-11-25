@@ -46,9 +46,18 @@ def _owner_destination(link):
     return None
 
 
+CODE_RE = re.compile(r"^[ ]{0,3}(?P<fence>`{3,}|~{3,})[^\n]*\n.*?(?:^[ ]{0,3}(?P=fence)[`~]*[ \t]*$|\Z)|^(?: {4}|\t)[^\n]*$|(?P<tick>`+)(?:(?!(?P=tick))[^`]|`+(?!(?P=tick)(?!`)))*?(?<!`)(?P=tick)(?!`)", re.MULTILINE | re.DOTALL)
+
+
 def unowned_text(text):
-    """The published text with the destination of each complete Markdown link to an approved owner URL removed; its label and every other link stay visible."""
-    return MD_LINK_RE.sub(lambda link: (link.group("label") or link.group("ref") or "") if _owner_destination(link) else link.group(0), text)
+    """The published text with the destination of each complete Markdown link to an approved owner URL removed; its label and every other link stay visible, and a link inside a code block or code span is literal text that stays visible."""
+    literal = [code.span() for code in CODE_RE.finditer(text)]
+
+    def strip(link):
+        inside = any(start <= link.start() < stop for start, stop in literal)
+        return (link.group("label") or link.group("ref") or "") if not inside and _owner_destination(link) else link.group(0)
+
+    return MD_LINK_RE.sub(strip, text)
 ID_FORBIDDEN_TEXT = ("serial", "esn", "sun2000", "huawei", "luna", "smartlogger", "sdongle", "s-dongle", "emma")
 ID_ADDRESS_RE = re.compile(r"(\d{1,3}\.){3}\d{1,3}|:\d{3,5}$")
 # Exact conversions of the unit rule in api/README.md: (native unit, canonical SI unit) -> factor and offset, SI = native x factor + offset.
@@ -660,12 +669,13 @@ def native_power(words, native):
 
 
 def gate_reason(case, declared, rule, read):
-    """The reason an active row is withheld before its words are decoded, or None: unresolved selection, role, identity, then the read."""
+    """The reason an active row is withheld before its words are decoded, or None: unresolved selection, role, the plant route (a case running on a configured meter exposure's own route is no plant read), then the read."""
     if case["selection"]["outcome"] != ADMITTING:
         return PRIMARY_REASON
     if declared != rule["prospective"][0]["role"]:
         return "infrastructure.reason.role_not_declared"
-    if case.get("routed_unit") != PLANT_ROUTE["routed_unit"]:
+    declared_route = case["meter"]["declared"]
+    if case.get("routed_unit") != PLANT_ROUTE["routed_unit"] or (declared_route is not None and declared_route["routed_unit"] == case.get("routed_unit")):
         return "infrastructure.reason.group_not_read"
     if read is None or read["outcome"] in ("FAILED", "NOT_READ"):
         return "infrastructure.reason.group_not_read"

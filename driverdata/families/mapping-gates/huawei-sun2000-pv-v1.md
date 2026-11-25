@@ -119,7 +119,8 @@ credential, a class token or a profile identifier is never an anchor source.
 - A phase is a component of its inverter at its native position. The kind is
   stated so that its anchor is fixed. The driver allocates each phase at its
   native position (one to three) when the power group is answered; a refused
-  power group allocates none.
+  power group allocates none. The projected phase record carries that native
+  position, so a resource identifier moved to another position is a different record.
 
 ## Relations
 

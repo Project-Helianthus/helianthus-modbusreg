@@ -1256,6 +1256,13 @@ def test_owner_link_in_a_foreign_link_title_gets_no_exception():
             v.check_document(v.load(), page() + "\n[owner](https://example.invalid/x " + quote + "see " + OWNER_LINK + quote + ")\n")
 
 
+def test_owner_link_in_code_or_a_continuation_title_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for text in ("```\n[a](" + approved + ")\n```", "~~~\n[a](" + approved + ")\n~~~", "`[a](" + approved + ")`", "    [a](" + approved + ")", "[r]: https://example.invalid/x\n  \"" + approved + "\"", "[r]: https://example.invalid/x\n  (" + approved + ")"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
 def test_owner_link_exception_needs_a_complete_approved_destination_not_a_markdown_shaped_title():
     approved = OWNER_BASE + "api/v1/graph.md"
     for text in ("[owner](" + approved + ";other)", "[owner](<" + approved + ";other>)", "[a](https://example.invalid/x \"[b](" + approved + ")\")", "[a](https://example.invalid/x '[b](" + approved + ")')", "[owner](" + approved + " \"title\")"):
@@ -1283,10 +1290,17 @@ def test_an_admitted_phase_reading_publishes_driver_allocated_phases_under_the_i
     assert phase_relations(output) == [(INVERTER, item) for item in PHASES]
     records = {item["resource_id"]: item for item in output["resources"]}
     for position, item in enumerate(PHASES, 1):
-        assert records[item] == {"resource_id": item, "kind": "resource.phase", "parent": INVERTER}, position
+        assert records[item] == {"resource_id": item, "kind": "resource.phase", "parent": INVERTER, "native_position": position}, position
     assert v.RESOURCE_ROLES["phases"]["source"] == "driver_allocated_at_native_position" and v.RESOURCE_ROLES["phases"]["slots"] == 3
     assert not any(fact["key"]["dimensions"][0]["id"] == "pv.dimension.phase" for fact in output["facts"])
     assert not any(item["resource_id"] in PHASES for item in project(case())["resources"])
+
+
+def test_the_same_opaque_phase_identifier_at_another_native_position_projects_a_different_record():
+    first = project(phase_case([1], ids=[PHASES[0], None, None]))
+    second = project(phase_case([2], ids=[None, PHASES[0], None]))
+    record = lambda output: next(item for item in output["resources"] if item["resource_id"] == PHASES[0])
+    assert record(first)["native_position"] == 1 and record(second)["native_position"] == 2 and record(first) != record(second)
 
 
 @parametrize("positions", [[1], [2], [3], [3, 1]])

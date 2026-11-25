@@ -69,8 +69,9 @@ another routed unit is reported with `infrastructure.reason.identity_mismatch`:
 nothing is guessed and the declared meter is not replaced by the meter that was
 read. A route that was not read is `infrastructure.reason.identity_not_read`.
 The plant group is read only from its own routed unit; from another unit it is
-`infrastructure.reason.group_not_read`, and no configured meter exposure
-publishes or withholds a plant fact. All registry flags stay false, and
+`infrastructure.reason.group_not_read`. A case whose routed unit is the routed unit of its configured meter exposure runs on that meter route and is no
+evidence of the plant route, so its plant group is `infrastructure.reason.group_not_read`; a configured meter exposure at another unit
+publishes or withholds no plant fact. All registry flags stay false, and
 `outbound_allowed=false` grants no operation.
 
 Each remaining precondition is decided from the documents, with its grade:

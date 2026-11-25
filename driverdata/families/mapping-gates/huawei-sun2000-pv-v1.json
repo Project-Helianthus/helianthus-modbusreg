@@ -394,8 +394,7 @@
         "from_kind": "resource.equipment",
         "to_kind": "resource.inverter",
         "evidence": [
-          "native_contract:profiles.gateway_path",
-          "evidence:monitoring_contract"
+          "native_contract:profiles.gateway_path"
         ],
         "validity_scope": {
           "profile": "m3_and_m1",
