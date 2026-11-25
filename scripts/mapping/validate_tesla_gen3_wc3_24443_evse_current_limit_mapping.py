@@ -570,42 +570,8 @@ RELATION_STATEMENTS = (
     "Without those native facts the phase and session relations are unknown, not absent.",
     "A relation the pages do not support is unknown with a reason naming the missing statement.",
 )
-NATIVE_STATEMENTS = OPERATION_STATEMENTS + RELATION_STATEMENTS
-
-
 CHARGING_CITATION = "The 6 A floor and the 0 A pause follow IEC 61851-1 Annex A, where 6 A is the lowest charging current a charger can signal."
-
-
-LINK_DESTINATION = r"(?:<[^>\n]*>|(?:[^\s()<]|\([^\s()]*\))*)"
-LINK_TITLE = r"(?:\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|\((?:[^()\\]|\\.)*\))"
-CITATION_TOKEN = re.compile(r"(?<!\w)IEC 61851-1 Annex A(?!\w)")
-FLOOR_TOKEN = re.compile(r"(?<![\w.])6 A(?!\w)")
-PAUSE_TOKEN = re.compile(r"(?<![\w.])0 A(?!\w)")
-
-
-def visible_paragraphs(source):
-    """Paragraphs of the rendered page outside link definitions, link titles and HTML comments, whitespace-normalized."""
-    shown = re.sub(r"(?m)^ {0,3}\[[^\]\n]+\]:[ \t]*\n?[ \t]*" + LINK_DESTINATION + r"(?:[ \t]*\n?[ \t]*" + LINK_TITLE + r")?[ \t]*$", " ", source)
-    shown = re.sub(r"(?m)^ {0,3}\[[^\]\n]+\]:[^\n]*(?:\n[ \t]+[\"'(][^\n]*)?$", " ", shown)
-    shown = re.sub(r"(\]\(\s*" + LINK_DESTINATION + r")\s+" + LINK_TITLE + r"\s*\)", r"\1)", shown)
-    shown = re.sub(r"\[[^\]\n]+\]:\s*\S+(?:\s+" + LINK_TITLE + ")?", " ", shown)
-    shown = re.sub(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)", lambda m: m.group(2).replace("<", "&lt;"), shown, flags=re.DOTALL)
-    shown = re.sub(r"<!--.*?-->", " ", shown, flags=re.DOTALL)
-    shown = shown.replace("*", "")
-    shown = re.sub(r"(?<!\w)_+|_+(?!\w)", "", shown)
-    for block in re.split(r"\n\s*\n", shown):
-        paragraph = " ".join(block.split())
-        if paragraph:
-            yield paragraph
-
-
-def cites_charging_clause(source):
-    """One visible sentence names IEC 61851-1 Annex A together with the 6 A floor and the 0 A pause, in any wording."""
-    for paragraph in visible_paragraphs(source):
-        for sentence in re.split(r"(?<=[.!?]) ", paragraph):
-            if CITATION_TOKEN.search(sentence) and FLOOR_TOKEN.search(sentence) and PAUSE_TOKEN.search(sentence) and re.search(r"(?i)\bpause", sentence):
-                return True
-    return False
+NATIVE_STATEMENTS = OPERATION_STATEMENTS + RELATION_STATEMENTS + (CHARGING_CITATION,)
 
 
 def check_native_page():
@@ -614,8 +580,6 @@ def check_native_page():
         fail("native_page_missing")
     text = " ".join(NATIVE_PAGE.read_text(encoding="utf-8").split())
     if any(statement not in text for statement in NATIVE_STATEMENTS):
-        fail("native_page_disagrees")
-    if not cites_charging_clause(NATIVE_PAGE.read_text(encoding="utf-8")):
         fail("native_page_disagrees")
 
 
