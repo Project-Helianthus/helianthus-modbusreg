@@ -32,6 +32,13 @@ ERROR_PRECEDENCE = ["profile_not_selected", "native_evidence_invalid", "identity
 OPAQUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$")
 COEFFICIENT_RE = re.compile(r"^(0|-?[1-9][0-9]*)$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
+# Approved immutable owner links: the pinned docs-semantic revision, owning path, optional non-line anchor.
+OWNER_LINK_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/[A-Za-z0-9_./-]+(?:#(?!L[0-9])[A-Za-z0-9_-]+)?(?![A-Za-z0-9_./#-])")
+
+
+def unowned_text(text):
+    """The published text with approved owner links removed; every other revision literal stays visible."""
+    return OWNER_LINK_RE.sub("", text)
 ID_FORBIDDEN_TEXT = ("serial", "esn", "sun2000", "huawei", "luna", "smartlogger", "sdongle", "s-dongle", "emma")
 ID_ADDRESS_RE = re.compile(r"(\d{1,3}\.){3}\d{1,3}|:\d{3,5}$")
 WORD_TYPES = {"I16": (1, True), "U16": (1, False), "I32": (2, True), "U32": (2, False)}
@@ -937,7 +944,17 @@ def check_positive_scenario(scenario, expected, output):
         fail("scenario summary " + scenario["id"])
 
 
+# The staged ND02 relations page the PV gate's relation statements cite; its absence is never a pass.
+NATIVE_PAGE = ROOT / ".tmp/references/docs-modbus/protocols/huawei/sun2000-semreg-relations-v1.md"
+
+
+def check_native_page(path=NATIVE_PAGE):
+    if not path.is_file():
+        fail("native_page_missing")
+
+
 def document(contract):
+    check_native_page()
     validate_contract(contract)
     validate_scenarios(contract)
 
@@ -1000,7 +1017,7 @@ def check_document(contract, text):
     for token in DOC_TOKENS:
         if token not in flat:
             fail("document boundary")
-    if HEX_RUN_RE.search(text) or HEX_RUN_RE.search(json.dumps(contract)):
+    if HEX_RUN_RE.search(unowned_text(text)) or HEX_RUN_RE.search(json.dumps(contract)):
         fail("publication: digest or revision literal")
     for profile in contract["native_contract"]["profiles"]:
         if "`%s`" % profile["profile_id"] not in text:

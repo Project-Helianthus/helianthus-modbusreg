@@ -28,6 +28,13 @@ GRADES = ["unknown", "hypothesis", "proven"]
 ERROR_PRECEDENCE = ["gate_revision_required", "native_evidence_invalid", "identity_missing_or_invalid", "role_invalid", "lifecycle_missing", "mapping_unqualified", "unsupported_or_withheld"]
 OPAQUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
+# Approved immutable owner links: the pinned docs-semantic revision, owning path, optional non-line anchor.
+OWNER_LINK_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/[A-Za-z0-9_./-]+(?:#(?!L[0-9])[A-Za-z0-9_-]+)?(?![A-Za-z0-9_./#-])")
+
+
+def unowned_text(text):
+    """The published text with approved owner links removed; every other revision literal stays visible."""
+    return OWNER_LINK_RE.sub("", text)
 ID_FORBIDDEN_TEXT = ("serial", "esn", "sun2000", "huawei", "luna", "smartlogger", "sdongle", "s-dongle", "emma")
 ID_ADDRESS_RE = re.compile(r"(\d{1,3}\.){3}\d{1,3}|:\d{3,5}$")
 # Exact conversions of the unit rule in api/README.md: (native unit, canonical SI unit) -> factor and offset, SI = native x factor + offset.
@@ -665,7 +672,7 @@ def check_document(contract, text):
     for token in DOC_TOKENS:
         if token not in flat:
             fail("document boundary")
-    if HEX_RUN_RE.search(text) or HEX_RUN_RE.search(json.dumps(contract)):
+    if HEX_RUN_RE.search(unowned_text(text)) or HEX_RUN_RE.search(json.dumps(contract)):
         fail("publication: digest or revision literal")
 
 

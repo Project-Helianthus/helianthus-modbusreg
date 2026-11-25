@@ -53,7 +53,7 @@ false; it grants no device support claim or operation.
 
 ## Resources
 
-The gate states what section 15 of the [graph contract](../graph.md) asks of
+The gate states what section 15 of the [graph contract](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/v1/graph.md) asks of
 a mapping gate, and its validator runs the shared graph rules before its own.
 
 This is section 15 item 1. The catalog lists no identification
@@ -140,7 +140,7 @@ keeps the native sign convention of pack current, and the rule keeps it as a
 
 The JSON contract fixes every exact, transformed, native-only, and withheld
 field. Each quantity rule names its native unit, the SI unit of its pack field
-under the [unit rule](../../README.md#unit-rule), and the exact factor and
+under the [unit rule](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/README.md#unit-rule), and the exact factor and
 offset of its conversion, so that the SI value is the native value times the
 factor plus the offset. Volts, amperes, and ampere-hours are published by the
 identity. Cell voltage extremes in millivolts are published as volts by the

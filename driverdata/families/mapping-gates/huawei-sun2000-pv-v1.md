@@ -65,7 +65,7 @@ cross-family Hypothesis). Vector `PV-NEG-001-emma-map0-not-admitted` pins that.
 
 ## Identity and keying
 
-Identity follows sections 6.3 and 15 of the [graph contract](../graph.md). The
+Identity follows sections 6.3 and 15 of the [graph contract](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/v1/graph.md). The
 gateway allocates every identifier; this gate states what each one names and
 what never derives it.
 
@@ -187,7 +187,7 @@ inverter's relay of a battery or a meter is neither stated nor denied.
 
 Under EN-1 each mapped field rule names its subject kind and its measurement
 point. The subject kind and the dimension are looked up in the
-[element catalog](../element-catalog-v1.json), not repeated by the validator.
+[element catalog](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/v1/element-catalog-v1.json), not repeated by the validator.
 
 | Native fact | Target fact | Subject kind | Measurement point |
 | --- | --- | --- | --- |
@@ -251,7 +251,7 @@ Rules, each with the grade of the contract row it restates:
    (Proven as a statement of the kernel). A coefficient is never read from text
    with a decimal point.
 2. **Units.** Each fact is published in the SI unit of its pack field under the
-   [unit rule](../../README.md#unit-rule). Volt and ampere keep the native
+   [unit rule](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/README.md#unit-rule). Volt and ampere keep the native
    number. Kilowatt at gain 1000 is published as `unit.watt` with the same
    integer (factor 1000), and kilowatt-hour as `unit.joule` by the exact factor
    3600000. Every conversion that is not the identity is recorded as a

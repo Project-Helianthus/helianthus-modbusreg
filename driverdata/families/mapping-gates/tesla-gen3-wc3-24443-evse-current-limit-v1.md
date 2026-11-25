@@ -1,16 +1,18 @@
 # Tesla Gen3 WC3 24.44.3 EVSE current-limit mapping gate v1
 
-This accepted source-specific, read-only gate maps qualified Tesla Wall Connector
+This accepted source-specific gate maps qualified Tesla Wall Connector
 Gen3 `wc3_24_44_3` current-limit evidence into
 `helianthus.pack.evse@1.0.0`. The executable contract is
 [tesla-gen3-wc3-24443-evse-current-limit-v1.json](tesla-gen3-wc3-24443-evse-current-limit-v1.json).
 It is an offline mapping qualification, not a device-support or physical
-qualification claim.
+qualification claim. The native current-limit getter is read-only and sends
+nothing; the operations the driver offers for this charger are declared
+separately below.
 
 ## Publishable inputs and evidence boundary
 
 The native current-limit contract is pinned to
-[docs-modbus `6611e20`](https://github.com/Project-Helianthus/helianthus-docs-modbus/commit/6611e20ac8b2c3e8b953934757346f8a847b30bf),
+[docs-modbus `e9d0471`](https://github.com/Project-Helianthus/helianthus-docs-modbus/commit/e9d0471ccc7bd0cb82e2552e630ebaae5436d867),
 the read-only native-projection revision is
 [`1127c333`](https://github.com/Project-Helianthus/helianthus-docs-modbus/commit/1127c333de1f1d02305952a58f8745ee05c42e12),
 the typed registry is
@@ -22,37 +24,40 @@ and gateway composition is
 The accepted generic EVSE input is `helianthus.pack.evse@1.0.0` at this
 repository's base `f830ace6c2b9dd1af0e87ce808fa545662578418`.
 
-Only FC100 family-6 evidence for this exact profile is admissible. The
-provisional readback `t27` to `t28` is the source of both limits.
-`ConfiguredCurrentAmps` maps exactly, in integer amperes, to
-`evse.limit.configured_current`. `LimitCurrentMaxAmps` maps exactly to
-`evse.limit.allocated_current` only when `LimitTimeoutSeconds` is finite
-`1..86399` and `InhibitCharging` is false. The zero-timeout form withholds
-allocated current; timeout and inhibit themselves have no EVSE fact. The
-ingested persistent `t7` to `t8` exchange is not the source of either limit
-and is never substituted for the readback.
+Only FC100 family-6 evidence for this exact profile is admissible.
+`ConfiguredCurrentAmps` of the provisional readback `t27` to `t28` maps exactly,
+in integer amperes, to `evse.limit.configured_current`. The persistent `t7` to
+`t8` `MaxOutputCurrentAmps` is a second candidate for the same fact: when both
+carry it in one epoch, the later receipt is the candidate, and an explicit zero
+is unknown. `LimitCurrentMaxAmps` maps exactly, in integer amperes, to
+`evse.limit.allocated_current` when `InhibitCharging` is false and the current
+is nonzero, whatever `LimitTimeoutSeconds` is. A zero or unresolved timeout
+leaves only the expiry unknown. An inhibited readback maps to 0 A at the
+connector, not to the 6 A a pause carries natively. A zero current with inhibit
+false leaves the allocated current unknown. Timeout and inhibit have no EVSE
+fact of their own.
 
 The four provisional request/ack/readback payloads, persistent request/terminal
 payloads, FC100 decoding, and their immutable digests remain native evidence.
 The semantic gate accepts their immutable references only. A source path,
 receipt timestamp, source epoch, driver generation, qualification, semantic
-revision, lifecycle generation, and field-scoped immutable evidence are
-required. Persistent request/terminal evidence stays required and publishes
-no limit. Both limits require the provisional readback. Its absence, or an
-invalid or mismatched provisional evidence set, withholds both. Inhibition
-or a zero timeout withholds only allocated current.
-Evidence from observations, epochs, generations, or revisions cannot be
-combined within either fact path. Permitted last-known-good retention remains
-the native owner's lifecycle decision.
+revision, lifecycle generation, and field-scoped immutable evidence with its own
+receipt timestamp are required. Persistent request/terminal evidence stays
+required. The allocated current requires the provisional readback: its absence,
+or an invalid or mismatched provisional evidence set, withholds it, while the
+configured current may still come from the persistent candidate. Evidence from
+observations, epochs, generations, or revisions cannot be combined within either
+fact path. Permitted last-known-good retention remains the native owner's
+lifecycle decision.
 
 ## Resources, relations, and identity
 
 The gate states its resources and relations in the member `graph`, in the
-form that section 15 of the [graph contract](../graph.md) requires. Its
-validator runs the [shared checker](../../../scripts/mapping_gate_graph_rules.py)
+form that section 15 of the [graph contract](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/v1/graph.md) requires. Its
+validator runs the [shared checker](../../../scripts/mapping/mapping_gate_graph_rules.py)
 first and then its own rules. Kinds, anchor classes, dimensions, relation
 definitions and admitted basis classes are looked up in the
-[element catalog](../element-catalog-v1.json); the gate repeats none of them as
+[element catalog](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/v1/element-catalog-v1.json); the gate repeats none of them as
 a constant.
 
 - The charging station is equipment. No identification scheme is listed for
@@ -85,7 +90,9 @@ class `configuration`, scoped to this profile and its version, and with no
 absence statement (REL-3, REL-8). The connector-to-phase, connector-to-session
 and EVSE-to-meter relations are listed in `unstated_relations` as
 unknown, not absent: the gate publishes no phase, session or meter, and it
-never claims that a meter is missing. Native connector topology stays unsupported.
+never claims that a meter is missing. The configured relation for the charger's
+own energy counter is not yet stated; it needs a meter resource in the graph and
+is outstanding. Native connector topology stays unsupported.
 
 Under EN-1 each field rule names its subject kind and measurement point. The
 configured current limit's subject is the EVSE it applies to, defined at the
@@ -97,11 +104,33 @@ owner states otherwise. No plane membership appears in the gate.
 ## Loss and operations
 
 Power, energy, phase, session, readiness, SOC, thermal, fault, interlock,
-meter, and all unsupported native facts remain withheld or native-only. There
-is no sender, route, authority, acknowledgement/readback authority, retry, or
-live control. Every operation is unavailable, including
-`evse.operation.set_allocated_current`; `outbound_allowed=false` is not an
-operation admission. Every operation is unavailable.
+meter, and all unsupported native facts remain withheld or native-only. The
+gate states no sender, route, authority or live control for the native getter,
+and it denies no operation.
+
+`projection.operations` lists every operation the driver offers for this
+charger, and the injected MCP projection shows them as SemReg shows them:
+
+- `evse.operation.set_allocated_current` (capability
+  `evse.capability.set_allocated_current` on `evse.service.connector`, effect
+  `evse.effect.set_allocated_current` on the connector): route t25 to t26 with
+  readback t27 to t28, authority the setting owner through the SemReg call path.
+- `ConfigurePersistentCurrent` in the modbusreg namespace: the persistent
+  `t7` to `t8` current write.
+
+The allocated-current set accepts whole amperes only. Its upper bound is the
+configured current of the latest t28 in the same lifecycle generation. Where that
+generation has no t28, the prerequisite t27 to t28 read may run first, and a
+value above the configured current then read sends no t25. A pause at 0 A
+encodes 6 A with inhibit and needs a configured bound of at least 6 A. 1 A to
+5 A is refused and nothing is sent. A timeout of zero is not an interoperable
+request value. The operation acts only on its own connector. The 6 A floor
+follows IEC 61851-1 Annex A, which the ND02 page names as the lowest charging
+current a charger can signal.
+
+The native retained-record getter `modbus.v1.tesla.gen3.evse.current_limit.get`
+is the only read-only surface: `read_only` and `outbound_allowed=false` describe
+that getter alone. The operations above are separate from it.
 
 ## Later consumer cutover
 
@@ -111,7 +140,6 @@ adoption. It must remove fallback, comparator, compatibility adapter, shadow
 authority, dual publication, caller-supplied provenance, and write routes.
 Until that implementation is accepted, this mapping exposes no consumer binding.
 
-Run `python3 scripts/validate_tesla_gen3_wc3_24443_evse_current_limit_mapping.py`,
-`python3 scripts/test_validate_tesla_gen3_wc3_24443_evse_current_limit_mapping.py`,
-`python3 scripts/mapping_gate_graph_rules.py api/v1/mappings/tesla-gen3-wc3-24443-evse-current-limit-v1.json`,
-and `./scripts/check_docs.sh`.
+Run `python3 scripts/mapping/validate_tesla_gen3_wc3_24443_evse_current_limit_mapping.py`,
+`python3 tests/test_mapping_validate_tesla_gen3_wc3_24443_evse_current_limit.py`,
+and `python3 scripts/mapping/mapping_gate_graph_rules.py --self-test`.

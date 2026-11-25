@@ -472,8 +472,8 @@ def test_publication_rule_rejects_revision_and_digest_literals(literal):
 def test_published_files_cite_no_revision_link_or_endpoint():
     for path in (v.PATH, v.DOC):
         text = path.read_text(encoding="utf-8")
-        assert not v.HEX_RUN_RE.search(text)
-        assert "/blob/" not in text and "/commit/" not in text and "#L" not in text and "tcp://" not in text
+        assert not v.HEX_RUN_RE.search(v.unowned_text(text))
+        assert "/blob/" not in v.unowned_text(text) and "/commit/" not in text and "#L" not in text and "tcp://" not in text
 
 
 # The member name used before the in-place rename, assembled so that no file spells it.

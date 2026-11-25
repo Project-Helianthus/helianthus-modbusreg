@@ -845,11 +845,30 @@ def test_publication_rule_rejects_revision_and_digest_literals(literal):
         v.check_document(v.load(), page() + "\n" + literal + "\n")
 
 
+OWNER_LINK = "https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/v1/graph.md"
+
+
+def test_publication_accepts_approved_full_sha_owner_link():
+    v.check_document(v.load(), page() + "\n[graph](" + OWNER_LINK + ")\n")
+    v.check_document(v.load(), page() + "\n[readme](" + OWNER_LINK.replace("api/v1/graph.md", "api/README.md") + "#unit-rule)\n")
+
+
+@parametrize("link", [
+    OWNER_LINK.replace("de3a0b49535582ad51a0ec23011d3aebf9c04c76", "0123456789abcdef0123456789abcdef01234567"),
+    OWNER_LINK.replace("helianthus-docs-semantic", "helianthus-modbusreg"),
+    OWNER_LINK.replace("/blob/", "/commit/"),
+    OWNER_LINK + "#L10",
+])
+def test_publication_rejects_other_owner_links(link):
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n[graph](" + link + ")\n")
+
+
 def test_published_files_cite_no_revision_link_or_endpoint():
     for path in (v.PATH, v.DOC):
         text = path.read_text(encoding="utf-8")
-        assert not v.HEX_RUN_RE.search(text)
-        assert "/blob/" not in text and "/commit/" not in text and "/tree/" not in text
+        assert not v.HEX_RUN_RE.search(v.unowned_text(text))
+        assert "/blob/" not in v.unowned_text(text) and "/commit/" not in text and "/tree/" not in text
         assert "#L" not in text
     forbidden = ("serial_number:", "esn:", "tcp://")
     assert not any(token in v.PATH.read_text(encoding="utf-8") for token in forbidden)

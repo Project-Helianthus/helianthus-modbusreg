@@ -18,11 +18,12 @@ def reject(name, path, value, expected):
     print(f"{name}: REJECTED")
 
 def readback_sources():
-    """Both limits are sourced from the provisional readback, not the ingested persistent exchange."""
+    """Allocated current comes only from the provisional readback; configured current also has the persistent candidate."""
     rules = mapping.load()["field_rules"]
     sources = [rule["source"] for rule in rules]
-    if sources != ["provisional.readback.ConfiguredCurrentAmps", "provisional.readback.LimitCurrentMaxAmps"]:
-        raise AssertionError("configured and allocated current are not both sourced from the provisional readback: " + repr(sources))
+    expected = ["provisional.readback.ConfiguredCurrentAmps", "persistent.MaxOutputCurrentAmps", "provisional.readback.LimitCurrentMaxAmps"]
+    if sources != expected:
+        raise AssertionError("configured and allocated current sources differ from the readback contract: " + repr(sources))
     print("readback-sources: PASS")
 
 
@@ -50,32 +51,119 @@ def readback_fields_are_independent():
     print("readback-fields: PASS")
 
 
+def facts_of(result):
+    return [(fact["id"], fact["value"]["coefficient"]) for fact in result["facts"]]
+
+
+def withheld_of(result):
+    return [(entry["id"], entry["reason"]) for entry in result["withheld"]]
+
+
+def readback_cases(baseline, contract):
+    """Each readback rule of the allocated and configured current, through project()."""
+    cases = [
+        ("persistent_only", [("provisional", None), ("evidence.provisional", None)], [("evse.limit.configured_current", "16")], [("evse.limit.allocated_current", "provisional_record_absent")]),
+        ("inhibited_provisional", [("provisional.InhibitCharging", True)], [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "0")], []),
+        ("malformed_provisional", [("evidence.provisional.provisional_ack", "bad")], [("evse.limit.configured_current", "16")], [("evse.limit.allocated_current", "provisional_evidence_invalid")]),
+        ("mismatched_provisional", [("evidence.provisional.correlation_id", "evidence.wc3.other")], [("evse.limit.configured_current", "16")], [("evse.limit.allocated_current", "provisional_evidence_invalid")]),
+        ("zero_timeout_keeps_allocated", [("provisional.LimitTimeoutSeconds", 0)], [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")], []),
+        ("zero_current_unresolved", [("provisional.LimitCurrentMaxAmps", 0)], [("evse.limit.configured_current", "16")], [("evse.limit.allocated_current", "zero_current_unresolved")]),
+        ("zero_configured_unknown", [("provisional.ConfiguredCurrentAmps", 0)], [("evse.limit.allocated_current", "12")], [("evse.limit.configured_current", "zero_configured_unknown")]),
+        ("later_persistent_candidate", [("persistent.MaxOutputCurrentAmps", 20), ("evidence.persistent.receipt_timestamp", "2026-09-10T00:00:02Z")], [("evse.limit.configured_current", "20"), ("evse.limit.allocated_current", "12")], []),
+    ]
+    for name, mutations, facts, withheld in cases:
+        candidate = copy.deepcopy(baseline)
+        for path, value in mutations:
+            mapping.mutate(candidate, {"path": path, "value": value})
+        result = mapping.project(candidate, contract)
+        if facts_of(result) != facts or withheld_of(result) != withheld:
+            raise AssertionError(f"{name}: facts {facts_of(result)} withheld {withheld_of(result)}")
+        print(name + ": READBACK")
+
+
+def operation_cases(baseline, contract):
+    """Listed operations are emitted by project() and accepted; an unlisted one is rejected there."""
+    result = mapping.project(baseline, contract)
+    if result["operations"] != ["evse.operation.set_allocated_current", "ConfigurePersistentCurrent"]:
+        raise AssertionError("project() did not emit the listed operations: " + repr(result["operations"]))
+    listed = copy.deepcopy(baseline)
+    mapping.mutate(listed, {"path": "operation", "value": "evse.operation.set_allocated_current"})
+    mapping.project(listed, contract)
+    unlisted = copy.deepcopy(baseline)
+    mapping.mutate(unlisted, {"path": "operation", "value": "evse.operation.release_allocated_current"})
+    try:
+        mapping.project(unlisted, contract)
+    except ValueError as error:
+        if str(error) != "unsupported_fact_or_operation":
+            raise
+    else:
+        raise AssertionError("unlisted operation accepted")
+    print("operations: PASS")
+
+
+SET = {"connector_id": "connector.wc3.alpha", "timeout_seconds": 600}
+KNOWN = {"t28_known": True, "configured_current": 16}
+UNREAD = {"t28_known": False, "configured_current": None}
+
+
+def operation_vectors():
+    """Allocated-current disposition: a refused request sends nothing, a read-first case sends no t25 until the read."""
+    vectors = [
+        ("positive_16A", dict(SET, amperes=16), KNOWN, "send_set"),
+        ("positive_pause", dict(SET, amperes=0), KNOWN, "send_pause"),
+        ("negative_3A", dict(SET, amperes=3), KNOWN, "rejected_below_minimum"),
+        ("negative_3A_no_read", dict(SET, amperes=3), UNREAD, "rejected_below_minimum"),
+        ("negative_above_configured_known", dict(SET, amperes=20), KNOWN, "rejected_above_configured"),
+        ("above_configured_read_first", dict(SET, amperes=16), UNREAD, "read_first"),
+        ("above_configured_after_read", dict(SET, amperes=16), {"t28_known": True, "configured_current": 12}, "rejected_above_configured"),
+        ("negative_zero_timeout", dict(SET, amperes=16, timeout_seconds=0), KNOWN, "rejected_invalid"),
+        ("negative_other_connector", dict(SET, amperes=16, connector_id="connector.wc3.beta"), KNOWN, "rejected_other_connector"),
+        ("pause_bound_below_6A", dict(SET, amperes=0), {"t28_known": True, "configured_current": 5}, "rejected_pause_bound"),
+    ]
+    for name, request, generation, expected in vectors:
+        got = mapping.set_allocated_current_disposition(request, generation, "connector.wc3.alpha")
+        if got != expected:
+            raise AssertionError(f"{name}: expected {expected}, got {got}")
+        print(name + ": " + got)
+
+
 def main():
     readback_sources()
     readback_fields_are_independent()
-    cases = [("pin", "pins.gateway_main", "0" * 40, "contract"), ("profile", "native_contract.profile", "wc3_24_44_4", "native_contract"), ("outbound", "native_contract.outbound_allowed", True, "native_contract"), ("identity_derivation", "identity.forbidden_derivations.0", "serial", "identity_contract"), ("identity_reuse", "identity.failure", "allow_reuse", "identity_contract"), ("lifecycle", "lifecycle.required.0", "timestamp", "lifecycle_contract"), ("persistent_target", "field_rules.0.target", "evse.limit.allocated_current", "field_rules"), ("provisional_disposition", "field_rules.1.disposition", "always", "field_rules"), ("unsupported", "unsupported.0", "power_allowed", "withheld_or_unsupported"), ("precedence", "projection.error_precedence.0", "x", "projection"), ("operations", "projection.operations", "available", "projection"), ("cutover", "consumer_cutover.forbidden.0", "allowed", "consumer_cutover")]
-    for case in cases: reject(*case)
     contract = mapping.load(); baseline = contract["scenarios"][0]["input"]
-    for name, path, value, expected in [("blank_identity", "identity.asset_id", "", "identity_invalid"), ("wrong_unit_profile", "profile", "other", "profile_or_version_invalid"), ("missing_receipt", "lifecycle.receipt_timestamp", "", "lifecycle_invalid"), ("operation_attempt", "operation", "evse.operation.set_allocated_current", "unsupported_fact_or_operation"), ("persistent_evidence", "evidence.persistent.persistent_terminal", "bad", "evidence_binding_invalid")]:
+    operation_cases(baseline, contract)
+    readback_cases(baseline, contract)
+    operation_vectors()
+    cases = [("pin", "pins.gateway_main", "0" * 40, "contract"), ("profile", "native_contract.profile", "wc3_24_44_4", "native_contract"), ("outbound", "native_contract.outbound_allowed", True, "native_contract"), ("identity_derivation", "identity.forbidden_derivations.0", "serial", "identity_contract"), ("identity_reuse", "identity.failure", "allow_reuse", "identity_contract"), ("lifecycle", "lifecycle.required.0", "timestamp", "lifecycle_contract"), ("persistent_target", "field_rules.0.target", "evse.limit.allocated_current", "field_rules"), ("provisional_disposition", "field_rules.2.disposition", "always", "field_rules"), ("unsupported", "unsupported.0", "power_allowed", "withheld_or_unsupported"), ("precedence", "projection.error_precedence.0", "x", "projection"), ("operations", "projection.operations", "available", "projection"), ("operation_unlisted", "projection.operations.0.name", "evse.operation.release_allocated_current", "projection"), ("cutover", "consumer_cutover.forbidden.0", "allowed", "consumer_cutover")]
+    for case in cases: reject(*case)
+    for name, path, value, expected in [("blank_identity", "identity.asset_id", "", "identity_invalid"), ("wrong_unit_profile", "profile", "other", "profile_or_version_invalid"), ("missing_receipt", "lifecycle.receipt_timestamp", "", "lifecycle_invalid"), ("operation_attempt", "operation", "evse.operation.release_allocated_current", "unsupported_fact_or_operation"), ("persistent_evidence", "evidence.persistent.persistent_terminal", "bad", "evidence_binding_invalid"), ("persistent_receipt", "evidence.persistent.receipt_timestamp", "", "evidence_binding_invalid")]:
         candidate = copy.deepcopy(baseline); mapping.mutate(candidate, {"path": path, "value": value})
         try: mapping.project(candidate, contract)
         except ValueError as error:
             if str(error) != expected: raise AssertionError(error)
         else: raise AssertionError(name + " accepted")
         print(name + ": REJECTED")
-    for name, path, value, reason in [("persistent_only", "provisional", None, "provisional_record_absent"), ("inhibited_provisional", "provisional.InhibitCharging", True, "inhibit_state_not_semantically_representable"), ("malformed_provisional", "evidence.provisional.provisional_ack", "bad", "provisional_evidence_invalid"), ("mismatched_provisional", "evidence.provisional.correlation_id", "evidence.wc3.other", "provisional_evidence_invalid")]:
-        candidate = copy.deepcopy(baseline); mapping.mutate(candidate, {"path": path, "value": value})
-        if name == "persistent_only": mapping.mutate(candidate, {"path": "evidence.provisional", "value": None})
-        result = mapping.project(candidate, contract)
-        if name == "inhibited_provisional":
-            expected_facts, expected_withheld = ["evse.limit.configured_current"], [{"id": "evse.limit.allocated_current", "reason": reason}]
-        else:
-            expected_facts, expected_withheld = [], [{"id": "evse.limit.configured_current", "reason": reason}, {"id": "evse.limit.allocated_current", "reason": reason}]
-        if [fact["id"] for fact in result["facts"]] != expected_facts or result["withheld"] != expected_withheld:
-            raise AssertionError(name + " did not follow the readback")
-        print(name + ": READBACK")
-    print("baseline: PASS; 21 focused mutations rejected or followed the readback")
+    print("baseline: PASS; readback, operation and rejection cases checked through project()")
+    native_page_cases()
     graph_cases()
+
+
+def native_page_cases():
+    """The staged ND02 page must exist and state the rules the gate cites; an absent page is never a pass."""
+    mapping.check_native_page()
+    original = mapping.NATIVE_PAGE
+    try:
+        mapping.NATIVE_PAGE = ROOT / ".tmp/does-not-exist/gen3-semreg-mapping-v1.md"
+        try:
+            mapping.check_native_page()
+        except ValueError as error:
+            if str(error) != "native_page_missing":
+                raise
+        else:
+            raise AssertionError("missing ND02 page accepted")
+    finally:
+        mapping.NATIVE_PAGE = original
+    print("native-page: PASS")
 
 
 SESSION = {"kind": "resource.charging_session", "anchor_class": "episode", "anchor_basis": "native_slot", "anchor_source": "native_position", "identification_scheme": "none_listed", "parent_kind": "resource.connector", "evidence": ["synthetic:session"]}
@@ -127,7 +215,7 @@ GRAPH_NEGATIVES = [
     ("identity_configured_text", [("set", "identity.asset_id.source", "gateway_configured_semantic_asset_id")], "identity_contract"),
     ("identity_dimension_unpublished", [("set", "identity.connector_id.dimension", "evse.dimension.phase")], "identity_contract"),
     ("identity_address_allowed", [("delete", "identity.forbidden_derivations.5", None)], "identity_contract"),
-    ("field_rule_subject_kind", [("set", "field_rules.1.subject_kind", "resource.evse")], "field_rules"),
+    ("field_rule_subject_kind", [("set", "field_rules.2.subject_kind", "resource.evse")], "field_rules"),
     ("field_rule_measurement_point", [("set", "field_rules.0.measurement_point", "")], "field_rules"),
     ("field_rule_dimension", [("set", "field_rules.0.dimension", "connector")], "field_rules"),
 ]

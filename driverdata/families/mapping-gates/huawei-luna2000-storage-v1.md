@@ -70,7 +70,7 @@ because no read path states how many packs a battery holds.
 
 ## Identity and keying
 
-Identity follows sections 6.3 and 15 of the [graph contract](../graph.md), the
+Identity follows sections 6.3 and 15 of the [graph contract](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/v1/graph.md), the
 rule the PV gate of the same hybrid inverter family follows. The gateway
 allocates every identifier; this gate states what each one names and what never
 derives it.
@@ -175,7 +175,7 @@ relation is unknown, not absent. These Storage relations stay unknown here.
 
 Under EN-1 each prospective row names its subject kind and its measurement
 point. The subject kind and the dimension are looked up in the
-[element catalog](../element-catalog-v1.json), not repeated by the validator,
+[element catalog](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/v1/element-catalog-v1.json), not repeated by the validator,
 and the measurement points are a Hypothesis of this gate.
 
 | Native item | Storage fact | Subject kind | Measurement point |
@@ -232,7 +232,7 @@ These rows are not in force. They record only where a fact will land if the
 preconditions above are met, so that a later profile does not need a new family.
 Each target and unit is checked against the Storage pack's contract tables, and
 each dimension against the element catalog. Each quantity row names the SI unit of its pack field under the
-[unit rule](../../README.md#unit-rule) and the exact factor and offset of its
+[unit rule](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/README.md#unit-rule) and the exact factor and offset of its
 conversion, so that the SI value is the native value times the factor plus the
 offset. Percent is published as a ratio from 0 to 1 by the exact factor 0.01,
 kilowatt as watt by the factor 1000, and kilowatt-hour as joule by the exact

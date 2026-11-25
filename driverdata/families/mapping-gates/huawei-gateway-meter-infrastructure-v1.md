@@ -11,7 +11,7 @@ are synthetic and are not observations from hardware.
 Every meter value is Unknown today. The sibling gates are
 [the SUN2000 PV gate](huawei-sun2000-pv-v1.md) and
 [the LUNA2000 storage gate](huawei-luna2000-storage-v1.md). The existing
-[gateway-local runtime assessment](../../../mappings/infrastructure/gateway-runtime.md)
+[gateway-local runtime assessment](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/mappings/infrastructure/gateway-runtime.md)
 still applies: a driver connection, runtime readiness or acquisition failure is
 not an electrical connection, readiness or fault, and this gate maps none of them.
 
@@ -68,12 +68,12 @@ a declared role has role Unknown, and a fact that depends on the role is not
 published without a declaration. The vectors `MTR-NEG-007-role-derived-from-sign`
 and `MTR-NEG-008-role-outside-set` pin these rules.
 
-Under EN-8 of the [graph contract](../graph.md), a meter's role is an instance
+Under EN-8 of the [graph contract](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/v1/graph.md), a meter's role is an instance
 of a `measures` relation definition between the meter and the resource it
 measures. The grid connection's home asset holds it, and its basis class is
 `configuration` because the native meter contract states that the role is
 configuration. The role never changes a fact definition. The validator takes
-each role's relation from the [element catalog](../element-catalog-v1.json): it
+each role's relation from the [element catalog](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/v1/element-catalog-v1.json): it
 is the catalog's `measures` definition between the measured resource and the
 meter, and it is unknown when the catalog has none. A stated role relation
 needs its instance in the gate's graph. A role relation with a
@@ -109,7 +109,7 @@ endpoint instance. Nothing is published today.
 
 ## Resources
 
-This is section 15 item 1 of the [graph contract](../graph.md). The element
+This is section 15 item 1 of the [graph contract](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/v1/graph.md). The element
 catalog lists no identification scheme for this family, so every resource below
 is anchored by an operator label. An address, a routed unit, a credential, a
 gateway path or a profile identifier is never an anchor source. The routed unit
@@ -231,7 +231,7 @@ These rows are not in force. They record only where a fact will land if the
 preconditions above are met and the role is `grid_connection` where the pack puts
 the fact on the grid connection. Each target, dimension and unit is checked
 against the Infrastructure pack catalog. Each row names the SI unit of its pack
-field under the [unit rule](../../README.md#unit-rule) and the exact factor and
+field under the [unit rule](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/api/README.md#unit-rule) and the exact factor and
 offset of its conversion, so that the SI value is the native value times the
 factor plus the offset. Kilowatt at gain 1000 is published as watt by the factor
 1000 and kilowatt-hour as joule by the exact factor 3600000. Every conversion
