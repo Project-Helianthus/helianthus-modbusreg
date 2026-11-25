@@ -93,12 +93,13 @@ during the transmitted prerequisite t27 or t25, or expiry while awaiting
 confirmation after t26, is reported as `timeout` with possible transmission
 and indeterminate effect.
 
-`ConfigurePersistentCurrent` is a separate native call; it accepts only signed
-current, a caller operation identity, and a deadline. It requires an explicit
-current-only capability, exact schema, a valid settings retention window and
-caller-supplied `PersistentIdentityCapacity`. A matching duplicate returns
-historical disposition rather than sending or promoting freshness. A changed
-intent for an existing identity is rejected. The receipt expires according to
+`ConfigurePersistentCurrent` takes a `PersistentSettingsRequest` with signed
+current, a caller operation identity, and a deadline, and returns a
+`PersistentSettingsResult` that keeps requested and returned current separate.
+It requires an explicit current-only capability, exact schema, a valid settings
+retention window and caller-supplied `PersistentIdentityCapacity`. A matching
+duplicate returns historical disposition rather than sending or promoting
+freshness. A changed intent for an existing identity is rejected. The receipt expires according to
 the caller's window; the identity still occupies capacity so expiry cannot
 turn an old call into a new mutation. Reaching capacity denies new identities
 rather than overwriting the duplicate guard. Restart does not rebind history.

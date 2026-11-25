@@ -10,19 +10,19 @@ import (
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 )
 
-// Gen3PersistentSettingsRequest carries only current on the wire. Identity
+// PersistentSettingsRequest carries only current on the wire. Identity
 // and Deadline bind the local attempt and are never encoded.
-type Gen3PersistentSettingsRequest struct {
+type PersistentSettingsRequest struct {
 	MaxOutputCurrentAmps int32
 	OperationIdentity    string
 	Deadline             time.Time
 }
 
-// Gen3PersistentSettingsResult reports returned settings, not an applied
+// PersistentSettingsResult reports returned settings, not an applied
 // current or an acknowledgement. A duplicate is always historical.
-type Gen3PersistentSettingsResult struct {
+type PersistentSettingsResult struct {
 	Deadline                                                  time.Time
-	Requested                                                 Gen3PersistentSettingsRequest
+	Requested                                                 PersistentSettingsRequest
 	ReturnedMaxOutputCurrentAmps                              int32
 	HasReturnedCurrent                                        bool
 	Outcome                                                   Gen3ReadEvidenceState
@@ -33,8 +33,8 @@ type Gen3PersistentSettingsResult struct {
 }
 
 type teslaPersistentAttempt struct {
-	input    Gen3PersistentSettingsRequest
-	result   Gen3PersistentSettingsResult
+	input    PersistentSettingsRequest
+	result   PersistentSettingsResult
 	finished time.Time
 }
 
@@ -64,16 +64,16 @@ func decodeTeslaPersistentSettingsBody(body []byte) (int32, bool, error) {
 	return int32(value.varint), true, nil
 }
 
-func (result Gen3PersistentSettingsResult) reject(err error) (Gen3PersistentSettingsResult, error) {
+func (result PersistentSettingsResult) reject(err error) (PersistentSettingsResult, error) {
 	result.Outcome, result.NoSend, result.Reason = Gen3ReadEvidenceRejected, true, err.Error()
 	return result, err
 }
 
 // ConfigurePersistentCurrent sends a current-only t7 once and retains the
 // correlated t8, using the same reservation as polling and provisional limits.
-func (acquisition *Gen3ReadAcquisition) ConfigurePersistentCurrent(parent context.Context, input Gen3PersistentSettingsRequest) (Gen3PersistentSettingsResult, error) {
-	result := Gen3PersistentSettingsResult{Requested: input, Comparison: CurrentLimitUnknown}
-	noSend := func(reason string) (Gen3PersistentSettingsResult, error) {
+func (acquisition *Gen3ReadAcquisition) ConfigurePersistentCurrent(parent context.Context, input PersistentSettingsRequest) (PersistentSettingsResult, error) {
+	result := PersistentSettingsResult{Requested: input, Comparison: CurrentLimitUnknown}
+	noSend := func(reason string) (PersistentSettingsResult, error) {
 		return result.reject(fmt.Errorf("%w: %s", modbusreg.ErrQualifiedFunctionNoSend, reason))
 	}
 	if parent == nil || !modbusreg.ValidIdentity(input.OperationIdentity) {
@@ -145,7 +145,7 @@ func (acquisition *Gen3ReadAcquisition) ConfigurePersistentCurrent(parent contex
 func (acquisition *Gen3ReadAcquisition) expirePersistentReceipts(now time.Time, retention time.Duration) {
 	for id, attempt := range acquisition.persistentAttempts {
 		if !attempt.result.Duplicate && now.Sub(attempt.finished) > retention {
-			attempt.result = Gen3PersistentSettingsResult{Outcome: attempt.result.Outcome, Duplicate: true}
+			attempt.result = PersistentSettingsResult{Outcome: attempt.result.Outcome, Duplicate: true}
 			acquisition.persistentAttempts[id] = attempt
 		}
 	}

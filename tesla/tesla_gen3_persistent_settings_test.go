@@ -26,9 +26,10 @@ func teslaPersistentHarness(t *testing.T, mutate func(*Gen3HSCProfileConfig)) *t
 func TestTeslaPersistentSettingsRetainsOriginalReceipt(t *testing.T) {
 	h := teslaPersistentHarness(t, nil)
 	ctx := context.Background()
-	input := Gen3PersistentSettingsRequest{MaxOutputCurrentAmps: 16, OperationIdentity: "persistent-a", Deadline: time.Now().Add(time.Second)}
+	input := PersistentSettingsRequest{MaxOutputCurrentAmps: 16, OperationIdentity: "persistent-a", Deadline: time.Now().Add(time.Second)}
 	returned := []byte{0x0a, 0x04, 0x08, 0x0c, 0x68, 0x01}
 	teslaPushTerminal(t, h, FC100OperationWCConfigureSettings, returned)
+	var result PersistentSettingsResult
 	result, err := h.acquisition.ConfigurePersistentCurrent(ctx, input)
 	if err != nil || result.Outcome != Gen3ReadEvidenceAck || result.Comparison != CurrentLimitMismatch || result.Requested != input || result.ReturnedMaxOutputCurrentAmps != 12 || !result.HasReturnedCurrent || !result.Current || !result.Executed || result.Duplicate {
 		t.Fatalf("result=%+v, err=%v", result, err)
@@ -40,9 +41,9 @@ func TestTeslaPersistentSettingsRetainsOriginalReceipt(t *testing.T) {
 	}
 	mutated := receipt.ResponseADUs()
 	mutated[0][2] ^= 1
-	for _, change := range []func(*Gen3PersistentSettingsRequest){
-		func(r *Gen3PersistentSettingsRequest) { r.MaxOutputCurrentAmps++ },
-		func(r *Gen3PersistentSettingsRequest) { r.Deadline = r.Deadline.Add(time.Millisecond) },
+	for _, change := range []func(*PersistentSettingsRequest){
+		func(r *PersistentSettingsRequest) { r.MaxOutputCurrentAmps++ },
+		func(r *PersistentSettingsRequest) { r.Deadline = r.Deadline.Add(time.Millisecond) },
 	} {
 		other := input
 		change(&other)
@@ -87,7 +88,7 @@ func TestTeslaPersistentSettingsDeniesUnqualifiedOrExpired(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := teslaPersistentHarness(t, tc.mutate)
 			ctx := context.Background()
-			result, err := h.acquisition.ConfigurePersistentCurrent(ctx, Gen3PersistentSettingsRequest{16, "persistent", time.Now().Add(tc.deadline)})
+			result, err := h.acquisition.ConfigurePersistentCurrent(ctx, PersistentSettingsRequest{16, "persistent", time.Now().Add(tc.deadline)})
 			if err == nil || !result.NoSend || h.endpoint().exchanges() != 0 {
 				t.Fatalf("result=%+v, %v", result, err)
 			}
@@ -99,7 +100,7 @@ func TestTeslaPersistentSettingsDeadlineAndReservation(t *testing.T) {
 	h := teslaPersistentHarness(t, nil)
 	ctx := context.Background()
 	started, release := make(chan struct{}), make(chan struct{})
-	input := Gen3PersistentSettingsRequest{16, "persistent", time.Now().Add(time.Second)}
+	input := PersistentSettingsRequest{16, "persistent", time.Now().Add(time.Second)}
 	h.endpoint().push(teslaGen3FakeStep{started: started, release: release, terminal: teslaGen3ReadTerminal(t, FC100OperationWCGetVitals, nil)})
 	done := make(chan error, 1)
 	go func() { _, err := h.acquisition.Acquire(ctx, FC100OperationWCGetVitals); done <- err }()
@@ -127,7 +128,7 @@ func TestTeslaPersistentSettingsDeadlineAndReservation(t *testing.T) {
 func TestTeslaPersistentSettingsLateReceiptDoesNotComplete(t *testing.T) {
 	h := teslaPersistentHarness(t, nil)
 	ctx := context.Background()
-	input := Gen3PersistentSettingsRequest{16, "late-settings", time.Now().Add(40 * time.Millisecond)}
+	input := PersistentSettingsRequest{16, "late-settings", time.Now().Add(40 * time.Millisecond)}
 	terminal := teslaGen3ReadTerminal(t, FC100OperationWCConfigureSettings, EncodeTeslaPersistentSettingsBody(16))
 	h.endpoint().push(teslaGen3FakeStep{release: make(chan struct{}), terminal: terminal})
 	result, err := h.acquisition.ConfigurePersistentCurrent(ctx, input)
