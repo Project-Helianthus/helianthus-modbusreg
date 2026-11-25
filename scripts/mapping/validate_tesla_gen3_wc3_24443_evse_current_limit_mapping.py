@@ -81,8 +81,8 @@ RECORD_ELIGIBILITY = {
     "records": ["persistent_t8", "provisional_t28"],
     "eligible_when": "lifecycle_epoch_generation_semantic_revision_and_required_evidence_present_and_equal_to_the_case",
     "binding": list(BINDING_KEYS),
-    "ineligible": "reported_with_its_reason_and_no_other_effect_except_the_raw_native_timeout_of_a_readback_with_valid_evidence",
-    "reads_only_eligible": ["selection", "suppression", "evidence_gate", "configured_current", "allocated_current", "expiry"],
+    "ineligible": "reported_with_its_reason_in_admitted_cases;_persistent_classified_evidence_missing_or_evidence_invalid_rejects;_raw_native_timeout_retained_for_readback_binding_failures_with_valid_evidence",
+    "reads_only_eligible": ["selection", "suppression", "evidence_gate_satisfaction", "configured_current", "allocated_current", "expiry"],
 }
 EVIDENCE_MEMBERS = ("immutable_evidence_id", "payload_digest", "receipt_timestamp")
 # Each relation the gate leaves unstated names the native statement that is missing.
@@ -331,7 +331,7 @@ def evidence_reason(kind, evidence):
 def eligibility(case, kind):
     """The one eligibility decision: None when the record of this kind is eligible, RECORD_ABSENT when the case has none, else the reason it is not.
     A record is eligible only when its lifecycle, source epoch, driver generation, semantic revision and required evidence are present and equal to the case's own.
-    Selection, suppression, the evidence gate and every derived value read only eligible records."""
+    Only eligible records can be selected, suppress another record, satisfy the evidence gate or contribute a derived value."""
     if kind not in case or (kind == "provisional" and not isinstance(case[kind], dict)):
         return RECORD_ABSENT
     evidence = case["evidence"].get(kind) if isinstance(case.get("evidence"), dict) else None
@@ -385,7 +385,6 @@ def case_errors(case, contract):
     values = [identity.get(k) for k in IDENTITY_KEYS if k in identity or k not in OPTIONAL_IDENTITY_KEYS]
     if not all(valid_id(v) for v in values) or len(set(values)) != len(values): errors.add(ERRORS[1])
     if case.get("source_path") != contract["projection"]["source_path"]: errors.add(ERRORS[2])
-    evidence = case.get("evidence", {})
     if not case_evidence_valid(case): errors.add(ERRORS[3])
     if not lifecycle_valid(case.get("lifecycle", {})): errors.add(ERRORS[4])
     if "managed_set" in case and not managed_set_valid(case["managed_set"]): errors.add(ERRORS[3])
@@ -394,8 +393,8 @@ def case_errors(case, contract):
 
 
 def case_evidence_valid(case):
-    """The evidence gate is satisfied only by an eligible record. A persistent record that names the case lifecycle and leaves out or malforms a member or reference of its evidence is a corrupt case and is rejected; any other ineligible record only fails to satisfy the gate."""
-    if eligibility(case, "persistent") in ("evidence_invalid", "evidence_missing") and isinstance(case["evidence"].get("persistent"), dict):
+    """Only eligible records satisfy the gate; a present persistent record classified as missing or invalid evidence rejects the case."""
+    if eligibility(case, "persistent") in ("evidence_invalid", "evidence_missing"):
         return False
     return any(eligibility(case, kind) is None for kind in RECORD_KINDS)
 

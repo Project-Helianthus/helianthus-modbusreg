@@ -248,11 +248,11 @@
         "lifecycle_generation",
         "semantic_revision"
       ],
-      "ineligible": "reported_with_its_reason_and_no_other_effect_except_the_raw_native_timeout_of_a_readback_with_valid_evidence",
+      "ineligible": "reported_with_its_reason_in_admitted_cases;_persistent_classified_evidence_missing_or_evidence_invalid_rejects;_raw_native_timeout_retained_for_readback_binding_failures_with_valid_evidence",
       "reads_only_eligible": [
         "selection",
         "suppression",
-        "evidence_gate",
+        "evidence_gate_satisfaction",
         "configured_current",
         "allocated_current",
         "expiry"

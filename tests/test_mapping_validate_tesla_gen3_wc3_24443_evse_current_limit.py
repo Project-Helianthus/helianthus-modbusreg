@@ -338,23 +338,39 @@ def unbound_t8_evidence_cases(baseline, contract):
             raise AssertionError("a bound t8 no longer satisfies the evidence gate")
 
 
-def missing_t8_evidence_case(baseline, contract):
-    """A t8 record whose evidence member is absent is ineligible: it is reported, selected nowhere and satisfies no gate; an eligible t28 still supplies its facts, and a t28 of another epoch leaves no eligible record."""
-    missing = copy.deepcopy(baseline)
-    missing["evidence"].pop("persistent")
-    missing["persistent"]["MaxOutputCurrentAmps"] = 7
-    missing["provisional"]["ConfiguredCurrentAmps"] = 32
-    result = mapping.project(missing, contract)
-    if facts_of(result) != [("evse.limit.configured_current", "32"), ("evse.limit.allocated_current", "12")] or result["ineligible"] != [{"record": "persistent", "reason": "evidence_missing"}]:
-        raise AssertionError(f"t8 without evidence: {facts_of(result)} {result['ineligible']}")
-    missing["evidence"]["provisional"]["source_epoch"] = OTHER_BINDING["source_epoch"]
-    try:
-        mapping.project(missing, contract)
-    except ValueError as error:
-        if str(error) != "evidence_binding_invalid":
-            raise AssertionError(f"t8 without evidence and a foreign t28: {error}")
-    else:
-        raise AssertionError("a t8 without its evidence and a foreign t28 satisfied the evidence gate")
+def missing_evidence_envelope_cases(baseline, contract):
+    """Missing or non-object evidence rejects through the declared error precedence."""
+    for op, value in (("delete", None), ("set", None), ("set", [])):
+        for higher_or_lower_error, expected in (
+            ((), "evidence_binding_invalid"),
+            (("profile", "other"), "profile_or_version_invalid"),
+            (("identity", {}), "identity_invalid"),
+            (("source_path", "other"), "source_path_invalid"),
+            (("lifecycle.receipt_timestamp", ""), "evidence_binding_invalid"),
+            (("unsupported_fact", "evse.ac.active_power"), "evidence_binding_invalid"),
+        ):
+            case = copy.deepcopy(baseline)
+            edit(case, op, "evidence", value)
+            if higher_or_lower_error:
+                edit(case, "set", *higher_or_lower_error)
+            label = f"evidence {op} {value!r}, additional error {higher_or_lower_error!r}"
+            try:
+                mapping.project(case, contract)
+            except ValueError as error:
+                if str(error) != expected:
+                    raise AssertionError(f"{label}: expected {expected}, got {error}") from error
+            else:
+                raise AssertionError(f"{label}: accepted")
+
+
+def missing_t8_evidence_case(baseline):
+    """A present t8 without its evidence object rejects even beside an eligible t28."""
+    for op, value in (("delete", None), ("set", None), ("set", [])):
+        case = copy.deepcopy(baseline)
+        edit(case, op, "evidence.persistent", value)
+        expect_gate(case, True, f"persistent evidence {op} {value!r}, same-epoch t28")
+        case["evidence"]["provisional"]["source_epoch"] = OTHER_BINDING["source_epoch"]
+        expect_gate(case, True, f"persistent evidence {op} {value!r}, foreign t28")
 
 
 def epoch_cases(baseline, contract):
@@ -363,7 +379,8 @@ def epoch_cases(baseline, contract):
     newer_t28_cases(baseline, contract)
     foreign_t8_cases(baseline, contract)
     unbound_t8_evidence_cases(baseline, contract)
-    missing_t8_evidence_case(baseline, contract)
+    missing_evidence_envelope_cases(baseline, contract)
+    missing_t8_evidence_case(baseline)
     for key in bound:
         older_other = copy.deepcopy(baseline)
         older_other["evidence"]["persistent"][key] = other[key]
@@ -461,7 +478,7 @@ def eligibility_cell(baseline, contract, kind, name, action, reason):
     label = f"{kind}/{name}"
     case = eligibility_layout(baseline, kind)
     apply_condition(case, kind, action)
-    if kind == "persistent" and name == "evidence_reference_absent":
+    if kind == "persistent" and reason == "evidence_missing":
         expect_gate(case, True, label)
         return
     result = mapping.project(case, contract)
@@ -489,7 +506,7 @@ PERSISTENT_EVIDENCE_KEYS = ("immutable_evidence_id", "payload_digest", "receipt_
 
 
 def bound_persistent_evidence_case(baseline):
-    """Every member and reference of a persistent record bound to the case lifecycle, left out or malformed beside a valid readback, rejects the case; a record whose evidence member is absent only fails to satisfy the gate."""
+    """Every missing or malformed evidence member of a bound t8 rejects the case even beside a valid readback."""
     for key in PERSISTENT_EVIDENCE_KEYS:
         for how in ("left_out", "malformed"):
             case = copy.deepcopy(baseline)
@@ -500,7 +517,7 @@ def bound_persistent_evidence_case(baseline):
             expect_gate(case, True, f"bound persistent {key} {how}")
     absent = copy.deepcopy(baseline)
     absent["evidence"].pop("persistent")
-    expect_gate(absent, False, "persistent evidence member absent")
+    expect_gate(absent, True, "persistent evidence member absent")
     foreign = copy.deepcopy(baseline)
     foreign["evidence"]["persistent"]["source_epoch"] = OTHER_BINDING["source_epoch"]
     foreign["evidence"]["persistent"].pop("persistent_terminal")

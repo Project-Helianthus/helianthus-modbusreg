@@ -51,25 +51,24 @@ One eligibility decision covers every record this gate reads: the persistent
 eligible only when its lifecycle generation, source epoch, driver generation,
 semantic revision and required evidence are all present and equal to the
 case's own. A record that states a different value, or leaves one out, is
-ineligible: it is reported in the `ineligible` member of the projection with
-its reason (`<member>_missing`, `<member>_other`, `evidence_missing` or
-`evidence_invalid`) and has no other effect, except that the raw native timeout
-of a readback with valid evidence stays served, as stated below. Selection, suppression, the
-evidence gate and every derived value (the configured current, the allocated
-current and the expiry) read only eligible records.
+ineligible. If the case is admitted, the record is reported in the `ineligible`
+member of the projection with its reason (`<member>_missing`, `<member>_other`,
+`evidence_missing` or `evidence_invalid`). Only eligible records can be selected,
+suppress another record, satisfy the evidence gate or contribute to a derived
+value (the configured current, the allocated current or the expiry).
 
 - The later receipt wins among eligible configured-current candidates only, that
   is among those of the same source epoch, driver generation, lifecycle
   generation and semantic revision as the case. With none left the configured current is withheld as `configured_current_absent`.
 - An ineligible record does not satisfy the evidence gate; the case needs at
   least one eligible record, otherwise it is rejected with
-  `evidence_binding_invalid`. An ineligible record never invalidates the
-  eligible one: a malformed value on an ineligible persistent record does not
-  veto the case, and a persistent record whose evidence member is absent is
-  reported as `evidence_missing`. A persistent record that names the case
-  lifecycle and leaves out or malforms a member or reference of its evidence,
-  the request and terminal references included, is a corrupt case and is
-  rejected with `evidence_binding_invalid`, whatever the readback carries.
+  `evidence_binding_invalid`. A missing or non-object evidence envelope receives
+  that rejection in the declared error order. A present persistent record with
+  missing or non-object evidence also rejects the case, even with an eligible
+  readback. The same applies if persistent evidence matches the case lifecycle
+  but a required member or reference is missing or invalid, including the
+  request and terminal references. A persistent record excluded by its lifecycle
+  binding is not selected and does not veto an eligible readback.
 - An ineligible readback yields no allocated current, no configured-current
   candidate and no expiry; the allocated current is withheld as
   `provisional_evidence_invalid`. A readback whose evidence is valid but names
