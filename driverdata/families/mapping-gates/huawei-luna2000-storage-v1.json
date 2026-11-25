@@ -402,7 +402,7 @@
     },
     "storage.reason.zero_word_is_not_a_battery_value": {
       "loss_kind": "provenance",
-      "description": "a zero word at a battery offset is never a state of charge, power or energy of zero, and battery presence is never decided from it",
+      "description": "a zero word in a battery group, in a battery power or lifetime counter field or in the rated storage capacity word is never a value of zero, and battery presence is never decided from it; a state of charge word of zero is a value",
       "reversible": true
     },
     "storage.reason.battery_group_exception_no_negation": {
@@ -412,7 +412,7 @@
     },
     "storage.reason.period_counter_time_domain_not_represented": {
       "loss_kind": "time",
-      "description": "the pack's energy counters are lifetime counters; the period boundary and time domain of a day counter are Unknown",
+      "description": "the pack's energy counters are lifetime counters and the period boundary and time domain of a day counter are Unknown, so a day counter is served in the modbusreg namespace and is never published as a lifetime fact",
       "reversible": false
     },
     "storage.reason.group_native_only_no_catalog_row": {
@@ -427,7 +427,7 @@
     },
     "storage.reason.sign_not_graded": {
       "loss_kind": "provenance",
-      "description": "the site power group states no sign for the battery power, so no value is published with an assumed sign",
+      "description": "the monitoring contract's site power row states no sign for the battery power at offset 30360, so no value is published with an assumed sign",
       "reversible": true
     },
     "storage.reason.value_outside_pack_range": {
@@ -557,9 +557,11 @@
       },
       "read": {
         "offset": 30368,
-        "quantity": 1
+        "quantity": 1,
+        "unit": 0
       },
-      "word": 0
+      "word": 0,
+      "zero_word": "value"
     },
     {
       "native_id": "site_battery_power",
@@ -604,7 +606,8 @@
       },
       "read": {
         "offset": 30354,
-        "quantity": 12
+        "quantity": 12,
+        "unit": 0
       },
       "word": 6
     },
@@ -654,9 +657,11 @@
       },
       "read": {
         "offset": 37498,
-        "quantity": 8
+        "quantity": 8,
+        "unit": 100
       },
-      "word": 6
+      "word": 6,
+      "zero_word": "withheld"
     },
     {
       "native_id": "site_battery_energy_charged_total",
@@ -704,9 +709,11 @@
       },
       "read": {
         "offset": 30306,
-        "quantity": 46
+        "quantity": 46,
+        "unit": 0
       },
-      "word": 2
+      "word": 2,
+      "zero_word": "withheld"
     },
     {
       "native_id": "site_battery_energy_discharged_total",
@@ -754,9 +761,11 @@
       },
       "read": {
         "offset": 30306,
-        "quantity": 46
+        "quantity": 46,
+        "unit": 0
       },
-      "word": 8
+      "word": 8,
+      "zero_word": "withheld"
     },
     {
       "native_id": "site_battery_energy_charged_day",
@@ -768,12 +777,13 @@
       },
       "grade": "hypothesis",
       "disposition": {
-        "outcome": "withheld",
+        "outcome": "native_only",
         "reason": "storage.reason.period_counter_time_domain_not_represented"
       },
       "read": {
         "offset": 30306,
-        "quantity": 46
+        "quantity": 46,
+        "unit": 0
       },
       "word": 0
     },
@@ -787,12 +797,13 @@
       },
       "grade": "hypothesis",
       "disposition": {
-        "outcome": "withheld",
+        "outcome": "native_only",
         "reason": "storage.reason.period_counter_time_domain_not_represented"
       },
       "read": {
         "offset": 30306,
-        "quantity": 46
+        "quantity": 46,
+        "unit": 0
       },
       "word": 6
     },
@@ -839,9 +850,11 @@
       },
       "read": {
         "offset": 30322,
-        "quantity": 2
+        "quantity": 2,
+        "unit": 0
       },
-      "word": 0
+      "word": 0,
+      "zero_word": "withheld"
     }
   ],
   "capacity": {
@@ -1159,12 +1172,12 @@
             {
               "native_id": "site_battery_energy_charged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_rated_storage_capacity",
@@ -1189,6 +1202,7 @@
             {
               "offset": 30368,
               "quantity": 1,
+              "unit": 0,
               "outcome": "ANSWERED",
               "words": [
                 7550
@@ -1316,12 +1330,12 @@
             {
               "native_id": "site_battery_energy_charged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_rated_storage_capacity",
@@ -1346,6 +1360,7 @@
             {
               "offset": 37498,
               "quantity": 8,
+              "unit": 100,
               "outcome": "ANSWERED",
               "words": [
                 0,
@@ -1481,12 +1496,12 @@
             {
               "native_id": "site_battery_energy_charged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_rated_storage_capacity",
@@ -1511,6 +1526,7 @@
             {
               "offset": 37498,
               "quantity": 8,
+              "unit": 100,
               "outcome": "ANSWERED",
               "words": [
                 0,
@@ -1646,12 +1662,12 @@
             {
               "native_id": "site_battery_energy_charged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_rated_storage_capacity",
@@ -1676,6 +1692,7 @@
             {
               "offset": 30306,
               "quantity": 46,
+              "unit": 0,
               "outcome": "ANSWERED",
               "words": [
                 0,
@@ -1859,12 +1876,12 @@
             },
             {
               "native_id": "site_battery_energy_charged_day",
-              "outcome": "withheld",
+              "outcome": "native_only",
               "reason": "storage.reason.period_counter_time_domain_not_represented"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
-              "outcome": "withheld",
+              "outcome": "native_only",
               "reason": "storage.reason.period_counter_time_domain_not_represented"
             },
             {
@@ -1873,7 +1890,40 @@
               "reason": "storage.reason.battery_group_not_read"
             }
           ],
-          "native": [],
+          "native": [
+            {
+              "namespace": "modbusreg",
+              "native_id": "site_battery_energy_charged_day",
+              "unit": 0,
+              "offset": 30306,
+              "quantity": 2,
+              "words": [
+                0,
+                321
+              ],
+              "native": {
+                "type": "U32",
+                "gain": 100,
+                "unit": "kWh"
+              }
+            },
+            {
+              "namespace": "modbusreg",
+              "native_id": "site_battery_energy_discharged_day",
+              "unit": 0,
+              "offset": 30312,
+              "quantity": 2,
+              "words": [
+                0,
+                111
+              ],
+              "native": {
+                "type": "U32",
+                "gain": 100,
+                "unit": "kWh"
+              }
+            }
+          ],
           "operations": []
         }
       }
@@ -1890,6 +1940,7 @@
             {
               "offset": 30354,
               "quantity": 12,
+              "unit": 0,
               "outcome": "ANSWERED",
               "words": [
                 0,
@@ -2017,12 +2068,12 @@
             {
               "native_id": "site_battery_energy_charged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_rated_storage_capacity",
@@ -2054,14 +2105,6 @@
             },
             {
               "offset": 47000,
-              "quantity": 1,
-              "outcome": "ANSWERED",
-              "words": [
-                0
-              ]
-            },
-            {
-              "offset": 30368,
               "quantity": 1,
               "outcome": "ANSWERED",
               "words": [
@@ -2115,7 +2158,7 @@
               "item_id": "storage.state.soc",
               "outcome": "withheld",
               "published": 0,
-              "reason": "storage.reason.zero_word_is_not_a_battery_value",
+              "reason": "storage.reason.battery_group_not_read",
               "loss": [
                 "provenance"
               ]
@@ -2154,7 +2197,7 @@
             {
               "native_id": "site_battery_soc",
               "outcome": "withheld",
-              "reason": "storage.reason.zero_word_is_not_a_battery_value"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_power",
@@ -2179,12 +2222,12 @@
             {
               "native_id": "site_battery_energy_charged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_rated_storage_capacity",
@@ -2373,12 +2416,12 @@
             {
               "native_id": "site_battery_energy_charged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_rated_storage_capacity",
@@ -2469,6 +2512,7 @@
             {
               "offset": 30368,
               "quantity": 1,
+              "unit": 0,
               "outcome": "EXCEPTION",
               "exception_code": 2
             },
@@ -2588,12 +2632,12 @@
             {
               "native_id": "site_battery_energy_charged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_rated_storage_capacity",
@@ -2622,6 +2666,7 @@
             {
               "offset": 30368,
               "quantity": 1,
+              "unit": 0,
               "outcome": "ANSWERED",
               "words": [
                 7550
@@ -2738,12 +2783,12 @@
             {
               "native_id": "site_battery_energy_charged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_rated_storage_capacity",
@@ -2768,6 +2813,7 @@
             {
               "offset": 30368,
               "quantity": 1,
+              "unit": 0,
               "outcome": "ANSWERED",
               "words": [
                 10100
@@ -2884,12 +2930,12 @@
             {
               "native_id": "site_battery_energy_charged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_rated_storage_capacity",
@@ -2914,6 +2960,7 @@
             {
               "offset": 30322,
               "quantity": 2,
+              "unit": 0,
               "outcome": "ANSWERED",
               "words": [
                 0,
@@ -3042,12 +3089,12 @@
             {
               "native_id": "site_battery_energy_charged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_rated_storage_capacity",
@@ -3079,6 +3126,7 @@
             {
               "offset": 30368,
               "quantity": 1,
+              "unit": 0,
               "outcome": "ANSWERED",
               "words": [
                 7550
@@ -3195,12 +3243,12 @@
             {
               "native_id": "site_battery_energy_charged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_battery_energy_discharged_day",
               "outcome": "withheld",
-              "reason": "storage.reason.period_counter_time_domain_not_represented"
+              "reason": "storage.reason.battery_group_not_read"
             },
             {
               "native_id": "site_rated_storage_capacity",
@@ -3209,6 +3257,540 @@
             }
           ],
           "native": [],
+          "operations": []
+        }
+      }
+    },
+    {
+      "id": "STG-POS-014-site-state-of-charge-zero",
+      "baseline": "default",
+      "polarity": "positive",
+      "mutations": [
+        {
+          "path": "reads",
+          "value": [
+            {
+              "offset": 30368,
+              "quantity": 1,
+              "unit": 0,
+              "outcome": "ANSWERED",
+              "words": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "summary": {
+          "facts": [
+            {
+              "item_id": "storage.state.soc",
+              "number": {
+                "coefficient": "0",
+                "exponent10": 0
+              },
+              "unit": "unit.ratio",
+              "native_id": "site_battery_soc",
+              "aggregation_basis": "site_group"
+            }
+          ],
+          "dispositions": [
+            {
+              "item_id": "storage.energy.charged",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.battery_group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.energy.discharged",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.battery_group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.energy.nominal_capacity",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.battery_group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.pack.power",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.battery_group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.state.soc",
+              "outcome": "transformed",
+              "published": 1,
+              "reason": null,
+              "loss": [
+                "unit"
+              ]
+            },
+            {
+              "item_id": "storage.status.operating",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.status_symbols_not_stated",
+              "loss": [
+                "symbol"
+              ]
+            }
+          ],
+          "native_dispositions": [
+            {
+              "native_id": "battery_group_37000_30",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "battery_single_read_37000_1",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "battery_group_37066_4",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "battery_group_47000_1",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_soc",
+              "outcome": "transformed",
+              "target": "storage.state.soc"
+            },
+            {
+              "native_id": "site_battery_power",
+              "outcome": "withheld",
+              "reason": "storage.reason.sign_not_graded"
+            },
+            {
+              "native_id": "plant_battery_power",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_energy_charged_total",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_energy_discharged_total",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_energy_charged_day",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_energy_discharged_day",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_rated_storage_capacity",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            }
+          ],
+          "native": [],
+          "operations": []
+        }
+      }
+    },
+    {
+      "id": "STG-POS-015-plant-read-with-zero-battery-power",
+      "baseline": "default",
+      "polarity": "positive",
+      "mutations": [
+        {
+          "path": "reads",
+          "value": [
+            {
+              "offset": 37498,
+              "quantity": 8,
+              "unit": 100,
+              "outcome": "ANSWERED",
+              "words": [
+                0,
+                1200,
+                0,
+                800,
+                0,
+                300,
+                0,
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "summary": {
+          "facts": [],
+          "dispositions": [
+            {
+              "item_id": "storage.energy.charged",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.battery_group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.energy.discharged",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.battery_group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.energy.nominal_capacity",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.battery_group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.pack.power",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.zero_word_is_not_a_battery_value",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.state.soc",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.battery_group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.status.operating",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.status_symbols_not_stated",
+              "loss": [
+                "symbol"
+              ]
+            }
+          ],
+          "native_dispositions": [
+            {
+              "native_id": "battery_group_37000_30",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "battery_single_read_37000_1",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "battery_group_37066_4",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "battery_group_47000_1",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_soc",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_power",
+              "outcome": "withheld",
+              "reason": "storage.reason.sign_not_graded"
+            },
+            {
+              "native_id": "plant_battery_power",
+              "outcome": "withheld",
+              "reason": "storage.reason.zero_word_is_not_a_battery_value"
+            },
+            {
+              "native_id": "site_battery_energy_charged_total",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_energy_discharged_total",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_energy_charged_day",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_energy_discharged_day",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_rated_storage_capacity",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            }
+          ],
+          "native": [],
+          "operations": []
+        }
+      }
+    },
+    {
+      "id": "STG-POS-016-site-day-counters-served-natively",
+      "baseline": "default",
+      "polarity": "positive",
+      "mutations": [
+        {
+          "path": "reads",
+          "value": [
+            {
+              "offset": 30306,
+              "quantity": 46,
+              "unit": 0,
+              "outcome": "ANSWERED",
+              "words": [
+                0,
+                321,
+                0,
+                0,
+                0,
+                0,
+                0,
+                111,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "summary": {
+          "facts": [],
+          "dispositions": [
+            {
+              "item_id": "storage.energy.charged",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.zero_word_is_not_a_battery_value",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.energy.discharged",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.zero_word_is_not_a_battery_value",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.energy.nominal_capacity",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.battery_group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.pack.power",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.battery_group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.state.soc",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.battery_group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "storage.status.operating",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "storage.reason.status_symbols_not_stated",
+              "loss": [
+                "symbol"
+              ]
+            }
+          ],
+          "native_dispositions": [
+            {
+              "native_id": "battery_group_37000_30",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "battery_single_read_37000_1",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "battery_group_37066_4",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "battery_group_47000_1",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_soc",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_power",
+              "outcome": "withheld",
+              "reason": "storage.reason.sign_not_graded"
+            },
+            {
+              "native_id": "plant_battery_power",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            },
+            {
+              "native_id": "site_battery_energy_charged_total",
+              "outcome": "withheld",
+              "reason": "storage.reason.zero_word_is_not_a_battery_value"
+            },
+            {
+              "native_id": "site_battery_energy_discharged_total",
+              "outcome": "withheld",
+              "reason": "storage.reason.zero_word_is_not_a_battery_value"
+            },
+            {
+              "native_id": "site_battery_energy_charged_day",
+              "outcome": "native_only",
+              "reason": "storage.reason.period_counter_time_domain_not_represented"
+            },
+            {
+              "native_id": "site_battery_energy_discharged_day",
+              "outcome": "native_only",
+              "reason": "storage.reason.period_counter_time_domain_not_represented"
+            },
+            {
+              "native_id": "site_rated_storage_capacity",
+              "outcome": "withheld",
+              "reason": "storage.reason.battery_group_not_read"
+            }
+          ],
+          "native": [
+            {
+              "namespace": "modbusreg",
+              "native_id": "site_battery_energy_charged_day",
+              "unit": 0,
+              "offset": 30306,
+              "quantity": 2,
+              "words": [
+                0,
+                321
+              ],
+              "native": {
+                "type": "U32",
+                "gain": 100,
+                "unit": "kWh"
+              }
+            },
+            {
+              "namespace": "modbusreg",
+              "native_id": "site_battery_energy_discharged_day",
+              "unit": 0,
+              "offset": 30312,
+              "quantity": 2,
+              "words": [
+                0,
+                111
+              ],
+              "native": {
+                "type": "U32",
+                "gain": 100,
+                "unit": "kWh"
+              }
+            }
+          ],
           "operations": []
         }
       }
@@ -3389,6 +3971,84 @@
         {
           "path": "identity.asset_id",
           "value": ""
+        }
+      ],
+      "expect": {
+        "error": "native_evidence_invalid"
+      }
+    },
+    {
+      "id": "STG-NEG-012-site-state-of-charge-at-the-plant-route",
+      "baseline": "default",
+      "polarity": "negative",
+      "mutations": [
+        {
+          "path": "reads",
+          "value": [
+            {
+              "offset": 30368,
+              "quantity": 1,
+              "unit": 100,
+              "outcome": "ANSWERED",
+              "words": [
+                7550
+              ]
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "error": "native_evidence_invalid"
+      }
+    },
+    {
+      "id": "STG-NEG-013-plant-power-at-the-site-route",
+      "baseline": "default",
+      "polarity": "negative",
+      "mutations": [
+        {
+          "path": "reads",
+          "value": [
+            {
+              "offset": 37498,
+              "quantity": 8,
+              "unit": 0,
+              "outcome": "ANSWERED",
+              "words": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                2500
+              ]
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "error": "native_evidence_invalid"
+      }
+    },
+    {
+      "id": "STG-NEG-014-routed-read-without-its-unit",
+      "baseline": "default",
+      "polarity": "negative",
+      "mutations": [
+        {
+          "path": "reads",
+          "value": [
+            {
+              "offset": 30368,
+              "quantity": 1,
+              "outcome": "ANSWERED",
+              "words": [
+                7550
+              ]
+            }
+          ]
         }
       ],
       "expect": {

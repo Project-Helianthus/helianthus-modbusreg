@@ -222,12 +222,12 @@ def test_withheld_items_keep_their_reason_whatever_is_read():
     assert rows["site_battery_soc"] == "storage.reason.battery_group_not_read"
     assert rows["site_battery_power"] == "storage.reason.sign_not_graded"
     assert rows["site_rated_storage_capacity"] == "storage.reason.battery_group_not_read"
-    assert rows["site_battery_energy_charged_day"] == "storage.reason.period_counter_time_domain_not_represented"
+    assert rows["site_battery_energy_charged_day"] == "storage.reason.battery_group_not_read"
 
 
 @parametrize("read", [
     {"offset": 30369, "quantity": 1, "outcome": "ANSWERED", "words": [7550]},
-    {"offset": 30368, "quantity": 2, "outcome": "ANSWERED", "words": [7550, 0]},
+    {"offset": 30368, "quantity": 2, "unit": 0, "outcome": "ANSWERED", "words": [7550, 0]},
     {"offset": 37000, "quantity": 29, "outcome": "ANSWERED", "words": [0] * 29},
     {"offset": 37066, "quantity": 4, "outcome": "ANSWERED", "words": [1, 2]},
     {"offset": 37066, "quantity": 4, "outcome": "ANSWERED", "words": [1, 2, 3, 70000]},
@@ -288,7 +288,7 @@ def words_at(length, index, values):
 
 
 def test_a_documented_state_of_charge_publishes_a_ratio_on_its_pack():
-    facts = published(with_reads({"offset": 30368, "quantity": 1, "outcome": "ANSWERED", "words": [7550]}))
+    facts = published(with_reads({"offset": 30368, "quantity": 1, "unit": 0, "outcome": "ANSWERED", "words": [7550]}))
     fact = facts["site_battery_soc"]
     assert fact["item_id"] == "storage.state.soc" and fact["value"]["unit"] == "unit.ratio"
     assert value_of(fact) == Fraction(755, 1000)
@@ -298,7 +298,7 @@ def test_a_documented_state_of_charge_publishes_a_ratio_on_its_pack():
 
 @parametrize("raw,watts", [(2500, 2500), (-1500, -1500), (1, 1)])
 def test_plant_battery_power_keeps_its_documented_sign_in_watts(raw, watts):
-    read = {"offset": 37498, "quantity": 8, "outcome": "ANSWERED", "words": words_at(8, 6, [(raw & 0xFFFFFFFF) >> 16, raw & 0xFFFF])}
+    read = {"offset": 37498, "quantity": 8, "unit": 100, "outcome": "ANSWERED", "words": words_at(8, 6, [(raw & 0xFFFFFFFF) >> 16, raw & 0xFFFF])}
     fact = published(with_reads(read))["plant_battery_power"]
     assert fact["value"]["unit"] == "unit.watt" and value_of(fact) == watts
     assert fact["provenance"]["aggregation_basis"] == "plant_group" and fact["provenance"]["sign"] == "positive_while_charging_negative_while_discharging"
@@ -307,7 +307,7 @@ def test_plant_battery_power_keeps_its_documented_sign_in_watts(raw, watts):
 def test_site_lifetime_counters_publish_joules_and_the_day_counters_stay_withheld():
     words = words_at(46, 2, [0, 0, 1, 0xE240])
     words[8:12] = [0, 0, 9, 0xFBF1]
-    output = project(with_reads({"offset": 30306, "quantity": 46, "outcome": "ANSWERED", "words": words}))
+    output = project(with_reads({"offset": 30306, "quantity": 46, "unit": 0, "outcome": "ANSWERED", "words": words}))
     facts = {fact["provenance"]["native_id"]: fact for fact in output["facts"]}
     assert value_of(facts["site_battery_energy_charged_total"]) == Fraction(123456, 100) * 3600000
     assert value_of(facts["site_battery_energy_discharged_total"]) == Fraction(654321, 100) * 3600000
@@ -317,25 +317,150 @@ def test_site_lifetime_counters_publish_joules_and_the_day_counters_stay_withhel
 
 
 def test_the_site_power_group_states_no_sign_so_its_battery_power_is_withheld():
-    output = project(with_reads({"offset": 30354, "quantity": 12, "outcome": "ANSWERED", "words": words_at(12, 6, [0, 1500])}))
+    output = project(with_reads({"offset": 30354, "quantity": 12, "unit": 0, "outcome": "ANSWERED", "words": words_at(12, 6, [0, 1500])}))
     assert output["facts"] == []
     assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["site_battery_power"] == "storage.reason.sign_not_graded"
 
 
 @parametrize("outcome", ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"])
 def test_an_unresolved_selection_withholds_a_documented_reading(outcome):
-    output = project(with_reads({"offset": 30368, "quantity": 1, "outcome": "ANSWERED", "words": [7550]}, outcome=outcome))
+    output = project(with_reads({"offset": 30368, "quantity": 1, "unit": 0, "outcome": "ANSWERED", "words": [7550]}, outcome=outcome))
     assert output["facts"] == []
     assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["site_battery_soc"] == "storage.reason.no_admitted_battery_profile"
 
 
-def test_a_zero_or_out_of_range_or_unread_state_of_charge_is_withheld_never_published():
-    for words, reason in (([0], "zero_word_is_not_a_battery_value"), ([10001], "value_outside_pack_range")):
-        output = project(with_reads({"offset": 30368, "quantity": 1, "outcome": "ANSWERED", "words": words}))
+def test_an_out_of_range_or_unread_state_of_charge_is_withheld_never_published():
+    for words, reason in (([10001], "value_outside_pack_range"),):
+        output = project(with_reads({"offset": 30368, "quantity": 1, "unit": 0, "outcome": "ANSWERED", "words": words}))
         assert output["facts"] == []
         assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["site_battery_soc"] == "storage.reason." + reason
-    exception = project(with_reads({"offset": 30368, "quantity": 1, "outcome": "EXCEPTION", "exception_code": 2}))
+    exception = project(with_reads({"offset": 30368, "quantity": 1, "unit": 0, "outcome": "EXCEPTION", "exception_code": 2}))
     assert exception["facts"] == []
+
+
+# DW02 item 1 (routed unit). Fields of the read identity and the production mutation each case catches:
+#   offset: a read at an offset outside the plan is rejected (test_invalid_or_planned_reads_are_rejected, 30369);
+#   quantity: a read of another length is rejected (the same test, 30368 with 2 words);
+#   unit: a read at the other group's unit, at an unrelated unit, a missing unit, or a non-integer unit is rejected
+#         (this test; catches an identity keyed by offset and quantity alone, or a truthiness or bool match of unit 0).
+@parametrize("offset,quantity,words,unit", [
+    (30368, 1, [7550], 100), (30368, 1, [7550], 1), (30368, 1, [7550], None), (30368, 1, [7550], False), (30368, 1, [7550], "0"),
+    (30354, 12, [0] * 12, 100), (30306, 46, [0] * 46, 100), (30322, 2, [0, 10000], 100),
+    (37498, 8, [0, 0, 0, 0, 0, 0, 0, 2500], 0), (37498, 8, [0, 0, 0, 0, 0, 0, 0, 2500], 101), (37498, 8, [0, 0, 0, 0, 0, 0, 0, 2500], None), (37498, 8, [0, 0, 0, 0, 0, 0, 0, 2500], True),
+])
+def test_a_site_or_plant_group_is_admitted_only_from_its_declared_route(offset, quantity, words, unit):
+    read = {"offset": offset, "quantity": quantity, "outcome": "ANSWERED", "words": words}
+    if unit is not None:
+        read["unit"] = unit
+    with Raises(ValueError, match="native_evidence_invalid"):
+        project(with_reads(read))
+
+
+def test_each_group_publishes_from_its_own_route():
+    soc = {"offset": 30368, "quantity": 1, "unit": 0, "outcome": "ANSWERED", "words": [5000]}
+    plant = {"offset": 37498, "quantity": 8, "unit": 100, "outcome": "ANSWERED", "words": words_at(8, 6, [0, 2500])}
+    assert set(published(with_reads(soc, plant))) == {"site_battery_soc", "plant_battery_power"}
+
+
+def test_the_gate_states_the_route_of_each_planned_read_and_rejects_a_changed_one():
+    document = contract()
+    assert {rule["native_id"]: rule["read"].get("unit") for rule in document["field_rules"] if "unit" in rule["read"]} == v.ROUTES
+    assert v.ROUTES["plant_battery_power"] == 100 and {unit for name, unit in v.ROUTES.items() if name != "plant_battery_power"} == {0}
+    for name in v.ROUTES:
+        changed = contract()
+        rule = changed["field_rules"][rule_index(name)]
+        rule["read"]["unit"] = 7
+        with Raises(ValueError, match="native inventory"):
+            v.validate_contract(changed)
+    dropped = contract()
+    del dropped["field_rules"][rule_index("site_battery_soc")]["read"]["unit"]
+    with Raises(ValueError, match="native inventory"):
+        v.validate_contract(dropped)
+
+
+# DW02 item 2 (zero state of charge): a zero word is a value for the state of charge row.
+def test_a_zero_state_of_charge_of_the_configured_battery_publishes_a_zero_ratio():
+    fact = published(with_reads({"offset": 30368, "quantity": 1, "unit": 0, "outcome": "ANSWERED", "words": [0]}))["site_battery_soc"]
+    assert fact["item_id"] == "storage.state.soc" and fact["value"]["unit"] == "unit.ratio" and value_of(fact) == 0
+    unknown = project(with_reads({"offset": 30368, "quantity": 1, "unit": 0, "outcome": "FAILED"}))
+    assert unknown["facts"] == []
+    assert {item["item_id"]: item["outcome"] for item in unknown["dispositions"]}["storage.state.soc"] == "withheld"
+
+
+def test_the_zero_disposition_of_each_active_row_is_stated_and_enforced():
+    assert {rule["native_id"]: rule["zero_word"] for rule in contract()["field_rules"] if "zero_word" in rule} == v.ZERO_WORDS
+    for name in v.ZERO_WORDS:
+        flipped = contract()
+        rule = flipped["field_rules"][rule_index(name)]
+        rule["zero_word"] = "withheld" if rule["zero_word"] == "value" else "value"
+        with Raises(ValueError, match="active disposition"):
+            v.validate_contract(flipped)
+    extra = contract()
+    extra["field_rules"][rule_index("site_battery_power")]["zero_word"] = "value"
+    with Raises(ValueError, match="withheld reason"):
+        v.validate_contract(extra)
+
+
+# DW02 item 3 (daily counters in the native namespace).
+def test_answered_day_counters_are_served_natively_and_never_published_as_lifetime_facts():
+    words = words_at(46, 0, [0, 321])
+    words[6:8] = [0, 111]
+    words[2:6] = [0, 0, 1, 0xE240]
+    words[8:12] = [0, 0, 9, 0xFBF1]
+    output = project(with_reads({"offset": 30306, "quantity": 46, "unit": 0, "outcome": "ANSWERED", "words": words}))
+    native = {entry["native_id"]: entry for entry in output["native"]}
+    assert set(native) == {"site_battery_energy_charged_day", "site_battery_energy_discharged_day"}
+    assert native["site_battery_energy_charged_day"] == {"namespace": "modbusreg", "native_id": "site_battery_energy_charged_day", "unit": 0, "offset": 30306, "quantity": 2, "words": [0, 321], "native": {"type": "U32", "gain": 100, "unit": "kWh"}}
+    assert native["site_battery_energy_discharged_day"]["offset"] == 30312 and native["site_battery_energy_discharged_day"]["words"] == [0, 111]
+    assert {fact["provenance"]["native_id"] for fact in output["facts"]} == {"site_battery_energy_charged_total", "site_battery_energy_discharged_total"}
+    rows = {row["native_id"]: row for row in output["native_dispositions"]}
+    assert rows["site_battery_energy_charged_day"] == {"native_id": "site_battery_energy_charged_day", "outcome": "native_only", "reason": "storage.reason.period_counter_time_domain_not_represented"}
+
+
+def test_a_day_counter_that_is_not_answered_is_not_served():
+    for read in ({"offset": 30306, "quantity": 46, "unit": 0, "outcome": "FAILED"}, {"offset": 30306, "quantity": 46, "unit": 0, "outcome": "EXCEPTION", "exception_code": 2}):
+        output = project(with_reads(read))
+        assert output["native"] == []
+        assert {row["native_id"]: row["outcome"] for row in output["native_dispositions"]}["site_battery_energy_charged_day"] == "withheld"
+
+
+# DW02 item 4 (zero battery power beside nonzero neighbours).
+@parametrize("words", [[0, 1200, 0, 800, 0, 300, 0, 0], [5, 0, 0, 0, 0, 7, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]])
+def test_a_zero_battery_power_is_unknown_even_when_the_neighbouring_fields_are_nonzero(words):
+    output = project(with_reads({"offset": 37498, "quantity": 8, "unit": 100, "outcome": "ANSWERED", "words": words}))
+    assert output["facts"] == []
+    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["plant_battery_power"] == "storage.reason.zero_word_is_not_a_battery_value"
+
+
+@parametrize("words,expected", [([0, 0, 0, 0, 0, 0, 0, 1], 1), ([0, 0, 0, 0, 0, 0, 1, 0], 65536), ([0, 0, 0, 0, 0, 0, 0xFFFF, 0xFFFF], -1)])
+def test_a_battery_power_word_that_is_nonzero_in_either_half_publishes(words, expected):
+    assert value_of(published(with_reads({"offset": 37498, "quantity": 8, "unit": 100, "outcome": "ANSWERED", "words": words}))["plant_battery_power"]) == expected
+
+
+def test_a_zero_lifetime_counter_beside_a_nonzero_day_counter_is_unknown():
+    words = words_at(46, 0, [0, 321])
+    output = project(with_reads({"offset": 30306, "quantity": 46, "unit": 0, "outcome": "ANSWERED", "words": words}))
+    assert output["facts"] == []
+    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["site_battery_energy_charged_total"] == "storage.reason.zero_word_is_not_a_battery_value"
+
+
+# DW02 item 5: the site power row and the day counters carry a stated reason naming the missing native statement.
+def test_the_withheld_planned_rows_name_the_missing_native_statement():
+    document = contract()
+    assert "no sign for the battery power at offset 30360" in document["reasons"]["storage.reason.sign_not_graded"]["description"]
+    assert "served in the modbusreg namespace" in document["reasons"]["storage.reason.period_counter_time_domain_not_represented"]["description"]
+    for name in ("site_battery_energy_charged_day", "site_battery_energy_discharged_day"):
+        assert document["field_rules"][rule_index(name)]["disposition"]["outcome"] == "native_only"
+    assert document["field_rules"][rule_index("site_battery_power")]["disposition"]["reason"] == "storage.reason.sign_not_graded"
+
+
+def test_the_page_states_each_route_and_zero_word():
+    text = page()
+    assert "| `plant_battery_power` | 37498 | 8 | 100 | withheld |" in text and "| `site_battery_soc` | 30368 | 1 | 0 | value |" in text
+    with Raises(ValueError, match="document tables"):
+        v.check_document(v.load(), text.replace("| `site_battery_soc` | 30368 | 1 | 0 | value |", "| `site_battery_soc` | 30368 | 1 | 100 | value |"))
+    with Raises(ValueError, match="document tables"):
+        v.check_document(v.load(), text.replace("| `plant_battery_power` | 37498 | 8 | 100 | withheld |", "| `plant_battery_power` | 37498 | 8 | 100 | value |"))
 
 
 @parametrize("packs", [[], ["resource:demo-pack-gamma-1", "resource:demo-pack-gamma-1"], ["resource:demo-pack-gamma-1", "resource:2", "resource:3", "resource:4"], ["storage-asset-demo-gamma"]])
@@ -366,7 +491,7 @@ def test_capacity_is_never_converted_to_energy_units_or_published():
 
 @parametrize("words,joules", [([0, 10000], 36000000), ([0, 7500], 27000000), ([1, 0], 235929600)])
 def test_a_supplied_rated_storage_capacity_publishes_its_native_energy_in_joules(words, joules):
-    output = project(with_reads({"offset": 30322, "quantity": 2, "outcome": "ANSWERED", "words": words}))
+    output = project(with_reads({"offset": 30322, "quantity": 2, "unit": 0, "outcome": "ANSWERED", "words": words}))
     facts = [fact for fact in output["facts"] if fact["item_id"] == "storage.energy.nominal_capacity"]
     assert len(facts) == 1 and facts[0]["value"]["unit"] == "unit.joule" and facts[0]["provenance"]["aggregation_basis"] == "site_group"
     number = facts[0]["value"]["number"]
@@ -376,15 +501,15 @@ def test_a_supplied_rated_storage_capacity_publishes_its_native_energy_in_joules
 
 
 def test_a_missing_or_zero_rated_storage_capacity_is_withheld_not_a_missing_catalog_element():
-    withheld = {row["native_id"]: row for row in project(with_reads({"offset": 30322, "quantity": 2, "outcome": "ANSWERED", "words": [0, 0]}))["native_dispositions"]}
+    withheld = {row["native_id"]: row for row in project(with_reads({"offset": 30322, "quantity": 2, "unit": 0, "outcome": "ANSWERED", "words": [0, 0]}))["native_dispositions"]}
     assert withheld["site_rated_storage_capacity"]["reason"] == "storage.reason.zero_word_is_not_a_battery_value"
-    unbound = {row["native_id"]: row for row in project(with_reads({"offset": 30322, "quantity": 2, "outcome": "EXCEPTION", "exception_code": 2}))["native_dispositions"]}
+    unbound = {row["native_id"]: row for row in project(with_reads({"offset": 30322, "quantity": 2, "unit": 0, "outcome": "EXCEPTION", "exception_code": 2}))["native_dispositions"]}
     assert unbound["site_rated_storage_capacity"]["reason"] == "storage.reason.battery_group_exception_no_negation"
     assert "storage.reason.no_energy_capacity_fact_in_pack" not in v.load()["reasons"]
 
 
-SOC_READ = {"offset": 30368, "quantity": 1, "outcome": "ANSWERED", "words": [7550]}
-CAPACITY_READ = {"offset": 30322, "quantity": 2, "outcome": "ANSWERED", "words": [0, 10000]}
+SOC_READ = {"offset": 30368, "quantity": 1, "unit": 0, "outcome": "ANSWERED", "words": [7550]}
+CAPACITY_READ = {"offset": 30322, "quantity": 2, "unit": 0, "outcome": "ANSWERED", "words": [0, 10000]}
 
 
 @parametrize("packs", [["resource:demo-pack-gamma-1", "resource:demo-pack-gamma-2"], ["resource:demo-pack-gamma-2", "resource:demo-pack-gamma-1"], ["resource:demo-pack-gamma-1", "resource:demo-pack-gamma-2", "resource:demo-pack-gamma-3"]])
@@ -582,7 +707,7 @@ def test_scenario_expectations_are_executed_not_trusted():
 
 
 def test_scenario_coverage_is_enforced():
-    for dropped, message in (("STG-POS-007-zero-words-without-battery", "cover every reason"), ("STG-POS-009-battery-read-exception", "cover every reason"), ("STG-POS-011-state-of-charge-outside-range", "cover every reason"), ("STG-NEG-006-lifecycle-missing", "cover every error")):
+    for dropped, message in (("STG-POS-009-battery-read-exception", "cover every reason"), ("STG-POS-011-state-of-charge-outside-range", "cover every reason"), ("STG-NEG-006-lifecycle-missing", "cover every error")):
         document = contract()
         document["scenarios"] = [s for s in document["scenarios"] if s["id"] != dropped]
         with Raises(ValueError, match=message):

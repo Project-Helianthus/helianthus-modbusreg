@@ -10,8 +10,8 @@ level and does not reject its mapping. Its machine-readable companion is
 synthetic and are not observations from hardware.
 
 The site state of charge, the plant battery power and the site lifetime energy
-counters are mapped and published; every other item is withheld or served
-natively with an explicit reason and loss. The sibling gates are
+counters are mapped and published; the site day counters and the registry groups are served
+natively; every other item is withheld with an explicit reason and loss. The sibling gates are
 [the SUN2000 PV gate](huawei-sun2000-pv-v1.md), which maps the admitted inverter
 facts, and [the gateway-meter gate](huawei-gateway-meter-infrastructure-v1.md).
 
@@ -199,6 +199,35 @@ and the measurement points are a Hypothesis of this gate.
 | `site_battery_energy_discharged_total` | `storage.energy.discharged` | `resource.battery_pack` | `pack_terminals_lifetime_counter` |
 | `site_rated_storage_capacity` | `storage.energy.nominal_capacity` | `resource.battery_pack` | `pack_as_a_whole` |
 
+## Routes and zero words
+
+A planned read is evidence only from the routed unit its group is documented at:
+the site groups answer at unit 0 of the EMMA and the plant group at unit 100 of
+the S-Dongle. A read of a routed group that names another unit, or names none, is
+`native_evidence_invalid`, so a site reading is never admitted from the plant
+route and a plant reading never from the site route. The registry battery groups
+state no routed unit and are identified by offset and quantity. A zero word is
+judged on the field's own words and never on the whole read: a state of charge
+word of zero is a value of zero, distinct from an unknown value, while a battery
+power, lifetime counter or rated capacity word of zero is withheld with
+`storage.reason.zero_word_is_not_a_battery_value` whatever its neighbours hold.
+A registry group answered with zero words only stays withheld.
+
+| Native item | Offset | Quantity | Routed unit | Zero word |
+| --- | --- | --- | --- | --- |
+| `battery_group_37000_30` | 37000 | 30 | not stated | not applicable |
+| `battery_single_read_37000_1` | 37000 | 1 | not stated | not applicable |
+| `battery_group_37066_4` | 37066 | 4 | not stated | not applicable |
+| `battery_group_47000_1` | 47000 | 1 | not stated | not applicable |
+| `site_battery_soc` | 30368 | 1 | 0 | value |
+| `site_battery_power` | 30354 | 12 | 0 | not applicable |
+| `plant_battery_power` | 37498 | 8 | 100 | withheld |
+| `site_battery_energy_charged_total` | 30306 | 46 | 0 | withheld |
+| `site_battery_energy_discharged_total` | 30306 | 46 | 0 | withheld |
+| `site_battery_energy_charged_day` | 30306 | 46 | 0 | not applicable |
+| `site_battery_energy_discharged_day` | 30306 | 46 | 0 | not applicable |
+| `site_rated_storage_capacity` | 30322 | 2 | 0 | withheld |
+
 ## Withheld items
 
 Each native item has exactly one disposition. An item listed here is withheld or
@@ -225,9 +254,18 @@ withheld as not read. The running-state word of the storage unit has no symbol
 table, so the operating state is withheld with
 `storage.reason.status_symbols_not_stated`.
 
+The site power row states no sign for the battery power at offset 30360, so
+`site_battery_power` is withheld with `storage.reason.sign_not_graded`; the
+monitoring contract's plant group states the sign and is mapped. The two day
+counters are published by the site energy group as U32 values of kilowatt-hours
+and the pack's catalog elements are lifetime counters, so a day counter has no
+element: it is served natively with its routed unit, offset and native form,
+carries no fact, and the reason below records why.
+
 Runtime reasons complete the set:
-`storage.reason.zero_word_is_not_a_battery_value` (a zero word is never a state
-of charge, power or energy of zero, and presence is never decided from it),
+`storage.reason.zero_word_is_not_a_battery_value` (a zero battery power,
+lifetime counter, capacity or registry group word is never a value of zero, and
+presence is never decided from it; a state of charge word of zero is a value),
 `storage.reason.battery_group_exception_no_negation` (an exception negates
 nothing else), `storage.reason.battery_group_not_read`,
 `storage.reason.value_outside_pack_range` (a converted value outside the pack
@@ -319,6 +357,11 @@ raw words are served unchanged in the modbusreg namespace, in the output member
 yet gives them a fact. They are never published as a fact, and a group that was
 not read, raised an exception or answered only zero words carries no entry.
 
+The two site day counters are served the same way when their group answered: each
+entry carries the routed unit, the offset and quantity of its own words and its
+native form (U32, kilowatt-hours, gain 100). A day counter is never labeled a
+lifetime counter and is never published as a fact.
+
 ## Lifecycle
 
 A case carries the observation identifier and revision, the receipt on a wall and
@@ -337,15 +380,18 @@ generation-fenced.
 | `STG-POS-002-site-state-of-charge` | A documented site state of charge of 75.50 percent publishes 0.755 on the pack, with the site group as provenance. |
 | `STG-POS-003-plant-power-charging` | Plant battery power of 2.5 kW, positive while charging, publishes 2500 W. |
 | `STG-POS-004-plant-power-discharging` | Plant battery power of -1.5 kW, negative while discharging, publishes -1500 W. |
-| `STG-POS-005-site-energy-totals` | The site energy group publishes the lifetime charged and discharged counters in joules, and the day counters stay withheld. |
+| `STG-POS-005-site-energy-totals` | The site energy group publishes the lifetime charged and discharged counters in joules, and the day counters are served natively and never published as lifetime facts. |
 | `STG-POS-006-site-power-sign-not-graded` | The site power group states no sign, so the battery power it carries is withheld. |
-| `STG-POS-007-zero-words-without-battery` | Zero words at the battery offsets publish no state of charge, power or energy. |
+| `STG-POS-007-zero-words-without-battery` | Zero words at the registry battery offsets publish no state of charge, power or energy. |
 | `STG-POS-008-battery-group-answers-with-data` | A registry group that answers with data is served natively and publishes no storage fact. |
 | `STG-POS-009-battery-read-exception` | An exception or a failed read withholds the battery item and negates nothing else. |
 | `STG-POS-010-selection-unresolved` | An unresolved registry selection withholds every mapped item whatever is read. |
 | `STG-POS-011-state-of-charge-outside-range` | A state of charge above 100 percent is withheld and never clamped. |
 | `STG-POS-012-rated-storage-capacity` | A documented rated storage capacity of 10 kWh publishes 36000000 J as the nominal capacity of the pack, with the site group as provenance. |
 | `STG-POS-013-aggregate-reading-with-several-packs` | A site state of charge of a battery with two packs belongs to no one pack and is withheld, whichever pack is listed first. |
+| `STG-POS-014-site-state-of-charge-zero` | A state of charge word of zero on the configured battery with one pack publishes 0 as a ratio, distinct from an unknown value. |
+| `STG-POS-015-plant-read-with-zero-battery-power` | A plant read with nonzero PV, consumption and grid words and zero battery power words publishes no battery power. |
+| `STG-POS-016-site-day-counters-served-natively` | The site day counters answered with data are served in the modbusreg namespace with their routed unit and native form and publish no fact. |
 | `STG-NEG-001-selection-outside-the-registry-set` | A selection outside the registry set fails closed. |
 | `STG-NEG-002-read-outside-the-plan` | A group that is in no read plan cannot be supplied as evidence. |
 | `STG-NEG-003-word-count-mismatch` | A read must carry exactly its quantity of words. |
@@ -357,6 +403,9 @@ generation-fenced.
 | `STG-NEG-009-ampere-hour-to-kilowatt-hour` | Capacity is never converted to energy units. |
 | `STG-NEG-010-limit-item-requested` | A control-adjacent item is not requestable. |
 | `STG-NEG-011-error-precedence` | The first error of the precedence list is reported. |
+| `STG-NEG-012-site-state-of-charge-at-the-plant-route` | A state of charge read tagged with the plant unit is not site evidence. |
+| `STG-NEG-013-plant-power-at-the-site-route` | A plant power read tagged with the site unit is not plant evidence. |
+| `STG-NEG-014-routed-read-without-its-unit` | A routed group read that names no unit is not evidence. |
 
 ## Unresolved and falsifiers
 
