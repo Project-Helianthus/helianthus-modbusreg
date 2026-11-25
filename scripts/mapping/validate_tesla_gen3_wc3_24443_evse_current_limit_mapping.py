@@ -319,7 +319,7 @@ def publish_configured_current(case, provisional, facts, withheld):
     if provisional is not None and "ConfiguredCurrentAmps" in provisional:
         candidates.append((case["evidence"]["provisional"], provisional["ConfiguredCurrentAmps"]))
     if "persistent" in case:
-        candidates.append((case["evidence"]["persistent"], case["persistent"].get("MaxOutputCurrentAmps") if isinstance(case["persistent"], dict) else None))
+        candidates.append((case["evidence"].get("persistent"), case["persistent"].get("MaxOutputCurrentAmps") if isinstance(case["persistent"], dict) else None))
     if not candidates:
         withheld.append({"id": "evse.limit.configured_current", "reason": "configured_current_absent"})
         return
@@ -475,14 +475,16 @@ def valid_wire_timeout(timeout):
 
 
 def wire_request(disposition, amperes, bound):
-    """The t25 triple of a send disposition: current, wire timeout and inhibit; a pause encodes 6 A with inhibit."""
+    """The t25 triple of a send disposition: current, wire timeout and inhibit; a pause encodes 6 A with inhibit. The wire timeout must be a valid one."""
+    if disposition not in ("send_set", "send_pause", "send_release"):
+        fail("wire_request_not_sent")
+    if not valid_wire_timeout(WIRE_TIMEOUT_SECONDS):
+        fail("wire_timeout_invalid")
     if disposition == "send_set":
         return (amperes, WIRE_TIMEOUT_SECONDS, False)
     if disposition == "send_pause":
         return (MIN_NONZERO_SET_AMPS, WIRE_TIMEOUT_SECONDS, True)
-    if disposition == "send_release":
-        return (bound, WIRE_TIMEOUT_SECONDS, False)
-    fail("wire_request_not_sent")
+    return (bound, WIRE_TIMEOUT_SECONDS, False)
 
 
 def release_disposition(request, generation):

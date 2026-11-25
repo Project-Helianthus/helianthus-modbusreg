@@ -200,7 +200,26 @@ def wire_cases():
     for timeout, expected in ((0, False), (1, True), (900, True), (86399, True), (86400, False), (-1, False), ("900", False), (None, False), (True, False)):
         if mapping.valid_wire_timeout(timeout) is not expected:
             raise AssertionError(f"wire timeout {timeout!r} validated as {not expected}")
+    invalid_wire_timeout_cases()
     print("wire-timeout: PASS")
+
+
+def invalid_wire_timeout_cases():
+    """The encoded request refuses a wire timeout that valid_wire_timeout rejects, for every send disposition."""
+    saved = mapping.WIRE_TIMEOUT_SECONDS
+    try:
+        for timeout in (0, 86400):
+            mapping.WIRE_TIMEOUT_SECONDS = timeout
+            for disposition in ("send_set", "send_pause", "send_release"):
+                try:
+                    mapping.wire_request(disposition, 16, 20)
+                except ValueError as error:
+                    if str(error) != "wire_timeout_invalid":
+                        raise AssertionError(f"{disposition} with wire timeout {timeout}: {error}")
+                else:
+                    raise AssertionError(f"{disposition} encoded the invalid wire timeout {timeout}")
+    finally:
+        mapping.WIRE_TIMEOUT_SECONDS = saved
 
 
 def candidate_cases(baseline, contract):
@@ -315,12 +334,23 @@ def unbound_t8_evidence_cases(baseline, contract):
             raise AssertionError("a bound t8 no longer satisfies the evidence gate")
 
 
+def missing_t8_evidence_case(baseline, contract):
+    """A t8 record whose evidence member is absent is not a candidate: the bound t28 decides and no error escapes."""
+    missing = copy.deepcopy(baseline)
+    missing["evidence"].pop("persistent")
+    missing["persistent"]["MaxOutputCurrentAmps"] = 7
+    missing["provisional"]["ConfiguredCurrentAmps"] = 32
+    if facts_of(mapping.project(missing, contract)) != [("evse.limit.configured_current", "32"), ("evse.limit.allocated_current", "12")]:
+        raise AssertionError("a t8 without its evidence was treated as a candidate or crashed the selector")
+
+
 def epoch_cases(baseline, contract):
     """Section 6.1: the later receipt wins only among candidates of the case's own epoch and generation."""
     bound, other = BOUND, OTHER_BINDING
     newer_t28_cases(baseline, contract)
     foreign_t8_cases(baseline, contract)
     unbound_t8_evidence_cases(baseline, contract)
+    missing_t8_evidence_case(baseline, contract)
     for key in bound:
         older_other = copy.deepcopy(baseline)
         older_other["evidence"]["persistent"][key] = other[key]
