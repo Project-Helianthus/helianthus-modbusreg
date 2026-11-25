@@ -67,7 +67,7 @@ that declaration, and the reading must come from the routed unit the declaration
 names. A read that differs, a group of another exposure, or a reading from
 another routed unit is reported with `infrastructure.reason.identity_mismatch`:
 nothing is guessed and the declared meter is not replaced by the meter that was
-read. A route that was not read is `infrastructure.reason.identity_not_read`. A read exception on a meter group does not erase a runtime route that differs from the declaration: that route is still `infrastructure.reason.identity_mismatch`, and the exception implies no meter absence.
+read. A route that was not read is `infrastructure.reason.identity_not_read`. A read exception, a failed read, a group not read or a group left out does not erase a runtime route that differs from the declaration: every group of the declared exposure is still `infrastructure.reason.identity_mismatch`, and the missing answer implies no meter absence.
 The plant group is read only from its own routed unit; from another unit it is
 `infrastructure.reason.group_not_read`. A case whose routed unit is the routed unit of its configured meter exposure runs on that meter route and is no
 evidence of the plant route, so its plant group is `infrastructure.reason.group_not_read`; a configured meter exposure at another unit

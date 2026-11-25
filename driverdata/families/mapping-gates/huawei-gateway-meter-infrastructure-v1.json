@@ -1627,7 +1627,7 @@
             {
               "native_id": "smartlogger_meter_energy_totals",
               "outcome": "withheld",
-              "reason": "infrastructure.reason.no_meter_class_contract"
+              "reason": "infrastructure.reason.identity_mismatch"
             },
             {
               "native_id": "emma_built_in_sensor_group",

@@ -293,6 +293,21 @@ def test_a_read_exception_does_not_erase_a_runtime_route_that_differs_from_the_d
     assert output["facts"] == [] and row_reasons(output)[SMARTLOGGER_GROUP] == "infrastructure.reason.identity_mismatch"
 
 
+@parametrize("outcome", ["FAILED", "NOT_READ", None])
+def test_a_runtime_route_that_differs_is_reported_whether_or_not_the_group_answered(outcome):
+    document = with_meter_group(SMARTLOGGER_GROUP, 11, route(SMARTLOGGER, 11), route(SMARTLOGGER, 19))
+    document["reads"] = [] if outcome is None else [{"native_id": SMARTLOGGER_GROUP, "outcome": outcome}]
+    output = project(document)
+    assert output["facts"] == [] and row_reasons(output)[SMARTLOGGER_GROUP] == "infrastructure.reason.identity_mismatch"
+    assert row_reasons(output)["sdongle_inverter_exposed_meter_group"] != "infrastructure.reason.identity_mismatch"
+
+
+def test_an_unread_group_with_a_matching_runtime_route_keeps_its_own_reason():
+    document = with_meter_group(SMARTLOGGER_GROUP, 11, route(SMARTLOGGER, 11), route(SMARTLOGGER, 11))
+    document["reads"] = []
+    assert "infrastructure.reason.identity_mismatch" not in row_reasons(project(document)).values()
+
+
 @parametrize("declared,identity_read", [
     (route(SMARTLOGGER, 11), route(SMARTLOGGER, 100)),
     (route(INVERTER_SIDE, 1), route(INVERTER_SIDE, 100)),
@@ -1052,6 +1067,15 @@ def test_owner_link_exception_leaves_labels_and_nested_foreign_destinations_chec
     for text in texts:
         with Raises(ValueError, match="publication"):
             v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
+def test_owner_link_inside_a_deeply_nested_foreign_destination_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for depth in (3, 4, 6):
+        text = "[a](https://example.invalid/?q=" + "(" * depth + "x" + ")" * depth + "[b](" + approved + "))"
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+    v.check_document(v.load(), page() + "\n[b](" + approved + ")\n")
 
 
 def test_owner_link_in_a_foreign_link_title_gets_no_exception():

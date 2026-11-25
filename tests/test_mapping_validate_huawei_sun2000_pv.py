@@ -1250,6 +1250,15 @@ def test_owner_link_exception_leaves_labels_and_nested_foreign_destinations_chec
             v.check_document(v.load(), page() + "\n" + text + "\n")
 
 
+def test_owner_link_inside_a_deeply_nested_foreign_destination_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for depth in (3, 4, 6):
+        text = "[a](https://example.invalid/?q=" + "(" * depth + "x" + ")" * depth + "[b](" + approved + "))"
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+    v.check_document(v.load(), page() + "\n[b](" + approved + ")\n")
+
+
 def test_owner_link_in_a_foreign_link_title_gets_no_exception():
     for quote in ('"', "'"):
         with Raises(ValueError, match="publication"):
@@ -1339,6 +1348,22 @@ def test_the_value_aligned_power_group_extent_validates_the_allocated_phases():
     output = project(document)
     assert phase_relations(output) == [(INVERTER, item) for item in PHASES]
     assert not any(fact["key"]["dimensions"][0]["id"] == "pv.dimension.phase" for fact in output["facts"])
+
+
+def test_an_answered_aligned_group_beside_the_retained_shorter_refusal_validates_phases_for_a_profile_that_plans_the_shorter_read():
+    document = phase_case([1, 2, 3])
+    for group in document["groups"]:
+        if (group["offset"], group["quantity"]) == (32064, 32):
+            group["outcome"], group["exception_code"] = "EXCEPTION", 2
+    document["groups"].append({"offset": 32064, "quantity": 33, "outcome": "ANSWERED"})
+    in_group = {rule["native_id"] for rule in v.load()["field_rules"] if (rule.get("native") or {}).get("group_offset") == 32064}
+    for fact in document["facts"]:
+        if fact["key"] in in_group:
+            for member in ("value", "words", "state", "origin"):
+                fact.pop(member, None)
+            fact["availability"], fact["grade"] = "UNKNOWN", "unknown"
+    output = project(document)
+    assert phase_relations(output) == [(INVERTER, item) for item in PHASES]
 
 
 M3_PHASES = ["resource:demo-phase-beta-%d" % n for n in range(1, 4)]

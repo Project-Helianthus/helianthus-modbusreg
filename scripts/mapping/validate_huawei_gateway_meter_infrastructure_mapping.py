@@ -57,12 +57,40 @@ def _backslash_escaped(text, index):
 CODE_RE = re.compile(r"^[ ]{0,3}(?P<fence>`{3,}|~{3,})[^\n]*\n.*?(?:^[ ]{0,3}(?P=fence)[`~]*[ \t]*$|\Z)|^(?: {4}|\t)[^\n]*$|(?P<tick>`+)(?:(?!(?P=tick))[^`]|`+(?!(?P=tick)(?!`)))*?(?<!`)(?P=tick)(?!`)", re.MULTILINE | re.DOTALL)
 
 
+LINK_OPENER_RE = re.compile(r"\[(?:[^\[\]]|\[[^\[\]]*\])*\]\(\s*")
+
+
+def _destination_spans(text):
+    """(link start, destination start, destination end) of every inline Markdown link opener, the bare destination read with balanced parentheses to any depth."""
+    spans = []
+    for opener in LINK_OPENER_RE.finditer(text):
+        begin = end = opener.end()
+        if text.startswith("<", begin):
+            end = text.find(">", begin)
+            end = len(text) if end < 0 else end
+        else:
+            depth = 0
+            while end < len(text) and not text[end].isspace():
+                if text[end] == "\\":
+                    end += 1
+                elif text[end] == "(":
+                    depth += 1
+                elif text[end] == ")":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                end += 1
+        spans.append((opener.start(), begin, end))
+    return spans
+
+
 def unowned_text(text):
     """The published text with the destination of each complete Markdown link to an approved owner URL removed; its label and every other link stay visible, and a link inside a code block or code span is literal text that stays visible."""
     literal = [code.span() for code in CODE_RE.finditer(text)]
+    destinations = _destination_spans(text)
 
     def strip(link):
-        inside = any(start <= link.start() < stop for start, stop in literal)
+        inside = any(start <= link.start() < stop for start, stop in literal) or any(opened != link.start() and begin <= link.start() < stop for opened, begin, stop in destinations)
         escaped = link.group("label") is not None and (_backslash_escaped(text, link.start()) or _backslash_escaped(text, link.end("label")))
         return (link.group("label") or link.group("ref") or "") if not inside and not escaped and _owner_destination(link) else link.group(0)
 
@@ -705,6 +733,13 @@ def route_mismatch(case, native_id):
     return (exposure == "sdongle_inverter_side" and declared["routed_unit"] == PLANT_UNIT) or declared["exposure"] != exposure or case.get("routed_unit") != declared["routed_unit"] or (meter["identity_read"] is not None and meter["identity_read"] != declared)
 
 
+def runtime_route_differs(case, native_id):
+    """True when the runtime route read differs from the configured declaration of the exposure this group belongs to; that holds whether or not the group was answered."""
+    meter, exposure = case["meter"], METER_EXPOSURE_OF.get(native_id)
+    declared = meter["declared"]
+    return declared is not None and exposure is not None and declared["exposure"] == exposure and meter["identity_read"] is not None and meter["identity_read"] != declared
+
+
 def exposure_reason(case, native_id):
     """An answered meter group of a configured meter exposure is checked against that exposure's own runtime route; nothing in it is decoded."""
     meter, exposure = case["meter"], METER_EXPOSURE_OF.get(native_id)
@@ -755,6 +790,8 @@ def native_rows(case, contract, reads, fields):
             reason = exposure_reason(case, rule["native_id"])
         elif read is not None and read["outcome"] == "EXCEPTION":
             reason = "infrastructure.reason.identity_mismatch" if route_mismatch(case, rule["native_id"]) else "infrastructure.reason.read_exception_no_negation"
+        elif runtime_route_differs(case, rule["native_id"]):
+            reason = "infrastructure.reason.identity_mismatch"
         rows.append({"native_id": rule["native_id"], "outcome": "withheld", "reason": reason})
     return rows, facts, held
 

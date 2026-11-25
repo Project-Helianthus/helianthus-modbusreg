@@ -1078,6 +1078,15 @@ def test_owner_link_exception_leaves_labels_and_nested_foreign_destinations_chec
             v.check_document(v.load(), page() + "\n" + text + "\n")
 
 
+def test_owner_link_inside_a_deeply_nested_foreign_destination_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for depth in (3, 4, 6):
+        text = "[a](https://example.invalid/?q=" + "(" * depth + "x" + ")" * depth + "[b](" + approved + "))"
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+    v.check_document(v.load(), page() + "\n[b](" + approved + ")\n")
+
+
 def test_owner_link_in_a_foreign_link_title_gets_no_exception():
     for quote in ('"', "'"):
         with Raises(ValueError, match="publication"):
