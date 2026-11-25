@@ -445,6 +445,15 @@ def test_a_zero_lifetime_counter_is_a_value_beside_a_nonzero_one():
     assert value_of(facts["site_battery_energy_discharged_total"]) != 0
 
 
+def test_an_all_zero_site_energy_reply_publishes_no_lifetime_counter():
+    output = project(with_reads({"offset": 30306, "quantity": 46, "unit": 0, "outcome": "ANSWERED", "words": [0] * 46}))
+    facts = {fact["provenance"]["native_id"] for fact in output["facts"]}
+    assert "site_battery_energy_charged_total" not in facts and "site_battery_energy_discharged_total" not in facts
+    reasons = {row["native_id"]: row["reason"] for row in output["native_dispositions"]}
+    assert reasons["site_battery_energy_charged_total"] == "storage.reason.zero_word_is_not_a_battery_value"
+    assert reasons["site_battery_energy_discharged_total"] == "storage.reason.zero_word_is_not_a_battery_value"
+
+
 def test_a_boolean_is_not_a_routed_unit_in_the_declaration():
     document = contract()
     document["field_rules"][rule_index("site_battery_soc")]["read"]["unit"] = False

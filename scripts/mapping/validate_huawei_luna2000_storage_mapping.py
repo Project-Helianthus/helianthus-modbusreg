@@ -161,8 +161,8 @@ SITE_UNIT, PLANT_UNIT = 0, 100
 ROUTES = {"site_battery_soc": SITE_UNIT, "site_battery_power": SITE_UNIT, "plant_battery_power": PLANT_UNIT, "site_battery_energy_charged_total": SITE_UNIT, "site_battery_energy_discharged_total": SITE_UNIT,
           "site_battery_energy_charged_day": SITE_UNIT, "site_battery_energy_discharged_day": SITE_UNIT, "site_rated_storage_capacity": SITE_UNIT}
 PLAN = {read: ROUTES.get(native_id) for native_id, _, read, _ in INVENTORY if read}
-# What an answered zero word of an active row means: a state of charge word of zero is a value of zero; a lifetime counter word of zero is a counter value, a power or capacity word of zero is no battery value.
-ZERO_WORDS = {"site_battery_soc": "value", "plant_battery_power": "withheld", "site_battery_energy_charged_total": "value", "site_battery_energy_discharged_total": "value", "site_rated_storage_capacity": "withheld"}
+# What an answered zero word of an active row means: a state of charge word of zero is a value of zero; a lifetime counter is withheld when its whole read is zero words, a power or capacity word of zero is no battery value.
+ZERO_WORDS = {"site_battery_soc": "value", "plant_battery_power": "withheld", "site_battery_energy_charged_total": "read_withheld", "site_battery_energy_discharged_total": "read_withheld", "site_rated_storage_capacity": "withheld"}
 # The daily counters have no SemReg element: their words are served in the modbusreg namespace and never published as a lifetime fact.
 DAY_COUNTERS = {"site_battery_energy_charged_day", "site_battery_energy_discharged_day"}
 # The rows that publish a fact; the others stay withheld or native-only with their reason.
@@ -652,6 +652,8 @@ def active_reason(rule, read, selected, pack_count):
     if reason:
         return reason
     if rule["zero_word"] == "withheld" and not any(field_words(rule, read)):
+        return ZERO_REASON
+    if rule["zero_word"] == "read_withheld" and not any(read["words"]):
         return ZERO_REASON
     return "storage.reason.aggregate_without_pack_evidence" if pack_count != 1 else None
 

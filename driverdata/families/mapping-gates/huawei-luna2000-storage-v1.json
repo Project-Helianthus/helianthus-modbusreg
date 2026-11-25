@@ -713,7 +713,7 @@
         "unit": 0
       },
       "word": 2,
-      "zero_word": "value"
+      "zero_word": "read_withheld"
     },
     {
       "native_id": "site_battery_energy_discharged_total",
@@ -765,7 +765,7 @@
         "unit": 0
       },
       "word": 8,
-      "zero_word": "value"
+      "zero_word": "read_withheld"
     },
     {
       "native_id": "site_battery_energy_charged_day",

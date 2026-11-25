@@ -68,8 +68,10 @@ Each remaining precondition is decided from the documents, with its grade:
    pack defines (Proven);
 6. the executable vectors are the scenarios of this gate (Proven).
 
-A zero word at a battery offset is never a state of charge, power or energy of
-zero, and battery presence is never decided from it. A raw group read that has
+A zero word at a registry battery offset is never a state of charge, power or
+energy of zero, and battery presence is never decided from it. The one admitted
+exception is the routed site state of charge row, whose answered zero word is a
+valid 0% reading (see the routes and zero words section). A raw group read that has
 no storage element in the pack is served in the modbusreg namespace until a
 catalog row gives it an element, with `storage.reason.group_native_only_no_catalog_row`.
 
@@ -208,10 +210,12 @@ the S-Dongle. A read of a routed group that names another unit, or names none, i
 route and a plant reading never from the site route. The registry battery groups
 state no routed unit and are identified by offset and quantity. A zero word is
 judged on the field's own words and never on the whole read: a state of charge
-word of zero and a lifetime counter word of zero are values, distinct from an
-unknown value, while a battery power or rated capacity word of zero is withheld with
-`storage.reason.zero_word_is_not_a_battery_value` whatever its neighbours hold.
-A registry group answered with zero words only stays withheld.
+word of zero is a value, distinct from an unknown value; a battery power or rated
+capacity word of zero is withheld with
+`storage.reason.zero_word_is_not_a_battery_value` whatever its neighbours hold;
+a lifetime counter is withheld with the same reason when its whole read answers
+zero words only (`read_withheld`), as before. A registry group answered with zero
+words only stays withheld.
 
 | Native item | Offset | Quantity | Routed unit | Zero word |
 | --- | --- | --- | --- | --- |
@@ -222,8 +226,8 @@ A registry group answered with zero words only stays withheld.
 | `site_battery_soc` | 30368 | 1 | 0 | value |
 | `site_battery_power` | 30354 | 12 | 0 | not applicable |
 | `plant_battery_power` | 37498 | 8 | 100 | withheld |
-| `site_battery_energy_charged_total` | 30306 | 46 | 0 | value |
-| `site_battery_energy_discharged_total` | 30306 | 46 | 0 | value |
+| `site_battery_energy_charged_total` | 30306 | 46 | 0 | read_withheld |
+| `site_battery_energy_discharged_total` | 30306 | 46 | 0 | read_withheld |
 | `site_battery_energy_charged_day` | 30306 | 46 | 0 | not applicable |
 | `site_battery_energy_discharged_day` | 30306 | 46 | 0 | not applicable |
 | `site_rated_storage_capacity` | 30322 | 2 | 0 | withheld |
@@ -265,7 +269,7 @@ carries no fact, and the reason below records why.
 Runtime reasons complete the set:
 `storage.reason.zero_word_is_not_a_battery_value` (a zero battery power,
 capacity or registry group word is never a value of zero, and
-presence is never decided from it; a state of charge or lifetime counter word of zero is a value),
+presence is never decided from it; a routed site state of charge word of zero is a value, and a lifetime counter is withheld only when its whole read is zero words),
 `storage.reason.battery_group_exception_no_negation` (an exception negates
 nothing else), `storage.reason.battery_group_not_read`,
 `storage.reason.value_outside_pack_range` (a converted value outside the pack
