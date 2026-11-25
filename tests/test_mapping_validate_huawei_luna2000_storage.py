@@ -1093,7 +1093,7 @@ def test_owner_link_in_code_or_a_continuation_title_gets_no_exception():
 
 def test_owner_link_exception_needs_a_complete_approved_destination_not_a_markdown_shaped_title():
     approved = OWNER_BASE + "api/v1/graph.md"
-    for text in ("[owner](" + approved + ";other)", "[owner](<" + approved + ";other>)", "[a](https://example.invalid/x \"[b](" + approved + ")\")", "[a](https://example.invalid/x '[b](" + approved + ")')", "[owner](" + approved + " \"title\")"):
+    for text in ("[owner](" + approved + ";other)", "[owner](<" + approved + ";other>)", "[a](https://example.invalid/x \"[b](" + approved + ")\")", "[a]( https://example.invalid/x \"[b](" + approved + ")\")", "[a](\t<https://example.invalid/x> '[b](" + approved + ")')", "[a](https://example.invalid/x '[b](" + approved + ")')", "[owner](" + approved + " \"title\")"):
         with Raises(ValueError, match="publication"):
             v.check_document(v.load(), page() + "\n" + text + "\n")
 

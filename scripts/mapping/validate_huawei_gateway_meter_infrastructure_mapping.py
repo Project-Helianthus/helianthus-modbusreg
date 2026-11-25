@@ -32,7 +32,7 @@ HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
 # Approved immutable owner links (the exception applies only where the link is the Markdown destination): the pinned docs-semantic revision, owning path, optional non-line anchor.
 OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
 OWNER_URL_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?")
-MD_LINK_RE = re.compile(r"\[(?P<label>(?:[^\[\]]|\[[^\[\]]*\])*)\]\((?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)|^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)[ \t]*$", re.MULTILINE)
+MD_LINK_RE = re.compile(r"\[(?P<label>(?:[^\[\]]|\[[^\[\]]*\])*)\]\(\s*(?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)|^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)[ \t]*$", re.MULTILINE)
 # A line anchor and a private or IPv4 endpoint are never published, whether or not an owner link surrounds them.
 LINE_ANCHOR_RE = re.compile(r"#L[0-9]")
 ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")
@@ -682,6 +682,15 @@ def gate_reason(case, declared, rule, read):
     return "infrastructure.reason.read_exception_no_negation" if read["outcome"] == "EXCEPTION" else None
 
 
+def route_mismatch(case, native_id):
+    """True when a configured meter exposure is read on a route other than its own; an exception on that route is no evidence of absence, but the route mismatch is still reported."""
+    meter, exposure = case["meter"], METER_EXPOSURE_OF.get(native_id)
+    declared = meter["declared"]
+    if declared is None or exposure is None:
+        return False
+    return (exposure == "sdongle_inverter_side" and declared["routed_unit"] == PLANT_UNIT) or declared["exposure"] != exposure or case.get("routed_unit") != declared["routed_unit"]
+
+
 def exposure_reason(case, native_id):
     """An answered meter group of a configured meter exposure is checked against that exposure's own runtime route; nothing in it is decoded."""
     meter, exposure = case["meter"], METER_EXPOSURE_OF.get(native_id)
@@ -731,7 +740,7 @@ def native_rows(case, contract, reads, fields):
         if read is not None and read["outcome"] == "ANSWERED":
             reason = exposure_reason(case, rule["native_id"])
         elif read is not None and read["outcome"] == "EXCEPTION":
-            reason = "infrastructure.reason.read_exception_no_negation"
+            reason = "infrastructure.reason.identity_mismatch" if route_mismatch(case, rule["native_id"]) else "infrastructure.reason.read_exception_no_negation"
         rows.append({"native_id": rule["native_id"], "outcome": "withheld", "reason": reason})
     return rows, facts, held
 

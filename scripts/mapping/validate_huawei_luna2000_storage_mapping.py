@@ -31,7 +31,7 @@ HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
 # Approved immutable owner links (the exception applies only where the link is the Markdown destination): the pinned docs-semantic revision, owning path, optional non-line anchor.
 OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
 OWNER_URL_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?")
-MD_LINK_RE = re.compile(r"\[(?P<label>(?:[^\[\]]|\[[^\[\]]*\])*)\]\((?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)|^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)[ \t]*$", re.MULTILINE)
+MD_LINK_RE = re.compile(r"\[(?P<label>(?:[^\[\]]|\[[^\[\]]*\])*)\]\(\s*(?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)|^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)[ \t]*$", re.MULTILINE)
 # A line anchor and a private or IPv4 endpoint are never published, whether or not an owner link surrounds them.
 LINE_ANCHOR_RE = re.compile(r"#L[0-9]")
 ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")

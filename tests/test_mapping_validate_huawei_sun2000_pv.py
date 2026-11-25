@@ -1265,7 +1265,7 @@ def test_owner_link_in_code_or_a_continuation_title_gets_no_exception():
 
 def test_owner_link_exception_needs_a_complete_approved_destination_not_a_markdown_shaped_title():
     approved = OWNER_BASE + "api/v1/graph.md"
-    for text in ("[owner](" + approved + ";other)", "[owner](<" + approved + ";other>)", "[a](https://example.invalid/x \"[b](" + approved + ")\")", "[a](https://example.invalid/x '[b](" + approved + ")')", "[owner](" + approved + " \"title\")"):
+    for text in ("[owner](" + approved + ";other)", "[owner](<" + approved + ";other>)", "[a](https://example.invalid/x \"[b](" + approved + ")\")", "[a]( https://example.invalid/x \"[b](" + approved + ")\")", "[a](\t<https://example.invalid/x> '[b](" + approved + ")')", "[a](https://example.invalid/x '[b](" + approved + ")')", "[owner](" + approved + " \"title\")"):
         with Raises(ValueError, match="publication"):
             v.check_document(v.load(), page() + "\n" + text + "\n")
 
@@ -1314,6 +1314,16 @@ def test_each_phase_position_reaches_exactly_its_own_resource_and_relation(posit
 def test_phase_identities_are_required_only_for_the_positions_reported(positions, ids):
     output = project(phase_case(positions, ids=ids))
     assert sorted(phase_relations(output)) == sorted((INVERTER, PHASES[position - 1]) for position in positions)
+
+
+def test_the_value_aligned_power_group_extent_validates_the_allocated_phases():
+    document = phase_case([1, 2, 3])
+    for group in document["groups"]:
+        if (group["offset"], group["quantity"]) == (32064, 32):
+            group["quantity"] = 33
+    output = project(document)
+    assert phase_relations(output) == [(INVERTER, item) for item in PHASES]
+    assert not any(fact["key"]["dimensions"][0]["id"] == "pv.dimension.phase" for fact in output["facts"])
 
 
 def test_a_reported_phase_position_without_its_identity_fails_closed():

@@ -272,6 +272,20 @@ def test_a_route_read_that_differs_from_its_own_exposure_is_reported_and_replace
     assert document["meter"]["declared"] == before
 
 
+@parametrize("unit,exposure_read", [(19, SMARTLOGGER), (None, SMARTLOGGER), (11, INVERTER_SIDE)])
+def test_an_exception_on_the_wrong_route_still_reports_the_identity_mismatch(unit, exposure_read):
+    document = with_meter_group(SMARTLOGGER_GROUP, unit, route(exposure_read, 11), route(SMARTLOGGER, 11))
+    document["reads"] = [{"native_id": SMARTLOGGER_GROUP, "outcome": "EXCEPTION", "exception_code": 3}]
+    output = project(document)
+    assert output["facts"] == [] and row_reasons(output)[SMARTLOGGER_GROUP] == "infrastructure.reason.identity_mismatch"
+
+
+def test_an_exception_on_the_exposures_own_route_stays_a_read_exception():
+    document = with_meter_group(SMARTLOGGER_GROUP, 11, route(SMARTLOGGER, 11), route(SMARTLOGGER, 11))
+    document["reads"] = [{"native_id": SMARTLOGGER_GROUP, "outcome": "EXCEPTION", "exception_code": 3}]
+    assert row_reasons(project(document))[SMARTLOGGER_GROUP] == "infrastructure.reason.read_exception_no_negation"
+
+
 def test_the_emma_gateway_level_route_at_unit_zero_is_a_known_route_and_no_configured_meter_exposure():
     known = with_meter_group("emma_built_in_sensor_group", 0, None, route(EMMA_GATEWAY, 0))
     output = project(known)
@@ -1022,7 +1036,7 @@ def test_owner_link_in_code_or_a_continuation_title_gets_no_exception():
 
 def test_owner_link_exception_needs_a_complete_approved_destination_not_a_markdown_shaped_title():
     approved = OWNER_BASE + "api/v1/graph.md"
-    for text in ("[owner](" + approved + ";other)", "[owner](<" + approved + ";other>)", "[a](https://example.invalid/x \"[b](" + approved + ")\")", "[a](https://example.invalid/x '[b](" + approved + ")')", "[owner](" + approved + " \"title\")"):
+    for text in ("[owner](" + approved + ";other)", "[owner](<" + approved + ";other>)", "[a](https://example.invalid/x \"[b](" + approved + ")\")", "[a]( https://example.invalid/x \"[b](" + approved + ")\")", "[a](\t<https://example.invalid/x> '[b](" + approved + ")')", "[a](https://example.invalid/x '[b](" + approved + ")')", "[owner](" + approved + " \"title\")"):
         with Raises(ValueError, match="publication"):
             v.check_document(v.load(), page() + "\n" + text + "\n")
 
