@@ -700,6 +700,7 @@ def native_page_text_cases():
     pages.append(("charging_citation_in_link_definition", wrong + '\n\n[x]: https://example.invalid "' + mapping.CHARGING_CITATION + '"\n'))
     pages.append(("charging_citation_in_multiline_comment", wrong + "\n<!--\n" + mapping.CHARGING_CITATION + "\n-->\n"))
     pages.append(("charging_citation_hidden_in_comment", full.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex B") + " <!-- IEC 61851-1 Annex A -->"))
+    pages.append(("charging_citation_in_comment_after_text", wrong + " visible text <!--\n" + mapping.CHARGING_CITATION + "\n-->\n"))
     pages.append(("charging_citation_other_part", full.replace("IEC 61851-1 Annex A", "IEC 61851-23 Annex A")))
     pages.append(("pause_encoding_contradicted", full.replace("The pause encodes 6 A with inhibit", "The pause encodes 0 A without inhibit")))
     with tempfile.TemporaryDirectory() as directory:
@@ -715,9 +716,15 @@ def native_page_text_cases():
                 else:
                     raise AssertionError(f"{name} page accepted")
                 print(f"{name}: REJECTED")
-            mapping.NATIVE_PAGE = Path(directory) / "comment_markers_in_code.md"
-            mapping.NATIVE_PAGE.write_text(raw + "\n`<!--` `-->`\n", encoding="utf-8")
-            mapping.check_native_page()
+            accepted = {
+                "citation_reflowed": raw.replace(mapping.CHARGING_CITATION, "\n" + mapping.CHARGING_CITATION.replace(" follow ", "\nfollow ")),
+                "citation_after_wrapped_text": raw.replace("\n" + mapping.CHARGING_CITATION, " " + mapping.CHARGING_CITATION),
+                "comment_markers_in_code": raw + "\n`<!--` `-->`\n",
+            }
+            for name, text in accepted.items():
+                mapping.NATIVE_PAGE = Path(directory) / f"{name}.md"
+                mapping.NATIVE_PAGE.write_text(text, encoding="utf-8")
+                mapping.check_native_page()
         finally:
             mapping.NATIVE_PAGE = original
     companion = mapping.DOC.read_text(encoding="utf-8")

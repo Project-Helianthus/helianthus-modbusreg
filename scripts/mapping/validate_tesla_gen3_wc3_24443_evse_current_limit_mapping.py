@@ -577,18 +577,18 @@ NATIVE_STATEMENTS = OPERATION_STATEMENTS + RELATION_STATEMENTS
 CHARGING_CITATION = "The 6 A floor and the 0 A pause follow IEC 61851-1 Annex A, where 6 A is the lowest charging current a charger can signal."
 
 
-def visible_lines(source):
-    """Lines of the page outside HTML comment blocks, left-trimmed; the citation must open a displayed line."""
-    in_comment = False
-    for raw in source.splitlines():
-        line = raw.strip()
-        if in_comment:
-            in_comment = "-->" not in line
-            continue
-        if line.startswith("<!--"):
-            in_comment = "-->" not in line
-            continue
-        yield line
+def visible_paragraphs(source):
+    """Paragraphs of the page outside HTML comments, whitespace-normalized; the citation must open a sentence."""
+    shown = re.sub(r"<!--.*?-->", " ", source, flags=re.DOTALL)
+    for block in re.split(r"\n\s*\n", shown):
+        paragraph = " ".join(block.split())
+        if paragraph:
+            yield paragraph
+
+
+def cites_charging_clause(source):
+    pattern = re.compile(r"(?:^|[.!?] )" + re.escape(CHARGING_CITATION))
+    return any(pattern.search(paragraph) for paragraph in visible_paragraphs(source))
 
 
 def check_native_page():
@@ -598,7 +598,7 @@ def check_native_page():
     text = " ".join(NATIVE_PAGE.read_text(encoding="utf-8").split())
     if any(statement not in text for statement in NATIVE_STATEMENTS):
         fail("native_page_disagrees")
-    if not any(line.startswith(CHARGING_CITATION) for line in visible_lines(NATIVE_PAGE.read_text(encoding="utf-8"))):
+    if not cites_charging_clause(NATIVE_PAGE.read_text(encoding="utf-8")):
         fail("native_page_disagrees")
 
 
