@@ -195,12 +195,14 @@
     {
       "definition": "evse.relation.connector_phase",
       "outcome": "unknown_not_absent",
-      "unpublished_endpoint": "resource.phase"
+      "unpublished_endpoint": "resource.phase",
+      "reason": "no_native_statement_assigns_per_phase_connector_measurements_to_the_wall_connector_vitals"
     },
     {
       "definition": "evse.relation.connector_session",
       "outcome": "unknown_not_absent",
-      "unpublished_endpoint": "resource.charging_session"
+      "unpublished_endpoint": "resource.charging_session",
+      "reason": "no_native_statement_gives_a_session_start_in_the_wall_connector_vitals"
     }
   ],
   "lifecycle": {
@@ -230,6 +232,9 @@
         "provisional_set",
         "provisional_ack"
       ]
+    },
+    "candidate_binding": {
+      "configured_current": "same_source_epoch_driver_generation_and_lifecycle_generation_then_later_receipt"
     },
     "atomicity": "persistent_and_provisional_each_have_one_evidence_id_one_source_epoch_one_driver_generation_one_semantic_revision",
     "withdrawal": "explicit_generation_fenced",
@@ -297,14 +302,14 @@
         "capability": "evse.capability.set_allocated_current",
         "service": "evse.service.connector",
         "effect": "evse.effect.set_allocated_current",
+        "release_argument": "evse.limit.allocated_current_enabled",
+        "release_effect": "evse.effect.release_allocated_current",
         "subject_kind": "resource.connector",
         "route": [
           "family_6.t25_to_t26",
           "family_6.t27_to_t28"
         ],
         "authority": "setting_owner_through_semreg_call_path",
-        "release_argument": "evse.limit.allocated_current_enabled",
-        "release_effect": "evse.effect.release_allocated_current",
         "argument_rules": {
           "amperes": {
             "type": "non_negative_integer",
@@ -324,7 +329,9 @@
             "above_configured": "invalid_nothing_sent",
             "no_t28_in_generation": "prerequisite_t27_to_t28_read_only_then_no_t25_when_above_configured"
           },
-          "timeout_seconds": {
+          "wire_timeout": {
+            "seconds": 900,
+            "selected_by": "the_operation_not_the_caller",
             "interoperable_range": [
               1,
               86399
@@ -332,7 +339,9 @@
             "zero": "not_an_interoperable_request_value",
             "refused_outcome": "invalid_nothing_sent"
           },
+          "caller_timeout": "not_an_argument_of_the_operation",
           "connector": "own_connector_only",
+          "effect_target": "own_connector_only_refused_before_any_read_or_send",
           "release": {
             "allocated_current_enabled": false,
             "amperes": "forbidden",
@@ -357,6 +366,58 @@
         "AllocationExpiry"
       ],
       "reason": "no_catalog_element"
+    }
+  },
+  "operation": {
+    "name": "evse.operation.set_allocated_current",
+    "capability": "evse.capability.set_allocated_current",
+    "service": "evse.service.connector",
+    "effect": "evse.effect.set_allocated_current",
+    "release_argument": "evse.limit.allocated_current_enabled",
+    "release_effect": "evse.effect.release_allocated_current",
+    "subject_kind": "resource.connector",
+    "route": [
+      "family_6.t25_to_t26",
+      "family_6.t27_to_t28"
+    ],
+    "authority": "setting_owner_through_semreg_call_path",
+    "argument_rules": {
+      "amperes": {
+        "type": "non_negative_integer",
+        "upper_bound": "configured_current_of_latest_t28_in_the_lifecycle_generation",
+        "upper_bound_device_query": "the_device_limit_query_result_wins_where_offered",
+        "pause": {
+          "amperes": 0,
+          "encoding": "6_A_with_inhibit_true",
+          "requires_configured_bound_at_least": 6
+        },
+        "refused_range": {
+          "minimum_nonzero_amperes": 6,
+          "maximum_refused_nonzero_amperes": 5,
+          "outcome": "invalid_nothing_sent",
+          "source_clause": "IEC 61851-1 Annex A"
+        },
+        "above_configured": "invalid_nothing_sent",
+        "no_t28_in_generation": "prerequisite_t27_to_t28_read_only_then_no_t25_when_above_configured"
+      },
+      "wire_timeout": {
+        "seconds": 900,
+        "selected_by": "the_operation_not_the_caller",
+        "interoperable_range": [
+          1,
+          86399
+        ],
+        "zero": "not_an_interoperable_request_value",
+        "refused_outcome": "invalid_nothing_sent"
+      },
+      "caller_timeout": "not_an_argument_of_the_operation",
+      "connector": "own_connector_only",
+      "effect_target": "own_connector_only_refused_before_any_read_or_send",
+      "release": {
+        "allocated_current_enabled": false,
+        "amperes": "forbidden",
+        "requires_configured_bound": "nonzero_known_configured_current"
+      }
     }
   },
   "consumer_cutover": {

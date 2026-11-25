@@ -130,7 +130,9 @@ def operation_cases(baseline, contract):
     print("operations: PASS")
 
 
-SET = {"connector_id": "connector.wc3.alpha", "timeout_seconds": 600}
+SET = {"connector_id": "connector.wc3.alpha"}
+OWN = "connector.wc3.alpha"
+OTHER = "connector.wc3.beta"
 RELEASE = {"connector_id": "connector.wc3.alpha", "allocated_current_enabled": False}
 KNOWN = {"t28_known": True, "configured_current": 16}
 UNREAD = {"t28_known": False, "configured_current": None}
@@ -147,7 +149,18 @@ def operation_vectors():
         ("above_configured_read_first", dict(SET, amperes=16), UNREAD, "read_first"),
         ("above_configured_after_read", dict(SET, amperes=16), {"t28_known": True, "configured_current": 12}, "rejected_above_configured"),
         ("negative_zero_timeout", dict(SET, amperes=16, timeout_seconds=0), KNOWN, "rejected_invalid"),
-        ("negative_other_connector", dict(SET, amperes=16, connector_id="connector.wc3.beta"), KNOWN, "rejected_other_connector"),
+        ("negative_caller_timeout_600", dict(SET, amperes=16, timeout_seconds=600), KNOWN, "rejected_invalid"),
+        ("negative_caller_timeout_900", dict(SET, amperes=16, timeout_seconds=900), KNOWN, "rejected_invalid"),
+        ("negative_caller_timeout_on_pause", dict(SET, amperes=0, timeout_seconds=900), KNOWN, "rejected_invalid"),
+        ("negative_other_connector", dict(SET, amperes=16, connector_id=OTHER), KNOWN, "rejected_other_connector"),
+        ("effect_on_own_connector", dict(SET, amperes=16, effect_target=OWN), KNOWN, "send_set"),
+        ("negative_effect_on_other_connector", dict(SET, amperes=16, effect_target=OTHER), KNOWN, "rejected_other_connector"),
+        ("negative_effect_on_other_connector_no_read", dict(SET, amperes=16, effect_target=OTHER), UNREAD, "rejected_other_connector"),
+        ("negative_effect_on_other_connector_pause", dict(SET, amperes=0, effect_target=OTHER), KNOWN, "rejected_other_connector"),
+        ("negative_effect_on_other_connector_below_minimum", dict(SET, amperes=3, effect_target=OTHER), UNREAD, "rejected_other_connector"),
+        ("negative_effect_blank", dict(SET, amperes=16, effect_target=""), KNOWN, "rejected_other_connector"),
+        ("negative_effect_own_but_connector_other", dict(SET, amperes=16, connector_id=OTHER, effect_target=OWN), KNOWN, "rejected_other_connector"),
+        ("negative_both_other", dict(SET, amperes=16, connector_id=OTHER, effect_target=OTHER), KNOWN, "rejected_other_connector"),
         ("pause_bound_below_6A", dict(SET, amperes=0), {"t28_known": True, "configured_current": 5}, "rejected_pause_bound"),
         ("malformed_bound_nan_16A", dict(SET, amperes=16), {"t28_known": True, "configured_current": float("nan")}, "rejected_no_configured_bound"),
         ("malformed_bound_nan_pause", dict(SET, amperes=0), {"t28_known": True, "configured_current": float("nan")}, "rejected_no_configured_bound"),
@@ -159,18 +172,35 @@ def operation_vectors():
         ("release_zero_bound", RELEASE, {"t28_known": True, "configured_current": 0}, "rejected_no_release_bound"),
         ("release_nan_bound", RELEASE, {"t28_known": True, "configured_current": float("nan")}, "rejected_no_release_bound"),
         ("release_with_amperes", dict(RELEASE, amperes=0), KNOWN, "rejected_invalid"),
-        ("release_other_connector", dict(RELEASE, connector_id="connector.wc3.beta"), KNOWN, "rejected_other_connector"),
+        ("release_other_connector", dict(RELEASE, connector_id=OTHER), KNOWN, "rejected_other_connector"),
+        ("release_effect_on_other_connector", dict(RELEASE, effect_target=OTHER), UNREAD, "rejected_other_connector"),
+        ("release_effect_on_own_connector", dict(RELEASE, effect_target=OWN), KNOWN, "send_release"),
         ("release_zero_timeout", dict(RELEASE, timeout_seconds=0), KNOWN, "rejected_invalid"),
-        ("release_zero_timeout_read_first", dict(RELEASE, timeout_seconds=0), UNREAD, "rejected_invalid"),
-        ("release_timeout_above_maximum", dict(RELEASE, timeout_seconds=mapping.MAX_INTEROPERABLE_TIMEOUT_SECONDS + 1), KNOWN, "rejected_invalid"),
-        ("release_timeout_malformed", dict(RELEASE, timeout_seconds="600"), KNOWN, "rejected_invalid"),
-        ("release_valid_timeout", dict(RELEASE, timeout_seconds=600), KNOWN, "send_release"),
+        ("release_caller_timeout_read_first", dict(RELEASE, timeout_seconds=600), UNREAD, "rejected_invalid"),
+        ("release_caller_timeout_900", dict(RELEASE, timeout_seconds=900), KNOWN, "rejected_invalid"),
     ]
     for name, request, generation, expected in vectors:
         got = mapping.set_allocated_current_disposition(request, generation, "connector.wc3.alpha")
         if got != expected:
             raise AssertionError(f"{name}: expected {expected}, got {got}")
         print(name + ": " + got)
+    wire_cases()
+
+
+def wire_cases():
+    """The wire triple of a send carries 900 seconds whatever the caller said; wire timeout validation is its own check."""
+    if mapping.wire_request("send_set", 16, 20) != (16, 900, False) or mapping.wire_request("send_pause", 0, 20) != (6, 900, True) or mapping.wire_request("send_release", None, 20) != (20, 900, False):
+        raise AssertionError("wire request does not carry the documented 900 second timeout")
+    for refused in ("read_first", "rejected_invalid", "rejected_other_connector"):
+        try:
+            mapping.wire_request(refused, 16, 20)
+        except ValueError:
+            continue
+        raise AssertionError("a refused disposition produced a wire request")
+    for timeout, expected in ((0, False), (1, True), (900, True), (86399, True), (86400, False), (-1, False), ("900", False), (None, False), (True, False)):
+        if mapping.valid_wire_timeout(timeout) is not expected:
+            raise AssertionError(f"wire timeout {timeout!r} validated as {not expected}")
+    print("wire-timeout: PASS")
 
 
 def candidate_cases(baseline, contract):
@@ -201,6 +231,43 @@ def candidate_cases(baseline, contract):
     else:
         raise AssertionError("no configured candidate accepted")
     print("no_configured_candidate: REJECTED")
+
+
+def epoch_cases(baseline, contract):
+    """Section 6.1: the later receipt wins only among candidates of the case's own epoch and generation; every binding member is varied on the newer t28."""
+    newer = [("set", "provisional.ConfiguredCurrentAmps", 32), ("set", "evidence.provisional.receipt_timestamp", "2026-09-10T00:00:05Z")]
+    bound = {"source_epoch": "epoch.wc3.1", "driver_generation": 1, "lifecycle_generation": 1}
+    other = {"source_epoch": "epoch.wc3.2", "driver_generation": 2, "lifecycle_generation": 2}
+    cases = [("newer_t28_same_binding_wins", {}, "32")]
+    for key in bound:
+        cases.append((f"newer_t28_same_{key}_wins", {key: bound[key]}, "32"))
+        cases.append((f"newer_t28_other_{key}_loses", {key: other[key]}, "16"))
+    cases.append(("newer_t28_all_bound_wins", dict(bound), "32"))
+    cases.append(("newer_t28_all_other_loses", dict(other), "16"))
+    cases.append(("newer_t28_bool_generation_loses", {"driver_generation": True}, "16"))
+    for name, binding, expected in cases:
+        candidate = copy.deepcopy(baseline)
+        for op, path, value in newer:
+            edit(candidate, op, path, value)
+        candidate["evidence"]["provisional"].update(binding)
+        configured = [coefficient for fact, coefficient in facts_of(mapping.project(candidate, contract)) if fact == "evse.limit.configured_current"]
+        if configured != [expected]:
+            raise AssertionError(f"{name}: configured current {configured}")
+        print(name + ": EPOCH")
+    for key in bound:
+        older_other = copy.deepcopy(baseline)
+        older_other["evidence"]["persistent"][key] = other[key]
+        older_other["evidence"]["persistent"]["receipt_timestamp"] = "2026-09-10T00:00:09Z"
+        older_other["persistent"]["MaxOutputCurrentAmps"] = 7
+        if [c for f, c in facts_of(mapping.project(older_other, contract)) if f == "evse.limit.configured_current"] != ["16"]:
+            raise AssertionError(f"newer t8 of another {key} determined the configured current")
+    alone = copy.deepcopy(baseline)
+    for op, path, value in (("delete", "persistent", None), ("delete", "evidence.persistent", None), ("set", "evidence.provisional.source_epoch", "epoch.wc3.2")):
+        edit(alone, op, path, value)
+    result = mapping.project(alone, contract)
+    if withheld_of(result) != [("evse.limit.configured_current", "configured_current_other_epoch")]:
+        raise AssertionError("a lone candidate of another epoch was not withheld: " + repr(withheld_of(result)))
+    print("epoch: PASS")
 
 
 def native_timeout_cases(baseline, contract):
@@ -298,10 +365,11 @@ def main():
     readback_cases(baseline, contract)
     operation_vectors()
     candidate_cases(baseline, contract)
+    epoch_cases(baseline, contract)
     native_timeout_cases(baseline, contract)
     native_expiry_cases(baseline, contract)
     identity_without_meter_cases(baseline, contract)
-    cases = [("status_read_only", "status", "accepted_source_specific_read_only_mapping_gate", "contract"), ("pin", "pins.gateway_main", "0" * 40, "contract"), ("profile", "native_contract.profile", "wc3_24_44_4", "native_contract"), ("outbound", "native_contract.outbound_allowed", True, "native_contract"), ("identity_derivation", "identity.forbidden_derivations.0", "serial", "identity_contract"), ("identity_reuse", "identity.failure", "allow_reuse", "identity_contract"), ("meter_identity_required", "identity.meter_id.required", True, "identity_contract"), ("connector_identity_optional", "identity.connector_id.required", False, "identity_contract"), ("lifecycle", "lifecycle.required.0", "timestamp", "lifecycle_contract"), ("persistent_target", "field_rules.0.target", "evse.limit.allocated_current", "field_rules"), ("provisional_disposition", "field_rules.2.disposition", "always", "field_rules"), ("unsupported", "unsupported.0", "power_allowed", "withheld_or_unsupported"), ("precedence", "projection.error_precedence.0", "x", "projection"), ("operations", "projection.operations", "available", "projection"), ("operation_unlisted", "projection.operations.0.name", "evse.operation.release_allocated_current", "projection"), ("operation_timeout_range_open", "projection.operations.0.argument_rules.timeout_seconds.interoperable_range", [0, 86399], "projection"), ("operation_pause_encoding_dropped", "projection.operations.0.argument_rules.amperes.pause.encoding", "none", "projection"), ("operation_refused_range_widened", "projection.operations.0.argument_rules.amperes.refused_range.maximum_refused_nonzero_amperes", 4, "projection"), ("cutover", "consumer_cutover.forbidden.0", "allowed", "consumer_cutover")]
+    cases = [("status_read_only", "status", "accepted_source_specific_read_only_mapping_gate", "contract"), ("pin", "pins.gateway_main", "0" * 40, "contract"), ("profile", "native_contract.profile", "wc3_24_44_4", "native_contract"), ("outbound", "native_contract.outbound_allowed", True, "native_contract"), ("identity_derivation", "identity.forbidden_derivations.0", "serial", "identity_contract"), ("identity_reuse", "identity.failure", "allow_reuse", "identity_contract"), ("meter_identity_required", "identity.meter_id.required", True, "identity_contract"), ("connector_identity_optional", "identity.connector_id.required", False, "identity_contract"), ("lifecycle", "lifecycle.required.0", "timestamp", "lifecycle_contract"), ("persistent_target", "field_rules.0.target", "evse.limit.allocated_current", "field_rules"), ("provisional_disposition", "field_rules.2.disposition", "always", "field_rules"), ("unsupported", "unsupported.0", "power_allowed", "withheld_or_unsupported"), ("precedence", "projection.error_precedence.0", "x", "projection"), ("operations", "projection.operations", "available", "projection"), ("operation_unlisted", "projection.operations.0.name", "evse.operation.release_allocated_current", "projection"), ("operation_wire_timeout_range_open", "projection.operations.0.argument_rules.wire_timeout.interoperable_range", [0, 86399], "projection"), ("operation_wire_timeout_value", "projection.operations.0.argument_rules.wire_timeout.seconds", 600, "projection"), ("operation_caller_timeout_admitted", "projection.operations.0.argument_rules.caller_timeout", "any_interoperable_value", "projection"), ("operation_effect_target_open", "projection.operations.0.argument_rules.effect_target", "any_connector", "projection"), ("operation_member_effect", "operation.effect", "evse.effect.other", "operation"), ("operation_member_route", "operation.route.0", "family_6.t7_to_t8", "operation"), ("operation_member_capability", "operation.capability", "evse.capability.other", "operation"), ("operation_member_timeout_rule", "operation.argument_rules.wire_timeout.seconds", 600, "operation"), ("operation_member_effect_target_rule", "operation.argument_rules.effect_target", "any_connector", "operation"), ("operation_member_dropped", "operation", None, "operation"), ("lifecycle_candidate_binding", "lifecycle.candidate_binding.configured_current", "later_receipt_only", "lifecycle_contract"), ("operation_pause_encoding_dropped", "projection.operations.0.argument_rules.amperes.pause.encoding", "none", "projection"), ("operation_refused_range_widened", "projection.operations.0.argument_rules.amperes.refused_range.maximum_refused_nonzero_amperes", 4, "projection"), ("cutover", "consumer_cutover.forbidden.0", "allowed", "consumer_cutover")]
     for case in cases: reject(*case)
     for name, path, value, expected in [("blank_identity", "identity.asset_id", "", "identity_invalid"), ("managed_set_without_its_acknowledgement_ref", "managed_set", {"ack_receipt_timestamp": "2026-09-10T00:00:00Z", "duration_seconds": 60}, "evidence_binding_invalid"), ("wrong_unit_profile", "profile", "other", "profile_or_version_invalid"), ("missing_receipt", "lifecycle.receipt_timestamp", "", "lifecycle_invalid"), ("operation_attempt", "operation", "evse.operation.release_allocated_current", "unsupported_fact_or_operation"), ("persistent_evidence", "evidence.persistent.persistent_terminal", "bad", "evidence_binding_invalid"), ("persistent_receipt", "evidence.persistent.receipt_timestamp", "", "evidence_binding_invalid")]:
         candidate = copy.deepcopy(baseline); mapping.mutate(candidate, {"path": path, "value": value})
@@ -317,9 +385,13 @@ def main():
 
 def native_page_cases():
     """The staged ND02 page must exist and state the rules the gate cites; an absent page is never a pass."""
-    mapping.check_native_page()
     original = mapping.NATIVE_PAGE
+    full = " ".join(original.read_text(encoding="utf-8").split())
     try:
+        with tempfile.TemporaryDirectory() as directory:
+            mapping.NATIVE_PAGE = Path(directory) / "page-with-citation.md"
+            mapping.NATIVE_PAGE.write_text(full, encoding="utf-8")
+            mapping.check_native_page()
         mapping.NATIVE_PAGE = ROOT / ".tmp/does-not-exist/gen3-semreg-mapping-v1.md"
         try:
             mapping.check_native_page()
@@ -330,14 +402,13 @@ def native_page_cases():
             raise AssertionError("missing ND02 page accepted")
     finally:
         mapping.NATIVE_PAGE = original
-    native_page_text_cases()
+    native_page_text_cases(full)
     print("native-page: PASS")
 
 
-def native_page_text_cases():
-    """A page with only the operation statements, or without the relation statements, fails the native check."""
+def native_page_text_cases(full):
+    """A page with only the operation statements, or without the relation statements fails the native check."""
     original = mapping.NATIVE_PAGE
-    full = " ".join(original.read_text(encoding="utf-8").split())
     without_relations = full
     for statement in mapping.RELATION_STATEMENTS:
         without_relations = without_relations.replace(statement, "")
@@ -417,6 +488,11 @@ GRAPH_NEGATIVES = [
     ("plane_on_field_rule", [("set", "field_rules.0.planes", ["energy"])], "graph plane_membership_stated $.field_rules[0].planes"),
     ("meter_relation_dropped", [("delete", "graph.relations.2", None)], "graph_relations"),
     ("meter_absence_asserted", [("set", "graph.relations.2.absence_sides", ["to"])], "graph_relations"),
+    ("phase_reason_dropped", [("delete", "unstated_relations.0.reason", None)], "unstated_relations"),
+    ("phase_reason_changed", [("set", "unstated_relations.0.reason", "unsupported")], "unstated_relations"),
+    ("session_reason_dropped", [("delete", "unstated_relations.1.reason", None)], "unstated_relations"),
+    ("session_reason_swapped", [("set", "unstated_relations.1.reason", "no_native_statement_assigns_per_phase_connector_measurements_to_the_wall_connector_vitals")], "unstated_relations"),
+    ("phase_stated_absent", [("set", "unstated_relations.0.outcome", "absent")], "unstated_relations"),
     ("meter_relation_also_unstated", [("append", "unstated_relations", METER_UNSTATED)], "unstated_relations"),
     ("meter_resource_dropped", [("delete", "graph.resources.3", None)], "graph dangling_endpoint $.graph.relations[2].to_kind"),
     ("identity_meter_dimension_unpublished", [("set", "identity.meter_id.dimension", "evse.dimension.phase")], "identity_contract"),
