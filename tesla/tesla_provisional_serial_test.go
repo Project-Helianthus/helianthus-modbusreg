@@ -135,8 +135,15 @@ func TestTeslaProvisionalCurrentLimitSerialPartialPoll(t *testing.T) {
 			}
 			reply := teslaSerialMessage(6, 28, 10, 5, 8, 16, 16, 0x83, 7, 16, 32)
 			vectors = append(vectors, teslaSerialVector{teslaSerialMessage(6, 27), reply})
-			acq, line := teslaProvisionalSerialAcquisition(t, version, true, vectors)
-			records, err := acq.PollOnce(context.Background())
+			acq, line := teslaProvisionalSerialAcquisition(t, version, true, vectors, func(config *Gen3ReadAcquisitionConfig) {
+				if version == "24.44.3" {
+					gen := config.Gen3.config
+					gen.ProvisionalSetQualified = false
+					config.Gen3 = mustTeslaGen3Profile(t, gen)
+				}
+			})
+			ctx := context.Background()
+			records, err := acq.PollOnce(ctx)
 			if err != nil || len(records) != len(vectors) || len(line.writes) != len(vectors) {
 				t.Fatalf("poll: %d records, %d writes, %v", len(records), len(line.writes), err)
 			}
@@ -144,6 +151,12 @@ func TestTeslaProvisionalCurrentLimitSerialPartialPoll(t *testing.T) {
 			got, ok := retained.LastGood.ProvisionalReadback()
 			if !retained.Current || !ok || got != (ProvisionalCurrentLimitReadback{16, 899, false, 32, true, true, false, true}) || !bytes.Equal(retained.LastGood.terminalPayload(), reply) {
 				t.Fatalf("partial retained readback = %+v, %+v", got, retained)
+			}
+			if version == "24.44.3" {
+				denied, err := acq.SetProvisionalCurrentLimit(ctx, ProvisionalCurrentLimitRequest{16, 900, false})
+				if err == nil || !denied.NoSend || denied.Outcome != Gen3ReadEvidenceRejected || len(line.writes) != len(vectors) {
+					t.Fatalf("t27 admitted t25: %+v, %v", denied, err)
+				}
 			}
 		})
 	}
