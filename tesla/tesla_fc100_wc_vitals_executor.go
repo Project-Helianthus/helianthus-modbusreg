@@ -28,11 +28,21 @@ func NewFC100WCVitalsExecutor(
 	return &FC100WCVitalsExecutor{profile: profile, exchanger: exchanger}, nil
 }
 
-// Execute constructs the fixed qualified FC100 request, invokes one injected
-// already-correlated RTU exchange, and returns only bounded redacted replays.
-// It does not open a serial endpoint, expose response bytes, or select any
-// fallback operation.
+// Execute invokes the qualified exchange without a firmware identity and
+// returns echo and terminal diagnostics without typed values or raw bodies.
 func (executor *FC100WCVitalsExecutor) Execute(ctx context.Context) ([]FC100WCVitalsReplay, error) {
+	return executor.execute(ctx, DecodeTeslaFC100WCVitalsReplay)
+}
+
+// ExecuteForFirmware invokes the same qualified exchange and retains the native
+// terminal. The supplied firmware selects decoding only; it grants no admission.
+func (executor *FC100WCVitalsExecutor) ExecuteForFirmware(ctx context.Context, firmware string) ([]FC100WCVitalsReplay, error) {
+	return executor.execute(ctx, func(payload []byte) (FC100WCVitalsReplay, error) {
+		return DecodeWCVitalsReplayForFirmware(payload, firmware)
+	})
+}
+
+func (executor *FC100WCVitalsExecutor) execute(ctx context.Context, decode func([]byte) (FC100WCVitalsReplay, error)) ([]FC100WCVitalsReplay, error) {
 	if executor == nil || ctx == nil || executor.exchanger == nil {
 		return nil, modbusreg.ErrQualifiedFunctionNoSend
 	}
@@ -49,7 +59,7 @@ func (executor *FC100WCVitalsExecutor) Execute(ctx context.Context) ([]FC100WCVi
 	}
 	replays := make([]FC100WCVitalsReplay, 0, len(responses))
 	for _, response := range responses {
-		replay, err := DecodeTeslaFC100WCVitalsReplay(response.Payload())
+		replay, err := decode(response.Payload())
 		if err != nil {
 			return nil, err
 		}
