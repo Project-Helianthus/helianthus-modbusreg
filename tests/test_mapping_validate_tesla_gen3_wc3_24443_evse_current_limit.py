@@ -311,7 +311,33 @@ def epoch_cases(baseline, contract):
     result = mapping.project(alone, contract)
     if withheld_of(result) != [("evse.limit.allocated_current", "provisional_evidence_invalid"), ("evse.limit.configured_current", "configured_current_other_epoch")]:
         raise AssertionError("a lone candidate of another epoch was not withheld: " + repr(withheld_of(result)))
+    foreign_evidence_cases(baseline, contract)
     print("epoch: PASS")
+
+
+def foreign_evidence_cases(baseline, contract):
+    """A foreign t8 does not stand in for missing valid evidence, and a foreign t28 derives no expiry; each binding member is varied."""
+    for key in BOUND:
+        both_malformed = copy.deepcopy(baseline)
+        both_malformed["evidence"]["persistent"][key] = OTHER[key]
+        both_malformed["evidence"]["persistent"]["persistent_terminal"] = "bad"
+        both_malformed["evidence"]["provisional"]["provisional_readback_terminal"] = "bad"
+        try:
+            mapping.project(both_malformed, contract)
+        except ValueError as error:
+            if str(error) != "evidence_binding_invalid":
+                raise AssertionError(f"foreign t8 {key} with a malformed readback: {error}")
+        else:
+            raise AssertionError(f"foreign t8 {key} with a malformed readback was accepted")
+        foreign_t28 = copy.deepcopy(baseline)
+        for path, value in (("managed_set", managed_set()), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:01:10Z")):
+            mapping.mutate(foreign_t28, {"path": path, "value": value})
+        foreign_t28["evidence"]["provisional"][key] = OTHER[key]
+        result = mapping.project(foreign_t28, contract)
+        if any(entry["field"] == "AllocationExpiry" for entry in result["native"]):
+            raise AssertionError(f"a t28 of another {key} derived an expiry")
+        if [entry["field"] for entry in result["native"]] != ["LimitTimeoutSeconds"]:
+            raise AssertionError(f"a t28 of another {key} lost its raw timeout: {result['native']}")
 
 
 def native_timeout_cases(baseline, contract):
@@ -429,13 +455,9 @@ def main():
 
 def native_page_cases():
     """The staged ND02 page must exist and state the rules the gate cites; an absent page is never a pass."""
+    mapping.check_native_page()
     original = mapping.NATIVE_PAGE
-    full = " ".join(original.read_text(encoding="utf-8").split())
     try:
-        with tempfile.TemporaryDirectory() as directory:
-            mapping.NATIVE_PAGE = Path(directory) / "page-with-citation.md"
-            mapping.NATIVE_PAGE.write_text(full, encoding="utf-8")
-            mapping.check_native_page()
         mapping.NATIVE_PAGE = ROOT / ".tmp/does-not-exist/gen3-semreg-mapping-v1.md"
         try:
             mapping.check_native_page()
@@ -446,13 +468,14 @@ def native_page_cases():
             raise AssertionError("missing ND02 page accepted")
     finally:
         mapping.NATIVE_PAGE = original
-    native_page_text_cases(full)
+    native_page_text_cases()
     print("native-page: PASS")
 
 
-def native_page_text_cases(full):
-    """A page with only the operation statements, or without the relation statements fails the native check."""
+def native_page_text_cases():
+    """A page with only the operation statements, or without the relation statements, fails the native check."""
     original = mapping.NATIVE_PAGE
+    full = " ".join(original.read_text(encoding="utf-8").split())
     without_relations = full
     for statement in mapping.RELATION_STATEMENTS:
         without_relations = without_relations.replace(statement, "")

@@ -355,14 +355,21 @@ def case_errors(case, contract):
     if not all(valid_id(v) for v in values) or len(set(values)) != len(values): errors.add(ERRORS[1])
     if case.get("source_path") != contract["projection"]["source_path"]: errors.add(ERRORS[2])
     evidence = case.get("evidence", {})
-    if "persistent" in case:
-        if not foreign_to_lifecycle(evidence.get("persistent"), case.get("lifecycle")) and not valid_evidence(evidence.get("persistent"), PERSISTENT_REFS): errors.add(ERRORS[3])
-    elif not provisional_valid(case):
-        errors.add(ERRORS[3])
+    if not case_evidence_valid(case): errors.add(ERRORS[3])
     if not lifecycle_valid(case.get("lifecycle", {})): errors.add(ERRORS[4])
     if "managed_set" in case and not managed_set_valid(case["managed_set"]): errors.add(ERRORS[3])
     if case.get("unsupported_fact") or (case.get("operation") is not None and case.get("operation") not in OPERATION_NAMES): errors.add(ERRORS[5])
     return errors
+
+
+def case_evidence_valid(case):
+    """A persistent record of the case needs its own evidence; one outside the case lifecycle is excluded and the case then needs valid provisional evidence. Without a persistent record the provisional evidence is required."""
+    if "persistent" not in case:
+        return provisional_valid(case)
+    evidence = case.get("evidence", {}).get("persistent")
+    if foreign_to_lifecycle(evidence, case.get("lifecycle")):
+        return provisional_valid(case)
+    return valid_evidence(evidence, PERSISTENT_REFS)
 
 
 def lifecycle_valid(lifecycle):
@@ -414,7 +421,7 @@ def receipt_text(text):
 def allocation_cutoff(case):
     """ND02 SemReg mapping, field rules: a known nonzero managed timeout ends at the set acknowledgement plus the requested duration; the cutoff is known only for a readback that names that set and acknowledgement. An unresolved timeout gives no cutoff."""
     managed = case.get("managed_set")
-    if managed is None or managed["duration_seconds"] == 0:
+    if managed is None or managed["duration_seconds"] == 0 or not bound_to_lifecycle(case["evidence"]["provisional"], case["lifecycle"]):
         return None
     timeout = case["provisional"].get("LimitTimeoutSeconds")
     if not non_negative_int(timeout) or timeout == 0:

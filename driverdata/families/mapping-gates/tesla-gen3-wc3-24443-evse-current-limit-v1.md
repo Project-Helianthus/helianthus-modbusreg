@@ -52,9 +52,12 @@ and generation, and with none left the fact is withheld as
 `configured_current_other_epoch`. A persistent candidate that names another
 source epoch or generation is excluded and does not invalidate the projection of
 the candidates of the case. A readback outside the case's epoch and generation
-withholds the allocated current and the configured current, and the native
-timeout and the known expiry it carries stay served in the modbusreg
-namespace. Permitted last-known-good retention remains the native owner's
+is not a candidate: it withholds the allocated current and derives no expiry,
+and the configured current is withheld as `configured_current_other_epoch` only
+when no candidate of the case remains; the raw native timeout it carries stays
+served in the modbusreg namespace. A persistent record outside the case's epoch
+and generation does not stand in for evidence: the case still needs valid
+provisional evidence. Permitted last-known-good retention remains the native owner's
 lifecycle decision.
 
 ## Resources, relations, and identity
