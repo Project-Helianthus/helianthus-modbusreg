@@ -53,7 +53,8 @@ semantic revision and required evidence are all present and equal to the
 case's own. A record that states a different value, or leaves one out, is
 ineligible: it is reported in the `ineligible` member of the projection with
 its reason (`<member>_missing`, `<member>_other`, `evidence_missing` or
-`evidence_invalid`) and has no other effect. Selection, suppression, the
+`evidence_invalid`) and has no other effect, except that the raw native timeout
+of a readback with valid evidence stays served, as stated below. Selection, suppression, the
 evidence gate and every derived value (the configured current, the allocated
 current and the expiry) read only eligible records.
 
@@ -66,8 +67,9 @@ current and the expiry) read only eligible records.
   eligible one: a malformed value on an ineligible persistent record does not
   veto the case, and a persistent record whose evidence member is absent is
   reported as `evidence_missing`. A persistent record that names the case
-  lifecycle and carries malformed evidence is a corrupt case and is rejected
-  with `evidence_binding_invalid`.
+  lifecycle and leaves out or malforms a member or reference of its evidence,
+  the request and terminal references included, is a corrupt case and is
+  rejected with `evidence_binding_invalid`, whatever the readback carries.
 - An ineligible readback yields no allocated current, no configured-current
   candidate and no expiry; the allocated current is withheld as
   `provisional_evidence_invalid`. A readback whose evidence is valid but names

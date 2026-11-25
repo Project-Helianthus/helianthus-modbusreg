@@ -248,7 +248,7 @@
         "lifecycle_generation",
         "semantic_revision"
       ],
-      "ineligible": "reported_with_its_reason_and_no_other_effect",
+      "ineligible": "reported_with_its_reason_and_no_other_effect_except_the_raw_native_timeout_of_a_readback_with_valid_evidence",
       "reads_only_eligible": [
         "selection",
         "suppression",

@@ -383,6 +383,7 @@ def epoch_cases(baseline, contract):
         raise AssertionError("a lone t28 of another epoch satisfied the evidence gate")
     foreign_evidence_cases(baseline, contract)
     eligibility_table(baseline, contract)
+    bound_persistent_evidence_case(baseline)
     other_revision_readback_case(baseline, contract)
     print("epoch: PASS")
 
@@ -460,6 +461,9 @@ def eligibility_cell(baseline, contract, kind, name, action, reason):
     label = f"{kind}/{name}"
     case = eligibility_layout(baseline, kind)
     apply_condition(case, kind, action)
+    if kind == "persistent" and name == "evidence_reference_absent":
+        expect_gate(case, True, label)
+        return
     result = mapping.project(case, contract)
     expected_report = [] if reason is None else [{"record": kind, "reason": reason}]
     if result["ineligible"] != expected_report:
@@ -479,6 +483,28 @@ def eligibility_cell(baseline, contract, kind, name, action, reason):
         return
     if facts_of(result) != facts_of(reference) or configured != ["16"] or allocated or expired or ("evse.limit.allocated_current", "allocation_expired") in withheld_of(result):
         raise AssertionError(f"{label}: an ineligible t28 contributed: {facts_of(result)} {withheld_of(result)} {result['native']}")
+
+
+PERSISTENT_EVIDENCE_KEYS = ("immutable_evidence_id", "payload_digest", "receipt_timestamp", "persistent_request", "persistent_terminal")
+
+
+def bound_persistent_evidence_case(baseline):
+    """Every member and reference of a persistent record bound to the case lifecycle, left out or malformed beside a valid readback, rejects the case; a record whose evidence member is absent only fails to satisfy the gate."""
+    for key in PERSISTENT_EVIDENCE_KEYS:
+        for how in ("left_out", "malformed"):
+            case = copy.deepcopy(baseline)
+            if how == "left_out":
+                case["evidence"]["persistent"].pop(key)
+            else:
+                case["evidence"]["persistent"][key] = "" if key == "immutable_evidence_id" else "bad"
+            expect_gate(case, True, f"bound persistent {key} {how}")
+    absent = copy.deepcopy(baseline)
+    absent["evidence"].pop("persistent")
+    expect_gate(absent, False, "persistent evidence member absent")
+    foreign = copy.deepcopy(baseline)
+    foreign["evidence"]["persistent"]["source_epoch"] = OTHER_BINDING["source_epoch"]
+    foreign["evidence"]["persistent"].pop("persistent_terminal")
+    expect_gate(foreign, False, "foreign persistent with a reference left out")
 
 
 def eligibility_table(baseline, contract):

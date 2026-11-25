@@ -81,7 +81,7 @@ RECORD_ELIGIBILITY = {
     "records": ["persistent_t8", "provisional_t28"],
     "eligible_when": "lifecycle_epoch_generation_semantic_revision_and_required_evidence_present_and_equal_to_the_case",
     "binding": list(BINDING_KEYS),
-    "ineligible": "reported_with_its_reason_and_no_other_effect",
+    "ineligible": "reported_with_its_reason_and_no_other_effect_except_the_raw_native_timeout_of_a_readback_with_valid_evidence",
     "reads_only_eligible": ["selection", "suppression", "evidence_gate", "configured_current", "allocated_current", "expiry"],
 }
 EVIDENCE_MEMBERS = ("immutable_evidence_id", "payload_digest", "receipt_timestamp")
@@ -394,8 +394,8 @@ def case_errors(case, contract):
 
 
 def case_evidence_valid(case):
-    """The evidence gate is satisfied only by an eligible record. A persistent record that names the case lifecycle and carries malformed evidence is a corrupt case and is rejected; any other ineligible record only fails to satisfy the gate."""
-    if eligibility(case, "persistent") == "evidence_invalid":
+    """The evidence gate is satisfied only by an eligible record. A persistent record that names the case lifecycle and leaves out or malforms a member or reference of its evidence is a corrupt case and is rejected; any other ineligible record only fails to satisfy the gate."""
+    if eligibility(case, "persistent") in ("evidence_invalid", "evidence_missing") and isinstance(case["evidence"].get("persistent"), dict):
         return False
     return any(eligibility(case, kind) is None for kind in RECORD_KINDS)
 
