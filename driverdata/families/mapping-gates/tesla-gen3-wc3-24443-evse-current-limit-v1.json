@@ -234,7 +234,29 @@
       ]
     },
     "candidate_binding": {
-      "configured_current": "same_source_epoch_driver_generation_and_lifecycle_generation_then_later_receipt"
+      "configured_current": "eligible_records_only_then_later_receipt"
+    },
+    "record_eligibility": {
+      "records": [
+        "persistent_t8",
+        "provisional_t28"
+      ],
+      "eligible_when": "lifecycle_epoch_generation_semantic_revision_and_required_evidence_present_and_equal_to_the_case",
+      "binding": [
+        "source_epoch",
+        "driver_generation",
+        "lifecycle_generation",
+        "semantic_revision"
+      ],
+      "ineligible": "reported_with_its_reason_and_no_other_effect",
+      "reads_only_eligible": [
+        "selection",
+        "suppression",
+        "evidence_gate",
+        "configured_current",
+        "allocated_current",
+        "expiry"
+      ]
     },
     "atomicity": "persistent_and_provisional_each_have_one_evidence_id_one_source_epoch_one_driver_generation_one_semantic_revision",
     "withdrawal": "explicit_generation_fenced",
@@ -471,6 +493,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -494,7 +517,8 @@
             "receipt_timestamp": "2026-09-10T00:00:00Z",
             "source_epoch": "epoch.wc3.1",
             "driver_generation": 1,
-            "lifecycle_generation": 1
+            "lifecycle_generation": 1,
+            "semantic_revision": "1.0.0"
           },
           "provisional": {
             "immutable_evidence_id": "evidence.wc3.provisional.0001",
@@ -507,7 +531,8 @@
             "receipt_timestamp": "2026-09-10T00:00:01Z",
             "source_epoch": "epoch.wc3.1",
             "driver_generation": 1,
-            "lifecycle_generation": 1
+            "lifecycle_generation": 1,
+            "semantic_revision": "1.0.0"
           }
         },
         "lifecycle": {
@@ -567,6 +592,7 @@
             "value": 0
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -605,6 +631,7 @@
           }
         ],
         "native": [],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -649,6 +676,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -683,6 +711,12 @@
           }
         ],
         "native": [],
+        "ineligible": [
+          {
+            "record": "provisional",
+            "reason": "evidence_invalid"
+          }
+        ],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -717,6 +751,12 @@
           }
         ],
         "native": [],
+        "ineligible": [
+          {
+            "record": "provisional",
+            "reason": "evidence_invalid"
+          }
+        ],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -757,6 +797,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -797,6 +838,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -845,6 +887,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -889,6 +932,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -1051,6 +1095,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -1105,11 +1150,85 @@
             "value": "2026-09-10T00:01:00Z"
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
         ]
       }
+    },
+    {
+      "id": "TESLA-EVSE-POS-013",
+      "polarity": "positive",
+      "mutations": [
+        {
+          "path": "provisional.ConfiguredCurrentAmps",
+          "value": 32
+        },
+        {
+          "path": "evidence.provisional.receipt_timestamp",
+          "value": "2026-09-10T00:00:05Z"
+        },
+        {
+          "path": "evidence.provisional.semantic_revision",
+          "value": "0.9.0"
+        }
+      ],
+      "expect": {
+        "facts": [
+          {
+            "id": "evse.limit.configured_current",
+            "dimension": "evse",
+            "value": {
+              "coefficient": "16",
+              "exponent10": 0
+            },
+            "unit": "unit.ampere"
+          }
+        ],
+        "withheld": [
+          {
+            "id": "evse.limit.allocated_current",
+            "reason": "provisional_evidence_invalid"
+          }
+        ],
+        "native": [
+          {
+            "namespace": "modbusreg",
+            "field": "LimitTimeoutSeconds",
+            "value": 600
+          }
+        ],
+        "ineligible": [
+          {
+            "record": "provisional",
+            "reason": "semantic_revision_other"
+          }
+        ],
+        "operations": [
+          "evse.operation.set_allocated_current",
+          "ConfigurePersistentCurrent"
+        ]
+      }
+    },
+    {
+      "id": "TESLA-EVSE-NEG-011",
+      "polarity": "negative",
+      "mutations": [
+        {
+          "path": "persistent",
+          "op": "delete"
+        },
+        {
+          "path": "evidence.persistent",
+          "op": "delete"
+        },
+        {
+          "path": "evidence.provisional.semantic_revision",
+          "value": "0.9.0"
+        }
+      ],
+      "expect_error": "evidence_binding_invalid"
     }
   ]
 }

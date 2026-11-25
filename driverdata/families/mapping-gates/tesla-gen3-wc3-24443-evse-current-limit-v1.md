@@ -44,23 +44,42 @@ required. The allocated current requires the provisional readback: its absence,
 or an invalid or mismatched provisional evidence set, withholds it, while the
 configured current may still come from the persistent candidate. Evidence from
 observations, epochs, generations, or revisions cannot be combined within either
-fact path. For the configured current, a candidate takes part only when its
-evidence names the source epoch, driver generation and lifecycle generation of
-its case; a candidate that names another one, or leaves one out, does not take
-part. The later receipt wins only among candidates of the same source epoch
-and generation, and with none left the fact is withheld as
-`configured_current_other_epoch`. A persistent candidate that names another
-source epoch or generation, or leaves one of them out, is excluded and does not
-invalidate the projection of the candidates of the case. A readback outside the case's epoch and generation
-is not a candidate: it withholds the allocated current and derives no expiry,
-and the configured current is withheld as `configured_current_other_epoch` only
-when no candidate of the case remains; the raw native timeout it carries stays
-served in the modbusreg namespace. A persistent record outside the case's epoch
-and generation does not stand in for evidence: the case still needs valid
-provisional evidence. A persistent record whose evidence member is absent is not
-a record shown to belong to another lifecycle: the case is rejected with
-`evidence_binding_invalid`. Permitted last-known-good retention remains the native owner's
-lifecycle decision.
+fact path.
+
+One eligibility decision covers every record this gate reads: the persistent
+`t7` to `t8` record and the provisional `t27` to `t28` readback. A record is
+eligible only when its lifecycle generation, source epoch, driver generation,
+semantic revision and required evidence are all present and equal to the
+case's own. A record that states a different value, or leaves one out, is
+ineligible: it is reported in the `ineligible` member of the projection with
+its reason (`<member>_missing`, `<member>_other`, `evidence_missing` or
+`evidence_invalid`) and has no other effect. Selection, suppression, the
+evidence gate and every derived value (the configured current, the allocated
+current and the expiry) read only eligible records.
+
+- The later receipt wins among eligible configured-current candidates only, that
+  is among those of the same source epoch, driver generation, lifecycle
+  generation and semantic revision as the case. With none left the configured current is withheld as `configured_current_absent`.
+- An ineligible record does not satisfy the evidence gate; the case needs at
+  least one eligible record, otherwise it is rejected with
+  `evidence_binding_invalid`. An ineligible record never invalidates the
+  eligible one: a malformed value on an ineligible persistent record does not
+  veto the case, and a persistent record whose evidence member is absent is
+  reported as `evidence_missing`. A persistent record that names the case
+  lifecycle and carries malformed evidence is a corrupt case and is rejected
+  with `evidence_binding_invalid`.
+- An ineligible readback yields no allocated current, no configured-current
+  candidate and no expiry; the allocated current is withheld as
+  `provisional_evidence_invalid`. A readback whose evidence is valid but names
+  another lifecycle member still has its raw native timeout served in the
+  modbusreg namespace.
+- A readback that names another semantic revision is ineligible in the same way
+  as one that names another epoch or generation: a newer readback of revision
+  `0.9.0` in a `1.0.0` case determines neither the configured nor the allocated
+  current.
+
+Permitted last-known-good retention remains the native owner's lifecycle
+decision.
 
 ## Resources, relations, and identity
 

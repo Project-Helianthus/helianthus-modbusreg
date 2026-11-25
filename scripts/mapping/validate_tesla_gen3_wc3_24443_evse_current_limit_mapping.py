@@ -71,8 +71,20 @@ SET_ALLOCATED_CURRENT = "evse.operation.set_allocated_current"
 # Arguments the semantic call takes; a connector and an effect target address the connector the operation acts on.
 SET_REQUEST_KEYS = frozenset({"connector_id", "effect_target", "amperes"})
 RELEASE_REQUEST_KEYS = frozenset({"connector_id", "effect_target", "allocated_current_enabled"})
-# Evidence members that bind a candidate to the lifecycle of its case.
-BINDING_KEYS = ("source_epoch", "driver_generation", "lifecycle_generation")
+# Evidence members a record must state, each equal to the case's own, to be eligible: its epoch, generations and semantic revision.
+BINDING_KEYS = ("source_epoch", "driver_generation", "lifecycle_generation", "semantic_revision")
+# The record kinds this gate reads: the persistent t7 to t8 record and the provisional t27 to t28 readback.
+RECORD_KINDS = ("persistent", "provisional")
+RECORD_ABSENT = "record_absent"
+# One decision for every record this gate reads: only an eligible record is selected, suppresses another record, satisfies the evidence gate or contributes a derived value.
+RECORD_ELIGIBILITY = {
+    "records": ["persistent_t8", "provisional_t28"],
+    "eligible_when": "lifecycle_epoch_generation_semantic_revision_and_required_evidence_present_and_equal_to_the_case",
+    "binding": list(BINDING_KEYS),
+    "ineligible": "reported_with_its_reason_and_no_other_effect",
+    "reads_only_eligible": ["selection", "suppression", "evidence_gate", "configured_current", "allocated_current", "expiry"],
+}
+EVIDENCE_MEMBERS = ("immutable_evidence_id", "payload_digest", "receipt_timestamp")
 # Each relation the gate leaves unstated names the native statement that is missing.
 UNSTATED_REASONS = {
     "evse.relation.connector_phase": "no_native_statement_assigns_per_phase_connector_measurements_to_the_wall_connector_vitals",
@@ -251,7 +263,7 @@ def validate_contract(contract, catalog=None):
     validate_graph(contract, catalog)
     validate_identity(contract.get("identity", {}))
     lifecycle = contract.get("lifecycle", {})
-    if lifecycle != {"required": ["receipt_timestamp", "source_epoch", "driver_generation", "qualification", "semantic_revision", "lifecycle_generation"], "per_fact_evidence": {"persistent": ["immutable_evidence_id", "payload_digest", "persistent_request", "persistent_terminal"], "provisional": ["immutable_evidence_id", "payload_digest", "correlation_id", "provisional_readback_request", "provisional_readback_terminal"], "provisional_mutation": MUTATION_REFS}, "candidate_binding": {"configured_current": "same_source_epoch_driver_generation_and_lifecycle_generation_then_later_receipt"}, "atomicity": "persistent_and_provisional_each_have_one_evidence_id_one_source_epoch_one_driver_generation_one_semantic_revision", "withdrawal": "explicit_generation_fenced", "retention": "native_owner_only_permitted_last_known_good", "physical_qualified": False, "mapping_qualified": True}:
+    if lifecycle != {"required": ["receipt_timestamp", "source_epoch", "driver_generation", "qualification", "semantic_revision", "lifecycle_generation"], "per_fact_evidence": {"persistent": ["immutable_evidence_id", "payload_digest", "persistent_request", "persistent_terminal"], "provisional": ["immutable_evidence_id", "payload_digest", "correlation_id", "provisional_readback_request", "provisional_readback_terminal"], "provisional_mutation": MUTATION_REFS}, "candidate_binding": {"configured_current": "eligible_records_only_then_later_receipt"}, "record_eligibility": RECORD_ELIGIBILITY, "atomicity": "persistent_and_provisional_each_have_one_evidence_id_one_source_epoch_one_driver_generation_one_semantic_revision", "withdrawal": "explicit_generation_fenced", "retention": "native_owner_only_permitted_last_known_good", "physical_qualified": False, "mapping_qualified": True}:
         fail("lifecycle_contract")
     if contract.get("field_rules") != expected_field_rules(catalog):
         fail("field_rules")
@@ -286,43 +298,67 @@ def valid_evidence(evidence, refs, correlation=False):
     return not correlation or evidence.get("correlation_id") == evidence["immutable_evidence_id"]
 
 
-def provisional_evidence_valid(evidence):
-    """A readback alone needs its readback references; a record that names a set or acknowledgement needs those too."""
-    if not isinstance(evidence, dict):
-        return False
-    refs = READBACK_REFS + MUTATION_REFS if any(key in evidence for key in MUTATION_REFS) else READBACK_REFS
-    return valid_evidence(evidence, refs, correlation=True)
-
-
 def non_negative_int(value):
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
-def provisional_valid(case):
-    provisional = case.get("provisional")
-    return isinstance(provisional, dict) and isinstance(case.get("evidence", {}).get("provisional"), dict) and provisional_evidence_valid(case["evidence"]["provisional"])
+def evidence_refs(kind, evidence):
+    """A persistent record needs its request and terminal; a readback needs its own, and a record that names a set or acknowledgement needs those too."""
+    if kind == "persistent":
+        return PERSISTENT_REFS
+    return READBACK_REFS + MUTATION_REFS if any(key in evidence for key in MUTATION_REFS) else READBACK_REFS
 
 
-def bound_to_lifecycle(evidence, lifecycle):
-    """A candidate belongs to the case lifecycle only when it names the same epoch and generations; a member it leaves out leaves its membership unestablished."""
-    return isinstance(evidence, dict) and isinstance(lifecycle, dict) and all(key in evidence and type(evidence[key]) is type(lifecycle.get(key)) and evidence[key] == lifecycle.get(key) for key in BINDING_KEYS)
+def binding_reason(evidence, lifecycle):
+    """The first binding member the evidence leaves out or states differently from the case lifecycle, else None."""
+    for key in BINDING_KEYS:
+        if key not in evidence:
+            return f"{key}_missing"
+        if type(evidence[key]) is not type(lifecycle.get(key)) or evidence[key] != lifecycle.get(key):
+            return f"{key}_other"
+    return None
 
 
-def publish_configured_current(case, provisional, facts, withheld):
-    """Section 6.1: the t28 and the t8 configured current are each sufficient; the later receipt wins only among candidates whose membership in the case epoch and generations is established."""
+def evidence_reason(kind, evidence):
+    """Required evidence: every member and reference present is `evidence_missing` when left out and `evidence_invalid` when malformed."""
+    refs = evidence_refs(kind, evidence)
+    required = EVIDENCE_MEMBERS + tuple(refs) + (("correlation_id",) if kind == "provisional" else ())
+    if any(evidence.get(key) is None for key in required):
+        return "evidence_missing"
+    return None if valid_evidence(evidence, refs, correlation=kind == "provisional") else "evidence_invalid"
+
+
+def eligibility(case, kind):
+    """The one eligibility decision: None when the record of this kind is eligible, RECORD_ABSENT when the case has none, else the reason it is not.
+    A record is eligible only when its lifecycle, source epoch, driver generation, semantic revision and required evidence are present and equal to the case's own.
+    Selection, suppression, the evidence gate and every derived value read only eligible records."""
+    if kind not in case or (kind == "provisional" and not isinstance(case[kind], dict)):
+        return RECORD_ABSENT
+    evidence = case["evidence"].get(kind) if isinstance(case.get("evidence"), dict) else None
+    if not isinstance(evidence, dict):
+        return "evidence_missing"
+    if not isinstance(case.get("lifecycle"), dict):
+        return "lifecycle_missing"
+    return binding_reason(evidence, case["lifecycle"]) or evidence_reason(kind, evidence)
+
+
+def ineligible_report(case):
+    """Each present record that is not eligible, with its reason; it has no other effect."""
+    reasons = [(kind, eligibility(case, kind)) for kind in RECORD_KINDS]
+    return [{"record": kind, "reason": reason} for kind, reason in reasons if reason not in (None, RECORD_ABSENT)]
+
+
+def publish_configured_current(case, facts, withheld):
+    """Section 6.1: the t28 and the t8 configured current are each sufficient; the later receipt wins among eligible records only."""
     candidates = []
-    if provisional is not None and "ConfiguredCurrentAmps" in provisional:
-        candidates.append((case["evidence"]["provisional"], provisional["ConfiguredCurrentAmps"]))
-    if "persistent" in case:
-        candidates.append((case["evidence"].get("persistent"), case["persistent"].get("MaxOutputCurrentAmps") if isinstance(case["persistent"], dict) else None))
+    if eligibility(case, "provisional") is None and "ConfiguredCurrentAmps" in case["provisional"]:
+        candidates.append((case["evidence"]["provisional"], case["provisional"]["ConfiguredCurrentAmps"]))
+    if eligibility(case, "persistent") is None:
+        candidates.append((case["evidence"]["persistent"], case["persistent"].get("MaxOutputCurrentAmps") if isinstance(case["persistent"], dict) else None))
     if not candidates:
         withheld.append({"id": "evse.limit.configured_current", "reason": "configured_current_absent"})
         return
-    candidates = [(receipt_of(evidence), value) for evidence, value in candidates if bound_to_lifecycle(evidence, case["lifecycle"])]
-    if not candidates:
-        withheld.append({"id": "evse.limit.configured_current", "reason": "configured_current_other_epoch"})
-        return
-    _, configured = max(candidates, key=lambda candidate: candidate[0])
+    _, configured = max(((receipt_of(evidence), value) for evidence, value in candidates), key=lambda candidate: candidate[0])
     if not non_negative_int(configured):
         withheld.append({"id": "evse.limit.configured_current", "reason": "provisional_record_malformed"})
     elif configured == 0:
@@ -336,10 +372,10 @@ def project(case, contract):
     for error in ERRORS:
         if error in errors: fail(error)
     persistent = case.get("persistent")
-    if "persistent" in case and bound_to_lifecycle(case.get("evidence", {}).get("persistent"), case.get("lifecycle")) and (not isinstance(persistent, dict) or not non_negative_int(persistent.get("MaxOutputCurrentAmps"))): fail(ERRORS[3])
+    if eligibility(case, "persistent") is None and (not isinstance(persistent, dict) or not non_negative_int(persistent.get("MaxOutputCurrentAmps"))): fail(ERRORS[3])
     facts, withheld, native = [], [], []
     publish_limits(case, facts, withheld, native)
-    return {"facts": facts, "withheld": withheld, "native": native, "operations": list(OPERATION_NAMES)}
+    return {"facts": facts, "withheld": withheld, "native": native, "ineligible": ineligible_report(case), "operations": list(OPERATION_NAMES)}
 
 
 def case_errors(case, contract):
@@ -358,15 +394,10 @@ def case_errors(case, contract):
 
 
 def case_evidence_valid(case):
-    """A persistent record of the case needs its own evidence, and a record without its evidence member is rejected; one outside the case lifecycle is excluded and the case then needs valid provisional evidence. Without a persistent record the provisional evidence is required."""
-    if "persistent" not in case:
-        return provisional_valid(case)
-    evidence = case.get("evidence", {}).get("persistent")
-    if not isinstance(evidence, dict):
+    """The evidence gate is satisfied only by an eligible record. A persistent record that names the case lifecycle and carries malformed evidence is a corrupt case and is rejected; any other ineligible record only fails to satisfy the gate."""
+    if eligibility(case, "persistent") == "evidence_invalid":
         return False
-    if not bound_to_lifecycle(evidence, case.get("lifecycle")):
-        return provisional_valid(case)
-    return valid_evidence(evidence, PERSISTENT_REFS)
+    return any(eligibility(case, kind) is None for kind in RECORD_KINDS)
 
 
 def lifecycle_valid(lifecycle):
@@ -378,27 +409,25 @@ def lifecycle_valid(lifecycle):
     return receipt_ok and valid_id(lifecycle.get("source_epoch")) and lifecycle.get("qualification") == "qualified" and lifecycle.get("semantic_revision") == "1.0.0" and not any(not isinstance(lifecycle.get(k), int) or isinstance(lifecycle.get(k), bool) or lifecycle[k] < 1 for k in ("driver_generation", "lifecycle_generation"))
 
 
+def native_timeout_retained(case, reason):
+    """The raw native timeout of a readback with valid evidence stays served when only its lifecycle binding is not the case's."""
+    return reason in {f"{key}_{kind}" for key in BINDING_KEYS for kind in ("missing", "other")} and valid_evidence(case["evidence"]["provisional"], evidence_refs("provisional", case["evidence"]["provisional"]), correlation=True)
+
+
 def publish_limits(case, facts, withheld, native):
     provisional = case.get("provisional")
-    evidence = case.get("evidence", {})
-    publish_allocated = provisional is not None
-    if not isinstance(provisional, dict):
+    reason = eligibility(case, "provisional")
+    if reason == RECORD_ABSENT:
         withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_record_absent"})
-        provisional = None
-        publish_allocated = False
-    elif not provisional_evidence_valid(evidence.get("provisional")):
+    elif reason is not None:
+        # An ineligible readback yields no allocated current, candidate or expiry.
         withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_evidence_invalid"})
-        provisional = None
-        publish_allocated = False
-    elif not bound_to_lifecycle(evidence["provisional"], case["lifecycle"]):
-        # A readback of another epoch or generation yields no allocated current; the configured-current selector drops it too.
-        withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_evidence_invalid"})
-        publish_allocated = False
-    publish_configured_current(case, provisional, facts, withheld)
-    if provisional is not None:
-        if publish_allocated:
-            publish_allocated_current(case, provisional, facts, withheld)
+    publish_configured_current(case, facts, withheld)
+    if reason is None:
+        publish_allocated_current(case, provisional, facts, withheld)
+    if reason is None or (reason != RECORD_ABSENT and native_timeout_retained(case, reason)):
         publish_native_timeout(provisional, native)
+    if reason is None:
         publish_native_expiry(case, native)
 
 
@@ -418,7 +447,7 @@ def receipt_text(text):
 def allocation_cutoff(case):
     """ND02 SemReg mapping, field rules: a known nonzero managed timeout ends at the set acknowledgement plus the requested duration; the cutoff is known only for a readback that names that set and acknowledgement. An unresolved timeout gives no cutoff."""
     managed = case.get("managed_set")
-    if managed is None or managed["duration_seconds"] == 0 or not bound_to_lifecycle(case["evidence"]["provisional"], case["lifecycle"]):
+    if managed is None or managed["duration_seconds"] == 0 or eligibility(case, "provisional") is not None:
         return None
     timeout = case["provisional"].get("LimitTimeoutSeconds")
     if not non_negative_int(timeout) or timeout == 0:

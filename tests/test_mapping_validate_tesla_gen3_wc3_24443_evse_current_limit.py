@@ -339,21 +339,22 @@ def unbound_t8_evidence_cases(baseline, contract):
 
 
 def missing_t8_evidence_case(baseline, contract):
-    """A t8 record whose evidence member is absent fails closed, whether or not the t28 names another epoch."""
-    for foreign_t28 in (False, True):
-        missing = copy.deepcopy(baseline)
-        missing["evidence"].pop("persistent")
-        missing["persistent"]["MaxOutputCurrentAmps"] = 7
-        missing["provisional"]["ConfiguredCurrentAmps"] = 32
-        if foreign_t28:
-            missing["evidence"]["provisional"]["source_epoch"] = OTHER_BINDING["source_epoch"]
-        try:
-            mapping.project(missing, contract)
-        except ValueError as error:
-            if str(error) != "evidence_binding_invalid":
-                raise AssertionError(f"t8 without evidence (foreign t28 {foreign_t28}): {error}")
-        else:
-            raise AssertionError(f"a t8 without its evidence was admitted (foreign t28 {foreign_t28})")
+    """A t8 record whose evidence member is absent is ineligible: it is reported, selected nowhere and satisfies no gate; an eligible t28 still supplies its facts, and a t28 of another epoch leaves no eligible record."""
+    missing = copy.deepcopy(baseline)
+    missing["evidence"].pop("persistent")
+    missing["persistent"]["MaxOutputCurrentAmps"] = 7
+    missing["provisional"]["ConfiguredCurrentAmps"] = 32
+    result = mapping.project(missing, contract)
+    if facts_of(result) != [("evse.limit.configured_current", "32"), ("evse.limit.allocated_current", "12")] or result["ineligible"] != [{"record": "persistent", "reason": "evidence_missing"}]:
+        raise AssertionError(f"t8 without evidence: {facts_of(result)} {result['ineligible']}")
+    missing["evidence"]["provisional"]["source_epoch"] = OTHER_BINDING["source_epoch"]
+    try:
+        mapping.project(missing, contract)
+    except ValueError as error:
+        if str(error) != "evidence_binding_invalid":
+            raise AssertionError(f"t8 without evidence and a foreign t28: {error}")
+    else:
+        raise AssertionError("a t8 without its evidence and a foreign t28 satisfied the evidence gate")
 
 
 def epoch_cases(baseline, contract):
@@ -373,11 +374,130 @@ def epoch_cases(baseline, contract):
     alone = copy.deepcopy(baseline)
     for op, path, value in (("delete", "persistent", None), ("delete", "evidence.persistent", None), ("set", "evidence.provisional.source_epoch", "epoch.wc3.2")):
         edit(alone, op, path, value)
-    result = mapping.project(alone, contract)
-    if withheld_of(result) != [("evse.limit.allocated_current", "provisional_evidence_invalid"), ("evse.limit.configured_current", "configured_current_other_epoch")]:
-        raise AssertionError("a lone candidate of another epoch was not withheld: " + repr(withheld_of(result)))
+    try:
+        mapping.project(alone, contract)
+    except ValueError as error:
+        if str(error) != "evidence_binding_invalid":
+            raise AssertionError(f"a lone t28 of another epoch: {error}")
+    else:
+        raise AssertionError("a lone t28 of another epoch satisfied the evidence gate")
     foreign_evidence_cases(baseline, contract)
+    eligibility_table(baseline, contract)
+    other_revision_readback_case(baseline, contract)
     print("epoch: PASS")
+
+
+# Each condition names the member varied on the record's evidence and the reason the record is then reported.
+ELIGIBILITY_CELLS = [("bound_and_current", None, None)]
+for _key in ("lifecycle_generation", "source_epoch", "driver_generation", "semantic_revision"):
+    ELIGIBILITY_CELLS += [(f"{_key}_missing", ("pop", _key), f"{_key}_missing"), (f"{_key}_different", ("other", _key), f"{_key}_other")]
+ELIGIBILITY_CELLS += [("evidence_member_absent", ("drop_evidence", None), "evidence_missing"), ("evidence_reference_absent", ("pop_ref", None), "evidence_missing")]
+OTHER_VALUES = {"lifecycle_generation": 2, "source_epoch": "epoch.wc3.2", "driver_generation": 2, "semantic_revision": "0.9.0"}
+FIRST_REF = {"persistent": "persistent_terminal", "provisional": "provisional_readback_terminal"}
+
+
+def eligibility_layout(baseline, kind):
+    """Both kinds eligible; the kind under test is the newest and carries a distinct current, so a wrongly selected record shows."""
+    case = copy.deepcopy(baseline)
+    if kind == "persistent":
+        for path, value in (("persistent.MaxOutputCurrentAmps", 40), ("evidence.persistent.receipt_timestamp", "2026-09-10T00:00:09Z"), ("provisional.ConfiguredCurrentAmps", 32), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:00:05Z")):
+            mapping.mutate(case, {"path": path, "value": value})
+    else:
+        for path, value in (("provisional.ConfiguredCurrentAmps", 40), ("managed_set", managed_set()), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:01:10Z")):
+            mapping.mutate(case, {"path": path, "value": value})
+    return case
+
+
+def apply_condition(case, kind, action):
+    """Vary exactly one member of the evidence of one record; an ineligible persistent value or readback current is also malformed."""
+    if action is None:
+        return
+    how, key = action
+    evidence = case["evidence"][kind]
+    if how == "pop":
+        evidence.pop(key)
+    elif how == "other":
+        evidence[key] = OTHER_VALUES[key]
+    elif how == "pop_ref":
+        evidence.pop(FIRST_REF[kind])
+    else:
+        case["evidence"].pop(kind)
+    if kind == "persistent":
+        case["persistent"]["MaxOutputCurrentAmps"] = -1
+    else:
+        case["provisional"]["LimitTimeoutSeconds"] = 0 if how == "drop_evidence" else 600
+
+
+def without_record(case, kind):
+    reference = copy.deepcopy(case)
+    if kind == "persistent":
+        reference.pop(kind)
+    else:
+        reference[kind] = None
+    reference["evidence"].pop(kind, None)
+    return reference
+
+
+def other_kind_only(case, kind):
+    """The case with the other kind removed: the gate has only the record under test to rely on."""
+    other = "provisional" if kind == "persistent" else "persistent"
+    return without_record(case, other)
+
+
+def expect_gate(case, rejected, label):
+    try:
+        mapping.project(case, mapping.load())
+    except ValueError as error:
+        if not rejected or str(error) != "evidence_binding_invalid":
+            raise AssertionError(f"{label}: {error}")
+    else:
+        if rejected:
+            raise AssertionError(f"{label}: an ineligible record satisfied the evidence gate")
+
+
+def eligibility_cell(baseline, contract, kind, name, action, reason):
+    """One cell: an ineligible record is reported, not selected, suppresses nothing, satisfies no gate and derives no value; the other kind supplies what it supplied before."""
+    label = f"{kind}/{name}"
+    case = eligibility_layout(baseline, kind)
+    apply_condition(case, kind, action)
+    result = mapping.project(case, contract)
+    expected_report = [] if reason is None else [{"record": kind, "reason": reason}]
+    if result["ineligible"] != expected_report:
+        raise AssertionError(f"{label}: reported {result['ineligible']}")
+    configured = [c for f, c in facts_of(result) if f == "evse.limit.configured_current"]
+    allocated = [c for f, c in facts_of(result) if f == "evse.limit.allocated_current"]
+    expired = any(entry["field"] == "AllocationExpiry" for entry in result["native"])
+    expect_gate(other_kind_only(case, kind), reason is not None, label + " alone")
+    if reason is None:
+        if configured != ["40"] or (kind == "provisional" and not expired) or (kind == "persistent" and allocated != ["12"]):
+            raise AssertionError(f"{label}: an eligible record did not supply its facts: {facts_of(result)} {result['native']}")
+        return
+    reference = mapping.project(without_record(case, kind), contract)
+    if kind == "persistent":
+        if (facts_of(result), withheld_of(result), result["native"]) != (facts_of(reference), withheld_of(reference), reference["native"]) or configured != ["32"] or allocated != ["12"]:
+            raise AssertionError(f"{label}: an ineligible t8 changed the result: {facts_of(result)} {withheld_of(result)}")
+        return
+    if facts_of(result) != facts_of(reference) or configured != ["16"] or allocated or expired or ("evse.limit.allocated_current", "allocation_expired") in withheld_of(result):
+        raise AssertionError(f"{label}: an ineligible t28 contributed: {facts_of(result)} {withheld_of(result)} {result['native']}")
+
+
+def eligibility_table(baseline, contract):
+    """Record kinds crossed with the conditions: the persistent t8 record and the t28 readback, bound and current, a lifecycle member left out or different, an epoch, generation or semantic revision different, evidence missing."""
+    for kind in ("persistent", "provisional"):
+        for name, action, reason in ELIGIBILITY_CELLS:
+            eligibility_cell(baseline, contract, kind, name, action, reason)
+    print(f"eligibility-table: PASS; {2 * len(ELIGIBILITY_CELLS)} cells")
+
+
+def other_revision_readback_case(baseline, contract):
+    """A newer 32 A readback naming revision 0.9.0 in a 1.0.0 case publishes neither its configured nor its allocated current."""
+    case = copy.deepcopy(baseline)
+    for path, value in (("provisional.ConfiguredCurrentAmps", 32), ("provisional.LimitCurrentMaxAmps", 8), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:00:05Z"), ("evidence.provisional.semantic_revision", "0.9.0")):
+        mapping.mutate(case, {"path": path, "value": value})
+    result = mapping.project(case, contract)
+    if facts_of(result) != [("evse.limit.configured_current", "16")] or result["ineligible"] != [{"record": "provisional", "reason": "semantic_revision_other"}]:
+        raise AssertionError(f"a readback of another semantic revision took part: {facts_of(result)} {result['ineligible']}")
+    print("other-revision-readback: PASS")
 
 
 def foreign_evidence_cases(baseline, contract):
