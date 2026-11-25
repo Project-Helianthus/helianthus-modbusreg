@@ -92,7 +92,7 @@ UNSTATED_REASONS = {
 }
 # The gate admits operations (projection.operations), so its status is not read-only (P1-7; rule 2).
 STATUS = "accepted_source_specific_mapping_gate"
-PINS = {"docs_semantic_base": "f830ace6c2b9dd1af0e87ce808fa545662578418", "semreg": "f3f761bc67e10d6a65eba6c13cb4dc51002d6955", "docs_modbus_current_limit": "e9d0471ccc7bd0cb82e2552e630ebaae5436d867", "docs_modbus_native_projection": "1127c333de1f1d02305952a58f8745ee05c42e12", "modbusreg": "57f7eb84f7d4e1173621711bf64624726c71bc75", "gateway_main": "32244901c4c8337266cd348bdad90fb9e8eb0a61"}
+PINS = {"docs_semantic_base": "f830ace6c2b9dd1af0e87ce808fa545662578418", "semreg": "f3f761bc67e10d6a65eba6c13cb4dc51002d6955", "docs_modbus_current_limit": "71d432a95145e256047dff37e49ed5251c7ee2d3", "docs_modbus_native_projection": "1127c333de1f1d02305952a58f8745ee05c42e12", "modbusreg": "57f7eb84f7d4e1173621711bf64624726c71bc75", "gateway_main": "32244901c4c8337266cd348bdad90fb9e8eb0a61"}
 ERRORS = ["profile_or_version_invalid", "identity_invalid", "source_path_invalid", "evidence_binding_invalid", "lifecycle_invalid", "unsupported_fact_or_operation"]
 OPAQUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -551,6 +551,7 @@ def set_allocated_current_disposition(request, generation, own_connector):
 NATIVE_PAGE = ROOT / ".tmp/references/docs-modbus/protocols/tesla/gen3-semreg-mapping-v1.md"
 OPERATION_STATEMENTS = (
     "`evse.operation.set_allocated_current`",
+    "IEC 61851-1 Annex A",
     "6 A as its minimum nonzero set",
     "1 A through 5 A is refused",
     "0 A requests a pause",

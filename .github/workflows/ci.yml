@@ -114,7 +114,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Project-Helianthus/helianthus-docs-modbus
-          ref: e9d0471ccc7bd0cb82e2552e630ebaae5436d867
+          ref: 71d432a95145e256047dff37e49ed5251c7ee2d3
           path: .tmp/references/docs-modbus
           persist-credentials: false
           clean: true

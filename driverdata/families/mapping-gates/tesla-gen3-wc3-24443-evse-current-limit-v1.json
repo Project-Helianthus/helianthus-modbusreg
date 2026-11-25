@@ -9,7 +9,7 @@
   "pins": {
     "docs_semantic_base": "f830ace6c2b9dd1af0e87ce808fa545662578418",
     "semreg": "f3f761bc67e10d6a65eba6c13cb4dc51002d6955",
-    "docs_modbus_current_limit": "e9d0471ccc7bd0cb82e2552e630ebaae5436d867",
+    "docs_modbus_current_limit": "71d432a95145e256047dff37e49ed5251c7ee2d3",
     "docs_modbus_native_projection": "1127c333de1f1d02305952a58f8745ee05c42e12",
     "modbusreg": "57f7eb84f7d4e1173621711bf64624726c71bc75",
     "gateway_main": "32244901c4c8337266cd348bdad90fb9e8eb0a61"
