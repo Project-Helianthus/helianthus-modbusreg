@@ -695,6 +695,10 @@ def native_page_text_cases():
     pages.append(("charging_citation_absent", full.replace("IEC 61851-1 Annex A", "")))
     pages.append(("charging_citation_other_annex", full.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex B")))
     pages.append(("charging_citation_annex_prefix", full.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex AA")))
+    raw = original.read_text(encoding="utf-8")
+    wrong = raw.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex B")
+    pages.append(("charging_citation_in_link_definition", wrong + '\n\n[x]: https://example.invalid "' + mapping.CHARGING_CITATION + '"\n'))
+    pages.append(("charging_citation_in_multiline_comment", wrong + "\n<!--\n" + mapping.CHARGING_CITATION + "\n-->\n"))
     pages.append(("charging_citation_hidden_in_comment", full.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex B") + " <!-- IEC 61851-1 Annex A -->"))
     pages.append(("charging_citation_other_part", full.replace("IEC 61851-1 Annex A", "IEC 61851-23 Annex A")))
     pages.append(("pause_encoding_contradicted", full.replace("The pause encodes 6 A with inhibit", "The pause encodes 0 A without inhibit")))
@@ -711,6 +715,9 @@ def native_page_text_cases():
                 else:
                     raise AssertionError(f"{name} page accepted")
                 print(f"{name}: REJECTED")
+            mapping.NATIVE_PAGE = Path(directory) / "comment_markers_in_code.md"
+            mapping.NATIVE_PAGE.write_text(raw + "\n`<!--` `-->`\n", encoding="utf-8")
+            mapping.check_native_page()
         finally:
             mapping.NATIVE_PAGE = original
     companion = mapping.DOC.read_text(encoding="utf-8")

@@ -551,7 +551,6 @@ def set_allocated_current_disposition(request, generation, own_connector):
 NATIVE_PAGE = ROOT / ".tmp/references/docs-modbus/protocols/tesla/gen3-semreg-mapping-v1.md"
 OPERATION_STATEMENTS = (
     "`evse.operation.set_allocated_current`",
-    "IEC 61851-1 Annex A",
     "6 A as its minimum nonzero set",
     "1 A through 5 A is refused",
     "0 A requests a pause",
@@ -575,14 +574,31 @@ RELATION_STATEMENTS = (
 NATIVE_STATEMENTS = OPERATION_STATEMENTS + RELATION_STATEMENTS
 
 
+CHARGING_CITATION = "The 6 A floor and the 0 A pause follow IEC 61851-1 Annex A, where 6 A is the lowest charging current a charger can signal."
+
+
+def visible_lines(source):
+    """Lines of the page outside HTML comment blocks, left-trimmed; the citation must open a displayed line."""
+    in_comment = False
+    for raw in source.splitlines():
+        line = raw.strip()
+        if in_comment:
+            in_comment = "-->" not in line
+            continue
+        if line.startswith("<!--"):
+            in_comment = "-->" not in line
+            continue
+        yield line
+
+
 def check_native_page():
     """The staged ND02 page must exist and state what this gate relies on; absence is never a pass."""
     if not NATIVE_PAGE.is_file():
         fail("native_page_missing")
-    text = " ".join(re.sub(r"<!--.*?-->", "", NATIVE_PAGE.read_text(encoding="utf-8"), flags=re.S).split())
+    text = " ".join(NATIVE_PAGE.read_text(encoding="utf-8").split())
     if any(statement not in text for statement in NATIVE_STATEMENTS):
         fail("native_page_disagrees")
-    if not re.search(r"(?<![A-Za-z0-9])IEC 61851-1 Annex A(?![A-Za-z0-9])", text):
+    if not any(line.startswith(CHARGING_CITATION) for line in visible_lines(NATIVE_PAGE.read_text(encoding="utf-8"))):
         fail("native_page_disagrees")
 
 
