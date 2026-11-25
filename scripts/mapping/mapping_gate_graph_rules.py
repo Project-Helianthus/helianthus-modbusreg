@@ -78,6 +78,7 @@ OWNER_URL_RE = re.compile(
 INLINE_TAIL_RE = re.compile(r"\(\s*(?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'))?\s*\)")
 REFERENCE_RE = re.compile(r"^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)(?P<reftitle>[ \t]+(?:\"(?:[^\"\\\n]|\\.)*\"|\'(?:[^\'\\\n]|\\.)*\'|\([^\n]*\)))?[ \t]*$", re.MULTILINE)
 CODE_RE = re.compile(r"^[ ]{0,3}(?P<fence>`{3,}|~{3,})[^\n]*\n.*?(?:^[ ]{0,3}(?P=fence)[`~]*[ \t]*$|\Z)|^(?: {4}|\t)[^\n]*$|(?P<tick>`+)(?:(?!(?P=tick))[^`]|`+(?!(?P=tick)(?!`)))*?(?<!`)(?P=tick)(?!`)", re.MULTILINE | re.DOTALL)
+OPAQUE_RE = re.compile(CODE_RE.pattern + r"|(?P<autolink><[A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>\x00-\x20\x7f]*>)", CODE_RE.flags)
 SPACE_RE = re.compile(r"\s*")
 
 
@@ -132,18 +133,34 @@ def destination_end(text: str, begin: int) -> int:
     return end
 
 
-def inline_link(text: str, opened: int, closed: int) -> Link:
+def opaque_spans(text: str) -> tuple[list, list]:
+    """Scan code and URI autolinks together so neither token is opened inside the other."""
+    literal, autolinks = [], []
+    position = 0
+    while match := OPAQUE_RE.search(text, position):
+        position = match.end()
+        if match.group("autolink") is None:
+            literal.append(match.span())
+        elif backslash_escaped(text, match.start()):
+            position = match.start() + 1
+        else:
+            autolinks.append(match.span())
+    return literal, autolinks
+
+
+def inline_link(text: str, opened: int, closed: int, autolinks: list) -> Link:
     begin = SPACE_RE.match(text, closed + 2).end()
     tail = INLINE_TAIL_RE.match(text, closed + 1)
     destination = None
-    if tail is not None and tail.group("title") is None:
+    # An autolink in a label takes precedence over the surrounding link syntax.
+    if tail is not None and tail.group("title") is None and not any(opened < start < closed for start, _ in autolinks):
         destination = tail.group("angle") or tail.group("bare") or ""
     return Link(opened, None if tail is None else tail.end(), text[opened + 1:closed], destination, (opened, begin, destination_end(text, begin)))
 
 
-def markdown_links(text: str, literal: list) -> list:
+def markdown_links(text: str, literal: list, autolinks: list) -> list:
     """Every inline link whose label brackets balance to any depth, and every reference definition, in order of their start."""
-    inline = [inline_link(text, opened, closed) for opened, closed in bracket_pairs(text, literal) if text[closed + 1:closed + 2] == "("]
+    inline = [inline_link(text, opened, closed, autolinks) for opened, closed in bracket_pairs(text, literal + autolinks) if text[closed + 1:closed + 2] == "("]
     references, defined = [], set()
     for found in REFERENCE_RE.finditer(text):
         label = " ".join(found.group("ref").casefold().split())
@@ -167,8 +184,8 @@ def owner_exempt(link: Link, literal: list, spans: list) -> bool:
 
 def unowned_text(text: str) -> str:
     """The published text with the destination of each Markdown link to an approved owner URL removed; its label and every other link stay visible."""
-    literal = [code.span() for code in CODE_RE.finditer(text)]
-    links = markdown_links(text, literal)
+    literal, autolinks = opaque_spans(text)
+    links = markdown_links(text, literal, autolinks)
     spans = [link.span for link in links if link.span is not None]
     pieces, position, consumed = [], 0, 0
     for link in links:

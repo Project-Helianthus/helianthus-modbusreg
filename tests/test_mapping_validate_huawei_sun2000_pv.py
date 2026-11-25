@@ -1478,6 +1478,35 @@ def test_a_refusal_alone_publishes_no_power_fact_and_an_aligned_answer_alone_pub
     assert len(phase_relations(project(power_group_case(name, ["aligned"])))) == 3
 
 
+@parametrize("name,profile_id", [("m3", M3), ("m1", M1)])
+def test_the_declared_aligned_extent_publishes_phases_without_erasing_a_shorter_refusal(name, profile_id):
+    document = contract()
+    profile = next(row for row in document["native_contract"]["profiles"] if row["profile_id"] == profile_id)
+    extent = {"offset": 32064, "quantity": 33, "use": "optional_phase_positions"}
+    assert extent in profile["read_plan"]
+    extent = profile["read_plan"][profile["read_plan"].index(extent)]
+    text = page()
+    v.check_document(document, text)
+    row = f"| `{profile_id}` | 32064 | 33 | `optional_phase_positions` | — |"
+    assert row in text
+    for original, wrong in ((profile_id, "unlisted-profile"), ("32064", "32065"), ("33", "34"),
+                            ("optional_phase_positions", "consumed"), ("—", "3")):
+        with Raises(ValueError, match="document power-group extents"):
+            v.check_document(document, text.replace(row, row.replace(original, wrong)))
+    evidence = power_group_case(name, ["refusal", "aligned"])
+    assert len(phase_relations(v.project(evidence, document))) == 3
+    assert not phase_relations(v.project(power_group_case(name, ["refusal"], phases=False), document))
+    for field, wrong in (("offset", 32065), ("quantity", 34), ("use", "consumed")):
+        old = extent[field]
+        extent[field] = wrong
+        with Raises(ValueError, match="profile read plan"):
+            v.validate_contract(document)
+        extent[field] = old
+    profile["read_plan"].remove(extent)
+    with Raises(ValueError, match="native_evidence_invalid"):
+        v.project(evidence, document)
+
+
 def test_a_reported_phase_position_without_its_identity_fails_closed():
     with Raises(ValueError, match="identity_missing_or_invalid"):
         project(phase_case([2], ids=[PHASES[0], None, PHASES[2]]))

@@ -24,7 +24,7 @@ Grades are separate from admission, qualification and support.
 
 | Profile | Family and path | Facts |
 | --- | --- | --- |
-| `huawei.sun2000.m3.monitoring-readonly@1.0.0` | SUN2000 M3 series behind the SmartLogger | 19: eight string voltages, eight string currents and three energy counters. The power group is refused with exception 3 and the cause is Unknown. |
+| `huawei.sun2000.m3.monitoring-readonly@1.0.0` | SUN2000 M3 series behind the SmartLogger | 19: eight string voltages, eight string currents and three energy counters. Power and status are outside this profile's scalar projection. |
 | `huawei.sun2000.m1.monitoring-readonly@1.0.0` | SUN2000 M1 series behind the S-Dongle | 22: the same 19, input power, active power and the device status code. |
 
 The family-wide statement of the M1 profile is a Hypothesis; the M3 profile is Proven.
@@ -43,6 +43,23 @@ disposition is `NO_ADMISSIBLE_PROFILE` with the reason `no_documented_profile`.
 This gate has no field for it: its monitoring groups answered, but their words
 stay native evidence and no PV fact is published from them (the layout is a
 cross-family Hypothesis). Vector `PV-NEG-001-emma-map0-not-admitted` pins that.
+
+## Power-group extents
+
+| Profile | FC03 offset | Quantity | Use | Recorded exception |
+| --- | --- | --- | --- | --- |
+| `huawei.sun2000.m3.monitoring-readonly@1.0.0` | 32064 | 33 | `optional_phase_positions` | — |
+| `huawei.sun2000.m3.monitoring-readonly@1.0.0` | 32064 | 32 | `recorded_refusal` | 3 |
+| `huawei.sun2000.m1.monitoring-readonly@1.0.0` | 32064 | 32 | `consumed` | — |
+| `huawei.sun2000.m1.monitoring-readonly@1.0.0` | 32064 | 33 | `optional_phase_positions` | — |
+
+Quantity 33 is the value-aligned extent. An answered read at that extent can
+publish driver-allocated phase positions for either admitted profile. For M1,
+an answered quantity-32 read also supports those positions, and quantity 33
+can supply the existing M1 power and status facts in place of quantity 32.
+The M3 quantity-32 refusal is a recorded result with Unknown cause, not a
+restriction on the quantity-33 read. A refusal alone supplies no phase position
+and does not negate an answer at the other extent. Phase values stay withheld.
 
 ## Identity and keying
 
@@ -65,8 +82,8 @@ what never derives it.
   path that relays the child, one for the PV system, one for the inverter and
   one for each of the eight string slots. A phase identifier is allocated by the
   driver, not the gateway, at the native phase position one to three, and only
-  for a position read in an answered power group (Proven for the M1 profile).
-  No phase identifier exists for a refused power group.
+  for a position reported by an answered read at an admitted extent. A refusal
+  supplies no phase identifier.
 
 The class token of the PV pack and the registry profile identifier are native
 interpretation selectors, and the gate classifies both as provenance (section
@@ -256,9 +273,10 @@ offset.
 
 The grade columns are ceilings. A Proven fact is already graded Hypothesis by the
 registry at a unit that was not read for monitoring, and this gate takes the
-lower of the fact's grade and the ceiling, so it never raises a grade. The M3
-power rows are Unknown because the family refused the power group; the fact then
-has no value and the item is withheld with `pv.reason.power_group_refused`.
+lower of the fact's grade and the ceiling, so it never raises a grade. M3 power
+and status stay Unknown in this scalar projection, with
+`pv.reason.power_group_refused` recording the shorter read's refusal. An
+answered quantity-33 read can supply phase positions, not additional M3 scalars.
 
 Rules, each with the grade of the contract row it restates:
 
@@ -355,7 +373,7 @@ admits them, and no per-phase value is published until then.
 | Meters | No meter register was read on any path and no meter class contract exists, so every meter value is Unknown. The [gateway-meter gate](huawei-gateway-meter-infrastructure-v1.md) owns that boundary. | Unknown |
 | MAP0 series | No documented profile. | Proven |
 | Plant groups | The logger plant groups, the EMMA site groups and the S-Dongle plant groups are planned reads that were never read. They have no profile, and no plant or site PV fact is published from them or from a sum of inverters. | Hypothesis (documentary) |
-| M3 power group | The family refused the group and the cause is Unknown; the candidate extents are Unknown. The gate never requests them. | Unknown |
+| M3 power and status scalars | The recorded quantity-32 refusal does not supply power or status. An answered value-aligned extent supports phase positions but does not add M3 scalar mappings. | Unknown (scalar values and refusal cause) |
 | Operations | No active-power limit, export limit, enable or disable, write, acknowledgement, readback, retry or route exists. | Proven as a statement of the contract |
 
 ## Lifecycle, retention and partial publication

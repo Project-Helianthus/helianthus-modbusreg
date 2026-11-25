@@ -130,9 +130,10 @@ PROFILE_FIELDS = {
         + [("power_group_other_words", "retained_native"), ("dc_input_energy_counter", "retained_native"), ("statistics_time_words", "retained_native"), ("battery", "withheld_group"), ("meter", "withheld_group")],
 }
 FACT_COUNT = {M3: 19, M1: 22}
+PHASE_USE = "optional_phase_positions"
 READ_PLAN = {
-    M3: [(32000, 16, "retained_no_facts"), (32016, 24, "consumed"), (32106, 10, "consumed")],
-    M1: [(32000, 16, "retained_no_facts"), (32016, 24, "consumed"), (32064, 32, "consumed"), (32106, 10, "consumed")],
+    M3: [(32000, 16, "retained_no_facts"), (32016, 24, "consumed"), (*PHASE_GROUP_ALIGNED, PHASE_USE), (32106, 10, "consumed")],
+    M1: [(32000, 16, "retained_no_facts"), (32016, 24, "consumed"), (*PHASE_GROUP, "consumed"), (*PHASE_GROUP_ALIGNED, PHASE_USE), (32106, 10, "consumed")],
 }
 REFUSED = {M3: [(32064, 32, 3), (37100, 38, 3)], M1: []}
 RUNTIME_REASONS = {"pv.reason.native_fact_unknown", "pv.reason.value_outside_pack_range", "pv.reason.state_code_not_observed", "pv.reason.power_group_refused"}
@@ -684,15 +685,16 @@ def validate_case(case, contract):
 
 def check_case_groups(case, profile, errors):
     groups = {}
-    plan = {(g["offset"], g["quantity"]) for g in profile["read_plan"]}
+    plan = {(g["offset"], g["quantity"]) for g in profile["read_plan"] if g["use"] != PHASE_USE}
+    optional = {(g["offset"], g["quantity"]) for g in profile["read_plan"] if g["use"] == PHASE_USE}
     refused = {(g["offset"], g["quantity"]) for g in profile["refused_groups"]}
     listed = case.get("groups") if isinstance(case.get("groups"), list) else [None]
     supplied = {(group.get("offset"), group.get("quantity")) for group in listed if isinstance(group, dict)}
     for group in listed:
         key = (group.get("offset"), group.get("quantity")) if isinstance(group, dict) else None
         # The aligned extent answers the planned power group where the profile plans it and the case does not carry that group itself; where the profile records that group as refused, or the case carries both extents, the aligned read is its own group and the shorter record stays distinct.
-        key = PHASE_GROUP if key == PHASE_GROUP_ALIGNED and PHASE_GROUP in plan and PHASE_GROUP not in supplied else key
-        if key not in plan | refused | {PHASE_GROUP_ALIGNED} or key in groups or group.get("outcome") not in ("ANSWERED", "EXCEPTION", "FAILED", "NOT_READ"):
+        key = PHASE_GROUP if key == PHASE_GROUP_ALIGNED and key in optional and PHASE_GROUP in plan and PHASE_GROUP not in supplied else key
+        if key not in plan | refused | optional or key in groups or group.get("outcome") not in ("ANSWERED", "EXCEPTION", "FAILED", "NOT_READ"):
             errors.add("native_evidence_invalid")
             continue
         code = group.get("exception_code")
@@ -1129,6 +1131,17 @@ def graph_tables(contract):
     }
 
 
+def power_group_extents(contract):
+    rows = []
+    for profile in contract["native_contract"]["profiles"]:
+        pid = profile["profile_id"]
+        rows.extend([pid, str(g["offset"]), str(g["quantity"]), g["use"], "—"]
+                    for g in profile["read_plan"] if g["offset"] == PHASE_GROUP[0])
+        rows.extend([pid, str(g["offset"]), str(g["quantity"]), "recorded_refusal", str(g["exception"])]
+                    for g in profile["refused_groups"] if g["offset"] == PHASE_GROUP[0])
+    return rows
+
+
 def check_document(contract, text):
     mapped, held = expected_tables(contract)
     if table(text, "## Field mapping") != mapped or table(text, "## Withheld and native-only") != held:
@@ -1144,9 +1157,10 @@ def check_document(contract, text):
     unowned = unowned_text(text)
     if HEX_RUN_RE.search(unowned) or HEX_RUN_RE.search(json.dumps(contract)) or re.search(r"/(?:blob|commit|tree)/", unowned) or LINE_ANCHOR_RE.search(unowned) or ENDPOINT_RE.search(unowned):
         fail("publication: digest or revision literal")
-    for profile in contract["native_contract"]["profiles"]:
-        if "`%s`" % profile["profile_id"] not in text:
-            fail("document profile")
+    if any("`%s`" % profile["profile_id"] not in text for profile in contract["native_contract"]["profiles"]):
+        fail("document profile")
+    if table(text, "## Power-group extents") != power_group_extents(contract):
+        fail("document power-group extents")
 
 
 def main():
