@@ -105,13 +105,15 @@ func TestTeslaFC100WCVitalsDispatchRetainsTerminalOnlyAsRedactedReplay(t *testin
 		t.Fatalf("terminal dispatch = %#v, %v", results, err)
 	}
 	replay := results[0].Replay
+	sum := sha256.Sum256([]byte{0x08, 0x01})
 	if replay.Kind != string(FC100WCVitalsTerminal) || replay.PayloadLength != 2 ||
-		replay.PayloadDigest != "fb8da7eb5b1b399e7321179dac9e9f65773d7331e1e30554e3911e4325e1ef19" {
+		replay.PayloadDigest != hex.EncodeToString(sum[:]) {
 		t.Fatalf("terminal replay = %#v", replay)
 	}
 }
 
 func TestTeslaFC100WCVitalsReplayClassifiesEchoAndBoundedTerminal(t *testing.T) {
+	testWCVitalsFirmwareDecoding(t)
 	echo, err := DecodeTeslaFC100WCVitalsReplay([]byte{0x04, 0x32, 0x02, 0x0a, 0x00})
 	if err != nil {
 		t.Fatal(err)
@@ -124,8 +126,9 @@ func TestTeslaFC100WCVitalsReplayClassifiesEchoAndBoundedTerminal(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	sum := sha256.Sum256(nil)
 	if terminal.Kind != FC100WCVitalsTerminal || terminal.SnapshotLength != 0 ||
-		terminal.SnapshotDigest != "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
+		terminal.SnapshotDigest != hex.EncodeToString(sum[:]) {
 		t.Fatalf("terminal = %#v", terminal)
 	}
 
@@ -155,7 +158,94 @@ func TestTeslaFC100WCVitalsReplayRetainsCompleteOpaqueTerminalBody(t *testing.T)
 	}
 }
 
-func TestVitalsAndLifetimeTypedValuesStayUnknown(t *testing.T) {
+func testWCVitalsFirmwareDecoding(t *testing.T) {
+	t.Helper()
+	t.Run("identified firmware", func(t *testing.T) {
+		body := []byte{
+			0x0a, 32, // Vitals message, field 1.
+			0x08, 0, 0x18, 0, 0x20, 1, // uptime, contactor, vehicle present
+			0x7a, 5, 0x0d, 0, 0, 0x66, 0x43, // vehicle RMS voltage: 230 V
+			0xb2, 1, 5, 0x0d, 0, 0, 0, 0, // explicit zero power
+			0xc2, 1, 0, // present current wrapper, no inner scalar
+			0xc8, 1, 99, // unmapped OCPP code
+			0xd8, 1, 1, // provisional powershare code
+			0x10, 7, // unknown vitals member
+			0x18, 8, // unknown response member
+		}
+		payload := wallConnectorTerminalPayload(0x12, body)
+		for _, firmware := range []string{"26.34.0", "wc3_26_42_0", "24.44.3", "26.42.1", "27.34.0", "26.34.1", "26.35.0", "MID 25.2.2", ""} {
+			replay, err := DecodeWCVitalsReplayForFirmware(payload, firmware)
+			if err != nil {
+				t.Fatal(err)
+			}
+			vitals, typed := replay.Vitals()
+			wantTyped := firmware == "26.34.0" || firmware == "wc3_26_42_0"
+			if typed != wantTyped || !bytes.Equal(replay.TerminalBody(), body) {
+				t.Fatalf("firmware %q typed %v, body %x", firmware, typed, replay.TerminalBody())
+			}
+			if !wantTyped {
+				continue
+			}
+			if vitals.UptimeSeconds != (WCVitalsField[uint32]{Present: true}) ||
+				vitals.ContactorClosed != (WCVitalsField[bool]{Present: true}) ||
+				vitals.VehicleConnected != (WCVitalsField[bool]{Present: true, Value: true}) ||
+				vitals.HandleTempC.Present || !vitals.VehicleAC.Present || vitals.VehicleAC.Value.VoltageVrms != (WCVitalsField[float32]{Present: true, Value: 230}) ||
+				!vitals.InstantaneousPowerWatts.Present || !vitals.InstantaneousPowerWatts.Value.Present || vitals.InstantaneousPowerWatts.Value.Value != 0 ||
+				!vitals.InstantaneousLineCurrent.Present || vitals.InstantaneousLineCurrent.Value.Present ||
+				vitals.OCPPStatus != (WCVitalsField[int32]{Present: true, Value: 99}) || vitals.PowershareSessionState.Present != (firmware == "26.34.0") {
+				t.Fatalf("decoded %q: %+v", firmware, vitals)
+			}
+			if _, ok := vitals.OCPPStatusName(); ok {
+				t.Fatal("an unknown OCPP code was assigned an enumeration name")
+			}
+			sum := sha256.Sum256(body)
+			if replay.SnapshotLength != len(body) || replay.SnapshotDigest != hex.EncodeToString(sum[:]) {
+				t.Fatal("length or digest did not cover the entire native terminal")
+			}
+			raw := replay.TerminalBody()
+			raw[0] ^= 1
+			payload[len(payload)-1] ^= 1
+			if !bytes.Equal(replay.TerminalBody(), body) {
+				t.Fatal("retained terminal aliases caller storage")
+			}
+			payload[len(payload)-1] ^= 1
+		}
+		empty, err := DecodeWCVitalsReplayForFirmware(wallConnectorTerminalPayload(0x12, []byte{0x0a, 0}), "26.34.0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if value, ok := empty.Vitals(); !ok || value != (WCVitals{}) {
+			t.Fatalf("empty message changed scalar presence: %+v, %v", value, ok)
+		}
+		absent, err := DecodeWCVitalsReplayForFirmware(wallConnectorTerminalPayload(0x12, nil), "26.34.0")
+		if _, ok := absent.Vitals(); err != nil || ok {
+			t.Fatalf("absent vitals message: %v, %v", ok, err)
+		}
+	})
+	t.Run("malformed typed body", func(t *testing.T) {
+		for name, body := range map[string][]byte{
+			"response member wrong type": {0x08, 0},
+			"duplicate response member":  {0x0a, 0, 0x0a, 0},
+			"duplicate scalar":           {0x0a, 4, 0x08, 0, 0x08, 1},
+			"float wrong type":           {0x0a, 2, 0x28, 0},
+			"nested scalar wrong type":   {0x0a, 5, 0xb2, 1, 2, 0x08, 0},
+			"nested duplicate":           {0x0a, 13, 0xb2, 1, 10, 0x0d, 0, 0, 0, 0, 0x0d, 0, 0, 0, 0},
+			"malformed unknown":          {0x0a, 2, 0x12, 4},
+		} {
+			t.Run(name, func(t *testing.T) {
+				payload := wallConnectorTerminalPayload(0x12, body)
+				if _, err := DecodeWCVitalsReplayForFirmware(payload, "26.42.0"); err == nil {
+					t.Fatal("malformed typed body accepted")
+				}
+				if replay, err := DecodeWCVitalsReplayForFirmware(payload, "24.44.3"); err != nil || replay.TypedValueDisposition() != "unknown" || !bytes.Equal(replay.TerminalBody(), body) {
+					t.Fatalf("native-only reply = %+v, %v", replay, err)
+				}
+			})
+		}
+	})
+}
+
+func TestUnversionedVitalsAndLifetimeHaveNoTypedValues(t *testing.T) {
 	vitalsEcho := decodeVitalsReplay(t, []byte{0x04, 0x32, 0x02, 0x0a, 0x00})
 	if got := vitalsEcho.TypedValueDisposition(); got != "unknown" || vitalsEcho.Kind != FC100WCVitalsIntermediate || vitalsEcho.SnapshotLength != 0 || vitalsEcho.SnapshotDigest != "" {
 		t.Fatalf("vitals intermediate disposition = %q replay = %#v", got, vitalsEcho)

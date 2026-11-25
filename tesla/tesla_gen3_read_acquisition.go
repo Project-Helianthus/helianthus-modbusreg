@@ -206,6 +206,7 @@ type Gen3ReadRecord struct {
 	requestADU             []byte
 	responseADUs           [][]byte
 	results                []FC100OperationResult
+	vitals                 *WCVitals
 	provisionalReadback    ProvisionalCurrentLimitReadback
 	persistentCurrent      int32
 	hasPersistentCurrent   bool
@@ -252,6 +253,15 @@ func (record Gen3ReadRecord) TerminalBody() []byte {
 		}
 	}
 	return nil
+}
+
+// Vitals returns a value copy of typed station vitals from an accepted read.
+// A non-ACK record never exposes a typed value.
+func (record Gen3ReadRecord) Vitals() (WCVitals, bool) {
+	if record.State != Gen3ReadEvidenceAck || record.results == nil || record.vitals == nil {
+		return WCVitals{}, false
+	}
+	return *record.vitals, true
 }
 
 func (record Gen3ReadRecord) clone() Gen3ReadRecord {
@@ -716,6 +726,21 @@ func (acquisition *Gen3ReadAcquisition) acquireLocked(parent context.Context, op
 		}
 		var followUp teslaGen3ReadFollowUp
 		record, followUp = acquisition.exchange(ctx, endpoint, operation, request, policy, attempt)
+		if record.State == Gen3ReadEvidenceAck && operation == FC100OperationWCGetVitals {
+			acquisition.mu.Lock()
+			current := acquisition.endpoint == endpoint && acquisition.recordCurrentLocked(record)
+			acquisition.mu.Unlock()
+			if current {
+				vitals, present, err := decodeWCVitals(record.TerminalBody(), record.Gen3Version)
+				if err != nil {
+					record.State, record.Cause = Gen3ReadEvidenceIndeterminate, err.Error()
+					record.results = nil
+					followUp = teslaGen3ReadFollowUpRetire
+				} else if present {
+					record.vitals = &vitals
+				}
+			}
+		}
 		record = acquisition.publish(record, endpoint)
 		switch followUp {
 		case teslaGen3ReadFollowUpRecover:

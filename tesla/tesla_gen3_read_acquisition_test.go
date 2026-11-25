@@ -385,6 +385,7 @@ func TestTeslaGen3ReadAcquisitionRetriesAreBounded(t *testing.T) {
 }
 
 func TestTeslaGen3ReadAcquisitionFreshnessAndRetentionWindows(t *testing.T) {
+	testWCVitalsAcquisitionRetention(t)
 	harness := newTeslaGen3ReadHarness(t, func(config *Gen3ReadAcquisitionConfig) {
 		config.Operations = []FC100Operation{FC100OperationWCGetVitals, FC100OperationWCGetSystemInfo}
 		config.Windows = map[FC100Operation]Gen3ReadWindow{
@@ -751,13 +752,15 @@ func (witness *teslaGen3FakeWitness) DriveTeslaHSCActivation(ctx context.Context
 }
 
 type teslaGen3FakeStep struct {
-	beforeComplete func()
-	echo           bool
-	terminal       []byte
-	outcome        string
-	status         byte
-	started        chan struct{}
-	release        chan struct{}
+	staleReceipt      bool
+	receiptGeneration uint64
+	beforeComplete    func()
+	echo              bool
+	terminal          []byte
+	outcome           string
+	status            byte
+	started           chan struct{}
+	release           chan struct{}
 }
 
 type teslaGen3FakeEndpoint struct {
@@ -925,8 +928,11 @@ func (endpoint *teslaGen3FakeEndpoint) ExchangePrivateFunction(
 			step.beforeComplete()
 		}
 		endpoint.mu.Lock()
-		evidence.Current = !endpoint.closed && !endpoint.fenced
+		evidence.Current = !endpoint.closed && !endpoint.fenced && !step.staleReceipt
 		endpoint.mu.Unlock()
+		if step.receiptGeneration != 0 {
+			evidence.Generation = step.receiptGeneration
+		}
 		evidence.IntegrityValid = true
 		evidence.TerminalOutcome = "success"
 		return responses, evidence, nil
@@ -1111,6 +1117,7 @@ func TestTeslaGen3ReadAcquisitionCloseBeforePromotionPublishesNoValue(t *testing
 	var armed atomic.Bool
 	var closedInBarrier atomic.Bool
 	harness = newTeslaGen3ReadHarness(t, func(config *Gen3ReadAcquisitionConfig) {
+		config.Gen3 = mustTeslaGen3Profile(t, Gen3HSCProfileConfig{Enabled: true, Version: "26.42.0", ActivationCapable: true, PrivateFunctionCapable: true, OperationCapable: true})
 		clock := config.Now
 		config.Now = func() time.Time {
 			// Barrier: the first clock read after transport success lets Close
@@ -1126,7 +1133,7 @@ func TestTeslaGen3ReadAcquisitionCloseBeforePromotionPublishesNoValue(t *testing
 	endpoint := harness.endpoint()
 	endpoint.push(teslaGen3FakeStep{
 		echo:           true,
-		terminal:       teslaGen3ReadTerminal(t, FC100OperationWCGetVitals, []byte{0x08, 0x01}),
+		terminal:       teslaGen3ReadTerminal(t, FC100OperationWCGetVitals, []byte{0x0a, 2, 0x08, 1}),
 		beforeComplete: func() { armed.Store(true) },
 	})
 	record, err := harness.acquisition.Acquire(context.Background(), FC100OperationWCGetVitals)
@@ -1139,6 +1146,9 @@ func TestTeslaGen3ReadAcquisitionCloseBeforePromotionPublishesNoValue(t *testing
 	if record.State != Gen3ReadEvidenceIndeterminate || record.TransportOutcome != "success" ||
 		record.TerminalBody() != nil || record.Results() != nil || len(record.ResponseADUs()) != 2 {
 		t.Fatalf("record after Close won = %#v", record)
+	}
+	if _, ok := record.Vitals(); ok {
+		t.Fatal("closed endpoint published typed vitals")
 	}
 	retained, ok := harness.acquisition.Retained(FC100OperationWCGetVitals)
 	if !ok || retained.HasLastGood || retained.LastAttempt.State != Gen3ReadEvidenceIndeterminate || retained.Current {

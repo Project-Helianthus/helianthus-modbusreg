@@ -37,10 +37,12 @@ at most 2 ms nominally when no echo byte has arrived. The station attempts ten t
 24.28.3 keeps probing. Latest accepted arrival and the interval between
 attempts are not specified. The local lifecycle
 reuses activation across transport recovery or local Restart only while the
-station's activation epoch is unchanged. A station reset or a change that
-invalidates activation requires a new lifecycle and activation decision;
-local Restart does not detect a station reset. The optional readiness probe
-is a single planned observation when the driver sees no activation event.
+station's activation epoch is unchanged. After observed activation, local
+`Restart` opens a successor endpoint in the same epoch, enters `ready`, and
+sends nothing. It neither resets the station nor detects a station reset.
+A station reset or a change that invalidates activation requires a new
+lifecycle and activation decision. The optional readiness probe is a single
+planned observation when the driver sees no activation event.
 
 Admission binds the owned endpoint instance, node, endpoint label, exact
 planned payload and transport generation. Modbus owns framing, integrity,
@@ -49,6 +51,31 @@ decoding and retained evidence. Concurrent acquisitions, restart and native
 mutations contend for the same single-flight reservation. Observation retries
 stay within `MaxAttempts` and `AcquisitionDeadline`. Mutation exchanges and
 their reserved reads do not retry or cross into a successor generation.
+
+## Vitals
+
+`Acquire` and `PollOnce` decode a correlated family-6 tag-2 terminal on
+identified firmware 26.34.0 or 26.42.0. The TEDAPI Specification
+§§6.4.1, 6.6.1, 8 and 9.3 defines the `vitals` member and its layout.
+This is a decoding decision, not an extension of read admission. Other
+builds keep the native terminal without assigning typed values. The
+optional activation probe establishes readiness, not a typed vitals read.
+
+`Gen3ReadRecord.Vitals()` gives a copy of the decoded record for an accepted
+read containing that member. Scalar defaults do not erase wire presence:
+explicit zero or false differs from an omitted scalar. An omitted wrapper
+reports no value; an empty wrapper reports the default scalar and records
+that the scalar itself was omitted. See the [vitals catalog entry](tesla-fc100-evse-scope.md)
+for units and interpretation.
+
+`TerminalBody()` and `ResponseADUs()` return detached copies. Additional
+members remain in the native body. A malformed typed response, including a
+wrong documented singular wire type or a duplicate singular member, retains
+the receipt as the last attempt without replacing `LastGood`. An out-of-date
+receipt or a receipt from the wrong transport generation likewise cannot
+publish a new typed value. Retained historical values still carry the
+existing `Fresh` and `Current` flags. Poll selection, cadence and write
+admission are unchanged.
 
 ## Readback and native calls
 
