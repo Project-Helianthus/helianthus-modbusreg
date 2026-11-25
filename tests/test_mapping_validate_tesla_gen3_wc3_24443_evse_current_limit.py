@@ -130,7 +130,9 @@ def operation_cases(baseline, contract):
     print("operations: PASS")
 
 
-SET = {"connector_id": "connector.wc3.alpha", "timeout_seconds": 600}
+SET = {"connector_id": "connector.wc3.alpha"}
+OWN = "connector.wc3.alpha"
+OTHER = "connector.wc3.beta"
 RELEASE = {"connector_id": "connector.wc3.alpha", "allocated_current_enabled": False}
 KNOWN = {"t28_known": True, "configured_current": 16}
 UNREAD = {"t28_known": False, "configured_current": None}
@@ -147,7 +149,18 @@ def operation_vectors():
         ("above_configured_read_first", dict(SET, amperes=16), UNREAD, "read_first"),
         ("above_configured_after_read", dict(SET, amperes=16), {"t28_known": True, "configured_current": 12}, "rejected_above_configured"),
         ("negative_zero_timeout", dict(SET, amperes=16, timeout_seconds=0), KNOWN, "rejected_invalid"),
-        ("negative_other_connector", dict(SET, amperes=16, connector_id="connector.wc3.beta"), KNOWN, "rejected_other_connector"),
+        ("negative_caller_timeout_600", dict(SET, amperes=16, timeout_seconds=600), KNOWN, "rejected_invalid"),
+        ("negative_caller_timeout_900", dict(SET, amperes=16, timeout_seconds=900), KNOWN, "rejected_invalid"),
+        ("negative_caller_timeout_on_pause", dict(SET, amperes=0, timeout_seconds=900), KNOWN, "rejected_invalid"),
+        ("negative_other_connector", dict(SET, amperes=16, connector_id=OTHER), KNOWN, "rejected_other_connector"),
+        ("effect_on_own_connector", dict(SET, amperes=16, effect_target=OWN), KNOWN, "send_set"),
+        ("negative_effect_on_other_connector", dict(SET, amperes=16, effect_target=OTHER), KNOWN, "rejected_other_connector"),
+        ("negative_effect_on_other_connector_no_read", dict(SET, amperes=16, effect_target=OTHER), UNREAD, "rejected_other_connector"),
+        ("negative_effect_on_other_connector_pause", dict(SET, amperes=0, effect_target=OTHER), KNOWN, "rejected_other_connector"),
+        ("negative_effect_on_other_connector_below_minimum", dict(SET, amperes=3, effect_target=OTHER), UNREAD, "rejected_other_connector"),
+        ("negative_effect_blank", dict(SET, amperes=16, effect_target=""), KNOWN, "rejected_other_connector"),
+        ("negative_effect_own_but_connector_other", dict(SET, amperes=16, connector_id=OTHER, effect_target=OWN), KNOWN, "rejected_other_connector"),
+        ("negative_both_other", dict(SET, amperes=16, connector_id=OTHER, effect_target=OTHER), KNOWN, "rejected_other_connector"),
         ("pause_bound_below_6A", dict(SET, amperes=0), {"t28_known": True, "configured_current": 5}, "rejected_pause_bound"),
         ("malformed_bound_nan_16A", dict(SET, amperes=16), {"t28_known": True, "configured_current": float("nan")}, "rejected_no_configured_bound"),
         ("malformed_bound_nan_pause", dict(SET, amperes=0), {"t28_known": True, "configured_current": float("nan")}, "rejected_no_configured_bound"),
@@ -159,18 +172,54 @@ def operation_vectors():
         ("release_zero_bound", RELEASE, {"t28_known": True, "configured_current": 0}, "rejected_no_release_bound"),
         ("release_nan_bound", RELEASE, {"t28_known": True, "configured_current": float("nan")}, "rejected_no_release_bound"),
         ("release_with_amperes", dict(RELEASE, amperes=0), KNOWN, "rejected_invalid"),
-        ("release_other_connector", dict(RELEASE, connector_id="connector.wc3.beta"), KNOWN, "rejected_other_connector"),
+        ("release_other_connector", dict(RELEASE, connector_id=OTHER), KNOWN, "rejected_other_connector"),
+        ("release_effect_on_other_connector", dict(RELEASE, effect_target=OTHER), UNREAD, "rejected_other_connector"),
+        ("release_effect_on_own_connector", dict(RELEASE, effect_target=OWN), KNOWN, "send_release"),
         ("release_zero_timeout", dict(RELEASE, timeout_seconds=0), KNOWN, "rejected_invalid"),
-        ("release_zero_timeout_read_first", dict(RELEASE, timeout_seconds=0), UNREAD, "rejected_invalid"),
-        ("release_timeout_above_maximum", dict(RELEASE, timeout_seconds=mapping.MAX_INTEROPERABLE_TIMEOUT_SECONDS + 1), KNOWN, "rejected_invalid"),
-        ("release_timeout_malformed", dict(RELEASE, timeout_seconds="600"), KNOWN, "rejected_invalid"),
-        ("release_valid_timeout", dict(RELEASE, timeout_seconds=600), KNOWN, "send_release"),
+        ("release_caller_timeout_read_first", dict(RELEASE, timeout_seconds=600), UNREAD, "rejected_invalid"),
+        ("release_caller_timeout_900", dict(RELEASE, timeout_seconds=900), KNOWN, "rejected_invalid"),
     ]
     for name, request, generation, expected in vectors:
         got = mapping.set_allocated_current_disposition(request, generation, "connector.wc3.alpha")
         if got != expected:
             raise AssertionError(f"{name}: expected {expected}, got {got}")
         print(name + ": " + got)
+    wire_cases()
+
+
+def wire_cases():
+    """The wire triple of a send carries 900 seconds whatever the caller said; wire timeout validation is its own check."""
+    if mapping.wire_request("send_set", 16, 20) != (16, 900, False) or mapping.wire_request("send_pause", 0, 20) != (6, 900, True) or mapping.wire_request("send_release", None, 20) != (20, 900, False):
+        raise AssertionError("wire request does not carry the documented 900 second timeout")
+    for refused in ("read_first", "rejected_invalid", "rejected_other_connector"):
+        try:
+            mapping.wire_request(refused, 16, 20)
+        except ValueError:
+            continue
+        raise AssertionError("a refused disposition produced a wire request")
+    for timeout, expected in ((0, False), (1, True), (900, True), (86399, True), (86400, False), (-1, False), ("900", False), (None, False), (True, False)):
+        if mapping.valid_wire_timeout(timeout) is not expected:
+            raise AssertionError(f"wire timeout {timeout!r} validated as {not expected}")
+    invalid_wire_timeout_cases()
+    print("wire-timeout: PASS")
+
+
+def invalid_wire_timeout_cases():
+    """The encoded request refuses a wire timeout that valid_wire_timeout rejects, for every send disposition."""
+    saved = mapping.WIRE_TIMEOUT_SECONDS
+    try:
+        for timeout in (0, 86400):
+            mapping.WIRE_TIMEOUT_SECONDS = timeout
+            for disposition in ("send_set", "send_pause", "send_release"):
+                try:
+                    mapping.wire_request(disposition, 16, 20)
+                except ValueError as error:
+                    if str(error) != "wire_timeout_invalid":
+                        raise AssertionError(f"{disposition} with wire timeout {timeout}: {error}")
+                else:
+                    raise AssertionError(f"{disposition} encoded the invalid wire timeout {timeout}")
+    finally:
+        mapping.WIRE_TIMEOUT_SECONDS = saved
 
 
 def candidate_cases(baseline, contract):
@@ -201,6 +250,305 @@ def candidate_cases(baseline, contract):
     else:
         raise AssertionError("no configured candidate accepted")
     print("no_configured_candidate: REJECTED")
+
+
+BOUND = {"source_epoch": "epoch.wc3.1", "driver_generation": 1, "lifecycle_generation": 1}
+OTHER_BINDING = {"source_epoch": "epoch.wc3.2", "driver_generation": 2, "lifecycle_generation": 2}
+
+
+def newer_t28_cases(baseline, contract):
+    """Every binding member is varied, removed and kept on the newer t28; the configured current, allocated current and retained native timeout follow."""
+    newer = [("set", "provisional.ConfiguredCurrentAmps", 32), ("set", "evidence.provisional.receipt_timestamp", "2026-09-10T00:00:05Z")]
+    bound, other = BOUND, OTHER_BINDING
+    cases = [("newer_t28_same_binding_wins", {}, "32")]
+    for key in bound:
+        cases.append((f"newer_t28_same_{key}_wins", {key: bound[key]}, "32"))
+        cases.append((f"newer_t28_other_{key}_loses", {key: other[key]}, "16"))
+        cases.append((f"newer_t28_without_{key}_loses", {key: None}, "16"))
+    cases.append(("newer_t28_all_bound_wins", dict(bound), "32"))
+    cases.append(("newer_t28_all_other_loses", dict(other), "16"))
+    cases.append(("newer_t28_without_any_binding_loses", {key: None for key in bound}, "16"))
+    cases.append(("newer_t28_bool_generation_loses", {"driver_generation": True}, "16"))
+    for name, binding, expected in cases:
+        candidate = copy.deepcopy(baseline)
+        for op, path, value in newer:
+            edit(candidate, op, path, value)
+        for key, value in binding.items():
+            if value is None:
+                candidate["evidence"]["provisional"].pop(key)
+            else:
+                candidate["evidence"]["provisional"][key] = value
+        result = mapping.project(candidate, contract)
+        configured = [coefficient for fact, coefficient in facts_of(result) if fact == "evse.limit.configured_current"]
+        if configured != [expected]:
+            raise AssertionError(f"{name}: configured current {configured}")
+        allocated = [coefficient for fact, coefficient in facts_of(result) if fact == "evse.limit.allocated_current"]
+        if (allocated != ["12"]) != (expected == "16"):
+            raise AssertionError(f"{name}: allocated current {allocated}")
+        if expected == "16" and result["native"] != [{"namespace": "modbusreg", "field": "LimitTimeoutSeconds", "value": 600}]:
+            raise AssertionError(f"{name}: a t28 outside the lifecycle removed the retained native timeout: {result['native']}")
+        print(name + ": EPOCH")
+
+
+def foreign_t8_cases(baseline, contract):
+    """A t8 of another epoch or generation, with a malformed current, is excluded and does not veto the current lifecycle; a t8 that leaves a member out takes no part and does not veto either, while it cannot satisfy the case evidence alone."""
+    bound, other = BOUND, OTHER_BINDING
+    for key in bound:
+        foreign_t8 = copy.deepcopy(baseline)
+        foreign_t8["evidence"]["persistent"][key] = other[key]
+        foreign_t8["persistent"]["MaxOutputCurrentAmps"] = -1
+        result = mapping.project(foreign_t8, contract)
+        if facts_of(result) != [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")]:
+            raise AssertionError(f"a t8 of another {key} with a malformed current vetoed the current lifecycle: {facts_of(result)}")
+        unbound_t8 = copy.deepcopy(baseline)
+        unbound_t8["evidence"]["persistent"].pop(key)
+        unbound_t8["persistent"]["MaxOutputCurrentAmps"] = -1
+        result = mapping.project(unbound_t8, contract)
+        if facts_of(result) != [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")]:
+            raise AssertionError(f"a t8 without {key} and with a malformed current vetoed the bound t28: {facts_of(result)}")
+        unbound_t8["evidence"]["provisional"]["provisional_readback_terminal"] = "bad"
+        try:
+            mapping.project(unbound_t8, contract)
+        except ValueError as error:
+            if str(error) != "evidence_binding_invalid":
+                raise AssertionError(f"unbound t8 without {key} and an invalid t28: {error}")
+        else:
+            raise AssertionError(f"an unbound t8 without {key} satisfied the evidence gate")
+
+
+def unbound_t8_evidence_cases(baseline, contract):
+    """A t8 that leaves a binding member out does not satisfy the case evidence without a valid t28; each member is removed."""
+    for key in BOUND:
+        unbound = copy.deepcopy(baseline)
+        unbound["evidence"]["persistent"].pop(key)
+        unbound["evidence"]["provisional"]["provisional_readback_terminal"] = "bad"
+        try:
+            mapping.project(unbound, contract)
+        except ValueError as error:
+            if str(error) != "evidence_binding_invalid":
+                raise AssertionError(f"unbound t8 without {key}: {error}")
+        else:
+            raise AssertionError(f"an unbound t8 without {key} satisfied the evidence gate")
+        kept = copy.deepcopy(baseline)
+        kept["evidence"]["provisional"]["provisional_readback_terminal"] = "bad"
+        mapping.mutate(kept, {"path": "evidence.provisional.provisional_readback_terminal", "value": "bad"})
+        try:
+            mapping.project(kept, contract)
+        except ValueError:
+            raise AssertionError("a bound t8 no longer satisfies the evidence gate")
+
+
+def missing_t8_evidence_case(baseline, contract):
+    """A t8 record whose evidence member is absent is ineligible: it is reported, selected nowhere and satisfies no gate; an eligible t28 still supplies its facts, and a t28 of another epoch leaves no eligible record."""
+    missing = copy.deepcopy(baseline)
+    missing["evidence"].pop("persistent")
+    missing["persistent"]["MaxOutputCurrentAmps"] = 7
+    missing["provisional"]["ConfiguredCurrentAmps"] = 32
+    result = mapping.project(missing, contract)
+    if facts_of(result) != [("evse.limit.configured_current", "32"), ("evse.limit.allocated_current", "12")] or result["ineligible"] != [{"record": "persistent", "reason": "evidence_missing"}]:
+        raise AssertionError(f"t8 without evidence: {facts_of(result)} {result['ineligible']}")
+    missing["evidence"]["provisional"]["source_epoch"] = OTHER_BINDING["source_epoch"]
+    try:
+        mapping.project(missing, contract)
+    except ValueError as error:
+        if str(error) != "evidence_binding_invalid":
+            raise AssertionError(f"t8 without evidence and a foreign t28: {error}")
+    else:
+        raise AssertionError("a t8 without its evidence and a foreign t28 satisfied the evidence gate")
+
+
+def epoch_cases(baseline, contract):
+    """Section 6.1: the later receipt wins only among candidates of the case's own epoch and generation."""
+    bound, other = BOUND, OTHER_BINDING
+    newer_t28_cases(baseline, contract)
+    foreign_t8_cases(baseline, contract)
+    unbound_t8_evidence_cases(baseline, contract)
+    missing_t8_evidence_case(baseline, contract)
+    for key in bound:
+        older_other = copy.deepcopy(baseline)
+        older_other["evidence"]["persistent"][key] = other[key]
+        older_other["evidence"]["persistent"]["receipt_timestamp"] = "2026-09-10T00:00:09Z"
+        older_other["persistent"]["MaxOutputCurrentAmps"] = 7
+        if [c for f, c in facts_of(mapping.project(older_other, contract)) if f == "evse.limit.configured_current"] != ["16"]:
+            raise AssertionError(f"newer t8 of another {key} determined the configured current")
+    alone = copy.deepcopy(baseline)
+    for op, path, value in (("delete", "persistent", None), ("delete", "evidence.persistent", None), ("set", "evidence.provisional.source_epoch", "epoch.wc3.2")):
+        edit(alone, op, path, value)
+    try:
+        mapping.project(alone, contract)
+    except ValueError as error:
+        if str(error) != "evidence_binding_invalid":
+            raise AssertionError(f"a lone t28 of another epoch: {error}")
+    else:
+        raise AssertionError("a lone t28 of another epoch satisfied the evidence gate")
+    foreign_evidence_cases(baseline, contract)
+    eligibility_table(baseline, contract)
+    bound_persistent_evidence_case(baseline)
+    other_revision_readback_case(baseline, contract)
+    print("epoch: PASS")
+
+
+# Each condition names the member varied on the record's evidence and the reason the record is then reported.
+ELIGIBILITY_CELLS = [("bound_and_current", None, None)]
+for _key in ("lifecycle_generation", "source_epoch", "driver_generation", "semantic_revision"):
+    ELIGIBILITY_CELLS += [(f"{_key}_missing", ("pop", _key), f"{_key}_missing"), (f"{_key}_different", ("other", _key), f"{_key}_other")]
+ELIGIBILITY_CELLS += [("evidence_member_absent", ("drop_evidence", None), "evidence_missing"), ("evidence_reference_absent", ("pop_ref", None), "evidence_missing")]
+OTHER_VALUES = {"lifecycle_generation": 2, "source_epoch": "epoch.wc3.2", "driver_generation": 2, "semantic_revision": "0.9.0"}
+FIRST_REF = {"persistent": "persistent_terminal", "provisional": "provisional_readback_terminal"}
+
+
+def eligibility_layout(baseline, kind):
+    """Both kinds eligible; the kind under test is the newest and carries a distinct current, so a wrongly selected record shows."""
+    case = copy.deepcopy(baseline)
+    if kind == "persistent":
+        for path, value in (("persistent.MaxOutputCurrentAmps", 40), ("evidence.persistent.receipt_timestamp", "2026-09-10T00:00:09Z"), ("provisional.ConfiguredCurrentAmps", 32), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:00:05Z")):
+            mapping.mutate(case, {"path": path, "value": value})
+    else:
+        for path, value in (("provisional.ConfiguredCurrentAmps", 40), ("managed_set", managed_set()), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:01:10Z")):
+            mapping.mutate(case, {"path": path, "value": value})
+    return case
+
+
+def apply_condition(case, kind, action):
+    """Vary exactly one member of the evidence of one record; an ineligible persistent value or readback current is also malformed."""
+    if action is None:
+        return
+    how, key = action
+    evidence = case["evidence"][kind]
+    if how == "pop":
+        evidence.pop(key)
+    elif how == "other":
+        evidence[key] = OTHER_VALUES[key]
+    elif how == "pop_ref":
+        evidence.pop(FIRST_REF[kind])
+    else:
+        case["evidence"].pop(kind)
+    if kind == "persistent":
+        case["persistent"]["MaxOutputCurrentAmps"] = -1
+    else:
+        case["provisional"]["LimitTimeoutSeconds"] = 0 if how == "drop_evidence" else 600
+
+
+def without_record(case, kind):
+    reference = copy.deepcopy(case)
+    if kind == "persistent":
+        reference.pop(kind)
+    else:
+        reference[kind] = None
+    reference["evidence"].pop(kind, None)
+    return reference
+
+
+def other_kind_only(case, kind):
+    """The case with the other kind removed: the gate has only the record under test to rely on."""
+    other = "provisional" if kind == "persistent" else "persistent"
+    return without_record(case, other)
+
+
+def expect_gate(case, rejected, label):
+    try:
+        mapping.project(case, mapping.load())
+    except ValueError as error:
+        if not rejected or str(error) != "evidence_binding_invalid":
+            raise AssertionError(f"{label}: {error}")
+    else:
+        if rejected:
+            raise AssertionError(f"{label}: an ineligible record satisfied the evidence gate")
+
+
+def eligibility_cell(baseline, contract, kind, name, action, reason):
+    """One cell: an ineligible record is reported, not selected, suppresses nothing, satisfies no gate and derives no value; the other kind supplies what it supplied before."""
+    label = f"{kind}/{name}"
+    case = eligibility_layout(baseline, kind)
+    apply_condition(case, kind, action)
+    if kind == "persistent" and name == "evidence_reference_absent":
+        expect_gate(case, True, label)
+        return
+    result = mapping.project(case, contract)
+    expected_report = [] if reason is None else [{"record": kind, "reason": reason}]
+    if result["ineligible"] != expected_report:
+        raise AssertionError(f"{label}: reported {result['ineligible']}")
+    configured = [c for f, c in facts_of(result) if f == "evse.limit.configured_current"]
+    allocated = [c for f, c in facts_of(result) if f == "evse.limit.allocated_current"]
+    expired = any(entry["field"] == "AllocationExpiry" for entry in result["native"])
+    expect_gate(other_kind_only(case, kind), reason is not None, label + " alone")
+    if reason is None:
+        if configured != ["40"] or (kind == "provisional" and not expired) or (kind == "persistent" and allocated != ["12"]):
+            raise AssertionError(f"{label}: an eligible record did not supply its facts: {facts_of(result)} {result['native']}")
+        return
+    reference = mapping.project(without_record(case, kind), contract)
+    if kind == "persistent":
+        if (facts_of(result), withheld_of(result), result["native"]) != (facts_of(reference), withheld_of(reference), reference["native"]) or configured != ["32"] or allocated != ["12"]:
+            raise AssertionError(f"{label}: an ineligible t8 changed the result: {facts_of(result)} {withheld_of(result)}")
+        return
+    if facts_of(result) != facts_of(reference) or configured != ["16"] or allocated or expired or ("evse.limit.allocated_current", "allocation_expired") in withheld_of(result):
+        raise AssertionError(f"{label}: an ineligible t28 contributed: {facts_of(result)} {withheld_of(result)} {result['native']}")
+
+
+PERSISTENT_EVIDENCE_KEYS = ("immutable_evidence_id", "payload_digest", "receipt_timestamp", "persistent_request", "persistent_terminal")
+
+
+def bound_persistent_evidence_case(baseline):
+    """Every member and reference of a persistent record bound to the case lifecycle, left out or malformed beside a valid readback, rejects the case; a record whose evidence member is absent only fails to satisfy the gate."""
+    for key in PERSISTENT_EVIDENCE_KEYS:
+        for how in ("left_out", "malformed"):
+            case = copy.deepcopy(baseline)
+            if how == "left_out":
+                case["evidence"]["persistent"].pop(key)
+            else:
+                case["evidence"]["persistent"][key] = "" if key == "immutable_evidence_id" else "bad"
+            expect_gate(case, True, f"bound persistent {key} {how}")
+    absent = copy.deepcopy(baseline)
+    absent["evidence"].pop("persistent")
+    expect_gate(absent, False, "persistent evidence member absent")
+    foreign = copy.deepcopy(baseline)
+    foreign["evidence"]["persistent"]["source_epoch"] = OTHER_BINDING["source_epoch"]
+    foreign["evidence"]["persistent"].pop("persistent_terminal")
+    expect_gate(foreign, False, "foreign persistent with a reference left out")
+
+
+def eligibility_table(baseline, contract):
+    """Record kinds crossed with the conditions: the persistent t8 record and the t28 readback, bound and current, a lifecycle member left out or different, an epoch, generation or semantic revision different, evidence missing."""
+    for kind in ("persistent", "provisional"):
+        for name, action, reason in ELIGIBILITY_CELLS:
+            eligibility_cell(baseline, contract, kind, name, action, reason)
+    print(f"eligibility-table: PASS; {2 * len(ELIGIBILITY_CELLS)} cells")
+
+
+def other_revision_readback_case(baseline, contract):
+    """A newer 32 A readback naming revision 0.9.0 in a 1.0.0 case publishes neither its configured nor its allocated current."""
+    case = copy.deepcopy(baseline)
+    for path, value in (("provisional.ConfiguredCurrentAmps", 32), ("provisional.LimitCurrentMaxAmps", 8), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:00:05Z"), ("evidence.provisional.semantic_revision", "0.9.0")):
+        mapping.mutate(case, {"path": path, "value": value})
+    result = mapping.project(case, contract)
+    if facts_of(result) != [("evse.limit.configured_current", "16")] or result["ineligible"] != [{"record": "provisional", "reason": "semantic_revision_other"}]:
+        raise AssertionError(f"a readback of another semantic revision took part: {facts_of(result)} {result['ineligible']}")
+    print("other-revision-readback: PASS")
+
+
+def foreign_evidence_cases(baseline, contract):
+    """A foreign t8 does not stand in for missing valid evidence, and a foreign t28 derives no expiry; each binding member is varied."""
+    for key in BOUND:
+        both_malformed = copy.deepcopy(baseline)
+        both_malformed["evidence"]["persistent"][key] = OTHER_BINDING[key]
+        both_malformed["evidence"]["persistent"]["persistent_terminal"] = "bad"
+        both_malformed["evidence"]["provisional"]["provisional_readback_terminal"] = "bad"
+        try:
+            mapping.project(both_malformed, contract)
+        except ValueError as error:
+            if str(error) != "evidence_binding_invalid":
+                raise AssertionError(f"foreign t8 {key} with a malformed readback: {error}")
+        else:
+            raise AssertionError(f"foreign t8 {key} with a malformed readback was accepted")
+        foreign_t28 = copy.deepcopy(baseline)
+        for path, value in (("managed_set", managed_set()), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:01:10Z")):
+            mapping.mutate(foreign_t28, {"path": path, "value": value})
+        foreign_t28["evidence"]["provisional"][key] = OTHER_BINDING[key]
+        result = mapping.project(foreign_t28, contract)
+        if any(entry["field"] == "AllocationExpiry" for entry in result["native"]):
+            raise AssertionError(f"a t28 of another {key} derived an expiry")
+        if [entry["field"] for entry in result["native"]] != ["LimitTimeoutSeconds"]:
+            raise AssertionError(f"a t28 of another {key} lost its raw timeout: {result['native']}")
 
 
 def native_timeout_cases(baseline, contract):
@@ -298,10 +646,11 @@ def main():
     readback_cases(baseline, contract)
     operation_vectors()
     candidate_cases(baseline, contract)
+    epoch_cases(baseline, contract)
     native_timeout_cases(baseline, contract)
     native_expiry_cases(baseline, contract)
     identity_without_meter_cases(baseline, contract)
-    cases = [("status_read_only", "status", "accepted_source_specific_read_only_mapping_gate", "contract"), ("pin", "pins.gateway_main", "0" * 40, "contract"), ("profile", "native_contract.profile", "wc3_24_44_4", "native_contract"), ("outbound", "native_contract.outbound_allowed", True, "native_contract"), ("identity_derivation", "identity.forbidden_derivations.0", "serial", "identity_contract"), ("identity_reuse", "identity.failure", "allow_reuse", "identity_contract"), ("meter_identity_required", "identity.meter_id.required", True, "identity_contract"), ("connector_identity_optional", "identity.connector_id.required", False, "identity_contract"), ("lifecycle", "lifecycle.required.0", "timestamp", "lifecycle_contract"), ("persistent_target", "field_rules.0.target", "evse.limit.allocated_current", "field_rules"), ("provisional_disposition", "field_rules.2.disposition", "always", "field_rules"), ("unsupported", "unsupported.0", "power_allowed", "withheld_or_unsupported"), ("precedence", "projection.error_precedence.0", "x", "projection"), ("operations", "projection.operations", "available", "projection"), ("operation_unlisted", "projection.operations.0.name", "evse.operation.release_allocated_current", "projection"), ("operation_timeout_range_open", "projection.operations.0.argument_rules.timeout_seconds.interoperable_range", [0, 86399], "projection"), ("operation_pause_encoding_dropped", "projection.operations.0.argument_rules.amperes.pause.encoding", "none", "projection"), ("operation_refused_range_widened", "projection.operations.0.argument_rules.amperes.refused_range.maximum_refused_nonzero_amperes", 4, "projection"), ("cutover", "consumer_cutover.forbidden.0", "allowed", "consumer_cutover")]
+    cases = [("status_read_only", "status", "accepted_source_specific_read_only_mapping_gate", "contract"), ("pin", "pins.gateway_main", "0" * 40, "contract"), ("profile", "native_contract.profile", "wc3_24_44_4", "native_contract"), ("outbound", "native_contract.outbound_allowed", True, "native_contract"), ("identity_derivation", "identity.forbidden_derivations.0", "serial", "identity_contract"), ("identity_reuse", "identity.failure", "allow_reuse", "identity_contract"), ("meter_identity_required", "identity.meter_id.required", True, "identity_contract"), ("connector_identity_optional", "identity.connector_id.required", False, "identity_contract"), ("lifecycle", "lifecycle.required.0", "timestamp", "lifecycle_contract"), ("persistent_target", "field_rules.0.target", "evse.limit.allocated_current", "field_rules"), ("provisional_disposition", "field_rules.2.disposition", "always", "field_rules"), ("unsupported", "unsupported.0", "power_allowed", "withheld_or_unsupported"), ("precedence", "projection.error_precedence.0", "x", "projection"), ("operations", "projection.operations", "available", "projection"), ("operation_unlisted", "projection.operations.0.name", "evse.operation.release_allocated_current", "projection"), ("operation_wire_timeout_range_open", "projection.operations.0.argument_rules.wire_timeout.interoperable_range", [0, 86399], "projection"), ("operation_wire_timeout_value", "projection.operations.0.argument_rules.wire_timeout.seconds", 600, "projection"), ("operation_caller_timeout_admitted", "projection.operations.0.argument_rules.caller_timeout", "any_interoperable_value", "projection"), ("operation_effect_target_open", "projection.operations.0.argument_rules.effect_target", "any_connector", "projection"), ("operation_member_effect", "operation.effect", "evse.effect.other", "operation"), ("operation_member_route", "operation.route.0", "family_6.t7_to_t8", "operation"), ("operation_member_capability", "operation.capability", "evse.capability.other", "operation"), ("operation_member_timeout_rule", "operation.argument_rules.wire_timeout.seconds", 600, "operation"), ("operation_member_effect_target_rule", "operation.argument_rules.effect_target", "any_connector", "operation"), ("operation_member_dropped", "operation", None, "operation"), ("lifecycle_candidate_binding", "lifecycle.candidate_binding.configured_current", "later_receipt_only", "lifecycle_contract"), ("operation_pause_encoding_dropped", "projection.operations.0.argument_rules.amperes.pause.encoding", "none", "projection"), ("operation_refused_range_widened", "projection.operations.0.argument_rules.amperes.refused_range.maximum_refused_nonzero_amperes", 4, "projection"), ("cutover", "consumer_cutover.forbidden.0", "allowed", "consumer_cutover")]
     for case in cases: reject(*case)
     for name, path, value, expected in [("blank_identity", "identity.asset_id", "", "identity_invalid"), ("managed_set_without_its_acknowledgement_ref", "managed_set", {"ack_receipt_timestamp": "2026-09-10T00:00:00Z", "duration_seconds": 60}, "evidence_binding_invalid"), ("wrong_unit_profile", "profile", "other", "profile_or_version_invalid"), ("missing_receipt", "lifecycle.receipt_timestamp", "", "lifecycle_invalid"), ("operation_attempt", "operation", "evse.operation.release_allocated_current", "unsupported_fact_or_operation"), ("persistent_evidence", "evidence.persistent.persistent_terminal", "bad", "evidence_binding_invalid"), ("persistent_receipt", "evidence.persistent.receipt_timestamp", "", "evidence_binding_invalid")]:
         candidate = copy.deepcopy(baseline); mapping.mutate(candidate, {"path": path, "value": value})
@@ -417,6 +766,11 @@ GRAPH_NEGATIVES = [
     ("plane_on_field_rule", [("set", "field_rules.0.planes", ["energy"])], "graph plane_membership_stated $.field_rules[0].planes"),
     ("meter_relation_dropped", [("delete", "graph.relations.2", None)], "graph_relations"),
     ("meter_absence_asserted", [("set", "graph.relations.2.absence_sides", ["to"])], "graph_relations"),
+    ("phase_reason_dropped", [("delete", "unstated_relations.0.reason", None)], "unstated_relations"),
+    ("phase_reason_changed", [("set", "unstated_relations.0.reason", "unsupported")], "unstated_relations"),
+    ("session_reason_dropped", [("delete", "unstated_relations.1.reason", None)], "unstated_relations"),
+    ("session_reason_swapped", [("set", "unstated_relations.1.reason", "no_native_statement_assigns_per_phase_connector_measurements_to_the_wall_connector_vitals")], "unstated_relations"),
+    ("phase_stated_absent", [("set", "unstated_relations.0.outcome", "absent")], "unstated_relations"),
     ("meter_relation_also_unstated", [("append", "unstated_relations", METER_UNSTATED)], "unstated_relations"),
     ("meter_resource_dropped", [("delete", "graph.resources.3", None)], "graph dangling_endpoint $.graph.relations[2].to_kind"),
     ("identity_meter_dimension_unpublished", [("set", "identity.meter_id.dimension", "evse.dimension.phase")], "identity_contract"),

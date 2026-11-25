@@ -42,6 +42,8 @@ UNSUPPORTED = ["power", "energy", "phase", "session", "readiness", "connector_to
 # IEC 61851-1 Annex A: 6 A is the lowest charging current a charger can signal; the pause encodes 6 A with inhibit.
 MIN_NONZERO_SET_AMPS = 6
 MAX_INTEROPERABLE_TIMEOUT_SECONDS = 86399
+# The documented call carries this wire timeout for set, pause and release; the caller does not select it.
+WIRE_TIMEOUT_SECONDS = 900
 # Argument and dispatch rules of evse.operation.set_allocated_current; set_allocated_current_disposition applies the same constants.
 ARGUMENT_RULES = {
     "amperes": {
@@ -53,8 +55,10 @@ ARGUMENT_RULES = {
         "above_configured": "invalid_nothing_sent",
         "no_t28_in_generation": "prerequisite_t27_to_t28_read_only_then_no_t25_when_above_configured",
     },
-    "timeout_seconds": {"interoperable_range": [1, MAX_INTEROPERABLE_TIMEOUT_SECONDS], "zero": "not_an_interoperable_request_value", "refused_outcome": "invalid_nothing_sent"},
+    "wire_timeout": {"seconds": WIRE_TIMEOUT_SECONDS, "selected_by": "the_operation_not_the_caller", "interoperable_range": [1, MAX_INTEROPERABLE_TIMEOUT_SECONDS], "zero": "not_an_interoperable_request_value", "refused_outcome": "invalid_nothing_sent"},
+    "caller_timeout": "not_an_argument_of_the_operation",
     "connector": "own_connector_only",
+    "effect_target": "own_connector_only_refused_before_any_read_or_send",
     "release": {"allocated_current_enabled": False, "amperes": "forbidden", "requires_configured_bound": "nonzero_known_configured_current"},
 }
 # Section 6 operations of this charger: the allocated-current set and the persistent setter of the modbusreg namespace.
@@ -64,6 +68,28 @@ OPERATIONS = [
 ]
 OPERATION_NAMES = [operation["name"] for operation in OPERATIONS]
 SET_ALLOCATED_CURRENT = "evse.operation.set_allocated_current"
+# Arguments the semantic call takes; a connector and an effect target address the connector the operation acts on.
+SET_REQUEST_KEYS = frozenset({"connector_id", "effect_target", "amperes"})
+RELEASE_REQUEST_KEYS = frozenset({"connector_id", "effect_target", "allocated_current_enabled"})
+# Evidence members a record must state, each equal to the case's own, to be eligible: its epoch, generations and semantic revision.
+BINDING_KEYS = ("source_epoch", "driver_generation", "lifecycle_generation", "semantic_revision")
+# The record kinds this gate reads: the persistent t7 to t8 record and the provisional t27 to t28 readback.
+RECORD_KINDS = ("persistent", "provisional")
+RECORD_ABSENT = "record_absent"
+# One decision for every record this gate reads: only an eligible record is selected, suppresses another record, satisfies the evidence gate or contributes a derived value.
+RECORD_ELIGIBILITY = {
+    "records": ["persistent_t8", "provisional_t28"],
+    "eligible_when": "lifecycle_epoch_generation_semantic_revision_and_required_evidence_present_and_equal_to_the_case",
+    "binding": list(BINDING_KEYS),
+    "ineligible": "reported_with_its_reason_and_no_other_effect_except_the_raw_native_timeout_of_a_readback_with_valid_evidence",
+    "reads_only_eligible": ["selection", "suppression", "evidence_gate", "configured_current", "allocated_current", "expiry"],
+}
+EVIDENCE_MEMBERS = ("immutable_evidence_id", "payload_digest", "receipt_timestamp")
+# Each relation the gate leaves unstated names the native statement that is missing.
+UNSTATED_REASONS = {
+    "evse.relation.connector_phase": "no_native_statement_assigns_per_phase_connector_measurements_to_the_wall_connector_vitals",
+    "evse.relation.connector_session": "no_native_statement_gives_a_session_start_in_the_wall_connector_vitals",
+}
 # The gate admits operations (projection.operations), so its status is not read-only (P1-7; rule 2).
 STATUS = "accepted_source_specific_mapping_gate"
 PINS = {"docs_semantic_base": "f830ace6c2b9dd1af0e87ce808fa545662578418", "semreg": "f3f761bc67e10d6a65eba6c13cb4dc51002d6955", "docs_modbus_current_limit": "e9d0471ccc7bd0cb82e2552e630ebaae5436d867", "docs_modbus_native_projection": "1127c333de1f1d02305952a58f8745ee05c42e12", "modbusreg": "57f7eb84f7d4e1173621711bf64624726c71bc75", "gateway_main": "32244901c4c8337266cd348bdad90fb9e8eb0a61"}
@@ -177,7 +203,9 @@ def expected_unstated(catalog, stated, published):
         missing = [kind for kind in definition["from_kinds"] + definition["to_kinds"] if kind not in published]
         if not missing:
             fail("unstated_relations")
-        result.append({"definition": name, "outcome": UNSTATED_OUTCOME, "unpublished_endpoint": missing[0]})
+        if name not in UNSTATED_REASONS:
+            fail("unstated_relations")
+        result.append({"definition": name, "outcome": UNSTATED_OUTCOME, "unpublished_endpoint": missing[0], "reason": UNSTATED_REASONS[name]})
     return result
 
 
@@ -235,7 +263,7 @@ def validate_contract(contract, catalog=None):
     validate_graph(contract, catalog)
     validate_identity(contract.get("identity", {}))
     lifecycle = contract.get("lifecycle", {})
-    if lifecycle != {"required": ["receipt_timestamp", "source_epoch", "driver_generation", "qualification", "semantic_revision", "lifecycle_generation"], "per_fact_evidence": {"persistent": ["immutable_evidence_id", "payload_digest", "persistent_request", "persistent_terminal"], "provisional": ["immutable_evidence_id", "payload_digest", "correlation_id", "provisional_readback_request", "provisional_readback_terminal"], "provisional_mutation": MUTATION_REFS}, "atomicity": "persistent_and_provisional_each_have_one_evidence_id_one_source_epoch_one_driver_generation_one_semantic_revision", "withdrawal": "explicit_generation_fenced", "retention": "native_owner_only_permitted_last_known_good", "physical_qualified": False, "mapping_qualified": True}:
+    if lifecycle != {"required": ["receipt_timestamp", "source_epoch", "driver_generation", "qualification", "semantic_revision", "lifecycle_generation"], "per_fact_evidence": {"persistent": ["immutable_evidence_id", "payload_digest", "persistent_request", "persistent_terminal"], "provisional": ["immutable_evidence_id", "payload_digest", "correlation_id", "provisional_readback_request", "provisional_readback_terminal"], "provisional_mutation": MUTATION_REFS}, "candidate_binding": {"configured_current": "eligible_records_only_then_later_receipt"}, "record_eligibility": RECORD_ELIGIBILITY, "atomicity": "persistent_and_provisional_each_have_one_evidence_id_one_source_epoch_one_driver_generation_one_semantic_revision", "withdrawal": "explicit_generation_fenced", "retention": "native_owner_only_permitted_last_known_good", "physical_qualified": False, "mapping_qualified": True}:
         fail("lifecycle_contract")
     if contract.get("field_rules") != expected_field_rules(catalog):
         fail("field_rules")
@@ -244,6 +272,8 @@ def validate_contract(contract, catalog=None):
     projection = contract.get("projection", {})
     if projection.get("source_path") != "modbus.v1.tesla.gen3.evse.current_limit.get" or projection.get("error_precedence") != ERRORS or projection.get("operations") != OPERATIONS or projection.get("native_namespace") != NATIVE_NAMESPACE or projection.get("missing_native") != "withheld_unavailable_never_zero":
         fail("projection")
+    if contract.get("operation") != OPERATIONS[0]:
+        fail("operation")
     cutover = contract.get("consumer_cutover", {})
     if cutover != {"sequence": ["one_semreg_projection", "versioned_semantic_mcp", "mtls_graphql_and_portal_parity", "home_assistant_adoption"], "forbidden": ["fallback", "comparator", "compatibility_adapter", "shadow_authority", "dual_publication", "caller_supplied_provenance", "write_route"], "until_implemented": "no_consumer_binding"}:
         fail("consumer_cutover")
@@ -268,34 +298,67 @@ def valid_evidence(evidence, refs, correlation=False):
     return not correlation or evidence.get("correlation_id") == evidence["immutable_evidence_id"]
 
 
-def provisional_evidence_valid(evidence):
-    """A readback alone needs its readback references; a record that names a set or acknowledgement needs those too."""
-    if not isinstance(evidence, dict):
-        return False
-    refs = READBACK_REFS + MUTATION_REFS if any(key in evidence for key in MUTATION_REFS) else READBACK_REFS
-    return valid_evidence(evidence, refs, correlation=True)
-
-
 def non_negative_int(value):
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
-def provisional_valid(case):
-    provisional = case.get("provisional")
-    return isinstance(provisional, dict) and isinstance(case.get("evidence", {}).get("provisional"), dict) and provisional_evidence_valid(case["evidence"]["provisional"])
+def evidence_refs(kind, evidence):
+    """A persistent record needs its request and terminal; a readback needs its own, and a record that names a set or acknowledgement needs those too."""
+    if kind == "persistent":
+        return PERSISTENT_REFS
+    return READBACK_REFS + MUTATION_REFS if any(key in evidence for key in MUTATION_REFS) else READBACK_REFS
 
 
-def publish_configured_current(case, provisional, facts, withheld):
-    """Section 6.1: the t28 and the t8 configured current are each sufficient; with both in one epoch the later receipt wins."""
+def binding_reason(evidence, lifecycle):
+    """The first binding member the evidence leaves out or states differently from the case lifecycle, else None."""
+    for key in BINDING_KEYS:
+        if key not in evidence:
+            return f"{key}_missing"
+        if type(evidence[key]) is not type(lifecycle.get(key)) or evidence[key] != lifecycle.get(key):
+            return f"{key}_other"
+    return None
+
+
+def evidence_reason(kind, evidence):
+    """Required evidence: every member and reference present is `evidence_missing` when left out and `evidence_invalid` when malformed."""
+    refs = evidence_refs(kind, evidence)
+    required = EVIDENCE_MEMBERS + tuple(refs) + (("correlation_id",) if kind == "provisional" else ())
+    if any(evidence.get(key) is None for key in required):
+        return "evidence_missing"
+    return None if valid_evidence(evidence, refs, correlation=kind == "provisional") else "evidence_invalid"
+
+
+def eligibility(case, kind):
+    """The one eligibility decision: None when the record of this kind is eligible, RECORD_ABSENT when the case has none, else the reason it is not.
+    A record is eligible only when its lifecycle, source epoch, driver generation, semantic revision and required evidence are present and equal to the case's own.
+    Selection, suppression, the evidence gate and every derived value read only eligible records."""
+    if kind not in case or (kind == "provisional" and not isinstance(case[kind], dict)):
+        return RECORD_ABSENT
+    evidence = case["evidence"].get(kind) if isinstance(case.get("evidence"), dict) else None
+    if not isinstance(evidence, dict):
+        return "evidence_missing"
+    if not isinstance(case.get("lifecycle"), dict):
+        return "lifecycle_missing"
+    return binding_reason(evidence, case["lifecycle"]) or evidence_reason(kind, evidence)
+
+
+def ineligible_report(case):
+    """Each present record that is not eligible, with its reason; it has no other effect."""
+    reasons = [(kind, eligibility(case, kind)) for kind in RECORD_KINDS]
+    return [{"record": kind, "reason": reason} for kind, reason in reasons if reason not in (None, RECORD_ABSENT)]
+
+
+def publish_configured_current(case, facts, withheld):
+    """Section 6.1: the t28 and the t8 configured current are each sufficient; the later receipt wins among eligible records only."""
     candidates = []
-    if provisional is not None and "ConfiguredCurrentAmps" in provisional:
-        candidates.append((receipt_of(case["evidence"]["provisional"]), provisional["ConfiguredCurrentAmps"]))
-    if "persistent" in case:
-        candidates.append((receipt_of(case["evidence"]["persistent"]), case["persistent"]["MaxOutputCurrentAmps"]))
+    if eligibility(case, "provisional") is None and "ConfiguredCurrentAmps" in case["provisional"]:
+        candidates.append((case["evidence"]["provisional"], case["provisional"]["ConfiguredCurrentAmps"]))
+    if eligibility(case, "persistent") is None:
+        candidates.append((case["evidence"]["persistent"], case["persistent"].get("MaxOutputCurrentAmps") if isinstance(case["persistent"], dict) else None))
     if not candidates:
         withheld.append({"id": "evse.limit.configured_current", "reason": "configured_current_absent"})
         return
-    _, configured = max(candidates, key=lambda candidate: candidate[0])
+    _, configured = max(((receipt_of(evidence), value) for evidence, value in candidates), key=lambda candidate: candidate[0])
     if not non_negative_int(configured):
         withheld.append({"id": "evse.limit.configured_current", "reason": "provisional_record_malformed"})
     elif configured == 0:
@@ -309,10 +372,10 @@ def project(case, contract):
     for error in ERRORS:
         if error in errors: fail(error)
     persistent = case.get("persistent")
-    if "persistent" in case and (not isinstance(persistent, dict) or not non_negative_int(persistent.get("MaxOutputCurrentAmps"))): fail(ERRORS[3])
+    if eligibility(case, "persistent") is None and (not isinstance(persistent, dict) or not non_negative_int(persistent.get("MaxOutputCurrentAmps"))): fail(ERRORS[3])
     facts, withheld, native = [], [], []
     publish_limits(case, facts, withheld, native)
-    return {"facts": facts, "withheld": withheld, "native": native, "operations": list(OPERATION_NAMES)}
+    return {"facts": facts, "withheld": withheld, "native": native, "ineligible": ineligible_report(case), "operations": list(OPERATION_NAMES)}
 
 
 def case_errors(case, contract):
@@ -323,14 +386,18 @@ def case_errors(case, contract):
     if not all(valid_id(v) for v in values) or len(set(values)) != len(values): errors.add(ERRORS[1])
     if case.get("source_path") != contract["projection"]["source_path"]: errors.add(ERRORS[2])
     evidence = case.get("evidence", {})
-    if "persistent" in case:
-        if not valid_evidence(evidence.get("persistent"), PERSISTENT_REFS): errors.add(ERRORS[3])
-    elif not provisional_valid(case):
-        errors.add(ERRORS[3])
+    if not case_evidence_valid(case): errors.add(ERRORS[3])
     if not lifecycle_valid(case.get("lifecycle", {})): errors.add(ERRORS[4])
     if "managed_set" in case and not managed_set_valid(case["managed_set"]): errors.add(ERRORS[3])
     if case.get("unsupported_fact") or (case.get("operation") is not None and case.get("operation") not in OPERATION_NAMES): errors.add(ERRORS[5])
     return errors
+
+
+def case_evidence_valid(case):
+    """The evidence gate is satisfied only by an eligible record. A persistent record that names the case lifecycle and leaves out or malforms a member or reference of its evidence is a corrupt case and is rejected; any other ineligible record only fails to satisfy the gate."""
+    if eligibility(case, "persistent") in ("evidence_invalid", "evidence_missing") and isinstance(case["evidence"].get("persistent"), dict):
+        return False
+    return any(eligibility(case, kind) is None for kind in RECORD_KINDS)
 
 
 def lifecycle_valid(lifecycle):
@@ -342,19 +409,25 @@ def lifecycle_valid(lifecycle):
     return receipt_ok and valid_id(lifecycle.get("source_epoch")) and lifecycle.get("qualification") == "qualified" and lifecycle.get("semantic_revision") == "1.0.0" and not any(not isinstance(lifecycle.get(k), int) or isinstance(lifecycle.get(k), bool) or lifecycle[k] < 1 for k in ("driver_generation", "lifecycle_generation"))
 
 
+def native_timeout_retained(case, reason):
+    """The raw native timeout of a readback with valid evidence stays served when only its lifecycle binding is not the case's."""
+    return reason in {f"{key}_{kind}" for key in BINDING_KEYS for kind in ("missing", "other")} and valid_evidence(case["evidence"]["provisional"], evidence_refs("provisional", case["evidence"]["provisional"]), correlation=True)
+
+
 def publish_limits(case, facts, withheld, native):
     provisional = case.get("provisional")
-    evidence = case.get("evidence", {})
-    if not isinstance(provisional, dict):
+    reason = eligibility(case, "provisional")
+    if reason == RECORD_ABSENT:
         withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_record_absent"})
-        provisional = None
-    elif not provisional_evidence_valid(evidence.get("provisional")):
+    elif reason is not None:
+        # An ineligible readback yields no allocated current, candidate or expiry.
         withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_evidence_invalid"})
-        provisional = None
-    publish_configured_current(case, provisional, facts, withheld)
-    if provisional is not None:
+    publish_configured_current(case, facts, withheld)
+    if reason is None:
         publish_allocated_current(case, provisional, facts, withheld)
+    if reason is None or (reason != RECORD_ABSENT and native_timeout_retained(case, reason)):
         publish_native_timeout(provisional, native)
+    if reason is None:
         publish_native_expiry(case, native)
 
 
@@ -374,7 +447,7 @@ def receipt_text(text):
 def allocation_cutoff(case):
     """ND02 SemReg mapping, field rules: a known nonzero managed timeout ends at the set acknowledgement plus the requested duration; the cutoff is known only for a readback that names that set and acknowledgement. An unresolved timeout gives no cutoff."""
     managed = case.get("managed_set")
-    if managed is None or managed["duration_seconds"] == 0:
+    if managed is None or managed["duration_seconds"] == 0 or eligibility(case, "provisional") is not None:
         return None
     timeout = case["provisional"].get("LimitTimeoutSeconds")
     if not non_negative_int(timeout) or timeout == 0:
@@ -422,14 +495,27 @@ def publish_allocated_current(case, provisional, facts, withheld):
         facts.append(amperes_fact("evse.limit.allocated_current", "connector", current))
 
 
-def valid_request_timeout(timeout):
-    """A request timeout is a whole number of seconds from 1 through the interoperable maximum; zero is not an interoperable request value."""
+def valid_wire_timeout(timeout):
+    """A wire timeout is a whole number of seconds from 1 through the interoperable maximum; zero is not an interoperable request value."""
     return non_negative_int(timeout) and 1 <= timeout <= MAX_INTEROPERABLE_TIMEOUT_SECONDS
+
+
+def wire_request(disposition, amperes, bound):
+    """The t25 triple of a send disposition: current, wire timeout and inhibit; a pause encodes 6 A with inhibit. The wire timeout must be a valid one."""
+    if disposition not in ("send_set", "send_pause", "send_release"):
+        fail("wire_request_not_sent")
+    if not valid_wire_timeout(WIRE_TIMEOUT_SECONDS):
+        fail("wire_timeout_invalid")
+    if disposition == "send_set":
+        return (amperes, WIRE_TIMEOUT_SECONDS, False)
+    if disposition == "send_pause":
+        return (MIN_NONZERO_SET_AMPS, WIRE_TIMEOUT_SECONDS, True)
+    return (bound, WIRE_TIMEOUT_SECONDS, False)
 
 
 def release_disposition(request, generation):
     """ND02 SemReg mapping, operations: boolean false for allocated_current_enabled is a release with no amperage; it needs a valid nonzero configured current."""
-    if "amperes" in request or ("timeout_seconds" in request and not valid_request_timeout(request["timeout_seconds"])):
+    if not set(request) <= RELEASE_REQUEST_KEYS:
         return "rejected_invalid"
     if not generation["t28_known"]:
         return "read_first"
@@ -440,15 +526,15 @@ def release_disposition(request, generation):
 
 
 def set_allocated_current_disposition(request, generation, own_connector):
-    """Operation rules for evse.operation.set_allocated_current; a refused request sends nothing."""
-    if request.get("connector_id") != own_connector:
+    """Operation rules for evse.operation.set_allocated_current; a refused request sends nothing, and a foreign target is refused before any read."""
+    if request.get("connector_id") != own_connector or request.get("effect_target", own_connector) != own_connector:
         return "rejected_other_connector"
     if "allocated_current_enabled" in request:
         if request["allocated_current_enabled"] is not False:
             return "rejected_invalid"
         return release_disposition(request, generation)
-    amperes, timeout = request.get("amperes"), request.get("timeout_seconds")
-    if not non_negative_int(amperes) or not valid_request_timeout(timeout):
+    amperes = request.get("amperes")
+    if not set(request) <= SET_REQUEST_KEYS or not non_negative_int(amperes):
         return "rejected_invalid"
     if 0 < amperes < MIN_NONZERO_SET_AMPS:
         return "rejected_below_minimum"
@@ -528,7 +614,7 @@ def main():
     contract = load(); document(contract)
     text = DOC.read_text(encoding="utf-8")
     check_companion_relations(text)
-    for token in ("FC100", "outbound_allowed=false", "field-scoped immutable evidence", "evse.operation.set_allocated_current", "ConfigurePersistentCurrent", "mTLS GraphQL", "operator label", "unknown, not absent", "EN-1", "section 15"):
+    for token in ("wire timeout", "effect target", "same source epoch", "`operation` member", "FC100", "outbound_allowed=false", "field-scoped immutable evidence", "evse.operation.set_allocated_current", "ConfigurePersistentCurrent", "mTLS GraphQL", "operator label", "unknown, not absent", "EN-1", "section 15"):
         if token not in text: fail("document_boundary")
     positive = sum(s["polarity"] == "positive" for s in contract["scenarios"])
     print(f"Tesla Gen3 WC3 24.44.3 EVSE current-limit mapping: PASS; {positive} executable outputs and {len(contract['scenarios']) - positive} rejected scenarios")

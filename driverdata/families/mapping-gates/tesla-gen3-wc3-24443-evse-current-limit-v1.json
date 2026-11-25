@@ -195,12 +195,14 @@
     {
       "definition": "evse.relation.connector_phase",
       "outcome": "unknown_not_absent",
-      "unpublished_endpoint": "resource.phase"
+      "unpublished_endpoint": "resource.phase",
+      "reason": "no_native_statement_assigns_per_phase_connector_measurements_to_the_wall_connector_vitals"
     },
     {
       "definition": "evse.relation.connector_session",
       "outcome": "unknown_not_absent",
-      "unpublished_endpoint": "resource.charging_session"
+      "unpublished_endpoint": "resource.charging_session",
+      "reason": "no_native_statement_gives_a_session_start_in_the_wall_connector_vitals"
     }
   ],
   "lifecycle": {
@@ -229,6 +231,31 @@
       "provisional_mutation": [
         "provisional_set",
         "provisional_ack"
+      ]
+    },
+    "candidate_binding": {
+      "configured_current": "eligible_records_only_then_later_receipt"
+    },
+    "record_eligibility": {
+      "records": [
+        "persistent_t8",
+        "provisional_t28"
+      ],
+      "eligible_when": "lifecycle_epoch_generation_semantic_revision_and_required_evidence_present_and_equal_to_the_case",
+      "binding": [
+        "source_epoch",
+        "driver_generation",
+        "lifecycle_generation",
+        "semantic_revision"
+      ],
+      "ineligible": "reported_with_its_reason_and_no_other_effect_except_the_raw_native_timeout_of_a_readback_with_valid_evidence",
+      "reads_only_eligible": [
+        "selection",
+        "suppression",
+        "evidence_gate",
+        "configured_current",
+        "allocated_current",
+        "expiry"
       ]
     },
     "atomicity": "persistent_and_provisional_each_have_one_evidence_id_one_source_epoch_one_driver_generation_one_semantic_revision",
@@ -297,14 +324,14 @@
         "capability": "evse.capability.set_allocated_current",
         "service": "evse.service.connector",
         "effect": "evse.effect.set_allocated_current",
+        "release_argument": "evse.limit.allocated_current_enabled",
+        "release_effect": "evse.effect.release_allocated_current",
         "subject_kind": "resource.connector",
         "route": [
           "family_6.t25_to_t26",
           "family_6.t27_to_t28"
         ],
         "authority": "setting_owner_through_semreg_call_path",
-        "release_argument": "evse.limit.allocated_current_enabled",
-        "release_effect": "evse.effect.release_allocated_current",
         "argument_rules": {
           "amperes": {
             "type": "non_negative_integer",
@@ -324,7 +351,9 @@
             "above_configured": "invalid_nothing_sent",
             "no_t28_in_generation": "prerequisite_t27_to_t28_read_only_then_no_t25_when_above_configured"
           },
-          "timeout_seconds": {
+          "wire_timeout": {
+            "seconds": 900,
+            "selected_by": "the_operation_not_the_caller",
             "interoperable_range": [
               1,
               86399
@@ -332,7 +361,9 @@
             "zero": "not_an_interoperable_request_value",
             "refused_outcome": "invalid_nothing_sent"
           },
+          "caller_timeout": "not_an_argument_of_the_operation",
           "connector": "own_connector_only",
+          "effect_target": "own_connector_only_refused_before_any_read_or_send",
           "release": {
             "allocated_current_enabled": false,
             "amperes": "forbidden",
@@ -357,6 +388,58 @@
         "AllocationExpiry"
       ],
       "reason": "no_catalog_element"
+    }
+  },
+  "operation": {
+    "name": "evse.operation.set_allocated_current",
+    "capability": "evse.capability.set_allocated_current",
+    "service": "evse.service.connector",
+    "effect": "evse.effect.set_allocated_current",
+    "release_argument": "evse.limit.allocated_current_enabled",
+    "release_effect": "evse.effect.release_allocated_current",
+    "subject_kind": "resource.connector",
+    "route": [
+      "family_6.t25_to_t26",
+      "family_6.t27_to_t28"
+    ],
+    "authority": "setting_owner_through_semreg_call_path",
+    "argument_rules": {
+      "amperes": {
+        "type": "non_negative_integer",
+        "upper_bound": "configured_current_of_latest_t28_in_the_lifecycle_generation",
+        "upper_bound_device_query": "the_device_limit_query_result_wins_where_offered",
+        "pause": {
+          "amperes": 0,
+          "encoding": "6_A_with_inhibit_true",
+          "requires_configured_bound_at_least": 6
+        },
+        "refused_range": {
+          "minimum_nonzero_amperes": 6,
+          "maximum_refused_nonzero_amperes": 5,
+          "outcome": "invalid_nothing_sent",
+          "source_clause": "IEC 61851-1 Annex A"
+        },
+        "above_configured": "invalid_nothing_sent",
+        "no_t28_in_generation": "prerequisite_t27_to_t28_read_only_then_no_t25_when_above_configured"
+      },
+      "wire_timeout": {
+        "seconds": 900,
+        "selected_by": "the_operation_not_the_caller",
+        "interoperable_range": [
+          1,
+          86399
+        ],
+        "zero": "not_an_interoperable_request_value",
+        "refused_outcome": "invalid_nothing_sent"
+      },
+      "caller_timeout": "not_an_argument_of_the_operation",
+      "connector": "own_connector_only",
+      "effect_target": "own_connector_only_refused_before_any_read_or_send",
+      "release": {
+        "allocated_current_enabled": false,
+        "amperes": "forbidden",
+        "requires_configured_bound": "nonzero_known_configured_current"
+      }
     }
   },
   "consumer_cutover": {
@@ -410,6 +493,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -430,7 +514,11 @@
             "payload_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "persistent_request": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             "persistent_terminal": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-            "receipt_timestamp": "2026-09-10T00:00:00Z"
+            "receipt_timestamp": "2026-09-10T00:00:00Z",
+            "source_epoch": "epoch.wc3.1",
+            "driver_generation": 1,
+            "lifecycle_generation": 1,
+            "semantic_revision": "1.0.0"
           },
           "provisional": {
             "immutable_evidence_id": "evidence.wc3.provisional.0001",
@@ -440,7 +528,11 @@
             "provisional_ack": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
             "provisional_readback_request": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
             "provisional_readback_terminal": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-            "receipt_timestamp": "2026-09-10T00:00:01Z"
+            "receipt_timestamp": "2026-09-10T00:00:01Z",
+            "source_epoch": "epoch.wc3.1",
+            "driver_generation": 1,
+            "lifecycle_generation": 1,
+            "semantic_revision": "1.0.0"
           }
         },
         "lifecycle": {
@@ -500,6 +592,7 @@
             "value": 0
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -538,6 +631,7 @@
           }
         ],
         "native": [],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -582,6 +676,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -616,6 +711,12 @@
           }
         ],
         "native": [],
+        "ineligible": [
+          {
+            "record": "provisional",
+            "reason": "evidence_invalid"
+          }
+        ],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -650,6 +751,12 @@
           }
         ],
         "native": [],
+        "ineligible": [
+          {
+            "record": "provisional",
+            "reason": "evidence_invalid"
+          }
+        ],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -690,6 +797,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -730,6 +838,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -778,6 +887,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -822,6 +932,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -984,6 +1095,7 @@
             "value": 600
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -1038,11 +1150,85 @@
             "value": "2026-09-10T00:01:00Z"
           }
         ],
+        "ineligible": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
         ]
       }
+    },
+    {
+      "id": "TESLA-EVSE-POS-013",
+      "polarity": "positive",
+      "mutations": [
+        {
+          "path": "provisional.ConfiguredCurrentAmps",
+          "value": 32
+        },
+        {
+          "path": "evidence.provisional.receipt_timestamp",
+          "value": "2026-09-10T00:00:05Z"
+        },
+        {
+          "path": "evidence.provisional.semantic_revision",
+          "value": "0.9.0"
+        }
+      ],
+      "expect": {
+        "facts": [
+          {
+            "id": "evse.limit.configured_current",
+            "dimension": "evse",
+            "value": {
+              "coefficient": "16",
+              "exponent10": 0
+            },
+            "unit": "unit.ampere"
+          }
+        ],
+        "withheld": [
+          {
+            "id": "evse.limit.allocated_current",
+            "reason": "provisional_evidence_invalid"
+          }
+        ],
+        "native": [
+          {
+            "namespace": "modbusreg",
+            "field": "LimitTimeoutSeconds",
+            "value": 600
+          }
+        ],
+        "ineligible": [
+          {
+            "record": "provisional",
+            "reason": "semantic_revision_other"
+          }
+        ],
+        "operations": [
+          "evse.operation.set_allocated_current",
+          "ConfigurePersistentCurrent"
+        ]
+      }
+    },
+    {
+      "id": "TESLA-EVSE-NEG-011",
+      "polarity": "negative",
+      "mutations": [
+        {
+          "path": "persistent",
+          "op": "delete"
+        },
+        {
+          "path": "evidence.persistent",
+          "op": "delete"
+        },
+        {
+          "path": "evidence.provisional.semantic_revision",
+          "value": "0.9.0"
+        }
+      ],
+      "expect_error": "evidence_binding_invalid"
     }
   ]
 }

@@ -44,8 +44,44 @@ required. The allocated current requires the provisional readback: its absence,
 or an invalid or mismatched provisional evidence set, withholds it, while the
 configured current may still come from the persistent candidate. Evidence from
 observations, epochs, generations, or revisions cannot be combined within either
-fact path. Permitted last-known-good retention remains the native owner's
-lifecycle decision.
+fact path.
+
+One eligibility decision covers every record this gate reads: the persistent
+`t7` to `t8` record and the provisional `t27` to `t28` readback. A record is
+eligible only when its lifecycle generation, source epoch, driver generation,
+semantic revision and required evidence are all present and equal to the
+case's own. A record that states a different value, or leaves one out, is
+ineligible: it is reported in the `ineligible` member of the projection with
+its reason (`<member>_missing`, `<member>_other`, `evidence_missing` or
+`evidence_invalid`) and has no other effect, except that the raw native timeout
+of a readback with valid evidence stays served, as stated below. Selection, suppression, the
+evidence gate and every derived value (the configured current, the allocated
+current and the expiry) read only eligible records.
+
+- The later receipt wins among eligible configured-current candidates only, that
+  is among those of the same source epoch, driver generation, lifecycle
+  generation and semantic revision as the case. With none left the configured current is withheld as `configured_current_absent`.
+- An ineligible record does not satisfy the evidence gate; the case needs at
+  least one eligible record, otherwise it is rejected with
+  `evidence_binding_invalid`. An ineligible record never invalidates the
+  eligible one: a malformed value on an ineligible persistent record does not
+  veto the case, and a persistent record whose evidence member is absent is
+  reported as `evidence_missing`. A persistent record that names the case
+  lifecycle and leaves out or malforms a member or reference of its evidence,
+  the request and terminal references included, is a corrupt case and is
+  rejected with `evidence_binding_invalid`, whatever the readback carries.
+- An ineligible readback yields no allocated current, no configured-current
+  candidate and no expiry; the allocated current is withheld as
+  `provisional_evidence_invalid`. A readback whose evidence is valid but names
+  another lifecycle member still has its raw native timeout served in the
+  modbusreg namespace.
+- A readback that names another semantic revision is ineligible in the same way
+  as one that names another epoch or generation: a newer readback of revision
+  `0.9.0` in a `1.0.0` case determines neither the configured nor the allocated
+  current.
+
+Permitted last-known-good retention remains the native owner's lifecycle
+decision.
 
 ## Resources, relations, and identity
 
@@ -91,9 +127,12 @@ absence statement (REL-3, REL-8). The EVSE-to-meter relation is stated with basi
 meter is the charger's own energy counter, declared by configuration, and it is
 a meter resource in the graph with a configured identity of its own. The
 connector-to-phase and connector-to-session relations are listed in
-`unstated_relations` as unknown, not absent: the gate publishes no phase or
-session, and it never claims that a phase or session is missing. Native
-connector topology stays unsupported.
+`unstated_relations` as unknown, not absent, each with a reason that names the
+missing native statement: no native statement assigns a per-phase connector
+measurement to the Wall Connector vitals message, and none gives a session start
+in it (the session duration and session energy members are not specified).
+The gate publishes no phase or session, and it never claims that a phase or
+session is missing. Native connector topology stays unsupported.
 
 Under EN-1 each field rule names its subject kind and measurement point. The
 configured current limit's subject is the EVSE it applies to, defined at the
@@ -109,7 +148,8 @@ meter, and all unsupported native facts remain withheld or native-only. The
 gate states no sender, route, authority or live control for the native getter,
 and it denies no operation.
 
-`projection.operations` lists every operation the driver offers for this
+The gate states `evse.operation.set_allocated_current` separately in its
+`operation` member, and `projection.operations` lists every operation the driver offers for this
 charger, and the injected MCP projection shows them as SemReg shows them:
 
 - `evse.operation.set_allocated_current` (capability
@@ -123,17 +163,22 @@ charger, and the injected MCP projection shows them as SemReg shows them:
 - `ConfigurePersistentCurrent` in the modbusreg namespace: the persistent
   `t7` to `t8` current write.
 
-The allocated-current set accepts whole amperes only. The configured-current
+The allocated-current set accepts whole amperes only, with no timeout argument:
+the call carries the wire timeout of 900 seconds for set, pause and release, and
+a caller-supplied timeout is refused. The wire timeout is validated apart from
+the semantic arguments: a whole number of seconds from 1 through 86399. The configured-current
 bound is a non-negative integer read from the device; a missing, malformed or
 non-integer bound sends nothing. Its upper bound is the
 configured current of the latest t28 in the same lifecycle generation. Where that
 generation has no t28, the prerequisite t27 to t28 read may run first, and a
 value above the configured current then read sends no t25. A pause at 0 A
 encodes 6 A with inhibit and needs a configured bound of at least 6 A. 1 A to
-5 A is refused and nothing is sent. A timeout of zero is not an interoperable
-request value. The operation acts only on its own connector. The 6 A floor
-follows IEC 61851-1 Annex A, which the ND02 page names as the lowest charging
-current a charger can signal.
+5 A is refused and nothing is sent. A wire timeout of zero is not an interoperable
+request value. The operation acts only on its own connector: a request whose
+effect target is another connector is refused before any prerequisite read and
+before any mutation. The 6 A floor
+follows IEC 61851-1 Annex A, the lowest charging current a charger can
+signal.
 
 The native retained-record getter `modbus.v1.tesla.gen3.evse.current_limit.get`
 is the only read-only surface: `read_only` and `outbound_allowed=false` describe
