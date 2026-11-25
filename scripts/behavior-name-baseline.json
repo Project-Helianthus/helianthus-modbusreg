@@ -1851,6 +1851,56 @@
       "category": "identifier"
     },
     {
+      "path": "driverdata/families/mapping-gates/growatt-bms-rs485-v202-storage-v1.json",
+      "symbol": "growatt-bms-rs485-v202-storage-v1.json",
+      "category": "filename"
+    },
+    {
+      "path": "driverdata/families/mapping-gates/growatt-bms-rs485-v202-storage-v1.md",
+      "symbol": "growatt-bms-rs485-v202-storage-v1.md",
+      "category": "filename"
+    },
+    {
+      "path": "driverdata/families/mapping-gates/huawei-gateway-meter-infrastructure-v1.json",
+      "symbol": "huawei-gateway-meter-infrastructure-v1.json",
+      "category": "filename"
+    },
+    {
+      "path": "driverdata/families/mapping-gates/huawei-gateway-meter-infrastructure-v1.md",
+      "symbol": "huawei-gateway-meter-infrastructure-v1.md",
+      "category": "filename"
+    },
+    {
+      "path": "driverdata/families/mapping-gates/huawei-luna2000-storage-v1.json",
+      "symbol": "huawei-luna2000-storage-v1.json",
+      "category": "filename"
+    },
+    {
+      "path": "driverdata/families/mapping-gates/huawei-luna2000-storage-v1.md",
+      "symbol": "huawei-luna2000-storage-v1.md",
+      "category": "filename"
+    },
+    {
+      "path": "driverdata/families/mapping-gates/huawei-sun2000-pv-v1.json",
+      "symbol": "huawei-sun2000-pv-v1.json",
+      "category": "filename"
+    },
+    {
+      "path": "driverdata/families/mapping-gates/huawei-sun2000-pv-v1.md",
+      "symbol": "huawei-sun2000-pv-v1.md",
+      "category": "filename"
+    },
+    {
+      "path": "driverdata/families/mapping-gates/tesla-gen3-wc3-24443-evse-current-limit-v1.json",
+      "symbol": "tesla-gen3-wc3-24443-evse-current-limit-v1.json",
+      "category": "filename"
+    },
+    {
+      "path": "driverdata/families/mapping-gates/tesla-gen3-wc3-24443-evse-current-limit-v1.md",
+      "symbol": "tesla-gen3-wc3-24443-evse-current-limit-v1.md",
+      "category": "filename"
+    },
+    {
       "path": "growatt/growatt_bms_rs485.go",
       "symbol": "growatt_bms_rs485.go",
       "category": "filename"
@@ -8321,6 +8371,11 @@
       "category": "identifier"
     },
     {
+      "path": "scripts/mapping/validate_tesla_gen3_wc3_24443_evse_current_limit_mapping.py",
+      "symbol": "validate_tesla_gen3_wc3_24443_evse_current_limit_mapping.py",
+      "category": "filename"
+    },
+    {
       "path": "sunspec/sunspec_models_der_v2.go",
       "symbol": "sunspec_models_der_v2.go",
       "category": "filename"
@@ -10083,6 +10138,11 @@
     {
       "path": "testdata/sunspec/qualification/fronius_gen24_float_v1_1_expected.json",
       "symbol": "fronius_gen24_float_v1_1_expected.json",
+      "category": "filename"
+    },
+    {
+      "path": "tests/test_mapping_validate_tesla_gen3_wc3_24443_evse_current_limit.py",
+      "symbol": "test_mapping_validate_tesla_gen3_wc3_24443_evse_current_limit.py",
       "category": "filename"
     },
     {
