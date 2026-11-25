@@ -1,0 +1,24 @@
+{
+  "family_id": "huawei-sdongle",
+  "name": "Huawei S-Dongle (Modbus)",
+  "native_owner": "Project-Helianthus/helianthus-modbusreg",
+  "semantic_pack": "helianthus.pack.pv@1.0.0",
+  "state": "unknown",
+  "composition": "not_composed",
+  "reason": "evidence_blocked",
+  "evidence": [
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg@1d92f28",
+      "kind": "native_qualification_card",
+      "locator": "huawei_qualification_cards.go",
+      "statement": "card huawei.qualification.sdongle.evidence-blocked@1.0.0 reports QUALIFICATION_EVIDENCE_BLOCKED with LIVE_STOPPED_PERSISTENT_NON_RESPONSE"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg@1d92f28",
+      "kind": "native_disposition",
+      "locator": "profiles/vendor/huawei/sdongle-disposition.json",
+      "statement": "outcome PRE_LIVE_INSUFFICIENT_EVIDENCE; non-response is neither an identification nor an incompatibility claim"
+    }
+  ],
+  "composition_verified": false
+}

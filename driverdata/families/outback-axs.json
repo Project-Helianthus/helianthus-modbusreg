@@ -1,0 +1,24 @@
+{
+  "family_id": "outback-axs",
+  "name": "OutBack AXS (SunSpec flavor)",
+  "native_owner": "Project-Helianthus/helianthus-modbusreg",
+  "semantic_pack": "helianthus.pack.storage@1.1.0",
+  "state": "unknown",
+  "composition": "not_composed",
+  "reason": "no_go_missing_evidence",
+  "evidence": [
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg#204",
+      "kind": "pull_request",
+      "locator": "https://github.com/Project-Helianthus/helianthus-modbusreg/pull/204",
+      "statement": "merged at 1d92f28: NO_GO / missing evidence; typed decoding, discovery and acquisition removed; model 64111 stays opaque"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg@1d92f28",
+      "kind": "native_evidence",
+      "locator": "outback_axs_sunspec.go",
+      "statement": "ErrOutBackAXSSourceNotQualified: source selection and read operation are not qualified (docs-modbus #145 NO_GO selector); payload length is not qualification evidence"
+    }
+  ],
+  "composition_verified": false
+}

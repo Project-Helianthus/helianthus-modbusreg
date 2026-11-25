@@ -1,0 +1,36 @@
+{
+  "family_id": "sunspec-fronius-pv",
+  "name": "SunSpec / Fronius PV inverter (Modbus)",
+  "native_owner": "Project-Helianthus/helianthus-modbusreg",
+  "semantic_pack": "helianthus.pack.pv@1.0.0",
+  "state": "candidate",
+  "composition": "composed",
+  "reason": "offline_profile_only",
+  "evidence": [
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg@1d92f28",
+      "kind": "native_disposition",
+      "locator": "profiles/vendor/fronius/disposition.json",
+      "statement": "outcome OFFLINE_PROFILE_ADMITTED; live_qualified=false, write_authority=false, support_claim=false, automatic_runtime_admission=false"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-docs-semantic@30f5e5c",
+      "kind": "semantic_contract",
+      "locator": "api/v1/packs/pv-inverter-v1.md",
+      "statement": "Fronius rows are candidates only, offline-only, live_qualified=false, no write authority"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-semreg@7c56095",
+      "kind": "semreg_fixture",
+      "locator": "fixtures/v1/compatibility/canonical-pv-v1/manifest.json",
+      "statement": "canonical-PV v1 migration comparator executes the composed PV path through SemReg; no native mapping or live authority is created"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-ebusgateway@e017a547967e449ffbe76ea779d5892596306f07",
+      "kind": "gateway_composition",
+      "locator": "internal/modbusadapter/semreg_pv_publication_core.go",
+      "statement": "gateway publishes canonical PV facts through SemReg (also internal/modbusadapter/adapter.go); cmd/gateway/modbus_sunspec_runtime.go is a read-only live-smoke driver, not a composition claim"
+    }
+  ],
+  "composition_verified": true
+}

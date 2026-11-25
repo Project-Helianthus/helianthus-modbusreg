@@ -1,0 +1,13 @@
+{
+  "control_route": false,
+  "id": "storage.mapping.growatt.rs485.1xsxxp",
+  "loss": "unknown",
+  "native_owner": "helianthus-docs-modbus",
+  "physical_qualified": false,
+  "qualification": "observation_fixture_no_runtime_or_command",
+  "source_refs": [
+    "rs485_docs",
+    "modbusreg"
+  ],
+  "state": "candidate"
+}

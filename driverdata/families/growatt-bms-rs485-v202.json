@@ -1,0 +1,36 @@
+{
+  "family_id": "growatt-bms-rs485-v202",
+  "name": "Growatt BMS RS-485 V2.02 (Modbus RTU)",
+  "native_owner": "Project-Helianthus/helianthus-modbusreg",
+  "semantic_pack": "helianthus.pack.storage@1.1.0",
+  "state": "candidate",
+  "composition": "composed",
+  "reason": "offline_mapping_gate_only",
+  "evidence": [
+    {
+      "owner": "Project-Helianthus/helianthus-docs-semantic@30f5e5c",
+      "kind": "semantic_contract",
+      "locator": "api/v1/mappings/growatt-bms-rs485-v202-storage-v1.md",
+      "statement": "accepted source-specific read-only mapping gate over offline synthetic RTU observations; neither device support nor physical qualification"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg@1d92f28",
+      "kind": "native_evidence",
+      "locator": "growatt_bms_rs485.go",
+      "statement": "revision tuple 1xSxxP ESS / Rev2.01 / V2.0 / 2.02 native read-only decoder"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-docs-semantic@30f5e5c",
+      "kind": "semantic_contract",
+      "locator": "compatibility/donor-ledger.md",
+      "statement": "storage/BMS RS-485 row is an offline candidate only, physical qualification false, no control route"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-ebusgateway@e017a547967e449ffbe76ea779d5892596306f07",
+      "kind": "gateway_composition",
+      "locator": "cmd/gateway/growatt_bms_rs485_runtime.go",
+      "statement": "SemanticStorageCurrent performs the SemReg-only storage publication (line ~236-256); cmd/gateway/growatt_storage_semreg.go"
+    }
+  ],
+  "composition_verified": true
+}

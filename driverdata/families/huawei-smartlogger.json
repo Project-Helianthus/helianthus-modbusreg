@@ -1,0 +1,24 @@
+{
+  "family_id": "huawei-smartlogger",
+  "name": "Huawei SmartLogger (Modbus)",
+  "native_owner": "Project-Helianthus/helianthus-modbusreg",
+  "semantic_pack": "helianthus.pack.pv@1.0.0",
+  "state": "candidate",
+  "composition": "not_composed",
+  "reason": "qualification_test_ready_offline",
+  "evidence": [
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg@1d92f28",
+      "kind": "native_qualification_card",
+      "locator": "huawei_qualification_cards.go",
+      "statement": "card huawei.qualification.smartlogger.readonly@1.0.0 reports QUALIFICATION_TEST_READY; HardwareTestReady, LiveQualified, CatalogRegistered, SupportClaim, WriteAuthority all false"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg@1d92f28",
+      "kind": "native_disposition",
+      "locator": "profiles/vendor/huawei/smartlogger-disposition.json",
+      "statement": "older disposition record NO_ADMISSIBLE_PROFILE with missing offline fixtures; superseded for readiness by the qualification card, support_claim=false"
+    }
+  ],
+  "composition_verified": false
+}

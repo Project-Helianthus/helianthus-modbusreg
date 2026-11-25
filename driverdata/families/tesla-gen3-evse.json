@@ -1,0 +1,30 @@
+{
+  "family_id": "tesla-gen3-evse",
+  "name": "Tesla Wall Connector Gen3 (wc3_24_44_3 current limit)",
+  "native_owner": "Project-Helianthus/helianthus-modbusreg",
+  "semantic_pack": "helianthus.pack.evse@1.0.0",
+  "state": "candidate",
+  "composition": "provider_local",
+  "reason": "offline_mapping_gate_only",
+  "evidence": [
+    {
+      "owner": "Project-Helianthus/helianthus-docs-semantic@30f5e5c",
+      "kind": "semantic_contract",
+      "locator": "api/v1/mappings/tesla-gen3-wc3-24443-evse-current-limit-v1.md",
+      "statement": "accepted source-specific read-only current-limit mapping gate for the exact profile; offline mapping qualification, not device-support or physical qualification"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg@1d92f28",
+      "kind": "native_evidence",
+      "locator": "tesla_gen3_evse_current_limit.go",
+      "statement": "Gen3 FC100 persistent and provisional current-limit retention; native evidence stays with the registry"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-ebusgateway@e017a547967e449ffbe76ea779d5892596306f07",
+      "kind": "gateway_composition",
+      "locator": "cmd/gateway/tesla_hsc_retained_owner.go",
+      "statement": "retained owner publishes only to mcp.TeslaGen3EVSESemanticPublication (mcp/tesla_gen3_evse_semantic.go) and serves MCP readers: provider-local, no gateway-wide composition"
+    }
+  ],
+  "composition_verified": true
+}

@@ -1,0 +1,13 @@
+{
+  "id": "infrastructure.mapping.modbus",
+  "native_owner": "helianthus-docs-modbus",
+  "source_refs": [
+    "modbus_docs",
+    "modbusreg"
+  ],
+  "state": "unknown_profile_specific",
+  "qualification": "no_profile_selected_no_projection",
+  "control_route": "none",
+  "live_authority": false,
+  "loss": "unknown"
+}
