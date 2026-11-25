@@ -58,13 +58,6 @@
     },
     "meter_exposures": {
       "declared_from": "documented_meter_exposures",
-      "source": {
-        "repository": "helianthus-docs-modbus",
-        "pages": [
-          "protocols/huawei/gateway-power-meter-v1.md",
-          "protocols/huawei/monitoring-readonly-v1.md"
-        ]
-      },
       "paths": [
         {
           "path": "smartlogger_listed_meter",
@@ -77,16 +70,21 @@
           "routed_unit": "inverter_child_unit",
           "listed_as_child": false,
           "grade": "proven"
-        },
-        {
-          "path": "emma_gateway_level",
-          "routed_unit": "gateway_own_unit",
-          "listed_as_child": false,
-          "grade": "proven"
         }
       ],
       "runtime_check": "the_route_read_equals_the_declaration_of_its_own_exposure",
       "on_mismatch": "reported_never_guessed_and_never_a_replacement"
+    },
+    "gateway_sensor_routes": {
+      "routes": [
+        {
+          "path": "emma_gateway_level",
+          "routed_unit": 0,
+          "meter_exposure": false,
+          "meter_identity": "not_established_by_the_route",
+          "grade": "proven"
+        }
+      ]
     },
     "plant_grid_exchange": {
       "path": "sdongle_plant_group",

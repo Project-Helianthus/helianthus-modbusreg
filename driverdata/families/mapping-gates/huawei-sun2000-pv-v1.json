@@ -441,8 +441,8 @@
         "from_kind": "resource.inverter",
         "to_kind": "resource.phase",
         "evidence": [
-          "native_page:huawei/sun2000-semreg-relations-v1",
-          "native_pages:per_phase_values_stated_by_the_native_owner"
+          "gate_rule:phase_components_allocated_by_the_driver_at_the_native_position",
+          "gate_rule:phase_values_are_dimensions_of_the_inverter"
         ],
         "validity_scope": {
           "profile": "m3_and_m1",

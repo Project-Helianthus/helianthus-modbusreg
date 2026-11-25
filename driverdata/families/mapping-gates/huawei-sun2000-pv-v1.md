@@ -60,8 +60,8 @@ what never derives it.
   namespace is configuration, not observed native identity. A binding
   identifier is derived by the gateway over the asset, the source and the
   profile only; it never selects or changes the asset or a resource.
-- Every resource dimension value and every relation endpoint is a
-  gateway-allocated resource identifier (RES-5, REL-8): one for the gateway
+- Every resource dimension value and every relation endpoint other than a phase
+  is a gateway-allocated resource identifier (RES-5, REL-8): one for the gateway
   path that relays the child, one for the PV system, one for the inverter and
   one for each of the eight string slots. A phase identifier is allocated by the
   driver, not the gateway, at the native phase position one to three, and only
@@ -148,7 +148,7 @@ The validity scope of every row is the two admitted profiles at version 1.0.0.
   dimensions of the inverter. One record is emitted for each phase position that
   is read, from the inverter to the driver-allocated phase resource. The phase
   voltage and current values stay withheld: the type, gain and unit of each
-  phase word are not stated on the native page, so they are Unknown.
+  phase word are not stated, so they are Unknown.
 - The inverter-to-battery and inverter-to-meter relays are conditional
   statements of the native register space (`native_observation`). Each is
   published when the battery or meter resource of its own family exists and is

@@ -34,15 +34,24 @@ COEFFICIENT_RE = re.compile(r"^(0|-?[1-9][0-9]*)$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
 # Approved immutable owner links (the exception applies only where the link is the Markdown destination): the pinned docs-semantic revision, owning path, optional non-line anchor.
 OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
-OWNER_LINK_RE = re.compile(r"(?:(?<=\]\()|(?<=\]\(<)|(?<=\]: ))https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
+OWNER_URL_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?")
+MD_LINK_RE = re.compile(r"\[[^\[\]]*\]\((?:<([^<>\s]*)>|([^\s()<>]*))(\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)|^[ \t]*\[[^\]]+\]:[ \t]+(<[^<>\s]*>|\S+)[ \t]*$", re.MULTILINE)
 # A line anchor and a private or IPv4 endpoint are never published, whether or not an owner link surrounds them.
 LINE_ANCHOR_RE = re.compile(r"#L[0-9]")
 ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")
 
 
+def _owner_destination(link):
+    """The destination of a complete Markdown link when it is an approved owner URL without a title, else None."""
+    destination = link.group(1) or link.group(2) or (link.group(4) or "").strip("<>")
+    if link.group(3) is None and OWNER_URL_RE.fullmatch(destination):
+        return destination
+    return None
+
+
 def unowned_text(text):
-    """The published text with approved owner links removed; every other revision literal stays visible."""
-    return OWNER_LINK_RE.sub("", text)
+    """The published text with each complete Markdown link to an approved owner URL removed; everything else stays visible."""
+    return MD_LINK_RE.sub(lambda link: "" if _owner_destination(link) else link.group(0), text)
 ID_FORBIDDEN_TEXT = ("serial", "esn", "sun2000", "huawei", "luna", "smartlogger", "sdongle", "s-dongle", "emma")
 ID_ADDRESS_RE = re.compile(r"(\d{1,3}\.){3}\d{1,3}|:\d{3,5}$")
 WORD_TYPES = {"I16": (1, True), "U16": (1, False), "I32": (2, True), "U32": (2, False)}

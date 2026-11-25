@@ -1069,5 +1069,12 @@ def test_owner_link_in_a_foreign_link_title_gets_no_exception():
             v.check_document(v.load(), page() + "\n[owner](https://example.invalid/x " + quote + "see " + OWNER_BASE + "api/v1/graph.md" + quote + ")\n")
 
 
+def test_owner_link_exception_needs_a_complete_approved_destination_not_a_markdown_shaped_title():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for text in ("[owner](" + approved + ";other)", "[owner](<" + approved + ";other>)", "[a](https://example.invalid/x \"[b](" + approved + ")\")", "[a](https://example.invalid/x '[b](" + approved + ")')", "[owner](" + approved + " \"title\")"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
 if __name__ == "__main__":
     raise SystemExit(support.run(globals()))

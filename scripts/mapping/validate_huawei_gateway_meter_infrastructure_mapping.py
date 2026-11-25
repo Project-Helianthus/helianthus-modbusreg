@@ -31,15 +31,24 @@ OPAQUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
 # Approved immutable owner links (the exception applies only where the link is the Markdown destination): the pinned docs-semantic revision, owning path, optional non-line anchor.
 OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
-OWNER_LINK_RE = re.compile(r"(?:(?<=\]\()|(?<=\]\(<)|(?<=\]: ))https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
+OWNER_URL_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?")
+MD_LINK_RE = re.compile(r"\[[^\[\]]*\]\((?:<([^<>\s]*)>|([^\s()<>]*))(\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)|^[ \t]*\[[^\]]+\]:[ \t]+(<[^<>\s]*>|\S+)[ \t]*$", re.MULTILINE)
 # A line anchor and a private or IPv4 endpoint are never published, whether or not an owner link surrounds them.
 LINE_ANCHOR_RE = re.compile(r"#L[0-9]")
 ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")
 
 
+def _owner_destination(link):
+    """The destination of a complete Markdown link when it is an approved owner URL without a title, else None."""
+    destination = link.group(1) or link.group(2) or (link.group(4) or "").strip("<>")
+    if link.group(3) is None and OWNER_URL_RE.fullmatch(destination):
+        return destination
+    return None
+
+
 def unowned_text(text):
-    """The published text with approved owner links removed; every other revision literal stays visible."""
-    return OWNER_LINK_RE.sub("", text)
+    """The published text with each complete Markdown link to an approved owner URL removed; everything else stays visible."""
+    return MD_LINK_RE.sub(lambda link: "" if _owner_destination(link) else link.group(0), text)
 ID_FORBIDDEN_TEXT = ("serial", "esn", "sun2000", "huawei", "luna", "smartlogger", "sdongle", "s-dongle", "emma")
 ID_ADDRESS_RE = re.compile(r"(\d{1,3}\.){3}\d{1,3}|:\d{3,5}$")
 # Exact conversions of the unit rule in api/README.md: (native unit, canonical SI unit) -> factor and offset, SI = native x factor + offset.
@@ -78,12 +87,12 @@ EVIDENCE = {
 ADMISSION = {
     "meter_class_contract": False,
     "meter_identity": {"status": "unknown", "reason": "the_documented_listing_establishes_no_meter_at_the_route", "published_as": "no_meter_attribution"},
-    "meter_exposures": {"declared_from": "documented_meter_exposures", "source": {"repository": "helianthus-docs-modbus", "pages": ["protocols/huawei/gateway-power-meter-v1.md", "protocols/huawei/monitoring-readonly-v1.md"]},
+    "meter_exposures": {"declared_from": "documented_meter_exposures",
                         "paths": [{"path": "smartlogger_listed_meter", "routed_unit": "listed_meter_unit", "listed_as_child": True, "grade": "proven"},
-                                  {"path": "sdongle_inverter_side", "routed_unit": "inverter_child_unit", "listed_as_child": False, "grade": "proven"},
-                                  {"path": "emma_gateway_level", "routed_unit": "gateway_own_unit", "listed_as_child": False, "grade": "proven"}],
+                                  {"path": "sdongle_inverter_side", "routed_unit": "inverter_child_unit", "listed_as_child": False, "grade": "proven"}],
                         "runtime_check": "the_route_read_equals_the_declaration_of_its_own_exposure",
                         "on_mismatch": "reported_never_guessed_and_never_a_replacement"},
+    "gateway_sensor_routes": {"routes": [{"path": "emma_gateway_level", "routed_unit": 0, "meter_exposure": False, "meter_identity": "not_established_by_the_route", "grade": "proven"}]},
     "plant_grid_exchange": {"path": "sdongle_plant_group", "routed_unit": 100, "meter_identity": "not_established_by_the_plant_read", "same_meter_as_inverter_side": "unknown"},
     "selection": {"admitting": "DECLARED_FROM_LISTING", "unresolved": ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"], "refused": ["PROFILE_SELECTED"], "unresolved_outcome": "withheld_never_zero"},
     "registry_flags": REGISTRY_FLAGS,
@@ -100,7 +109,8 @@ ADMISSION = {
 ADMITTING, UNRESOLVED, REFUSED = "DECLARED_FROM_LISTING", ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"], "PROFILE_SELECTED"
 # The one meter row that publishes: the documented plant group, its word position and word form.
 # The documented meter exposure each fed meter group belongs to; a group of no listed exposure is checked against none.
-METER_EXPOSURE_OF = {"smartlogger_meter_electrical_group": "smartlogger_listed_meter", "smartlogger_meter_energy_totals": "smartlogger_listed_meter", "sdongle_inverter_exposed_meter_group": "sdongle_inverter_side", "emma_built_in_sensor_group": "emma_gateway_level"}
+METER_EXPOSURE_OF = {"smartlogger_meter_electrical_group": "smartlogger_listed_meter", "smartlogger_meter_energy_totals": "smartlogger_listed_meter", "sdongle_inverter_exposed_meter_group": "sdongle_inverter_side"}
+PLANT_UNIT = ADMISSION["plant_grid_exchange"]["routed_unit"]
 GATEWAY_LEVEL = {"exposure": "emma_gateway_level", "routed_unit": 0}
 PLANT_ROUTE = {"exposure": ADMISSION["plant_grid_exchange"]["path"], "routed_unit": ADMISSION["plant_grid_exchange"]["routed_unit"]}
 ACTIVE = {"sdongle_plant_grid_power": {"read": {"offset": 37498, "quantity": 8}, "word": 4}}
@@ -561,11 +571,16 @@ def meter_identity(value):
     return value == GATEWAY_LEVEL or (value["exposure"] != GATEWAY_LEVEL["exposure"] and 1 <= value["routed_unit"] <= 247)
 
 
+def meter_exposure_declared(value):
+    """A meter exposure is a documented routed exposure; the known gateway sensor route is none."""
+    return meter_identity(value) and value != GATEWAY_LEVEL
+
+
 def meter_route_valid(declared, identity_read, paths):
     """No meter is configured, or a documented meter exposure is declared; the runtime read of its route is absent or a second statement of the same shape."""
     if declared is None:
-        return identity_read is None
-    return meter_identity(declared) and declared["exposure"] in paths and (identity_read is None or meter_identity(identity_read))
+        return identity_read is None or identity_read == GATEWAY_LEVEL
+    return meter_exposure_declared(declared) and declared["exposure"] in paths and (identity_read is None or meter_identity(identity_read))
 
 
 def check_case_meter(case, errors):
@@ -583,7 +598,7 @@ def check_case_meter(case, errors):
 
 def gateway_level_declared(case):
     meter = case.get("meter")
-    return isinstance(meter, dict) and meter.get("declared") == GATEWAY_LEVEL
+    return isinstance(meter, dict) and meter.get("declared") is None and meter.get("identity_read") == GATEWAY_LEVEL
 
 
 def check_case_source(case, errors):
@@ -662,6 +677,8 @@ def exposure_reason(case, native_id):
     meter, exposure = case["meter"], METER_EXPOSURE_OF.get(native_id)
     if meter["declared"] is None or exposure is None:
         return "infrastructure.reason.answered_not_decoded"
+    if exposure == "sdongle_inverter_side" and meter["declared"]["routed_unit"] == PLANT_UNIT:
+        return "infrastructure.reason.identity_mismatch"
     if meter["identity_read"] is None:
         return "infrastructure.reason.identity_not_read"
     if meter["declared"]["exposure"] != exposure or meter["identity_read"] != meter["declared"] or case.get("routed_unit") != meter["declared"]["routed_unit"]:

@@ -34,18 +34,19 @@ goes beyond the contract is a Hypothesis.
 
 ## Admission state
 
-The documented meter exposures are declared in `helianthus-docs-modbus`
-(`protocols/huawei/gateway-power-meter-v1.md` and the monitoring contract). They
-are distinct, and an exposure observed on one path is no claim about another:
+The documented meter exposures are declared by this gate. They are distinct, and an exposure observed on one path is no claim about another:
 
 - a SmartLogger meter is listed as a child and answers at its own routed unit
   (`smartlogger_listed_meter`, Proven as an observation);
 - an S-Dongle meter is not listed as a child and answers inverter-side at the
   inverter child's routed unit (`sdongle_inverter_side`, Proven as an
-  observation);
-- an EMMA serves its built-in sensor groups at the gateway's own routed unit 0
-  (`emma_gateway_level`, Proven as an answer; the meter behind the groups is
-  Unknown). The route is known and establishes no meter identity.
+  observation). The gateway's own plant route at unit 100 is not that unit.
+
+An EMMA serves its built-in sensor groups at the gateway's own routed unit 0
+(`emma_gateway_level`, Proven as an answer; the meter behind the groups is
+Unknown). That is a known gateway sensor route, listed apart from the meter
+exposures: it is no meter exposure, it cannot be declared as a configured
+meter, and it establishes no meter identity.
 
 The plant grid exchange is a separate statement. The S-Dongle plant group at
 routed unit 100 states the grid power of the plant (Proven as an observation,
