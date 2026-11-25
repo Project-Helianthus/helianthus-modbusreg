@@ -156,7 +156,15 @@ INVENTORY = [
     ("site_battery_energy_charged_day", "monitoring_contract_planned", (30306, 46), 0), ("site_battery_energy_discharged_day", "monitoring_contract_planned", (30306, 46), 6),
     ("site_rated_storage_capacity", "monitoring_contract_planned", (30322, 2), 0),
 ]
-READS = {read for _, _, read, _ in INVENTORY if read}
+# The routed unit of each planned read: the EMMA site groups answer at unit 0 and the S-Dongle plant group at unit 100. The registry battery groups state no routed unit.
+SITE_UNIT, PLANT_UNIT = 0, 100
+ROUTES = {"site_battery_soc": SITE_UNIT, "site_battery_power": SITE_UNIT, "plant_battery_power": PLANT_UNIT, "site_battery_energy_charged_total": SITE_UNIT, "site_battery_energy_discharged_total": SITE_UNIT,
+          "site_battery_energy_charged_day": SITE_UNIT, "site_battery_energy_discharged_day": SITE_UNIT, "site_rated_storage_capacity": SITE_UNIT}
+PLAN = {read: ROUTES.get(native_id) for native_id, _, read, _ in INVENTORY if read}
+# What an answered zero word of an active row means: a state of charge word of zero is a value of zero; a lifetime counter is withheld when its whole read is zero words, a power or capacity word of zero is no battery value.
+ZERO_WORDS = {"site_battery_soc": "value", "plant_battery_power": "withheld", "site_battery_energy_charged_total": "read_withheld", "site_battery_energy_discharged_total": "read_withheld", "site_rated_storage_capacity": "withheld"}
+# The daily counters have no SemReg element: their words are served in the modbusreg namespace and never published as a lifetime fact.
+DAY_COUNTERS = {"site_battery_energy_charged_day", "site_battery_energy_discharged_day"}
 # The rows that publish a fact; the others stay withheld or native-only with their reason.
 ACTIVE = {"site_battery_soc", "plant_battery_power", "site_battery_energy_charged_total", "site_battery_energy_discharged_total", "site_rated_storage_capacity"}
 RUNTIME_REASONS = {"storage.reason.aggregate_without_pack_evidence", "storage.reason.battery_group_not_read", "storage.reason.zero_word_is_not_a_battery_value", "storage.reason.battery_group_exception_no_negation", "storage.reason.value_outside_pack_range"}
@@ -397,7 +405,7 @@ def validate_contract(document, catalog=None):
     check_luna_header(document)
     rules = document.get("field_rules", [])
     listed = [(rule.get("native_id"), rule.get("source"), (rule["read"]["offset"], rule["read"]["quantity"]) if rule.get("read") else None, rule.get("word")) for rule in rules]
-    if listed != INVENTORY:
+    if listed != INVENTORY or [(type(rule["read"].get("unit")), rule["read"].get("unit")) for rule in rules] != [(type(ROUTES.get(rule["native_id"])), ROUTES.get(rule["native_id"])) for rule in rules]:
         fail("native inventory")
     reasons = document.get("reasons", {})
     check_luna_reasons(reasons)
@@ -444,13 +452,18 @@ def check_luna_disposition(rule, reasons, used):
     if rule.get("grade") not in GRADES:
         fail("withheld reason")
     if rule.get("native_id") in ACTIVE:
-        if set(disposition) != {"outcome", "loss"} or disposition["outcome"] != "transformed" or not isinstance(disposition["loss"], list) or not set(disposition["loss"]) <= LOSS_KINDS or "unit" not in disposition["loss"]:
+        if set(disposition) != {"outcome", "loss"} or disposition["outcome"] != "transformed" or not isinstance(disposition["loss"], list) or not set(disposition["loss"]) <= LOSS_KINDS or "unit" not in disposition["loss"] or rule.get("zero_word") != ZERO_WORDS[rule["native_id"]]:
             fail("active disposition")
         return
-    expected = "native_only" if rule.get("source") == "registry_disposition" else "withheld"
-    if set(disposition) != {"outcome", "reason"} or disposition["outcome"] not in ("withheld", expected) or disposition["reason"] not in reasons:
+    if "zero_word" in rule or set(disposition) != {"outcome", "reason"} or disposition["outcome"] not in allowed_outcomes(rule) or disposition["reason"] not in reasons:
         fail("withheld reason")
     used.add(disposition["reason"])
+
+
+def allowed_outcomes(rule):
+    if rule.get("native_id") in DAY_COUNTERS:
+        return ("native_only",)
+    return ("withheld", "native_only" if rule.get("source") == "registry_disposition" else "withheld")
 
 
 def check_prospective(rule, prospective, fields, catalog):
@@ -527,13 +540,19 @@ def check_case_reads(case, errors):
     reads = {}
     for read in case.get("reads") if isinstance(case.get("reads"), list) else [None]:
         key = (read.get("offset"), read.get("quantity")) if isinstance(read, dict) else None
-        if key not in READS or key in reads or read.get("outcome") not in ("ANSWERED", "EXCEPTION", "FAILED", "NOT_READ"):
+        if key not in PLAN or key in reads or read.get("outcome") not in ("ANSWERED", "EXCEPTION", "FAILED", "NOT_READ") or not on_route(read, PLAN[key]):
             errors.add("native_evidence_invalid")
             continue
         if not read_is_valid(read, key):
             errors.add("native_evidence_invalid")
         reads[key] = read
     return reads
+
+
+def on_route(read, route):
+    """A read of a routed group is evidence only from that group's routed unit; a group with no stated route is identified by offset and quantity."""
+    unit = read.get("unit")
+    return route is None or (type(unit) is int and unit == route)
 
 
 def read_is_valid(read, key):
@@ -605,27 +624,50 @@ def within_bounds(number, bounds):
     return all(limit is None or (value >= decimal_of(limit) if name == "minimum" else value <= decimal_of(limit)) for name, limit in bounds.items())
 
 
-def read_reason(read):
-    """The reason a read of a battery group withholds its words, or None when it answered with data."""
+ZERO_REASON = "storage.reason.zero_word_is_not_a_battery_value"
+
+
+def unanswered_reason(read):
+    """The reason a read withholds its words, or None when it answered."""
     if read is None or read["outcome"] in ("FAILED", "NOT_READ"):
         return "storage.reason.battery_group_not_read"
     if read["outcome"] == "EXCEPTION":
         return "storage.reason.battery_group_exception_no_negation"
-    return "storage.reason.zero_word_is_not_a_battery_value" if all(word == 0 for word in read["words"]) else None
+    return None
+
+
+def read_reason(read):
+    """The reason a read of a registry battery group withholds its words: not answered, or answered with zero words only."""
+    return unanswered_reason(read) or (ZERO_REASON if all(word == 0 for word in read["words"]) else None)
+
+
+def field_words(rule, read):
+    return read["words"][rule["word"]:rule["word"] + WORD_COUNT[rule["native"]["type"]]]
+
+
+def active_reason(rule, read, selected, pack_count):
+    """Selection, then the read, then the row's own zero disposition, then the pack evidence."""
+    reason = None if selected else PRIMARY_REASON
+    reason = reason or unanswered_reason(read)
+    if reason:
+        return reason
+    if rule["zero_word"] == "withheld" and not any(field_words(rule, read)):
+        return ZERO_REASON
+    if rule["zero_word"] == "read_withheld" and not any(read["words"]):
+        return ZERO_REASON
+    return "storage.reason.aggregate_without_pack_evidence" if pack_count != 1 else None
 
 
 def mapped_row(rule, reads, selected, fields, pack_count):
     """(native row, fact) of one active row: withheld by selection, read or pack evidence, withheld out of range, or its fact in SI.
     A site or plant group reading belongs to the pack only when the configured battery has exactly one; with several, no pack holds the evidence."""
     nid = rule["native_id"]
-    reason = None if selected else PRIMARY_REASON
     read = reads.get((rule["read"]["offset"], rule["read"]["quantity"]))
-    reason = reason or read_reason(read) or ("storage.reason.aggregate_without_pack_evidence" if pack_count != 1 else None)
+    reason = active_reason(rule, read, selected, pack_count)
     if reason:
         return {"native_id": nid, "outcome": "withheld", "reason": reason}, None
     prospective = rule["prospective"]
-    width = WORD_COUNT[rule["native"]["type"]]
-    raw, exponent = native_value(read["words"][rule["word"]:rule["word"] + width], rule["native"])
+    raw, exponent = native_value(field_words(rule, read), rule["native"])
     number = convert(raw, exponent, prospective["conversion"])
     if not within_bounds(number, fields[prospective["target"]]["bounds"]):
         return {"native_id": nid, "outcome": "withheld", "reason": "storage.reason.value_outside_pack_range"}, None
@@ -636,17 +678,28 @@ def native_row(rule, reads, selected, fields, pack_count):
     if rule["native_id"] in ACTIVE:
         return mapped_row(rule, reads, selected, fields, pack_count)
     reason = rule["disposition"]["reason"]
+    read = reads.get((rule["read"]["offset"], rule["read"]["quantity"])) if rule.get("read") else None
     if rule["source"] == "registry_disposition":
-        reason = read_reason(reads.get((rule["read"]["offset"], rule["read"]["quantity"]))) or NATIVE_ONLY_REASON
+        reason = read_reason(read) or NATIVE_ONLY_REASON
         return {"native_id": rule["native_id"], "outcome": "native_only" if reason == NATIVE_ONLY_REASON else "withheld", "reason": reason}, None
+    if rule["native_id"] in DAY_COUNTERS:
+        unread = unanswered_reason(read)
+        return {"native_id": rule["native_id"], "outcome": "withheld" if unread else "native_only", "reason": unread or reason}, None
     return {"native_id": rule["native_id"], "outcome": "withheld", "reason": reason}, None
 
 
+def native_entry(rule, read):
+    """A registry group is served whole; a daily counter is served as its own words with its routed unit and native form, never as a lifetime fact."""
+    if rule["native_id"] not in DAY_COUNTERS:
+        return {"namespace": NATIVE_NAMESPACE["namespace"], "native_id": rule["native_id"], "offset": rule["read"]["offset"], "quantity": rule["read"]["quantity"], "words": list(read["words"])}
+    return {"namespace": NATIVE_NAMESPACE["namespace"], "native_id": rule["native_id"], "unit": rule["read"]["unit"], "offset": rule["read"]["offset"] + rule["word"], "quantity": WORD_COUNT[rule["native"]["type"]],
+            "words": field_words(rule, read), "native": rule["native"]}
+
+
 def native_values(rules, rows, reads):
-    """The answered words of every battery group that has no catalog row, served in the modbusreg namespace with the group's native identity."""
+    """The answered words of every item that has no catalog row, served in the modbusreg namespace with the item's native identity."""
     served = {row["native_id"] for row in rows if row["outcome"] == "native_only"}
-    return [{"namespace": NATIVE_NAMESPACE["namespace"], "native_id": rule["native_id"], "offset": rule["read"]["offset"], "quantity": rule["read"]["quantity"],
-             "words": list(reads[(rule["read"]["offset"], rule["read"]["quantity"])]["words"])} for rule in rules if rule["native_id"] in served]
+    return [native_entry(rule, reads[(rule["read"]["offset"], rule["read"]["quantity"])]) for rule in rules if rule["native_id"] in served]
 
 
 def item_disposition(item_id, rules, rows, facts, reasons, lifecycle):
@@ -810,6 +863,8 @@ def graph_tables(contract):
         "## Resources": [[r["kind"], r["anchor_class"], r["anchor_basis"], r["anchor_source"], r["parent_kind"] or "none"] for r in graph["resources"]],
         "## Relations": [[r["definition"], r["basis_class"], r["from_kind"], r["to_kind"], r["validity_scope"]["rule_scope"]] for r in graph["relations"]],
         "## Unknown, not absent": [[r["definition"], r["from_kind"], r["to_kind"], r["withheld_by"]] for r in contract["unstated_relations"]],
+        "## Daily counter native form": [[r["native_id"], native_form(r["native"])] for r in contract["field_rules"] if r["native_id"] in DAY_COUNTERS],
+        "## Routes and zero words": [[r["native_id"], str(r["read"]["offset"]), str(r["read"]["quantity"]), str(r["read"]["unit"]) if "unit" in r["read"] else "not stated", r.get("zero_word", "not applicable")] for r in contract["field_rules"]],
         "## Subjects and measurement points": [[r["native_id"], r["prospective"]["target"], r["prospective"]["subject_kind"], r["prospective"]["measurement_point"]] for r in contract["field_rules"] if r.get("prospective")],
     }
 
