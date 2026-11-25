@@ -34,8 +34,10 @@ func (acquisition *Gen3ReadAcquisition) exchange(
 	acquisition.plan = nil
 	acquisition.mu.Unlock()
 
+	grade, _ := acquisition.config.Gen3.readApplicability()
 	record := Gen3ReadRecord{
-		Endpoint: acquisition.config.Endpoint, Node: acquisition.config.Profile.Node(), Operation: operation,
+		ReadApplicabilityGrade: grade,
+		Endpoint:               acquisition.config.Endpoint, Node: acquisition.config.Profile.Node(), Operation: operation,
 		Family: spec.family, RequestTag: spec.requestTag, TerminalTag: spec.responseTag,
 		Profile: HSCProfileName, ProfileVersion: HSCCompatibilityV1,
 		OperationVersion: HSCFC100OperationCompatibilityV1,
@@ -104,6 +106,34 @@ func (acquisition *Gen3ReadAcquisition) exchange(
 			record.ApplicationStatus = result.Status
 		}
 	}
+	return classifyTeslaCurrentLimitTerminal(record)
+}
+
+func classifyTeslaCurrentLimitTerminal(record Gen3ReadRecord) (Gen3ReadRecord, teslaGen3ReadFollowUp) {
+	if record.State != Gen3ReadEvidenceAck {
+		return record, teslaGen3ReadFollowUpNone
+	}
+	operation := record.Operation
+	if operation == FC100OperationWCGetProvisional {
+		readback, err := decodeTeslaProvisionalReadback(record.TerminalBody())
+		if err != nil {
+			record.State, record.Cause = Gen3ReadEvidenceIndeterminate, err.Error()
+			return record, teslaGen3ReadFollowUpRetire
+		}
+		record.provisionalReadback = readback
+	}
+	if operation == FC100OperationWCSetProvisional && len(record.TerminalBody()) != 0 {
+		record.State, record.Cause = Gen3ReadEvidenceIndeterminate, "t26 body is not empty"
+		return record, teslaGen3ReadFollowUpRetire
+	}
+	if operation == FC100OperationWCConfigureSettings {
+		amps, present, err := decodeTeslaPersistentSettingsBody(record.TerminalBody())
+		if err != nil {
+			record.State, record.Cause = Gen3ReadEvidenceIndeterminate, err.Error()
+			return record, teslaGen3ReadFollowUpRetire
+		}
+		record.persistentCurrent, record.hasPersistentCurrent = amps, present
+	}
 	return record, teslaGen3ReadFollowUpNone
 }
 
@@ -138,6 +168,7 @@ func (acquisition *Gen3ReadAcquisition) recover(ctx context.Context, endpoint Ge
 	if !closed && owned {
 		acquisition.lastGeneration = acquisition.epochGeneration
 		acquisition.epochGeneration = 0
+		acquisition.readbackSeen = 0
 		acquisition.state = Gen3ReadLifecycleReady
 		acquisition.mu.Unlock()
 		return true
@@ -175,6 +206,9 @@ func (acquisition *Gen3ReadAcquisition) retainLocked(record Gen3ReadRecord) {
 	entry.lastAttempt = record.clone()
 	entry.hasLastAttempt = true
 	if record.State == Gen3ReadEvidenceAck {
+		if record.Operation == FC100OperationWCGetProvisional {
+			acquisition.readbackSeen = record.Generation
+		}
 		entry.lastGood = record.clone()
 		entry.hasLastGood = true
 	}
@@ -194,6 +228,9 @@ func (acquisition *Gen3ReadAcquisition) Retained(operation FC100Operation) (Gen3
 	acquisition.mu.Lock()
 	defer acquisition.mu.Unlock()
 	entry := acquisition.retained[operation]
+	if entry == nil {
+		return Gen3ReadRetained{}, false
+	}
 	if entry.hasLastGood && now.Sub(entry.lastGood.ObservedAt) > window.Retention {
 		entry.lastGood, entry.hasLastGood = Gen3ReadRecord{}, false
 	}

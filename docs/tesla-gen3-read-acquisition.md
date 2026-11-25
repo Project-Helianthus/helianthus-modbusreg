@@ -1,148 +1,108 @@
 # Tesla Gen3 read-path acquisition lifecycle
 
-`Gen3ReadAcquisition` is the driver-owned acquisition lifecycle for the
-Wall Connector Gen3 HSC read path (registry issue #208, part of #200). It
-acquires only the five retained observation operations: `common.system_info`
-(4:2 → 3), `wc.get_vitals` (6:1 → 2), `wc.get_lifetime_stats` (6:3 → 4),
-`wc.get_system_info` (6:9 → 10), and `wc.get_load_sharing_state` (6:11 → 12).
-The current-limit pairs (6:7 → 8, 6:25 → 26, 6:27 → 28) have no acquisition
-mapping and are rejected as `NO_SEND`. The legacy Wall Connector RS-485
-profile is a separate, non-Modbus flow and is never reached from this
-lifecycle; there is no fallback in either direction. The Gen3 version label
-must be exactly `wc3_24_44_3`, the only operation version the retained catalog
-and decoders are qualified for; any other label, including another known
-observation or a compatible candidate, is `NO_SEND` at construction.
+`Gen3ReadAcquisition` owns the configured Wall Connector Gen3 endpoint and
+admits five baseline FC100 observations: Common system information, vitals,
+lifetime statistics, Wall Connector system information, and load-sharing state.
+See the [catalog](tesla-fc100-evse-scope.md) for the family/tag pairs.
 
-## Public contracts followed
-
-- `protocols/tesla/gen3-hsc-rtu.md`: 115200 8N1 serial format, the
-  responder greeting (`TESLA` NUL), the host echo of those bytes, and the
-  confirmation (`PASS` NUL) or refusal (`FAIL` NUL), activation
-  failure/timeout/reset/unexpected-frame disabling the exchange state, and
-  qualification by explicit endpoint, node, exact version, activation state,
-  and single-flight correlation.
-- `protocols/tesla/tedapi.md`: the retained family/tag pairs for
-  `wc3_24_44_3` and the `idle -> validated -> waiting -> terminal | exception |
-  deadline -> idle` request state machine.
-- `protocols/tesla/gen3-current-limit-operation-v1.md`: read retries only for an
-  explicit read-only allowlist with a finite budget, distinct outcome classes,
-  and recovery that establishes a successor generation with a valid activation
-  state before fresh admission.
-- `protocols/modbus/private-function-codes.md`: the production endpoint owns
-  the serial stream, framing, correlation, fencing, single-attempt exchange, and
-  bounded `Recover`; the registry owns admission and operation decoding.
+The driver's read floor is `wc3_24_44_3`. It compares identified firmware
+versions numerically, admits later builds with compatible activation,
+private-function and operation capabilities, and retains the incoming label
+and disposition. The baseline has grade `Proven` and the other admitted
+builds have grade `Hypothesis`. A below-floor, unidentified, or
+capability-incompatible build has a named reason and sends nothing; a legacy
+identity is not a Gen3 candidate. This is product admission, not a statement
+of protocol applicability. The RS-485 Site Controller Protocol §§1.5 and 4.2
+states applicability per firmware; behavior for an unnamed build is not
+specified. MID is a separate firmware line.
 
 ## State machine
 
 ```text
-stopped --Start--> activating --driver confirmation after host echo--> ready
-activating --readiness probe acknowledged--> ready
-ready --Acquire/PollOnce--> ready                      (ack, rejected, no_send)
-ready --fencing failure--> recovering --Recover ok--> ready
+stopped --Start--> activating --driver confirmation or qualified probe--> ready
+ready --Acquire/PollOnce or an admitted native call--> ready
+ready --observation fencing failure--> recovering --Recover ok--> ready
+ready --fenced mutation exchange or rejected terminal decoding--> unavailable
 recovering|activating --failure--> unavailable
-unavailable --Restart after observed activation--> ready
+unavailable --Restart with an unchanged activation epoch--> ready
 unavailable --Restart before observed activation--> activating
 any --Close--> closed
 ```
 
-A successful activation opens one lifecycle epoch. Recovery keeps that epoch,
-clears the pinned generation, and does not call the driver. The next admitted
-exchange pins the successor generation of the same endpoint instance. Restart
-after an observed activation opens a successor endpoint instance in the same
-epoch, enters ready, and sends nothing. Restart before any observed activation
-enters activating and calls the driver. Admission is bound to the owned
-endpoint instance, the planned exact request payload, the configured node and
-endpoint label, and the transport generation pinned for that instance; a
-retired endpoint's admission denies every candidate. The FC03/FC04 read path
-of the endpoint admits nothing.
+The host supplies the activation driver. The RS-485 Site Controller Protocol
+§§3.1–3.6 defines conditions, reevaluation, and firmware-specific attempts.
+For 24.44.3 and 26.34.0 the start-up tokens have no RTU envelope. The peer
+returns the six probe bytes unchanged without added delay; evaluation waits
+at most 2 ms nominally when no echo byte has arrived. The station attempts ten times on 24.44.3, MID 25.2.2, 26.18.0 and 26.34.0;
+24.28.3 keeps probing. Latest accepted arrival and the interval between
+attempts are not specified. The local lifecycle
+reuses activation across transport recovery or local Restart only while the
+station's activation epoch is unchanged. A station reset or a change that
+invalidates activation requires a new lifecycle and activation decision;
+local Restart does not detect a station reset. The optional readiness probe
+is a single planned observation when the driver sees no activation event.
 
-## Scheduling, retries, and retention
+Admission binds the owned endpoint instance, node, endpoint label, exact
+planned payload and transport generation. Modbus owns framing, integrity,
+single-attempt exchanges and bounded recovery. The lifecycle owns admission,
+decoding and retained evidence. Concurrent acquisitions, restart and native
+mutations contend for the same single-flight reservation. Observation retries
+stay within `MaxAttempts` and `AcquisitionDeadline`. Mutation exchanges and
+their reserved reads do not retry or cross into a successor generation.
 
-One lifecycle call owns the single in-flight slot; concurrent `Acquire`,
-`PollOnce`, and `Restart` calls fail fast with
-`ErrTeslaGen3ReadAcquisitionBusy`. Each transport exchange has exactly one send
-attempt. `MaxAttempts` (1 through 3) bounds exchanges per acquisition, all
-inside `AcquisitionDeadline`. A timeout or indeterminate outcome after possible
-transmission is followed by bounded recovery in the same epoch, without a
-second activation, before any retry. Both stay inside the remaining acquisition
-budget. An expired or cancelled acquisition does not start recovery: the
-endpoint stays fenced, the lifecycle becomes unavailable, and `Restart` is
-required.
-The response classifier accepts as terminal only the request operation's exact
-family/terminal-tag container or a TEDAPI application error; any other frame is
-a classifier fault that fences the transport generation, so a delayed terminal
-can never satisfy a later attempt. A correlated exception or application error
-is not retried. `PollOnce` acquires each configured operation whose
-last-known-good record is not fresh and current; `Run` repeats it every
-`PollInterval` and restarts an unavailable lifecycle at most once per interval.
+## Readback and native calls
 
-Each operation has its own freshness and retention window. A failed attempt
-never replaces the last acknowledged record. Records older than the retention
-window are discarded. `Current` is true only while the lifecycle is ready and
-the record's epoch, endpoint instance, and generation are the live ones. A
-fenced generation, another endpoint instance, or a closed lifecycle remains
-historical.
+The empty family-6 t27 request and t28 reply are selected separately from the
+baseline reads and the setter. The TEDAPI Specification §6.4.11 specifies the
+RS-485 pair on 26.34.0 and 26.42.0; otherwise this driver requires explicit
+compatible t27/t28 qualification. A configured but unqualified t27 does not
+suppress baseline observations. When qualified, only inclusion in
+`Operations` schedules a poll; a valid t28 window can separately enable a
+reserved read. `Retained` exposes the last good t28 and the latest attempt;
+`ProvisionalReadback` returns a copy of the typed values and their wire
+presence. Malformed, duplicate, or wrong-type documented members cannot replace
+last-known-good evidence.
 
-## Records and evidence states
+`SetProvisionalCurrentLimit` requires ready state, explicit qualification of
+the exact t25/t26 compatibility path, independently admitted t27/t28 and a
+valid t28 window. The compatibility path is restricted to the baseline
+firmware: the TEDAPI Specification §§6.4.10 and 7.1.2 specifies a different
+RS-485 terminal on 26.34.0 and 26.42.0. The driver makes no t26 support claim
+for those versions. A correlated status error does not acknowledge the set.
 
-A record carries the endpoint label, node, operation and family/tag pair,
-profile and operation versions, the Gen3 version label and disposition, the
-source, lifecycle epoch, endpoint instance, transport generation and request
-identifier, attempt
-count, lifecycle and transport timestamps, the exact request ADU, every
-received response ADU, and the evidence state:
+One deadline covers the initial t27 if needed, the t25/t26 exchange, and the
+confirmation t27/t28. The current upper bound is taken from the latest usable
+t28 in the same generation. If that generation has seen a t28, loss of its
+reusable payload through expiry does not authorize a new prerequisite read.
+An absent or explicit-zero configured current, or a bound below the encoded
+current, denies the set. The positive path sends at least 6 A, 900 seconds,
+and inhibit false; a pause is encoded as 6 A, 900 seconds and inhibit true.
+These are product rules, not device-wide range or expiry claims. On 26.34.0,
+t28 reports remaining time, not an echo, and expiry restores the default
+(TEDAPI Specification §7.1.1).
 
-| State | Meaning |
-| --- | --- |
-| `ack` | Correlated terminal accepted by the operation decoder in a receipt that is current for the owned endpoint and epoch; carries the complete native terminal body. A success receipt completed after Close or retirement is `indeterminate`. |
-| `rejected` | Correlated Modbus exception or TEDAPI application error; no value. |
-| `timeout` | Exchange or acquisition deadline after possible transmission; no value. |
-| `indeterminate` | Other failure after possible transmission, or a correlated response the decoder rejected; no value. |
-| `no_send` | Proven pre-send rejection. |
+The setter keeps intent, the encoded triple, the bound, each correlated native
+receipt, and the returned values separately. `match`, `mismatch` and `unknown`
+compare the observed tuple with what was sent; wire absence does not become a
+zero or false observation. A t26 alone says nothing about applied current. A
+failed readback retains the ACK and leaves the effect indeterminate; deadline
+expiry remains `timeout`.
 
-A record is native evidence only. It is not a support, hardware, or live
-qualification claim, and it creates no control authority.
+`ConfigurePersistentCurrent` is a separate native call; it accepts only signed
+current, a caller operation identity, and a deadline. It requires an explicit
+current-only capability, exact schema, a valid settings retention window and
+caller-supplied `PersistentIdentityCapacity`. A matching duplicate returns
+historical disposition rather than sending or promoting freshness. A changed
+intent for an existing identity is rejected. The receipt expires according to
+the caller's window; the identity still occupies capacity so expiry cannot
+turn an old call into a new mutation. Reaching capacity denies new identities
+rather than overwriting the duplicate guard. Restart does not rebind history.
 
-## Activation boundary
+## Evidence boundary
 
-The lifecycle drives the activation exchange through an injected
-`HSCActivationDriver` on the endpoint it owns. The responder greeting is
-`TESLA` followed by NUL. The host echo is those same bytes. The responder then
-sends the confirmation `PASS` followed by NUL, or the refusal `FAIL` followed
-by NUL and a new greeting. Readiness requires one or more attempts of the form
-greeting, optional echo, and refusal, ending with greeting, echo, and
-confirmation, and each echo must equal the greeting immediately before it. A
-confirmation with no echo, a final refusal or greeting, a differing echo,
-unknown bytes, a wrong order, or a report over the resource ceiling fails
-closed with `ErrTeslaGen3HSCActivationFailed` and leaves the lifecycle
-unavailable.
-
-The activation deadline is sampled on the lifecycle clock before the driver is
-called. A report returned at or after that deadline is rejected even when its
-bytes match. Cancellation is checked again inside the readiness commit, under
-the same mutex `Close` takes. The final ownership check, ACK promotion, and
-retention run in one critical section with `Close`, so a record whose endpoint
-was closed or retired before publication is `indeterminate` with its frames
-kept and no decoded value.
-
-Recovery keeps the epoch and does not call the driver. Restart after an
-observed activation opens the successor endpoint instance, enters `ready` in
-the same epoch, and sends nothing. Restart before any observed activation
-enters `activating` and calls the driver.
-
-`ReadinessProbe` is off unless the configuration sets it. When it is on, and
-the driver returns no event and no error for the whole activation timeout, the
-lifecycle admits one exchange of the first configured operation while still
-`activating`. An acknowledged record opens the epoch. Any other record leaves
-the lifecycle unavailable and retires the endpoint. The probe is never used
-after any event was reported, and admission allows no other exchange while
-`activating`.
-
-`ActivationOpening` returns a copy of the report that opened the current
-epoch, that epoch, and the basis (`driver_exchange` or `probe`). It is nil
-before an activation has been observed. A later Restart keeps that opening.
-
-A nil driver is `NO_SEND`. This repository ships no production driver and does
-not open a serial port. The host supplies the driver. Tests use a scripted
-peer. The echo window, the retry count, and the host-side turnaround are not
-established and must be measured.
+Records retain the version, operation and family/tag pair, lifecycle epoch,
+endpoint instance, transport generation and request identifier, timestamps,
+exact request and response ADUs, outcome and available status. `Current`
+requires the live epoch, instance, and generation; expiry discards reusable
+ordinary retained payloads. Evidence is not charging-current confirmation,
+qualification for a different operation, or permission to act on hardware.

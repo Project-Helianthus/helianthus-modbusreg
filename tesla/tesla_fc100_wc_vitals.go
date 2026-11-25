@@ -64,6 +64,10 @@ func (profile HSCProfile) OperationAdmissionFor(operation string) TEDAPIOperatio
 		if profile.config.WCSystemInfoOperationVersion == HSCWCSystemInfoCompatibilityV1 {
 			return TEDAPIOperationAdmission{State: TEDAPIAdmissionAllowedWCSystemInfo, OutboundAllowed: true}
 		}
+	case TEDAPIOperationWCProvisionalReadback:
+		if profile.config.WCProvisionalReadbackOperationVersion == HSCFC100OperationCompatibilityV1 && profile.config.WCProvisionalReadbackQualified {
+			return TEDAPIOperationAdmission{State: "allowed_wc_provisional_readback", OutboundAllowed: true}
+		}
 	case TEDAPIOperationWCLoadSharingStateV1:
 		if profile.config.WCLoadSharingStateOperationVersion == HSCWCLoadSharingStateCompatibilityV1 {
 			return TEDAPIOperationAdmission{State: TEDAPIAdmissionAllowedWCLoadSharingState, OutboundAllowed: true}

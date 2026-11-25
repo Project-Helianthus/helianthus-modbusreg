@@ -91,15 +91,17 @@ type TEDAPIOperationAdmission struct {
 // HSCProfileConfig is an explicit local flavor configuration. A matching
 // node or a readable frame is not a substitute for this configuration.
 type HSCProfileConfig struct {
-	Enabled                            bool
-	Node                               byte
-	PassiveCompatible                  bool
-	CompatibilityVersion               string
-	WCVitalsOperationVersion           string
-	SystemInfoOperationVersion         string
-	WCLifetimeOperationVersion         string
-	WCSystemInfoOperationVersion       string
-	WCLoadSharingStateOperationVersion string
+	Enabled                               bool
+	Node                                  byte
+	PassiveCompatible                     bool
+	CompatibilityVersion                  string
+	WCVitalsOperationVersion              string
+	SystemInfoOperationVersion            string
+	WCLifetimeOperationVersion            string
+	WCSystemInfoOperationVersion          string
+	WCLoadSharingStateOperationVersion    string
+	WCProvisionalReadbackOperationVersion string
+	WCProvisionalReadbackQualified        bool
 }
 
 // HSCProfile retains the immutable profile gate decision.
@@ -400,6 +402,10 @@ func NewHSCProvenance(
 func (profile HSCProfile) EncodeQualifiedFunction(operation string) (modbus.PrivateFunctionRequest, modbus.PrivateFunctionResponsePolicy, error) {
 	if admission := profile.OperationAdmissionFor(operation); !admission.OutboundAllowed {
 		return modbus.PrivateFunctionRequest{}, modbus.PrivateFunctionResponsePolicy{}, fmt.Errorf("tesla HSC operation is not admitted")
+	}
+	if operation == TEDAPIOperationWCProvisionalReadback {
+		request, err := BuildTeslaFC100OperationRequest(HSCFC100OperationCompatibilityV1, FC100OperationWCGetProvisional, nil)
+		return request, modbus.DefaultPrivateFunctionResponsePolicy(), err
 	}
 	var payload []byte
 	switch operation {

@@ -144,7 +144,6 @@ func TestTeslaGen3ReadAcquisitionRejectsMutationAndUnqualifiedConfiguration(t *t
 	for _, operation := range []FC100Operation{
 		FC100OperationWCConfigureSettings,
 		FC100OperationWCSetProvisional,
-		FC100OperationWCGetProvisional,
 		"wc.get_config",
 	} {
 		config := teslaGen3ReadTestConfig(t, nil)
@@ -987,7 +986,7 @@ func (endpoint *teslaGen3FakeEndpoint) Close() error {
 }
 
 func TestTeslaGen3ReadAcquisitionBindsGen3VersionToOperationContract(t *testing.T) {
-	for _, version := range []string{"wc3_24_28_3", "25.1.0", "24.44.3", " wc3_24_44_3"} {
+	for _, version := range []string{"wc3_24_28_3", "24.44.2", "wc3_24_44_3/4", "unknown"} {
 		config := teslaGen3ReadTestConfig(t, nil)
 		config.Gen3 = mustTeslaGen3Profile(t, Gen3HSCProfileConfig{
 			Enabled: true, Version: version, ActivationCapable: true, PrivateFunctionCapable: true, OperationCapable: true,

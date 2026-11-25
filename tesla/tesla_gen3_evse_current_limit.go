@@ -293,35 +293,39 @@ type teslaGen3ProvisionalCurrentLimitWire struct {
 }
 
 func decodeTeslaGen3ProvisionalCurrentLimitBody(body []byte, requireConfigured bool) (teslaGen3ProvisionalCurrentLimitWire, error) {
+	readback, err := decodeTeslaProvisionalFields(body, requireConfigured)
+	if err != nil || !readback.HasLimitCurrent || !readback.HasLimitTimeout || !readback.HasInhibit || (requireConfigured && !readback.HasConfiguredCurrent) {
+		return teslaGen3ProvisionalCurrentLimitWire{}, fmt.Errorf("Gen3 provisional current limit is invalid")
+	}
+	return teslaGen3ProvisionalCurrentLimitWire{readback.LimitCurrentMaxAmps, readback.LimitTimeoutSeconds, readback.ConfiguredCurrentAmps, readback.InhibitCharging}, nil
+}
+
+func decodeTeslaProvisionalReadback(body []byte) (ProvisionalCurrentLimitReadback, error) {
+	return decodeTeslaProvisionalFields(body, true)
+}
+
+func decodeTeslaProvisionalFields(body []byte, readback bool) (ProvisionalCurrentLimitReadback, error) {
 	known := map[uint64]uint8{1: 2}
-	if requireConfigured {
+	if readback {
 		known[2] = 0
 	}
 	outer, err := decodeTeslaGen3CurrentLimitFields(body, known)
 	if err != nil {
-		return teslaGen3ProvisionalCurrentLimitWire{}, err
+		return ProvisionalCurrentLimitReadback{}, err
 	}
-	provisional, err := requiredTeslaGen3CurrentLimitField(outer, 1)
+	inner, err := decodeTeslaGen3CurrentLimitFields(outer[1].bytes, map[uint64]uint8{1: 0, 2: 0, 3: 0})
 	if err != nil {
-		return teslaGen3ProvisionalCurrentLimitWire{}, err
+		return ProvisionalCurrentLimitReadback{}, err
 	}
-	inner, err := decodeTeslaGen3CurrentLimitFields(provisional.bytes, map[uint64]uint8{1: 0, 2: 0, 3: 0})
-	if err != nil {
-		return teslaGen3ProvisionalCurrentLimitWire{}, err
+	amps, hasAmps := inner[1]
+	timeout, hasTimeout := inner[2]
+	inhibit, hasInhibit := inner[3]
+	configured, hasConfigured := outer[2]
+	if amps.varint > math.MaxUint32 || timeout.varint > math.MaxUint32 || inhibit.varint > 1 || configured.varint > math.MaxUint32 {
+		return ProvisionalCurrentLimitReadback{}, fmt.Errorf("Gen3 provisional scalar is invalid")
 	}
-	amps, ampsErr := requiredTeslaGen3CurrentLimitField(inner, 1)
-	timeout, timeoutErr := requiredTeslaGen3CurrentLimitField(inner, 2)
-	inhibit, inhibitErr := requiredTeslaGen3CurrentLimitField(inner, 3)
-	if ampsErr != nil || timeoutErr != nil || inhibitErr != nil || amps.varint > math.MaxUint32 || timeout.varint > math.MaxUint32 || inhibit.varint > 1 {
-		return teslaGen3ProvisionalCurrentLimitWire{}, fmt.Errorf("Gen3 provisional current limit is invalid")
-	}
-	result := teslaGen3ProvisionalCurrentLimitWire{amps: uint32(amps.varint), timeout: uint32(timeout.varint), inhibit: inhibit.varint == 1}
-	if requireConfigured {
-		configured, err := requiredTeslaGen3CurrentLimitField(outer, 2)
-		if err != nil || configured.varint > math.MaxUint32 {
-			return teslaGen3ProvisionalCurrentLimitWire{}, fmt.Errorf("Gen3 configured current limit is invalid")
-		}
-		result.configured = uint32(configured.varint)
-	}
-	return result, nil
+	return ProvisionalCurrentLimitReadback{
+		LimitCurrentMaxAmps: uint32(amps.varint), LimitTimeoutSeconds: uint32(timeout.varint), InhibitCharging: inhibit.varint == 1, ConfiguredCurrentAmps: uint32(configured.varint),
+		HasLimitCurrent: hasAmps, HasLimitTimeout: hasTimeout, HasInhibit: hasInhibit, HasConfiguredCurrent: hasConfigured,
+	}, nil
 }

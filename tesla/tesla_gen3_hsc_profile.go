@@ -30,6 +30,10 @@ type Gen3HSCProfileConfig struct {
 	ActivationCapable      bool
 	PrivateFunctionCapable bool
 	OperationCapable       bool
+	// ProvisionalSetQualified declares exact t25/t26 compatibility for this build.
+	ProvisionalSetQualified            bool
+	PersistentSettingsOperationVersion string
+	PersistentCurrentOnlyQualified     bool
 }
 
 // Gen3HSCProfile never derives a capability from a version label alone.
@@ -48,7 +52,7 @@ func NewGen3HSCProfile(config Gen3HSCProfileConfig) (Gen3HSCProfile, error) {
 	version := strings.TrimSpace(config.Version)
 	if version != "" {
 		switch version {
-		case "24.28.3", "24.44.3", "wc3_24_28_3", "wc3_24_44_3":
+		case "24.28.3", "24.44.3", "wc3_24_28_3", "wc3_24_44_3", "MID 25.2.2", "26.18.0", "26.34.0", "26.42.0", "wc3_26_18_0", "wc3_26_34_0", "wc3_26_42_0":
 			disposition = Gen3HSCVersionKnownObservation
 		default:
 			if config.ActivationCapable && config.PrivateFunctionCapable && config.OperationCapable {
