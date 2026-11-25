@@ -205,3 +205,41 @@ func cloneSunSpecSymbols(symbols map[uint64]string) map[uint64]string {
 func sunSpecPoint(name, fieldID string, pointType PointType, size uint16, unit, scaleFactor string, mandatory bool, symbols map[uint64]string, knownMask uint64) sunSpecPointDefinition {
 	return sunSpecPointDefinition{name: name, fieldID: fieldID, pointType: pointType, size: size, unit: unit, scaleFactor: scaleFactor, mandatory: mandatory, required: mandatory && name != "ID" && name != "L" && pointType != TypeScaleFactor, symbols: symbols, knownMask: knownMask}
 }
+
+// FixedPoint describes one point at a fixed position in a model block.
+type FixedPoint struct {
+	Name       string
+	FieldID    string
+	Type       PointType
+	Unit       string
+	WordOffset uint16
+	WordWidth  uint16
+}
+
+// FixedPointLayout returns a point and its linked scale point (zero when
+// absent) from the exact fixed decoder definition. Offsets count from the
+// model ID at word zero and include the ID and length header.
+func (r DecoderRegistry) FixedPointLayout(key DecoderKey, field string) (point, scale FixedPoint, ok bool) {
+	def, found := r.definitions[key]
+	if !found || def.layout != nil || def.geometry != nil || field == "" {
+		return point, scale, false
+	}
+	for _, p := range def.points {
+		if p.fieldID != field {
+			continue
+		}
+		point = fixedPoint(p)
+		for _, s := range def.points {
+			if s.pointType == TypeScaleFactor && s.name == p.scaleFactor {
+				scale = fixedPoint(s)
+				break
+			}
+		}
+		return point, scale, true
+	}
+	return point, scale, false
+}
+
+func fixedPoint(p sunSpecPointDefinition) FixedPoint {
+	return FixedPoint{Name: p.name, FieldID: p.fieldID, Type: p.pointType, Unit: p.unit, WordOffset: p.offset, WordWidth: p.size}
+}

@@ -1,4 +1,6 @@
-github.com/Project-Helianthus/helianthus-modbus v0.3.0 h1:cmYb4WqaAl9DmDAfwnBJf5YIzXyYfnsZRcuZEk1d7/I=
-github.com/Project-Helianthus/helianthus-modbus v0.3.0/go.mod h1:Nr8SW7fE3SIjnp+rj8PCOtwk8JZ9wqafu1ZCgq3Zz+Q=
-github.com/Project-Helianthus/helianthus-modbus v0.3.1-0.20261014112527-df5bdc80771c h1:/afxettNlxgpDKk+ExmTySEmmf2mbahJ5izr5jtg2yM=
-github.com/Project-Helianthus/helianthus-modbus v0.3.1-0.20261014112527-df5bdc80771c/go.mod h1:Nr8SW7fE3SIjnp+rj8PCOtwk8JZ9wqafu1ZCgq3Zz+Q=
+github.com/Project-Helianthus/helianthus-modbus v0.3.1-0.20261124205146-da07b3e2748a h1:fshJ6WeFJGSgD8L8SQ9ddahWIkmQvUW90QcJsALOYOQ=
+github.com/Project-Helianthus/helianthus-modbus v0.3.1-0.20261124205146-da07b3e2748a/go.mod h1:S+G2EijV7WCm9HBYUVhK5T0FsfU6qDFU3EKvrHMr/Ek=
+github.com/Project-Helianthus/helianthus-semreg v0.0.0-20261125230007-606d0e7d9e47 h1:CKjuH1IHXhE0HijbkkLsINgOysNg7v7Gr/G94Umv0/8=
+github.com/Project-Helianthus/helianthus-semreg v0.0.0-20261125230007-606d0e7d9e47/go.mod h1:Nk9VAXLA7iJBXbWPRL6s5+DWqc2OJkUzg8zdlDdUdes=
+golang.org/x/text v0.22.0 h1:bofq7m3/HAFvbF51jz3Q9wLg3jkvSPuiZu/pD1XwgtM=
+golang.org/x/text v0.22.0/go.mod h1:YRoo4H8PVmsu+E3Ou7cqLVH8oXWIHVoX0jqUWALQhfY=

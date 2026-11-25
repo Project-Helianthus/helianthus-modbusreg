@@ -14,7 +14,7 @@ import (
 
 const (
 	huaweiDocsMergeSHA = "fa8838c92f3ce2eac3ad953d7059eccc21be19c7"
-	currentModbusPin   = "v0.3.1-0.20261014112527-df5bdc80771c"
+	currentModbusPin   = "v0.3.1-0.20261124205146-da07b3e2748a"
 )
 
 func decodeHuaweiObject(t *testing.T, path string) map[string]any {

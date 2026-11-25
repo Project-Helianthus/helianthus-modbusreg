@@ -96,3 +96,13 @@ operator confirmation at the time of the action.
 
 To stop using the phase-one compatibility profile, remove it from the caller's
 catalog and stop invoking its decoder. Retained observations remain immutable.
+
+### Fixed point layout
+
+`DecoderRegistry.FixedPointLayout` looks up a field by its exact `DecoderKey` in
+the registry’s fixed model definitions. It returns the point name, field ID,
+type, native unit, word offset and width, plus the linked scale-factor layout
+when present. Offsets include the ID and length header: ID is word 0 and
+length is word 1. Dynamic layouts, unsupported keys and absent fields do not
+match. Returned layouts are values; this lookup neither decodes nor admits a
+model occurrence.
