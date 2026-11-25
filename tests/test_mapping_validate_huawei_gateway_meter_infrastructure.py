@@ -229,6 +229,7 @@ def test_a_documented_plant_grid_power_publishes_the_stated_direction_in_watts(r
 
 
 SMARTLOGGER, INVERTER_SIDE = "smartlogger_listed_meter", "sdongle_inverter_side"
+EMMA_GATEWAY = "emma_gateway_level"
 SMARTLOGGER_GROUP = "smartlogger_meter_electrical_group"
 
 
@@ -269,6 +270,19 @@ def test_a_route_read_that_differs_from_its_own_exposure_is_reported_and_replace
     output = project(document)
     assert output["facts"] == [] and row_reasons(output)[SMARTLOGGER_GROUP] == "infrastructure.reason.identity_mismatch"
     assert document["meter"]["declared"] == before
+
+
+def test_the_emma_gateway_level_route_at_unit_zero_is_a_known_route_with_no_meter_identity():
+    output = project(with_meter_group("emma_built_in_sensor_group", 0, route(EMMA_GATEWAY, 0), route(EMMA_GATEWAY, 0)))
+    assert output["facts"] == [] and row_reasons(output)["emma_built_in_sensor_group"] == "infrastructure.reason.answered_not_decoded"
+    mismatch = project(with_meter_group("emma_built_in_sensor_group", 0, route(EMMA_GATEWAY, 0), route(SMARTLOGGER, 11)))
+    assert row_reasons(mismatch)["emma_built_in_sensor_group"] == "infrastructure.reason.identity_mismatch"
+    assert v.load()["admission"]["meter_identity"]["status"] == "unknown"
+
+
+def test_unit_zero_is_no_route_for_a_routed_meter_exposure():
+    with Raises(ValueError, match="identity_missing_or_invalid"):
+        project(with_meter_group(SMARTLOGGER_GROUP, 0, route(SMARTLOGGER, 0), route(SMARTLOGGER, 0)))
 
 
 def test_a_route_that_was_not_read_confirms_and_replaces_nothing():
@@ -364,7 +378,7 @@ def test_the_sign_reference_is_graded_hypothesis_and_the_meter_identity_stays_un
     assert decisions["meter_identity"]["grade"] == "unknown" and decisions["exposure_path"]["grade"] == "proven" and decisions["plant_grid_exchange"]["grade"] == "proven"
     assert admission["meter_identity"]["status"] == "unknown" and admission["meter_identity"]["published_as"] == "no_meter_attribution"
     assert admission["meter_exposures"]["declared_from"] == "documented_meter_exposures" and admission["meter_exposures"]["on_mismatch"] == "reported_never_guessed_and_never_a_replacement"
-    assert [item["path"] for item in admission["meter_exposures"]["paths"]] == [SMARTLOGGER, INVERTER_SIDE] and admission["plant_grid_exchange"]["path"] not in {item["path"] for item in admission["meter_exposures"]["paths"]}
+    assert [item["path"] for item in admission["meter_exposures"]["paths"]] == [SMARTLOGGER, INVERTER_SIDE, EMMA_GATEWAY] and admission["plant_grid_exchange"]["path"] not in {item["path"] for item in admission["meter_exposures"]["paths"]}
     assert admission["selection"]["refused"] == ["PROFILE_SELECTED"]
 
 
@@ -959,6 +973,12 @@ def test_publication_rejects_digest_shaped_fragment_on_an_approved_owner_link():
 def test_owner_link_exception_applies_only_to_the_actual_destination(destination):
     with Raises(ValueError, match="publication"):
         v.check_document(v.load(), page() + "\n[owner](" + destination + ")\n")
+
+
+def test_owner_link_in_a_foreign_link_title_gets_no_exception():
+    for quote in ('"', "'"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n[owner](https://example.invalid/x " + quote + "see " + OWNER_BASE + "api/v1/graph.md" + quote + ")\n")
 
 
 if __name__ == "__main__":

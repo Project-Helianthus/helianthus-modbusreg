@@ -77,6 +77,12 @@
           "routed_unit": "inverter_child_unit",
           "listed_as_child": false,
           "grade": "proven"
+        },
+        {
+          "path": "emma_gateway_level",
+          "routed_unit": "gateway_own_unit",
+          "listed_as_child": false,
+          "grade": "proven"
         }
       ],
       "runtime_check": "the_route_read_equals_the_declaration_of_its_own_exposure",

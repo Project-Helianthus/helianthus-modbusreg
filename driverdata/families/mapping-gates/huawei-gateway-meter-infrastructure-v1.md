@@ -42,7 +42,10 @@ are distinct, and an exposure observed on one path is no claim about another:
   (`smartlogger_listed_meter`, Proven as an observation);
 - an S-Dongle meter is not listed as a child and answers inverter-side at the
   inverter child's routed unit (`sdongle_inverter_side`, Proven as an
-  observation).
+  observation);
+- an EMMA serves its built-in sensor groups at the gateway's own routed unit 0
+  (`emma_gateway_level`, Proven as an answer; the meter behind the groups is
+  Unknown). The route is known and establishes no meter identity.
 
 The plant grid exchange is a separate statement. The S-Dongle plant group at
 routed unit 100 states the grid power of the plant (Proven as an observation,

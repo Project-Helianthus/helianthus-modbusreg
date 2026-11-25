@@ -7,32 +7,6 @@
   },
   "status": "accepted_source_specific_mapping_gate",
   "evidence": {
-    "monitoring_contract": {
-      "repository": "helianthus-docs-modbus",
-      "issue": 242,
-      "pull_request": 253,
-      "pages": [
-        "protocols/huawei/monitoring-readonly-v1.md",
-        "protocols/huawei/read-pacing-v1.md"
-      ]
-    },
-    "registry_profiles": {
-      "repository": "helianthus-modbusreg",
-      "issue": 348,
-      "pull_request": 357
-    },
-    "program_issues": {
-      "repository": "helianthus-modbusreg",
-      "issues": [
-        199,
-        201
-      ]
-    },
-    "multi_endpoint_contract": {
-      "repository": "helianthus-docs-ebus",
-      "issue": 746,
-      "pull_request": 748
-    },
     "grades": [
       "proven",
       "hypothesis",

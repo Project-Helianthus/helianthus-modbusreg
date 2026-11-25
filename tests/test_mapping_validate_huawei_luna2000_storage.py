@@ -1063,5 +1063,11 @@ def test_owner_link_exception_applies_only_to_the_actual_destination(destination
         v.check_document(v.load(), page() + "\n[owner](" + destination + ")\n")
 
 
+def test_owner_link_in_a_foreign_link_title_gets_no_exception():
+    for quote in ('"', "'"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n[owner](https://example.invalid/x " + quote + "see " + OWNER_BASE + "api/v1/graph.md" + quote + ")\n")
+
+
 if __name__ == "__main__":
     raise SystemExit(support.run(globals()))

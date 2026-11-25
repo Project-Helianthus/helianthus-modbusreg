@@ -29,9 +29,9 @@ GRADES = ["unknown", "hypothesis", "proven"]
 ERROR_PRECEDENCE = ["gate_revision_required", "native_evidence_invalid", "identity_missing_or_invalid", "role_invalid", "lifecycle_missing", "mapping_unqualified", "unsupported_or_withheld"]
 OPAQUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
-# Approved immutable owner links: the pinned docs-semantic revision, owning path, optional non-line anchor.
+# Approved immutable owner links (the exception applies only where the link is the Markdown destination): the pinned docs-semantic revision, owning path, optional non-line anchor.
 OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
-OWNER_LINK_RE = re.compile(r"(?<![^\s(<])https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
+OWNER_LINK_RE = re.compile(r"(?:(?<=\]\()|(?<=\]\(<)|(?<=\]: ))https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
 # A line anchor and a private or IPv4 endpoint are never published, whether or not an owner link surrounds them.
 LINE_ANCHOR_RE = re.compile(r"#L[0-9]")
 ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")
@@ -80,7 +80,8 @@ ADMISSION = {
     "meter_identity": {"status": "unknown", "reason": "the_documented_listing_establishes_no_meter_at_the_route", "published_as": "no_meter_attribution"},
     "meter_exposures": {"declared_from": "documented_meter_exposures", "source": {"repository": "helianthus-docs-modbus", "pages": ["protocols/huawei/gateway-power-meter-v1.md", "protocols/huawei/monitoring-readonly-v1.md"]},
                         "paths": [{"path": "smartlogger_listed_meter", "routed_unit": "listed_meter_unit", "listed_as_child": True, "grade": "proven"},
-                                  {"path": "sdongle_inverter_side", "routed_unit": "inverter_child_unit", "listed_as_child": False, "grade": "proven"}],
+                                  {"path": "sdongle_inverter_side", "routed_unit": "inverter_child_unit", "listed_as_child": False, "grade": "proven"},
+                                  {"path": "emma_gateway_level", "routed_unit": "gateway_own_unit", "listed_as_child": False, "grade": "proven"}],
                         "runtime_check": "the_route_read_equals_the_declaration_of_its_own_exposure",
                         "on_mismatch": "reported_never_guessed_and_never_a_replacement"},
     "plant_grid_exchange": {"path": "sdongle_plant_group", "routed_unit": 100, "meter_identity": "not_established_by_the_plant_read", "same_meter_as_inverter_side": "unknown"},
@@ -99,7 +100,8 @@ ADMISSION = {
 ADMITTING, UNRESOLVED, REFUSED = "DECLARED_FROM_LISTING", ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"], "PROFILE_SELECTED"
 # The one meter row that publishes: the documented plant group, its word position and word form.
 # The documented meter exposure each fed meter group belongs to; a group of no listed exposure is checked against none.
-METER_EXPOSURE_OF = {"smartlogger_meter_electrical_group": "smartlogger_listed_meter", "smartlogger_meter_energy_totals": "smartlogger_listed_meter", "sdongle_inverter_exposed_meter_group": "sdongle_inverter_side"}
+METER_EXPOSURE_OF = {"smartlogger_meter_electrical_group": "smartlogger_listed_meter", "smartlogger_meter_energy_totals": "smartlogger_listed_meter", "sdongle_inverter_exposed_meter_group": "sdongle_inverter_side", "emma_built_in_sensor_group": "emma_gateway_level"}
+GATEWAY_LEVEL = {"exposure": "emma_gateway_level", "routed_unit": 0}
 PLANT_ROUTE = {"exposure": ADMISSION["plant_grid_exchange"]["path"], "routed_unit": ADMISSION["plant_grid_exchange"]["routed_unit"]}
 ACTIVE = {"sdongle_plant_grid_power": {"read": {"offset": 37498, "quantity": 8}, "word": 4}}
 GAINS = {1: 0, 10: -1, 100: -2, 1000: -3}
@@ -553,7 +555,10 @@ def read_words_valid(read, key):
 
 
 def meter_identity(value):
-    return isinstance(value, dict) and set(value) == {"exposure", "routed_unit"} and isinstance(value["exposure"], str) and type(value["routed_unit"]) is int and 1 <= value["routed_unit"] <= 247
+    """A routed meter exposure at a unit 1 to 247, or the known gateway-level route at its own unit 0; the route establishes no meter identity."""
+    if not (isinstance(value, dict) and set(value) == {"exposure", "routed_unit"} and isinstance(value["exposure"], str) and type(value["routed_unit"]) is int):
+        return False
+    return value == GATEWAY_LEVEL or (value["exposure"] != GATEWAY_LEVEL["exposure"] and 1 <= value["routed_unit"] <= 247)
 
 
 def meter_route_valid(declared, identity_read, paths):
@@ -576,11 +581,16 @@ def check_case_meter(case, errors):
         errors.add("identity_missing_or_invalid")
 
 
+def gateway_level_declared(case):
+    meter = case.get("meter")
+    return isinstance(meter, dict) and meter.get("declared") == GATEWAY_LEVEL
+
+
 def check_case_source(case, errors):
     source = case.get("source")
     source_id = source.get("source_id") if isinstance(source, dict) else None
     unit = case.get("routed_unit")
-    if not isinstance(source_id, str) or not OPAQUE_RE.fullmatch(source_id) or any(token in source_id.lower() for token in ID_FORBIDDEN_TEXT) or ID_ADDRESS_RE.search(source_id) or (unit is not None and (type(unit) is not int or not 1 <= unit <= 247)) or source_id == str(unit):
+    if not isinstance(source_id, str) or not OPAQUE_RE.fullmatch(source_id) or any(token in source_id.lower() for token in ID_FORBIDDEN_TEXT) or ID_ADDRESS_RE.search(source_id) or (unit is not None and (type(unit) is not int or not (1 <= unit <= 247 or (unit == 0 and gateway_level_declared(case))))) or source_id == str(unit):
         errors.add("identity_missing_or_invalid")
     return source_id, unit
 

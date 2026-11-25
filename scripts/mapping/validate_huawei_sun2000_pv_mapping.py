@@ -32,9 +32,9 @@ ERROR_PRECEDENCE = ["profile_not_selected", "native_evidence_invalid", "identity
 OPAQUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$")
 COEFFICIENT_RE = re.compile(r"^(0|-?[1-9][0-9]*)$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
-# Approved immutable owner links: the pinned docs-semantic revision, owning path, optional non-line anchor.
+# Approved immutable owner links (the exception applies only where the link is the Markdown destination): the pinned docs-semantic revision, owning path, optional non-line anchor.
 OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
-OWNER_LINK_RE = re.compile(r"(?<![^\s(<])https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
+OWNER_LINK_RE = re.compile(r"(?:(?<=\]\()|(?<=\]\(<)|(?<=\]: ))https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
 # A line anchor and a private or IPv4 endpoint are never published, whether or not an owner link surrounds them.
 LINE_ANCHOR_RE = re.compile(r"#L[0-9]")
 ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")
@@ -124,13 +124,7 @@ def qualification_recorded(qualification):
     rest = {key: value for key, value in qualification.items() if key != "live_qualified"}
     return rest == {key: value for key, value in QUALIFICATION.items() if key != "live_qualified"}
 
-EVIDENCE = {
-    "monitoring_contract": {"repository": "helianthus-docs-modbus", "issue": 242, "pull_request": 253, "pages": ["protocols/huawei/monitoring-readonly-v1.md", "protocols/huawei/read-pacing-v1.md"]},
-    "registry_profiles": {"repository": "helianthus-modbusreg", "issue": 348, "pull_request": 357},
-    "program_issues": {"repository": "helianthus-modbusreg", "issues": [199, 201]},
-    "multi_endpoint_contract": {"repository": "helianthus-docs-ebus", "issue": 746, "pull_request": 748},
-    "grades": ["proven", "hypothesis", "unknown"],
-}
+EVIDENCE = {"grades": ["proven", "hypothesis", "unknown"]}
 _COMMON = [("status_group_words", "retained_native"), ("string_group_tail_words", "retained_native")]
 PROFILE_FIELDS = {
     M3: [("pv_string_voltage", "admitted"), ("pv_string_current", "admitted"), ("input_power", "refused_group"), ("active_power", "refused_group"), ("device_status", "refused_group"),
@@ -152,7 +146,7 @@ STRING_NATIVES = ("pv_string_voltage", "pv_string_current")
 STRING_REASON = "pv.reason.string_reading_names_no_distinct_input"
 INPUT_RULE_MEMBERS = {"requested", "target", "dimension", "subject_kind", "measurement_point", "unit", "conversion"}
 REQUESTED = ["pv.ac.aggregate_active_power", "pv.dc.aggregate_power", "pv.energy.generated", "pv.energy.yield_day", "pv.status.operating"]
-DOC_TOKENS = ("gateway-allocated", "operator label", "class token", "unknown, not absent", "section 15", "en-1", "per-asset configuration field is not required", "no binary floating point", "no derived energy", "unknown is never zero", "outbound_allowed=false", "one atomic cutover", "proven only where the monitoring contract is proven")
+DOC_TOKENS = ("gateway-allocated", "operator label", "class token", "unknown, not absent", "section 15", "en-1", "per-asset configuration field is not required", "no binary floating point", "no derived energy", "unknown is never zero", "outbound_allowed=false", "one atomic cutover", "a published fact is proven only where its native register definition is proven")
 
 
 def fail(code):
@@ -750,7 +744,7 @@ def check_case_phases(case, resources, groups, errors):
     slots = RESOURCE_ROLES["phases"]["slots"]
     if not isinstance(positions, list) or not positions or any(type(item) is not int or not 1 <= item <= slots for item in positions) or len(set(positions)) != len(positions) or groups.get(PHASE_GROUP) != "ANSWERED":
         errors.add("native_evidence_invalid")
-    elif resources is None or "phases" not in resources:
+    elif resources is None or "phases" not in resources or any(resources["phases"][position - 1] is None for position in positions):
         errors.add("identity_missing_or_invalid")
 
 
@@ -783,7 +777,7 @@ def valid_identity(item, unit, managed_source=False):
 
 
 def case_resources(identity, unit, lineage):
-    """Section 6.3: one valid, distinct ResourceID per allocated role and none for a role that is not allocated."""
+    """Section 6.3: one valid, distinct ResourceID per allocated role and none for a role that is not allocated; a phase slot is null until its native position is read."""
     resources = identity.get("resources") if isinstance(identity, dict) else None
     allocated = [role for role, spec in RESOURCE_ROLES.items() if spec["source"] == ALLOCATED]
     if not isinstance(resources, dict) or set(resources) - {"phases"} != set(allocated) or not isinstance(resources["inputs"], list) or len(resources["inputs"]) != RESOURCE_ROLES["inputs"]["slots"]:
@@ -791,7 +785,7 @@ def case_resources(identity, unit, lineage):
     phases = resources.get("phases")
     if "phases" in resources and (not isinstance(phases, list) or len(phases) != RESOURCE_ROLES["phases"]["slots"]):
         return None
-    values = [resources[role] for role in allocated if role != "inputs"] + resources["inputs"] + (phases or [])
+    values = [resources[role] for role in allocated if role != "inputs"] + resources["inputs"] + [item for item in (phases or []) if item is not None]
     if not all(valid_identity(item, unit) for item in values) or len(set(values)) != len(values) or set(values) & {item for item in lineage if isinstance(item, str)}:
         return None
     return resources

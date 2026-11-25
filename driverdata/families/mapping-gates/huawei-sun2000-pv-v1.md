@@ -5,32 +5,20 @@ monitoring profiles admit to `helianthus.pack.pv@1.0.0`. It adds no pack and no
 vendor-specific semantic family, and it makes no stability promise before
 Helianthus 1.0. A live qualification observed on a record is a recorded level and does not reject its mapping.
 Its machine-readable companion is
-[the mapping vectors](huawei-sun2000-pv-v1.json). The vectors are synthetic and
-derive from the published native contract; they are not observations from
-hardware.
+[the mapping vectors](huawei-sun2000-pv-v1.json). The vectors use opaque identifiers and values only.
 
 The same family set has two sibling gates that map nothing today:
 [the LUNA2000 storage gate](huawei-luna2000-storage-v1.md) and
 [the gateway-meter infrastructure gate](huawei-gateway-meter-infrastructure-v1.md).
 
-## Evidence basis
+## Evidence grades
 
-| Source | Reference | Role |
-| --- | --- | --- |
-| Native monitoring contract | `helianthus-docs-modbus` issue 242, pull request 253: `protocols/huawei/monitoring-readonly-v1.md` and `protocols/huawei/read-pacing-v1.md` | Owns every register group, word form, gain, unit, sign and grade. This gate restates none of them as new protocol fact. |
-| Registry profiles | `helianthus-modbusreg` issue 348, pull request 357 | Two inert monitoring profiles, the typed facts they decode, the refusal map and the dispositions. |
-| Program | `helianthus-modbusreg` issues 199 and 201 | The Huawei read-only program this gate belongs to. |
-| Multi-endpoint contract | `helianthus-docs-ebus` issue 746, pull request 748 | Finalized source keying per endpoint instance. Its class token is provenance here, never identity. |
-
-No revision, digest or pinned link is cited: the references above are issue and
-pull request numbers. Grades are those of the monitoring contract. Proven means
-a live reading was decoded with the stated form and agreed with an independent
-check at the observed units; Hypothesis means a document states it or a reading
-was plausible without an independent check; Unknown means neither settles it.
-Grades are separate from admission, qualification and support. The grade of a
-published fact is inherited and never raised: Proven only where the monitoring
-contract is Proven. A rule of this gate that goes beyond the contract is a
-Hypothesis.
+Proven means a reading was decoded with the stated form at the observed units;
+Hypothesis means the stated form is plausible without a settling check;
+Unknown means neither settles it. A published fact is Proven only where its
+native register definition is Proven, and this gate never raises a grade. A rule of this gate that goes beyond the native register
+definitions is a Hypothesis.
+Grades are separate from admission, qualification and support.
 
 ## Admitted profiles and selection
 
@@ -68,8 +56,7 @@ what never derives it.
   it.
 - The source identifier is the existing managed instance identifier, derived
   from its DriverID and configured owner identity, with exactly one source per
-  endpoint instance under the finalized multi-endpoint contract of
-  `helianthus-docs-ebus` issue 746 (merged pull request 748). Its fixed family
+  endpoint instance. Its fixed family
   namespace is configuration, not observed native identity. A binding
   identifier is derived by the gateway over the asset, the source and the
   profile only; it never selects or changes the asset or a resource.
@@ -96,8 +83,7 @@ the source or the binding. The validator permits the managed Huawei source
 namespace with an owner GUID while rejecting native identity text; this is a
 syntax lint, not proof of how an identifier was derived. The gate publishes
 nothing at endpoint or gateway level. The projection vectors use short
-synthetic opaque identifiers to isolate mapping behavior; they are not
-evidence of gateway identity construction.
+opaque identifiers to isolate mapping behavior.
 
 ## Resources
 
@@ -398,7 +384,7 @@ Withdrawal is explicit and generation-fenced.
 
 The first two vectors carry the complete expected output of each admitted
 profile; the others carry a summary derived from the same projection. The vector
-files use synthetic identifiers and values only.
+files use opaque identifiers and values only.
 
 | Vector | What it proves |
 | --- | --- |

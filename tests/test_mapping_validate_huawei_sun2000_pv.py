@@ -105,8 +105,8 @@ def test_no_binary_floating_point_anywhere():
     ("pack", lambda d: set_path(d, "pack.id", "helianthus.pack.storage"), "contract"),
     ("pack-version", lambda d: set_path(d, "pack.version", "1.1.0"), "contract"),
     ("status", lambda d: set_path(d, "status", "accepted"), "contract"),
-    ("evidence-pull-request", lambda d: set_path(d, "evidence.registry_profiles.pull_request", 358), "evidence"),
-    ("evidence-contract-issue", lambda d: set_path(d, "evidence.monitoring_contract.issue", 241), "evidence"),
+    ("evidence-grades", lambda d: set_path(d, "evidence.grades", ["proven", "unknown"]), "evidence"),
+    ("evidence-reference-added", lambda d: set_path(d, "evidence.monitoring_contract", {"issue": 242}), "evidence"),
     ("registry-flag", lambda d: set_path(d, "native_contract.registry_flags.live_qualified", True), "native contract"),
     ("outbound", lambda d: set_path(d, "native_contract.outbound_allowed", True), "native contract"),
     ("word-order", lambda d: set_path(d, "native_contract.word_order", "least_significant_word_first"), "native contract"),
@@ -825,7 +825,7 @@ def page():
     ("| transformed | unit+policy | Proven | Hypothesis |", "| transformed | policy | Proven | Hypothesis |"),
     ("| `battery` | withheld | `pv.reason.battery_outside_pv_family` | capability | withheld |", "| `battery` | withheld | `pv.reason.battery_outside_pv_family` | capability | unrepresentable |"),
     ("| `PV-NEG-018-error-precedence` |", "| `PV-NEG-099-other` |"),
-    ("Proven only where the monitoring contract is Proven", "Proven where a document says so"),
+    ("Proven only where its native register definition is Proven", "Proven where a document says so"),
     ("outbound_allowed=false", "outbound allowed"),
     ("| `string_power` | `none` | `resource.pv_string` | `pv.dimension.string` | `unit.watt` |", "| `string_power` | `none` | `resource.dc_input` | `pv.dimension.input` | `unit.watt` |"),
     ("| `resource.pv_string` | component | `native_slot` | `native_position` | `resource.inverter` |", "| `resource.pv_string` | component | `native_slot` | `native_position` | `resource.pv_array` |"),
@@ -1235,6 +1235,12 @@ def test_owner_link_exception_applies_only_to_the_actual_destination(destination
         v.check_document(v.load(), page() + "\n[owner](" + destination + ")\n")
 
 
+def test_owner_link_in_a_foreign_link_title_gets_no_exception():
+    for quote in ('"', "'"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n[owner](https://example.invalid/x " + quote + "see " + OWNER_LINK + quote + ")\n")
+
+
 PHASES = ["resource:demo-phase-alpha-%d" % n for n in range(1, 4)]
 
 
@@ -1268,6 +1274,17 @@ def test_each_phase_position_reaches_exactly_its_own_resource_and_relation(posit
     assert sorted(item["resource_id"] for item in output["resources"] if item["kind"] == "resource.phase") == sorted(PHASES[position - 1] for position in positions)
 
 
+@parametrize("positions,ids", [([2], [None, PHASES[1], None]), ([1, 3], [PHASES[0], None, PHASES[2]])])
+def test_phase_identities_are_required_only_for_the_positions_reported(positions, ids):
+    output = project(phase_case(positions, ids=ids))
+    assert sorted(phase_relations(output)) == sorted((INVERTER, PHASES[position - 1]) for position in positions)
+
+
+def test_a_reported_phase_position_without_its_identity_fails_closed():
+    with Raises(ValueError, match="identity_missing_or_invalid"):
+        project(phase_case([2], ids=[PHASES[0], None, PHASES[2]]))
+
+
 @parametrize("document,error", [
     (phase_case([1, 2, 3], ids=None), "identity_missing_or_invalid"),
     (phase_case([1], ids=[PHASES[0], PHASES[0], PHASES[2]]), "identity_missing_or_invalid"),
@@ -1292,6 +1309,9 @@ def test_the_phase_allocation_is_the_drivers_and_the_gate_publishes_no_source_st
     assert not any("edition_binding" in profile for profile in document["native_contract"]["profiles"])
     for text in (json.dumps(document).lower(), page().lower()):
         assert "consulted" not in text and "edition" not in text and "inspection-only" not in text and "copyright" not in text
+        for word in ("pull request", "pull_request", "issue ", "\"issue\"", "synthetic", "independent check", "helianthus-docs-ebus", "helianthus-modbusreg", "registry_profiles", "program_issues", "multi_endpoint_contract", "derive from the published"):
+            assert word not in text, word
+    assert document["evidence"] == {"grades": ["proven", "hypothesis", "unknown"]}
 
 
 if __name__ == "__main__":
