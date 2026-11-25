@@ -72,10 +72,16 @@ def test_no_binary_floating_point():
     ("evidence-amendment", lambda d: set_path(d, "evidence.meter_observation_amendment.issue", 255), "evidence"),
     ("evidence-page", lambda d: d["evidence"]["monitoring_contract"]["pages"].pop(), "evidence"),
     ("class-contract-claimed", lambda d: set_path(d, "admission.meter_class_contract", True), "admission"),
-    ("exposure-not-from-the-documented-plant-group", lambda d: set_path(d, "admission.exposure.declared_from", "operator_label"), "admission"),
-    ("meter-exposure-moved", lambda d: set_path(d, "admission.exposure.routed_unit", 11), "admission"),
-    ("identity-mismatch-replaces", lambda d: set_path(d, "admission.exposure.on_mismatch", "replace_the_declared_meter"), "admission"),
-    ("identity-check-dropped", lambda d: v.mutate(d, {"path": "admission.exposure.runtime_check", "remove": True}), "admission"),
+    ("exposure-not-from-the-documented-exposures", lambda d: set_path(d, "admission.meter_exposures.declared_from", "operator_label"), "admission"),
+    ("plant-group-admitted-as-a-meter-exposure", lambda d: d["admission"]["meter_exposures"]["paths"].append({"path": "sdongle_plant_group", "routed_unit": 100, "listed_as_child": False, "grade": "proven"}), "admission"),
+    ("listed-meter-exposure-dropped", lambda d: v.mutate(d, {"path": "admission.meter_exposures.paths.0", "remove": True}), "admission"),
+    ("inverter-side-exposure-listed-as-a-child", lambda d: set_path(d, "admission.meter_exposures.paths.1.listed_as_child", True), "admission"),
+    ("inverter-side-exposure-at-the-plant-unit", lambda d: set_path(d, "admission.meter_exposures.paths.1.routed_unit", 100), "admission"),
+    ("plant-unit-moved", lambda d: set_path(d, "admission.plant_grid_exchange.routed_unit", 11), "admission"),
+    ("plant-read-establishes-a-meter", lambda d: set_path(d, "admission.plant_grid_exchange.meter_identity", "the_meter_of_the_route"), "admission"),
+    ("plant-claimed-as-the-same-meter", lambda d: set_path(d, "admission.plant_grid_exchange.same_meter_as_inverter_side", "yes"), "admission"),
+    ("identity-mismatch-replaces", lambda d: set_path(d, "admission.meter_exposures.on_mismatch", "replace_the_declared_meter"), "admission"),
+    ("identity-check-dropped", lambda d: v.mutate(d, {"path": "admission.meter_exposures.runtime_check", "remove": True}), "admission"),
     ("meter-identity-declared-from-the-listing", lambda d: set_path(d, "admission.meter_identity", {"declared_from": "documented_gateway_listing", "exposure": {"path": "sdongle_plant_group", "routed_unit": 100}}), "admission"),
     ("meter-identity-status-declared", lambda d: set_path(d, "admission.meter_identity.status", "declared_from_listing"), "admission"),
     ("meter-identity-decision-graded-hypothesis", lambda d: set_path(d, "admission.decisions.0.grade", "hypothesis"), "admission"),
@@ -217,50 +223,103 @@ def test_a_documented_plant_grid_power_publishes_the_stated_direction_in_watts(r
     fact = output["facts"][0]
     assert watts(fact) == expected and fact["value"]["unit"] == "unit.watt"
     assert fact["subject"] == {"dimension": "infrastructure.dimension.grid_connection", "resource": "resource:demo-grid-delta"}
-    assert fact["provenance"]["sign_reference"] == "positive_import" and fact["provenance"]["exposure"] == {"exposure": "sdongle_plant_group", "routed_unit": 100} and "meter" not in fact["provenance"]
+    assert fact["provenance"]["sign_reference"] == "positive_import" and fact["provenance"]["plant_route"] == {"exposure": "sdongle_plant_group", "routed_unit": 100} and "meter" not in fact["provenance"] and "exposure" not in fact["provenance"]
     held = {row["item_id"]: row for row in output["dispositions"]}
     assert held[other]["outcome"] == "withheld" and held[other]["reason"] == "infrastructure.reason.opposite_direction"
 
 
-def test_an_identity_mismatch_is_reported_and_replaces_nothing():
-    document = with_plant(1500, meter__identity_read={"exposure": "sdongle_plant_group", "routed_unit": 19})
+SMARTLOGGER, INVERTER_SIDE = "smartlogger_listed_meter", "sdongle_inverter_side"
+SMARTLOGGER_GROUP = "smartlogger_meter_electrical_group"
+
+
+def route(exposure, unit):
+    return {"exposure": exposure, "routed_unit": unit}
+
+
+def with_meter_group(native_id, unit, declared, identity_read):
+    document = case()
+    document["routed_unit"] = unit
+    document["meter"]["declared"] = declared
+    document["meter"]["identity_read"] = identity_read
+    document["reads"] = [{"native_id": native_id, "outcome": "ANSWERED"}]
+    return document
+
+
+def row_reasons(output):
+    return {row["native_id"]: row["reason"] for row in output["native_dispositions"] if "reason" in row}
+
+
+@parametrize("native_id,exposure,unit", [(SMARTLOGGER_GROUP, SMARTLOGGER, 11), (SMARTLOGGER_GROUP, SMARTLOGGER, 19), ("smartlogger_meter_energy_totals", SMARTLOGGER, 11), ("sdongle_inverter_exposed_meter_group", INVERTER_SIDE, 1)])
+def test_a_documented_meter_exposure_whose_runtime_route_agrees_is_not_an_identity_mismatch(native_id, exposure, unit):
+    output = project(with_meter_group(native_id, unit, route(exposure, unit), route(exposure, unit)))
+    assert output["facts"] == [] and row_reasons(output)[native_id] == "infrastructure.reason.answered_not_decoded"
+    assert "infrastructure.reason.identity_mismatch" not in row_reasons(output).values()
+
+
+@parametrize("declared,identity_read,unit", [
+    (route(SMARTLOGGER, 11), route(SMARTLOGGER, 19), 11),
+    (route(SMARTLOGGER, 11), route(INVERTER_SIDE, 11), 11),
+    (route(SMARTLOGGER, 11), route(SMARTLOGGER, 11), 19),
+    (route(SMARTLOGGER, 11), route(SMARTLOGGER, 11), None),
+    (route(INVERTER_SIDE, 1), route(INVERTER_SIDE, 1), 1),
+])
+def test_a_route_read_that_differs_from_its_own_exposure_is_reported_and_replaces_nothing(declared, identity_read, unit):
+    document = with_meter_group(SMARTLOGGER_GROUP, unit, declared, identity_read)
+    before = copy.deepcopy(document["meter"]["declared"])
     output = project(document)
-    assert output["facts"] == []
-    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["sdongle_plant_grid_power"] == "infrastructure.reason.identity_mismatch"
-    assert document["meter"]["declared"] == {"exposure": "sdongle_plant_group", "routed_unit": 100}
-    assert all(item["reason"] == "infrastructure.reason.identity_mismatch" for item in output["dispositions"] if item["item_id"].startswith("infrastructure.power."))
-    other_exposure = project(with_plant(1500, meter__identity_read={"exposure": "emma_gateway", "routed_unit": 100}))
-    assert other_exposure["facts"] == []
-    undeclared_path = project(with_plant(1500, meter__declared={"exposure": "emma_gateway", "routed_unit": 100}, meter__identity_read={"exposure": "emma_gateway", "routed_unit": 100}))
-    assert undeclared_path["facts"] == []
+    assert output["facts"] == [] and row_reasons(output)[SMARTLOGGER_GROUP] == "infrastructure.reason.identity_mismatch"
+    assert document["meter"]["declared"] == before
+
+
+def test_a_route_that_was_not_read_confirms_and_replaces_nothing():
+    output = project(with_meter_group(SMARTLOGGER_GROUP, 11, route(SMARTLOGGER, 11), None))
+    assert output["facts"] == [] and row_reasons(output)[SMARTLOGGER_GROUP] == "infrastructure.reason.identity_not_read"
+
+
+def test_a_group_read_with_no_configured_meter_exposure_is_checked_against_none():
+    output = project(with_meter_group(SMARTLOGGER_GROUP, 11, None, None))
+    assert row_reasons(output)[SMARTLOGGER_GROUP] == "infrastructure.reason.answered_not_decoded"
+
+
+def test_a_plant_grid_reading_publishes_without_any_meter_exposure_and_names_the_plant_route_only():
+    document = with_plant(1500)
+    assert document["meter"]["declared"] is None and document["meter"]["identity_read"] is None
+    output = project(document)
+    assert [fact["item_id"] for fact in output["facts"]] == ["infrastructure.power.import_active"]
+    assert output["facts"][0]["provenance"]["plant_route"] == {"exposure": "sdongle_plant_group", "routed_unit": 100}
+    assert v.load()["admission"]["plant_grid_exchange"]["meter_identity"] == "not_established_by_the_plant_read"
+
+
+@parametrize("declared", [route("sdongle_plant_group", 100), route("emma_gateway", 100), route("", 100), route(SMARTLOGGER, 0), route(SMARTLOGGER, 248), {"exposure": SMARTLOGGER}])
+def test_only_a_documented_meter_exposure_is_a_meter_declaration(declared):
+    document = with_plant(1500)
+    document["meter"]["declared"] = copy.deepcopy(declared)
+    document["meter"]["identity_read"] = copy.deepcopy(declared)
+    with Raises(ValueError, match="identity_missing_or_invalid"):
+        project(document)
+    document["meter"]["declared"] = None
+    with Raises(ValueError, match="identity_missing_or_invalid"):
+        project(document)
 
 
 @parametrize("unit", [None, 1, 11, 101])
-def test_a_reading_from_a_routed_unit_other_than_the_declared_one_publishes_nothing(unit):
+def test_a_plant_group_read_from_a_routed_unit_other_than_the_plant_unit_publishes_nothing(unit):
+    for declared in (None, route(SMARTLOGGER, 11)):
+        document = with_plant(1500)
+        document["routed_unit"] = unit
+        document["meter"]["declared"] = declared
+        document["meter"]["identity_read"] = copy.deepcopy(declared)
+        output = project(document)
+        assert output["facts"] == []
+        assert row_reasons(output)["sdongle_plant_grid_power"] == "infrastructure.reason.group_not_read"
+
+
+def test_a_configured_listed_meter_does_not_withhold_or_publish_the_plant_group_of_its_own_unit():
     document = with_plant(1500)
-    document["routed_unit"] = unit
+    document["meter"]["declared"] = route(SMARTLOGGER, 100)
+    document["meter"]["identity_read"] = route(SMARTLOGGER, 19)
     output = project(document)
-    assert output["facts"] == []
-    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["sdongle_plant_grid_power"] == "infrastructure.reason.identity_mismatch"
-    assert all(item["reason"] == "infrastructure.reason.identity_mismatch" for item in output["dispositions"] if item["item_id"].startswith("infrastructure.power."))
-
-
-def test_a_reading_from_the_declared_routed_unit_publishes_with_that_unit_in_its_provenance():
-    output = project(with_plant(1500))
-    assert [fact["provenance"]["exposure"]["routed_unit"] for fact in output["facts"]] == [100] and output["role"]["keyed_to"]["routed_unit"] == 100
-
-
-def test_a_plant_group_reading_attributes_no_meter_identity_to_the_route():
-    output = project(with_plant(1500))
-    fact = output["facts"][0]
-    assert fact["subject"]["resource"] == "resource:demo-grid-delta" and "meter" not in fact["provenance"]
-    assert v.load()["admission"]["meter_identity"]["status"] == "unknown"
-
-
-def test_an_identity_that_was_not_read_confirms_and_replaces_nothing():
-    output = project(with_plant(1500, meter__identity_read=None))
-    assert output["facts"] == []
-    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["sdongle_plant_grid_power"] == "infrastructure.reason.identity_not_read"
+    assert [fact["item_id"] for fact in output["facts"]] == ["infrastructure.power.import_active"]
 
 
 @parametrize("outcome", ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"])
@@ -282,10 +341,10 @@ def test_a_power_outside_the_pack_bound_is_withheld_never_clamped():
     assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["sdongle_plant_grid_power"] == "infrastructure.reason.value_outside_pack_range"
 
 
-@parametrize("meter", [None, {"declared": None, "identity_read": None, "resources": {"grid_connection": "resource:demo-grid-delta"}}, {"declared": {"exposure": "sdongle_plant_group", "routed_unit": 100}, "identity_read": None, "resources": {"grid_connection": ""}},
-                       {"declared": {"exposure": "sdongle_plant_group", "routed_unit": 100}, "identity_read": None, "resources": {"grid_connection": "source:gateway-demo-d"}},
-                       {"declared": {"exposure": "sdongle_plant_group", "routed_unit": 100}, "identity_read": {"exposure": "sdongle_plant_group"}, "resources": {"grid_connection": "resource:demo-grid-delta"}}])
-def test_the_meter_declaration_and_its_grid_resource_are_required(meter):
+@parametrize("meter", [None, {"declared": None, "identity_read": route(SMARTLOGGER, 11), "resources": {"grid_connection": "resource:demo-grid-delta"}}, {"declared": None, "identity_read": None, "resources": {"grid_connection": ""}},
+                       {"declared": None, "identity_read": None, "resources": {"grid_connection": "source:gateway-demo-d"}},
+                       {"declared": route(SMARTLOGGER, 11), "identity_read": {"exposure": SMARTLOGGER}, "resources": {"grid_connection": "resource:demo-grid-delta"}}])
+def test_the_meter_route_shape_and_its_grid_resource_are_required(meter):
     document = with_plant(1500)
     document["meter"] = meter
     with Raises(ValueError, match="identity_missing_or_invalid"):
@@ -302,9 +361,10 @@ def test_the_sign_reference_is_graded_hypothesis_and_the_meter_identity_stays_un
     admission = v.load()["admission"]
     decisions = {item["precondition"]: item for item in admission["decisions"]}
     assert decisions["sign_reference"]["grade"] == "hypothesis"
-    assert decisions["meter_identity"]["grade"] == "unknown" and decisions["exposure_path"]["grade"] == "proven"
+    assert decisions["meter_identity"]["grade"] == "unknown" and decisions["exposure_path"]["grade"] == "proven" and decisions["plant_grid_exchange"]["grade"] == "proven"
     assert admission["meter_identity"]["status"] == "unknown" and admission["meter_identity"]["published_as"] == "no_meter_attribution"
-    assert admission["exposure"]["declared_from"] == "documented_plant_group" and admission["exposure"]["on_mismatch"] == "reported_never_guessed_and_never_a_replacement"
+    assert admission["meter_exposures"]["declared_from"] == "documented_meter_exposures" and admission["meter_exposures"]["on_mismatch"] == "reported_never_guessed_and_never_a_replacement"
+    assert [item["path"] for item in admission["meter_exposures"]["paths"]] == [SMARTLOGGER, INVERTER_SIDE] and admission["plant_grid_exchange"]["path"] not in {item["path"] for item in admission["meter_exposures"]["paths"]}
     assert admission["selection"]["refused"] == ["PROFILE_SELECTED"]
 
 
@@ -535,7 +595,7 @@ def test_scenario_expectations_are_executed_not_trusted():
 
 
 def test_scenario_coverage_is_enforced():
-    for dropped, message in ((("MTR-POS-008-groups-answer-nothing-decoded",), "cover every reason"), (("MTR-POS-009-meter-read-exception",), "cover every reason"), (("MTR-POS-004-identity-mismatch",), "cover every reason"), (("MTR-POS-005-identity-not-read",), "cover every reason"), (("MTR-POS-011-grid-power-outside-range",), "cover every reason"), (("MTR-NEG-009-role-derived-from-sign", "MTR-NEG-010-role-outside-set"), "cover every error")):
+    for dropped, message in ((("MTR-POS-008-groups-answer-nothing-decoded", "MTR-POS-012-listed-meter-route-agrees", "MTR-POS-013-inverter-side-route-agrees"), "cover every reason"), (("MTR-POS-009-meter-read-exception",), "cover every reason"), (("MTR-POS-004-identity-mismatch",), "cover every reason"), (("MTR-POS-005-identity-not-read",), "cover every reason"), (("MTR-POS-011-grid-power-outside-range",), "cover every reason"), (("MTR-NEG-009-role-derived-from-sign", "MTR-NEG-010-role-outside-set"), "cover every error")):
         document = contract()
         document["scenarios"] = [s for s in document["scenarios"] if s["id"] not in dropped]
         with Raises(ValueError, match=message):
@@ -888,6 +948,17 @@ def test_publication_rejects_standalone_line_anchor_and_endpoint(suffix):
 def test_publication_rejects_digest_shaped_fragment_on_an_approved_owner_link():
     with Raises(ValueError, match="publication"):
         v.check_document(v.load(), page() + "\n[owner](" + OWNER_BASE + "api/v1/graph.md#" + "a" * 40 + ")\n")
+
+
+@parametrize("destination", [
+    "https://example.invalid/page?u=" + OWNER_BASE + "api/v1/graph.md",
+    "https://example.invalid/" + OWNER_BASE + "api/v1/graph.md",
+    "https://example.invalid/@" + OWNER_BASE + "api/v1/graph.md",
+    "https://example.invalid/page#" + OWNER_BASE + "api/v1/graph.md",
+])
+def test_owner_link_exception_applies_only_to_the_actual_destination(destination):
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n[owner](" + destination + ")\n")
 
 
 if __name__ == "__main__":

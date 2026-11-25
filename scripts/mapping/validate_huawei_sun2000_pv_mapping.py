@@ -34,7 +34,7 @@ COEFFICIENT_RE = re.compile(r"^(0|-?[1-9][0-9]*)$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
 # Approved immutable owner links: the pinned docs-semantic revision, owning path, optional non-line anchor.
 OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
-OWNER_LINK_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
+OWNER_LINK_RE = re.compile(r"(?<![^\s(<])https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
 # A line anchor and a private or IPv4 endpoint are never published, whether or not an owner link surrounds them.
 LINE_ANCHOR_RE = re.compile(r"#L[0-9]")
 ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")
@@ -69,13 +69,16 @@ FORBIDDEN_DERIVATIONS = ["serial_number", "esn", "vendor", "model", "firmware_or
 # Section 6.3: a pack class token and a profile identifier are interpretation selectors, so neither derives the home asset.
 ASSET_FORBIDDEN = FORBIDDEN_DERIVATIONS + ["class_token", "profile_id"]
 ALLOCATED = "gateway_allocated_resource_id"
+# A phase is a component of the inverter: the driver allocates its ResourceID at the native phase position, one to three.
+DRIVER_ALLOCATED = "driver_allocated_at_native_position"
+PHASE_GROUP = (32064, 32)
 # One gateway-allocated ResourceID per resource role (section 6.3); a role's kind is its dimension's kind in the element catalog.
 RESOURCE_ROLES = {
     "logger": {"kind": "resource.equipment", "source": ALLOCATED, "required": True},
     "system": {"dimension": "pv.dimension.system", "source": ALLOCATED, "required": True},
     "inverter": {"dimension": "pv.dimension.inverter", "source": ALLOCATED, "required": True},
     "inputs": {"dimension": "pv.dimension.input", "source": ALLOCATED, "required": True, "slots": 8},
-    "phases": {"dimension": "pv.dimension.phase", "source": "not_allocated_no_profile_admits_a_per_phase_word", "required": False},
+    "phases": {"dimension": "pv.dimension.phase", "source": DRIVER_ALLOCATED, "required": False, "slots": 3},
     "strings": {"dimension": "pv.dimension.string", "source": "not_allocated_until_a_string_scoped_catalog_row_publishes_a_string_fact", "required": False, "slots": 8},
 }
 IDENTITY_CONTRACT = {
@@ -90,7 +93,7 @@ IDENTITY_CONTRACT = {
 STATED_RELATIONS = [
     ("relation.relays", "native_observation", "each_admitted_child_is_read_through_the_gateway_path_its_profile_names"),
     ("pv.relation.system_inverter", "gate_rule", "one_pv_system_per_admitted_inverter_child"),
-    ("pv.relation.inverter_input", "gate_rule", "an_input_a_native_word_names_none_in_this_edition"),
+    ("pv.relation.inverter_input", "gate_rule", "no_native_word_names_an_input"),
     ("pv.relation.inverter_phase", "gate_rule", "phase_values_are_dimensions_of_the_inverter"),
 ]
 # Section 6.4: an inverter relayed by its gateway path and also seen directly.
@@ -111,7 +114,6 @@ MANAGED_SOURCE_RE = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 )
 
-EDITION = {"title": "SUN2000MC V200R023C00 Modbus Interface Definitions", "issue": "Issue 01", "date": "2023-03-17", "use": "identity_only_inspection_only_never_quoted"}
 REGISTRY_FLAGS = {"catalog_registered": False, "automatic_runtime_admission": False, "live_qualified": False, "support_claim": False}
 QUALIFICATION = {**REGISTRY_FLAGS, "mapping_qualified": True, "outbound_allowed": False}
 
@@ -535,9 +537,7 @@ def check_contract_header(document):
 def check_native_contract(native):
     if native.get("function") != "FC03" or native.get("read_only") is not True or native.get("outbound_allowed") is not False or native.get("word_order") != "big_endian_most_significant_word_first" or native.get("value") != "twos_complement_integer_over_gain" or native.get("registry_flags") != REGISTRY_FLAGS or native.get("selection_outcomes") != ["PROFILE_SELECTED", "INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"]:
         fail("native contract")
-    if native.get("edition") != EDITION:
-        fail("edition")
-    if native.get("unmapped_families") != [{"family": "SUN2000 MAP0 series", "gateway_path": "EMMA", "outcome": "NO_ADMISSIBLE_PROFILE", "reason": "no_consulted_edition", "fields": []}]:
+    if native.get("unmapped_families") != [{"family": "SUN2000 MAP0 series", "gateway_path": "EMMA", "outcome": "NO_ADMISSIBLE_PROFILE", "reason": "no_documented_profile", "fields": []}]:
         fail("unmapped family")
 
 
@@ -684,6 +684,7 @@ def validate_case(case, contract):
     check_case_lifecycle(life, errors)
     if not qualification_recorded(case.get("qualification")):
         errors.add("mapping_unqualified")
+    check_case_phases(case, resources, groups, errors)
     if case.get("request_operation") or case.get("derive_energy"):
         errors.add("unsupported_or_withheld")
     for code in ERROR_PRECEDENCE:
@@ -741,6 +742,18 @@ def check_case_lineage(facts, wanted, rules, errors):
                 errors.add("native_evidence_invalid")
 
 
+def check_case_phases(case, resources, groups, errors):
+    """A phase is published only for a native position read in an answered power group, and only with a driver-allocated ResourceID for it."""
+    if "phases" not in case:
+        return
+    positions = case["phases"]
+    slots = RESOURCE_ROLES["phases"]["slots"]
+    if not isinstance(positions, list) or not positions or any(type(item) is not int or not 1 <= item <= slots for item in positions) or len(set(positions)) != len(positions) or groups.get(PHASE_GROUP) != "ANSWERED":
+        errors.add("native_evidence_invalid")
+    elif resources is None or "phases" not in resources:
+        errors.add("identity_missing_or_invalid")
+
+
 def check_case_origins(case, values, errors):
     for fact in case.get("facts") or []:
         origin = fact.get("retained") and fact.get("origin") if isinstance(fact, dict) else None
@@ -773,9 +786,12 @@ def case_resources(identity, unit, lineage):
     """Section 6.3: one valid, distinct ResourceID per allocated role and none for a role that is not allocated."""
     resources = identity.get("resources") if isinstance(identity, dict) else None
     allocated = [role for role, spec in RESOURCE_ROLES.items() if spec["source"] == ALLOCATED]
-    if not isinstance(resources, dict) or set(resources) != set(allocated) or not isinstance(resources["inputs"], list) or len(resources["inputs"]) != RESOURCE_ROLES["inputs"]["slots"]:
+    if not isinstance(resources, dict) or set(resources) - {"phases"} != set(allocated) or not isinstance(resources["inputs"], list) or len(resources["inputs"]) != RESOURCE_ROLES["inputs"]["slots"]:
         return None
-    values = [resources[role] for role in allocated if role != "inputs"] + resources["inputs"]
+    phases = resources.get("phases")
+    if "phases" in resources and (not isinstance(phases, list) or len(phases) != RESOURCE_ROLES["phases"]["slots"]):
+        return None
+    values = [resources[role] for role in allocated if role != "inputs"] + resources["inputs"] + (phases or [])
     if not all(valid_identity(item, unit) for item in values) or len(set(values)) != len(values) or set(values) & {item for item in lineage if isinstance(item, str)}:
         return None
     return resources
@@ -866,7 +882,7 @@ def project(case, contract):
                 hold(native_rows, item_reasons, rule, index, reason)
                 continue
             project_fact(rule, nid, n, index, fact, value, resources, roles, key_of, life, binding, source_id, published, sources, native_rows)
-    relations, records = graph_records(published, resources, contract)
+    relations, records = graph_records(published, resources, contract, case.get("phases", []))
     published.sort(key=lambda item: (item["key"]["fact_id"], item["key"]["dimensions"][0]["value"]["text"]))
     dispositions = project_dispositions(contract, sources, item_reasons)
     output = {"facts": published, "resources": records, "relations": relations, "requested": copy.deepcopy(contract["projection"]["requested_items"]), "dispositions": dispositions, "native_dispositions": native_rows, "operations": []}
@@ -931,22 +947,24 @@ def project_dispositions(contract, sources, item_reasons):
     return dispositions
 
 
-def graph_records(published, resources, contract):
+def graph_records(published, resources, contract, phase_positions=()):
     """REL-8 and RES-5: relation endpoints and fact subjects are the ResourceIDs of published resources, never dimension text."""
     basis = {relation["definition"]: relation["basis_class"] for relation in contract["graph"]["relations"]}
     subjects = {item["key"]["dimensions"][0]["value"]["text"] for item in published}
     inverter, system = resources["inverter"], resources["system"]
     pairs = [("pv.relation.system_inverter", system, inverter)] if subjects & {inverter, system} else []
     pairs += [("pv.relation.inverter_input", inverter, item) for item in resources["inputs"] if item in subjects]
+    phases = [resources["phases"][position - 1] for position in sorted(phase_positions)]
+    pairs += [("pv.relation.inverter_phase", inverter, item) for item in phases]
     if inverter in subjects or pairs:
         pairs.append(("relation.relays", resources["logger"], inverter))
     relations = [{"definition": name, "from": start, "to": end, "basis_class": basis[name]} for name, start, end in sorted(pairs)]
     kinds = element_catalog().role_kinds()
-    kind_of = {resources[role]: kinds[role] for role in ("logger", "system", "inverter")} | {item: kinds["inputs"] for item in resources["inputs"]}
+    kind_of = {resources[role]: kinds[role] for role in ("logger", "system", "inverter")} | {item: kinds["inputs"] for item in resources["inputs"]} | {item: kinds["phases"] for item in phases}
     named = subjects | {end for pair in pairs for end in pair[1:]}
     records = []
     for item in sorted(named):
-        records.append({"resource_id": item, "kind": kind_of[item], "parent": inverter} if kind_of[item] == kinds["inputs"] else {"resource_id": item, "kind": kind_of[item]})
+        records.append({"resource_id": item, "kind": kind_of[item], "parent": inverter} if kind_of[item] in (kinds["inputs"], kinds["phases"]) else {"resource_id": item, "kind": kind_of[item]})
     return relations, records
 
 

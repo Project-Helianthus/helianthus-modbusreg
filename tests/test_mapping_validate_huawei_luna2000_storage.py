@@ -1052,5 +1052,16 @@ def test_publication_rejects_digest_shaped_fragment_on_an_approved_owner_link():
         v.check_document(v.load(), page() + "\n[owner](" + OWNER_BASE + "api/v1/graph.md#" + "a" * 40 + ")\n")
 
 
+@parametrize("destination", [
+    "https://example.invalid/page?u=" + OWNER_BASE + "api/v1/graph.md",
+    "https://example.invalid/" + OWNER_BASE + "api/v1/graph.md",
+    "https://example.invalid/@" + OWNER_BASE + "api/v1/graph.md",
+    "https://example.invalid/page#" + OWNER_BASE + "api/v1/graph.md",
+])
+def test_owner_link_exception_applies_only_to_the_actual_destination(destination):
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n[owner](" + destination + ")\n")
+
+
 if __name__ == "__main__":
     raise SystemExit(support.run(globals()))

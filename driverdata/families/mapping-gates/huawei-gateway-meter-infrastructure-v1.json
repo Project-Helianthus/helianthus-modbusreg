@@ -56,8 +56,8 @@
       "reason": "the_documented_listing_establishes_no_meter_at_the_route",
       "published_as": "no_meter_attribution"
     },
-    "exposure": {
-      "declared_from": "documented_plant_group",
+    "meter_exposures": {
+      "declared_from": "documented_meter_exposures",
       "source": {
         "repository": "helianthus-docs-modbus",
         "pages": [
@@ -65,10 +65,28 @@
           "protocols/huawei/monitoring-readonly-v1.md"
         ]
       },
+      "paths": [
+        {
+          "path": "smartlogger_listed_meter",
+          "routed_unit": "listed_meter_unit",
+          "listed_as_child": true,
+          "grade": "proven"
+        },
+        {
+          "path": "sdongle_inverter_side",
+          "routed_unit": "inverter_child_unit",
+          "listed_as_child": false,
+          "grade": "proven"
+        }
+      ],
+      "runtime_check": "the_route_read_equals_the_declaration_of_its_own_exposure",
+      "on_mismatch": "reported_never_guessed_and_never_a_replacement"
+    },
+    "plant_grid_exchange": {
       "path": "sdongle_plant_group",
       "routed_unit": 100,
-      "runtime_check": "the_route_read_equals_the_declaration",
-      "on_mismatch": "reported_never_guessed_and_never_a_replacement"
+      "meter_identity": "not_established_by_the_plant_read",
+      "same_meter_as_inverter_side": "unknown"
     },
     "selection": {
       "admitting": "DECLARED_FROM_LISTING",
@@ -96,7 +114,7 @@
       },
       {
         "precondition": "exposure_path",
-        "decision": "the_documented_plant_group_of_the_gateway_at_its_routed_unit",
+        "decision": "the_documented_meter_exposures_each_checked_at_its_own_routed_unit",
         "grade": "proven"
       },
       {
@@ -117,6 +135,11 @@
       {
         "precondition": "executable_vectors",
         "decision": "the_scenarios_of_this_gate",
+        "grade": "proven"
+      },
+      {
+        "precondition": "plant_grid_exchange",
+        "decision": "the_documented_plant_group_at_its_unit_is_distinct_from_any_meter_exposure",
         "grade": "proven"
       }
     ]
@@ -363,7 +386,7 @@
     },
     "infrastructure.reason.group_not_read": {
       "loss_kind": "provenance",
-      "description": "the plant group was not read or the read failed, so its value is Unknown, never zero",
+      "description": "the plant group was not read at its own routed unit or the read failed, so its value is Unknown, never zero",
       "reversible": true
     }
   },
@@ -888,14 +911,8 @@
         "outbound_allowed": false
       },
       "meter": {
-        "declared": {
-          "exposure": "sdongle_plant_group",
-          "routed_unit": 100
-        },
-        "identity_read": {
-          "exposure": "sdongle_plant_group",
-          "routed_unit": 100
-        },
+        "declared": null,
+        "identity_read": null,
         "resources": {
           "grid_connection": "resource:demo-grid-delta"
         }
@@ -1061,7 +1078,7 @@
                   "source_items": [
                     "native.huawei.gateway_meter.meter"
                   ],
-                  "description": "the plant group was not read or the read failed, so its value is Unknown, never zero",
+                  "description": "the plant group was not read at its own routed unit or the read failed, so its value is Unknown, never zero",
                   "reversible": true
                 }
               ]
@@ -1078,7 +1095,7 @@
                   "source_items": [
                     "native.huawei.gateway_meter.meter"
                   ],
-                  "description": "the plant group was not read or the read failed, so its value is Unknown, never zero",
+                  "description": "the plant group was not read at its own routed unit or the read failed, so its value is Unknown, never zero",
                   "reversible": true
                 }
               ]
@@ -1490,12 +1507,23 @@
       "id": "MTR-POS-004-identity-mismatch",
       "polarity": "positive",
       "baseline": "default",
-      "note": "an identity read that differs from the declaration is reported and publishes nothing, and the read meter replaces nothing",
+      "note": "a configured SmartLogger meter whose route read at runtime names another routed unit is reported as a mismatch and replaces nothing",
       "mutations": [
+        {
+          "path": "routed_unit",
+          "value": 11
+        },
+        {
+          "path": "meter.declared",
+          "value": {
+            "exposure": "smartlogger_listed_meter",
+            "routed_unit": 11
+          }
+        },
         {
           "path": "meter.identity_read",
           "value": {
-            "exposure": "sdongle_plant_group",
+            "exposure": "smartlogger_listed_meter",
             "routed_unit": 19
           }
         },
@@ -1503,18 +1531,8 @@
           "path": "reads",
           "value": [
             {
-              "native_id": "sdongle_plant_grid_power",
-              "outcome": "ANSWERED",
-              "words": [
-                0,
-                0,
-                0,
-                0,
-                0,
-                1500,
-                0,
-                0
-              ]
+              "native_id": "smartlogger_meter_electrical_group",
+              "outcome": "ANSWERED"
             }
           ]
         }
@@ -1581,18 +1599,18 @@
               "item_id": "infrastructure.power.export_active",
               "outcome": "withheld",
               "published": 0,
-              "reason": "infrastructure.reason.identity_mismatch",
+              "reason": "infrastructure.reason.group_not_read",
               "loss": [
-                "identity"
+                "provenance"
               ]
             },
             {
               "item_id": "infrastructure.power.import_active",
               "outcome": "withheld",
               "published": 0,
-              "reason": "infrastructure.reason.identity_mismatch",
+              "reason": "infrastructure.reason.group_not_read",
               "loss": [
-                "identity"
+                "provenance"
               ]
             }
           ],
@@ -1600,7 +1618,7 @@
             {
               "native_id": "smartlogger_meter_electrical_group",
               "outcome": "withheld",
-              "reason": "infrastructure.reason.no_meter_class_contract"
+              "reason": "infrastructure.reason.identity_mismatch"
             },
             {
               "native_id": "smartlogger_meter_energy_totals",
@@ -1625,7 +1643,7 @@
             {
               "native_id": "sdongle_plant_grid_power",
               "outcome": "withheld",
-              "reason": "infrastructure.reason.identity_mismatch"
+              "reason": "infrastructure.reason.group_not_read"
             },
             {
               "native_id": "sun2000_inverter_exposed_meter_group_refused",
@@ -1642,7 +1660,7 @@
             "declared": "grid_connection",
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 100
+              "routed_unit": 11
             },
             "dimension_if_admitted": {
               "power": "infrastructure.dimension.grid_connection",
@@ -1658,8 +1676,19 @@
       "id": "MTR-POS-005-identity-not-read",
       "polarity": "positive",
       "baseline": "default",
-      "note": "an identity that was not read neither confirms nor replaces the declaration",
+      "note": "a configured meter exposure whose route was not read at runtime is neither confirmed nor replaced",
       "mutations": [
+        {
+          "path": "routed_unit",
+          "value": 11
+        },
+        {
+          "path": "meter.declared",
+          "value": {
+            "exposure": "smartlogger_listed_meter",
+            "routed_unit": 11
+          }
+        },
         {
           "path": "meter.identity_read",
           "value": null
@@ -1668,18 +1697,8 @@
           "path": "reads",
           "value": [
             {
-              "native_id": "sdongle_plant_grid_power",
-              "outcome": "ANSWERED",
-              "words": [
-                0,
-                0,
-                0,
-                0,
-                0,
-                1500,
-                0,
-                0
-              ]
+              "native_id": "smartlogger_meter_electrical_group",
+              "outcome": "ANSWERED"
             }
           ]
         }
@@ -1746,18 +1765,18 @@
               "item_id": "infrastructure.power.export_active",
               "outcome": "withheld",
               "published": 0,
-              "reason": "infrastructure.reason.identity_not_read",
+              "reason": "infrastructure.reason.group_not_read",
               "loss": [
-                "identity"
+                "provenance"
               ]
             },
             {
               "item_id": "infrastructure.power.import_active",
               "outcome": "withheld",
               "published": 0,
-              "reason": "infrastructure.reason.identity_not_read",
+              "reason": "infrastructure.reason.group_not_read",
               "loss": [
-                "identity"
+                "provenance"
               ]
             }
           ],
@@ -1765,7 +1784,7 @@
             {
               "native_id": "smartlogger_meter_electrical_group",
               "outcome": "withheld",
-              "reason": "infrastructure.reason.no_meter_class_contract"
+              "reason": "infrastructure.reason.identity_not_read"
             },
             {
               "native_id": "smartlogger_meter_energy_totals",
@@ -1790,7 +1809,7 @@
             {
               "native_id": "sdongle_plant_grid_power",
               "outcome": "withheld",
-              "reason": "infrastructure.reason.identity_not_read"
+              "reason": "infrastructure.reason.group_not_read"
             },
             {
               "native_id": "sun2000_inverter_exposed_meter_group_refused",
@@ -1807,7 +1826,7 @@
             "declared": "grid_connection",
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 100
+              "routed_unit": 11
             },
             "dimension_if_admitted": {
               "power": "infrastructure.dimension.grid_connection",
@@ -2794,6 +2813,548 @@
       }
     },
     {
+      "id": "MTR-POS-012-listed-meter-route-agrees",
+      "polarity": "positive",
+      "baseline": "default",
+      "note": "a configured SmartLogger meter whose runtime route agrees with its listed routed unit is not an identity mismatch; the answered group decodes nothing",
+      "mutations": [
+        {
+          "path": "routed_unit",
+          "value": 11
+        },
+        {
+          "path": "meter.declared",
+          "value": {
+            "exposure": "smartlogger_listed_meter",
+            "routed_unit": 11
+          }
+        },
+        {
+          "path": "meter.identity_read",
+          "value": {
+            "exposure": "smartlogger_listed_meter",
+            "routed_unit": 11
+          }
+        },
+        {
+          "path": "reads",
+          "value": [
+            {
+              "native_id": "smartlogger_meter_electrical_group",
+              "outcome": "ANSWERED"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "summary": {
+          "facts": [],
+          "dispositions": [
+            {
+              "item_id": "infrastructure.ac.active_power",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.ac.current",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.ac.power_factor",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.ac.voltage",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.energy.export",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.energy.import",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.power.export_active",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "infrastructure.power.import_active",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            }
+          ],
+          "native_dispositions": [
+            {
+              "native_id": "smartlogger_meter_electrical_group",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.answered_not_decoded"
+            },
+            {
+              "native_id": "smartlogger_meter_energy_totals",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "emma_built_in_sensor_group",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "emma_external_sensor_group",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "sdongle_inverter_exposed_meter_group",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "sdongle_plant_grid_power",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.group_not_read"
+            },
+            {
+              "native_id": "sun2000_inverter_exposed_meter_group_refused",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.refused_on_family"
+            },
+            {
+              "native_id": "profile_meter_groups",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.profile_withholds_meter"
+            }
+          ],
+          "role": {
+            "declared": "grid_connection",
+            "keyed_to": {
+              "source_id": "source:gateway-demo-d",
+              "routed_unit": 11
+            },
+            "dimension_if_admitted": {
+              "power": "infrastructure.dimension.grid_connection",
+              "energy": "infrastructure.dimension.meter",
+              "relation": "infrastructure.relation.grid_connection_meter"
+            }
+          },
+          "operations": []
+        }
+      }
+    },
+    {
+      "id": "MTR-POS-013-inverter-side-route-agrees",
+      "polarity": "positive",
+      "baseline": "default",
+      "note": "the S-Dongle inverter-side exposure is checked at the inverter child's own routed unit and is not a plant route",
+      "mutations": [
+        {
+          "path": "routed_unit",
+          "value": 1
+        },
+        {
+          "path": "meter.declared",
+          "value": {
+            "exposure": "sdongle_inverter_side",
+            "routed_unit": 1
+          }
+        },
+        {
+          "path": "meter.identity_read",
+          "value": {
+            "exposure": "sdongle_inverter_side",
+            "routed_unit": 1
+          }
+        },
+        {
+          "path": "reads",
+          "value": [
+            {
+              "native_id": "sdongle_inverter_exposed_meter_group",
+              "outcome": "ANSWERED"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "summary": {
+          "facts": [],
+          "dispositions": [
+            {
+              "item_id": "infrastructure.ac.active_power",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.ac.current",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.ac.power_factor",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.ac.voltage",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.energy.export",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.energy.import",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.power.export_active",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "infrastructure.power.import_active",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            }
+          ],
+          "native_dispositions": [
+            {
+              "native_id": "smartlogger_meter_electrical_group",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "smartlogger_meter_energy_totals",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "emma_built_in_sensor_group",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "emma_external_sensor_group",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "sdongle_inverter_exposed_meter_group",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.answered_not_decoded"
+            },
+            {
+              "native_id": "sdongle_plant_grid_power",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.group_not_read"
+            },
+            {
+              "native_id": "sun2000_inverter_exposed_meter_group_refused",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.refused_on_family"
+            },
+            {
+              "native_id": "profile_meter_groups",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.profile_withholds_meter"
+            }
+          ],
+          "role": {
+            "declared": "grid_connection",
+            "keyed_to": {
+              "source_id": "source:gateway-demo-d",
+              "routed_unit": 1
+            },
+            "dimension_if_admitted": {
+              "power": "infrastructure.dimension.grid_connection",
+              "energy": "infrastructure.dimension.meter",
+              "relation": "infrastructure.relation.grid_connection_meter"
+            }
+          },
+          "operations": []
+        }
+      }
+    },
+    {
+      "id": "MTR-POS-014-plant-read-beside-a-listed-meter",
+      "polarity": "positive",
+      "baseline": "default",
+      "note": "a plant group read from the wrong routed unit is not read at its route, whatever meter exposure is configured; the meter route agreement does not publish a grid fact",
+      "mutations": [
+        {
+          "path": "routed_unit",
+          "value": 11
+        },
+        {
+          "path": "meter.declared",
+          "value": {
+            "exposure": "smartlogger_listed_meter",
+            "routed_unit": 11
+          }
+        },
+        {
+          "path": "meter.identity_read",
+          "value": {
+            "exposure": "smartlogger_listed_meter",
+            "routed_unit": 11
+          }
+        },
+        {
+          "path": "reads",
+          "value": [
+            {
+              "native_id": "sdongle_plant_grid_power",
+              "outcome": "ANSWERED",
+              "words": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                1500,
+                0,
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "summary": {
+          "facts": [],
+          "dispositions": [
+            {
+              "item_id": "infrastructure.ac.active_power",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.ac.current",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.ac.power_factor",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.ac.voltage",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.energy.export",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.energy.import",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.no_meter_class_contract",
+              "loss": [
+                "policy"
+              ]
+            },
+            {
+              "item_id": "infrastructure.power.export_active",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            },
+            {
+              "item_id": "infrastructure.power.import_active",
+              "outcome": "withheld",
+              "published": 0,
+              "reason": "infrastructure.reason.group_not_read",
+              "loss": [
+                "provenance"
+              ]
+            }
+          ],
+          "native_dispositions": [
+            {
+              "native_id": "smartlogger_meter_electrical_group",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "smartlogger_meter_energy_totals",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "emma_built_in_sensor_group",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "emma_external_sensor_group",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "sdongle_inverter_exposed_meter_group",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.no_meter_class_contract"
+            },
+            {
+              "native_id": "sdongle_plant_grid_power",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.group_not_read"
+            },
+            {
+              "native_id": "sun2000_inverter_exposed_meter_group_refused",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.refused_on_family"
+            },
+            {
+              "native_id": "profile_meter_groups",
+              "outcome": "withheld",
+              "reason": "infrastructure.reason.profile_withholds_meter"
+            }
+          ],
+          "role": {
+            "declared": "grid_connection",
+            "keyed_to": {
+              "source_id": "source:gateway-demo-d",
+              "routed_unit": 11
+            },
+            "dimension_if_admitted": {
+              "power": "infrastructure.dimension.grid_connection",
+              "energy": "infrastructure.dimension.meter",
+              "relation": "infrastructure.relation.grid_connection_meter"
+            }
+          },
+          "operations": []
+        }
+      }
+    },
+    {
+      "id": "MTR-NEG-017-plant-group-declared-as-meter-exposure",
+      "polarity": "negative",
+      "baseline": "default",
+      "note": "the plant group at its unit is a grid exchange and not a documented meter exposure",
+      "mutations": [
+        {
+          "path": "meter.declared",
+          "value": {
+            "exposure": "sdongle_plant_group",
+            "routed_unit": 100
+          }
+        },
+        {
+          "path": "meter.identity_read",
+          "value": {
+            "exposure": "sdongle_plant_group",
+            "routed_unit": 100
+          }
+        }
+      ],
+      "expect": {
+        "error": "identity_missing_or_invalid"
+      }
+    },
+    {
       "id": "MTR-NEG-001-meter-selected",
       "polarity": "negative",
       "baseline": "default",
@@ -2894,12 +3455,15 @@
       "mutations": [
         {
           "path": "meter.declared",
-          "value": null
+          "value": {
+            "exposure": "smartlogger_listed_meter"
+          }
         }
       ],
       "expect": {
         "error": "identity_missing_or_invalid"
-      }
+      },
+      "note": "a configured meter exposure without its routed unit is not a declaration and fails closed"
     },
     {
       "id": "MTR-NEG-007-grid-resource-missing",

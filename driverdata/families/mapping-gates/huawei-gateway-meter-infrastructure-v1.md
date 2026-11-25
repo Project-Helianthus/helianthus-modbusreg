@@ -34,32 +34,46 @@ goes beyond the contract is a Hypothesis.
 
 ## Admission state
 
-The exposure path is declared from the documented plant group of the gateway
-at routed unit 100 in `helianthus-docs-modbus`
-(`protocols/huawei/gateway-power-meter-v1.md` and the monitoring contract)
-(Proven as an observation, with a Hypothesis value form). The listing
-establishes no meter at that route, so the meter identity is Unknown: a
-published fact names the grid connection resource and carries the exposure in
-its provenance, and no meter. The registry outcome
-`DECLARED_FROM_LISTING` applies the mapping; `INSUFFICIENT_EVIDENCE`,
+The documented meter exposures are declared in `helianthus-docs-modbus`
+(`protocols/huawei/gateway-power-meter-v1.md` and the monitoring contract). They
+are distinct, and an exposure observed on one path is no claim about another:
+
+- a SmartLogger meter is listed as a child and answers at its own routed unit
+  (`smartlogger_listed_meter`, Proven as an observation);
+- an S-Dongle meter is not listed as a child and answers inverter-side at the
+  inverter child's routed unit (`sdongle_inverter_side`, Proven as an
+  observation).
+
+The plant grid exchange is a separate statement. The S-Dongle plant group at
+routed unit 100 states the grid power of the plant (Proven as an observation,
+with a Hypothesis value form). It establishes no meter exposure and no meter
+identity, and whether it comes from the same meter as the inverter-side
+exposure is Unknown. A published plant fact names the grid connection resource
+and carries the plant route in its provenance, and no meter. The registry
+outcome `DECLARED_FROM_LISTING` applies the mapping; `INSUFFICIENT_EVIDENCE`,
 `NO_ADMISSIBLE_PROFILE` and `AMBIGUOUS` are unresolved inputs and withhold every
 mapped item, never zero. A meter selected by a registry profile, or a meter
 asset identifier, fails closed with `gate_revision_required`: no meter class
-contract exists.
+contract exists. The listing establishes no meter at a plant route, so the meter
+identity is Unknown.
 
-The route read at runtime is still checked. It must equal the exposure
-declaration, and the reading must come from the routed unit that declaration
-names. A read that differs, or a reading from another routed unit, is
-reported with `infrastructure.reason.identity_mismatch`: nothing is guessed, the declared meter
-is not replaced by the meter that was read, and no fact is published. An
-identity that was not read is `infrastructure.reason.identity_not_read`. All
-registry flags stay false, and `outbound_allowed=false` grants no operation.
+A configured meter exposure names one of the two documented exposures and the
+routed unit of its own route. The route read at runtime is still checked against
+that declaration, and the reading must come from the routed unit the declaration
+names. A read that differs, a group of another exposure, or a reading from
+another routed unit is reported with `infrastructure.reason.identity_mismatch`:
+nothing is guessed and the declared meter is not replaced by the meter that was
+read. A route that was not read is `infrastructure.reason.identity_not_read`.
+The plant group is read only from its own routed unit; from another unit it is
+`infrastructure.reason.group_not_read`, and no configured meter exposure
+publishes or withholds a plant fact. All registry flags stay false, and
+`outbound_allowed=false` grants no operation.
 
 Each remaining precondition is decided from the documents, with its grade:
 
 1. the meter identity is Unknown: the documented listing establishes no meter
    at the route (Unknown);
-2. the exposure path is the documented plant group at its routed unit (Proven);
+2. the meter exposures are the SmartLogger listed meter and the S-Dongle inverter-side route, each checked at its own routed unit (Proven); the plant group at its unit is a grid exchange distinct from both (Proven);
 3. type, word order, gain and unit of the consumed word are stated (Hypothesis);
 4. the sign reference is graded per source and never mixed: the plant group
    states positive import (Hypothesis);
@@ -308,7 +322,7 @@ Rules for the intake, each a Hypothesis of this gate unless stated:
 
 A case carries the observation identifier and revision, the receipt on a wall and
 a monotonic axis, the clock epoch, the source epoch, the driver generation, the
-connection generation, the registry outcome, the role and any reads. The meter declaration and its identity read are part of the case. The first
+connection generation, the registry outcome, the role and any reads. The configured meter exposure, if any, and its route read are part of the case. The first
 error of this order is reported: gate revision required, native evidence invalid,
 identity missing or invalid, role invalid, lifecycle missing, mapping
 unqualified, unsupported or withheld. Withdrawal is explicit and
@@ -318,23 +332,27 @@ generation-fenced.
 
 | Vector | What it proves |
 | --- | --- |
-| `MTR-POS-001-declared-meter-no-read` | The declared meter and role with no plant group read: the active item is withheld as not read, nothing is zero. |
+| `MTR-POS-001-declared-meter-no-read` | The role with no plant group read: the active item is withheld as not read, nothing is zero. |
 | `MTR-POS-002-plant-grid-import` | A documented plant grid power of 1.5 kW, positive import, publishes import 1500 W for the declared grid connection; the export item is Unknown. |
 | `MTR-POS-003-plant-grid-export` | A plant grid power of -2 kW publishes export 2000 W and leaves the import item Unknown. |
-| `MTR-POS-004-identity-mismatch` | An identity read that differs from the declaration is reported and publishes nothing, and the read meter replaces nothing. |
-| `MTR-POS-005-identity-not-read` | An identity that was not read neither confirms nor replaces the declaration. |
+| `MTR-POS-004-identity-mismatch` | A configured SmartLogger meter whose route read at runtime names another routed unit is reported as a mismatch and replaces nothing. |
+| `MTR-POS-005-identity-not-read` | A configured meter exposure whose route was not read at runtime is neither confirmed nor replaced. |
 | `MTR-POS-006-role-undeclared` | A meter without a declared role has role Unknown and no role-dependent fact. |
 | `MTR-POS-007-feeder-role` | A feeder role takes no direction-separated grid power. |
 | `MTR-POS-008-groups-answer-nothing-decoded` | A group whose word positions are not documented answers without a decoded value. |
 | `MTR-POS-009-meter-read-exception` | An exception or a failed read withholds the meter item and negates nothing else. |
 | `MTR-POS-010-selection-unresolved` | Every unresolved outcome withholds the same items whatever is read. |
 | `MTR-POS-011-grid-power-outside-range` | A converted power above the pack bound is withheld and never clamped. |
+| `MTR-POS-012-listed-meter-route-agrees` | A configured SmartLogger meter whose runtime route agrees with its listed routed unit is not an identity mismatch; the answered group decodes nothing. |
+| `MTR-POS-013-inverter-side-route-agrees` | The S-Dongle inverter-side exposure is checked at the inverter child's own routed unit and is not a plant route. |
+| `MTR-POS-014-plant-read-beside-a-listed-meter` | A plant group read from the wrong routed unit is not read at its route, whatever meter exposure is configured. |
+| `MTR-NEG-017-plant-group-declared-as-meter-exposure` | The plant group at its unit is a grid exchange and not a documented meter exposure. |
 | `MTR-NEG-001-meter-selected` | A meter selected by a registry profile is refused: no meter class contract exists. |
 | `MTR-NEG-002-meter-asset-claimed` | No meter asset identity exists without a class contract. |
 | `MTR-NEG-003-word-count-mismatch` | An answered plant group carries exactly its quantity of words. |
 | `MTR-NEG-004-refused-group-fed-as-read` | A refused group is not a readable item. |
 | `MTR-NEG-005-unknown-read` | A read of an item the gate does not list is rejected. |
-| `MTR-NEG-006-meter-declaration-missing` | A meter without its declaration from the listing fails closed. |
+| `MTR-NEG-006-meter-declaration-missing` | A configured meter exposure without its routed unit is not a declaration and fails closed. |
 | `MTR-NEG-007-grid-resource-missing` | A grid connection resource is required to publish. |
 | `MTR-NEG-008-source-missing` | A blank source identifier fails closed. |
 | `MTR-NEG-009-role-derived-from-sign` | A role is configuration and never derived from a value. |

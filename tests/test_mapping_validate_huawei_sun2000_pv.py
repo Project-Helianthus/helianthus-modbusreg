@@ -107,10 +107,6 @@ def test_no_binary_floating_point_anywhere():
     ("status", lambda d: set_path(d, "status", "accepted"), "contract"),
     ("evidence-pull-request", lambda d: set_path(d, "evidence.registry_profiles.pull_request", 358), "evidence"),
     ("evidence-contract-issue", lambda d: set_path(d, "evidence.monitoring_contract.issue", 241), "evidence"),
-    ("edition-title", lambda d: set_path(d, "native_contract.edition.title", "SUN2000MC V200R023C00 Modbus Interface Definitions (draft)"), "edition"),
-    ("edition-issue", lambda d: set_path(d, "native_contract.edition.issue", "Issue 02"), "edition"),
-    ("edition-date", lambda d: set_path(d, "native_contract.edition.date", "2023-04-20"), "edition"),
-    ("edition-quoted", lambda d: set_path(d, "native_contract.edition.use", "quoted"), "edition"),
     ("registry-flag", lambda d: set_path(d, "native_contract.registry_flags.live_qualified", True), "native contract"),
     ("outbound", lambda d: set_path(d, "native_contract.outbound_allowed", True), "native contract"),
     ("word-order", lambda d: set_path(d, "native_contract.word_order", "least_significant_word_first"), "native contract"),
@@ -1226,6 +1222,76 @@ def test_string_power_is_the_product_of_the_voltage_and_current_of_the_same_read
             v.string_power(voltage, {**current, **damage})
     with Raises(ValueError, match="string_power_operands"):
         v.string_power(current, voltage)
+
+
+@parametrize("destination", [
+    "https://example.invalid/page?u=" + OWNER_LINK,
+    "https://example.invalid/" + OWNER_LINK,
+    "https://example.invalid/@" + OWNER_LINK,
+    "https://example.invalid/page#" + OWNER_LINK,
+])
+def test_owner_link_exception_applies_only_to_the_actual_destination(destination):
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n[owner](" + destination + ")\n")
+
+
+PHASES = ["resource:demo-phase-alpha-%d" % n for n in range(1, 4)]
+
+
+def phase_case(positions, name="m1", ids=PHASES):
+    document = case(name)
+    document["phases"] = list(positions)
+    if ids is not None:
+        document["identity"]["resources"]["phases"] = list(ids)
+    return document
+
+
+def phase_relations(output):
+    return [(item["from"], item["to"]) for item in output["relations"] if item["definition"] == "pv.relation.inverter_phase"]
+
+
+def test_an_admitted_phase_reading_publishes_driver_allocated_phases_under_the_inverter():
+    output = project(phase_case([1, 2, 3]))
+    assert phase_relations(output) == [(INVERTER, item) for item in PHASES]
+    records = {item["resource_id"]: item for item in output["resources"]}
+    for position, item in enumerate(PHASES, 1):
+        assert records[item] == {"resource_id": item, "kind": "resource.phase", "parent": INVERTER}, position
+    assert v.RESOURCE_ROLES["phases"]["source"] == "driver_allocated_at_native_position" and v.RESOURCE_ROLES["phases"]["slots"] == 3
+    assert not any(fact["key"]["dimensions"][0]["id"] == "pv.dimension.phase" for fact in output["facts"])
+    assert not any(item["resource_id"] in PHASES for item in project(case())["resources"])
+
+
+@parametrize("positions", [[1], [2], [3], [3, 1]])
+def test_each_phase_position_reaches_exactly_its_own_resource_and_relation(positions):
+    output = project(phase_case(positions))
+    assert sorted(phase_relations(output)) == sorted((INVERTER, PHASES[position - 1]) for position in positions)
+    assert sorted(item["resource_id"] for item in output["resources"] if item["kind"] == "resource.phase") == sorted(PHASES[position - 1] for position in positions)
+
+
+@parametrize("document,error", [
+    (phase_case([1, 2, 3], ids=None), "identity_missing_or_invalid"),
+    (phase_case([1], ids=[PHASES[0], PHASES[0], PHASES[2]]), "identity_missing_or_invalid"),
+    (phase_case([1], ids=[INVERTER, PHASES[1], PHASES[2]]), "identity_missing_or_invalid"),
+    (phase_case([1], ids=PHASES[:2]), "identity_missing_or_invalid"),
+    (phase_case([4]), "native_evidence_invalid"),
+    (phase_case([0]), "native_evidence_invalid"),
+    (phase_case([1, 1]), "native_evidence_invalid"),
+    (phase_case([]), "native_evidence_invalid"),
+    (phase_case(["1"]), "native_evidence_invalid"),
+    (phase_case([1], name="m3", ids=["resource:demo-phase-beta-%d" % n for n in range(1, 4)]), "native_evidence_invalid"),
+])
+def test_a_phase_without_a_valid_allocation_or_an_answered_power_group_fails_closed(document, error):
+    with Raises(ValueError, match=error):
+        project(document)
+
+
+def test_the_phase_allocation_is_the_drivers_and_the_gate_publishes_no_source_statement():
+    document = contract()
+    assert document["identity"]["resources"]["phases"] == v.RESOURCE_ROLES["phases"]
+    assert "edition" not in document["native_contract"]
+    assert not any("edition_binding" in profile for profile in document["native_contract"]["profiles"])
+    for text in (json.dumps(document).lower(), page().lower()):
+        assert "consulted" not in text and "edition" not in text and "inspection-only" not in text and "copyright" not in text
 
 
 if __name__ == "__main__":
