@@ -50,8 +50,8 @@ its case; a candidate that names another one, or leaves one out, does not take
 part. The later receipt wins only among candidates of the same source epoch
 and generation, and with none left the fact is withheld as
 `configured_current_other_epoch`. A persistent candidate that names another
-source epoch or generation is excluded and does not invalidate the projection of
-the candidates of the case. A readback outside the case's epoch and generation
+source epoch or generation, or leaves one of them out, is excluded and does not
+invalidate the projection of the candidates of the case. A readback outside the case's epoch and generation
 is not a candidate: it withholds the allocated current and derives no expiry,
 and the configured current is withheld as `configured_current_other_epoch` only
 when no candidate of the case remains; the raw native timeout it carries stays

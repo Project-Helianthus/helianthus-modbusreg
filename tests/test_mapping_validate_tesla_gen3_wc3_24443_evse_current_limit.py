@@ -291,7 +291,7 @@ def newer_t28_cases(baseline, contract):
 
 
 def foreign_t8_cases(baseline, contract):
-    """A t8 of another epoch or generation, with a malformed current, is excluded and does not veto the current lifecycle; a malformed t8 that merely leaves a member out is still rejected."""
+    """A t8 of another epoch or generation, with a malformed current, is excluded and does not veto the current lifecycle; a t8 that leaves a member out takes no part and does not veto either, while it cannot satisfy the case evidence alone."""
     bound, other = BOUND, OTHER_BINDING
     for key in bound:
         foreign_t8 = copy.deepcopy(baseline)
@@ -303,13 +303,17 @@ def foreign_t8_cases(baseline, contract):
         unbound_t8 = copy.deepcopy(baseline)
         unbound_t8["evidence"]["persistent"].pop(key)
         unbound_t8["persistent"]["MaxOutputCurrentAmps"] = -1
+        result = mapping.project(unbound_t8, contract)
+        if facts_of(result) != [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")]:
+            raise AssertionError(f"a t8 without {key} and with a malformed current vetoed the bound t28: {facts_of(result)}")
+        unbound_t8["evidence"]["provisional"]["provisional_readback_terminal"] = "bad"
         try:
             mapping.project(unbound_t8, contract)
         except ValueError as error:
             if str(error) != "evidence_binding_invalid":
-                raise AssertionError(f"malformed t8 without {key}: {error}")
+                raise AssertionError(f"unbound t8 without {key} and an invalid t28: {error}")
         else:
-            raise AssertionError(f"a malformed t8 without {key} was accepted")
+            raise AssertionError(f"an unbound t8 without {key} satisfied the evidence gate")
 
 
 def unbound_t8_evidence_cases(baseline, contract):

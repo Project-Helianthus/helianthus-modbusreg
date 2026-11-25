@@ -308,11 +308,6 @@ def bound_to_lifecycle(evidence, lifecycle):
     return isinstance(evidence, dict) and isinstance(lifecycle, dict) and all(key in evidence and type(evidence[key]) is type(lifecycle.get(key)) and evidence[key] == lifecycle.get(key) for key in BINDING_KEYS)
 
 
-def foreign_to_lifecycle(evidence, lifecycle):
-    """A candidate that explicitly names a different epoch or generation is excluded and cannot veto the projection of the current lifecycle."""
-    return isinstance(evidence, dict) and isinstance(lifecycle, dict) and any(key in evidence and not (type(evidence[key]) is type(lifecycle.get(key)) and evidence[key] == lifecycle.get(key)) for key in BINDING_KEYS)
-
-
 def publish_configured_current(case, provisional, facts, withheld):
     """Section 6.1: the t28 and the t8 configured current are each sufficient; the later receipt wins only among candidates whose membership in the case epoch and generations is established."""
     candidates = []
@@ -341,7 +336,7 @@ def project(case, contract):
     for error in ERRORS:
         if error in errors: fail(error)
     persistent = case.get("persistent")
-    if "persistent" in case and not foreign_to_lifecycle(case.get("evidence", {}).get("persistent"), case.get("lifecycle")) and (not isinstance(persistent, dict) or not non_negative_int(persistent.get("MaxOutputCurrentAmps"))): fail(ERRORS[3])
+    if "persistent" in case and bound_to_lifecycle(case.get("evidence", {}).get("persistent"), case.get("lifecycle")) and (not isinstance(persistent, dict) or not non_negative_int(persistent.get("MaxOutputCurrentAmps"))): fail(ERRORS[3])
     facts, withheld, native = [], [], []
     publish_limits(case, facts, withheld, native)
     return {"facts": facts, "withheld": withheld, "native": native, "operations": list(OPERATION_NAMES)}
