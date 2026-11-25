@@ -92,7 +92,7 @@ UNSTATED_REASONS = {
 }
 # The gate admits operations (projection.operations), so its status is not read-only (P1-7; rule 2).
 STATUS = "accepted_source_specific_mapping_gate"
-PINS = {"docs_semantic_base": "f830ace6c2b9dd1af0e87ce808fa545662578418", "semreg": "f3f761bc67e10d6a65eba6c13cb4dc51002d6955", "docs_modbus_current_limit": "e9d0471ccc7bd0cb82e2552e630ebaae5436d867", "docs_modbus_native_projection": "1127c333de1f1d02305952a58f8745ee05c42e12", "modbusreg": "57f7eb84f7d4e1173621711bf64624726c71bc75", "gateway_main": "32244901c4c8337266cd348bdad90fb9e8eb0a61"}
+PINS = {"docs_semantic_base": "f830ace6c2b9dd1af0e87ce808fa545662578418", "semreg": "f3f761bc67e10d6a65eba6c13cb4dc51002d6955", "docs_modbus_current_limit": "71d432a95145e256047dff37e49ed5251c7ee2d3", "docs_modbus_native_projection": "1127c333de1f1d02305952a58f8745ee05c42e12", "modbusreg": "57f7eb84f7d4e1173621711bf64624726c71bc75", "gateway_main": "32244901c4c8337266cd348bdad90fb9e8eb0a61"}
 ERRORS = ["profile_or_version_invalid", "identity_invalid", "source_path_invalid", "evidence_binding_invalid", "lifecycle_invalid", "unsupported_fact_or_operation"]
 OPAQUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -574,12 +574,49 @@ RELATION_STATEMENTS = (
 NATIVE_STATEMENTS = OPERATION_STATEMENTS + RELATION_STATEMENTS
 
 
+CHARGING_CITATION = "The 6 A floor and the 0 A pause follow IEC 61851-1 Annex A, where 6 A is the lowest charging current a charger can signal."
+
+
+LINK_DESTINATION = r"(?:<[^>\n]*>|(?:[^\s()<]|\([^\s()]*\))*)"
+LINK_TITLE = r"(?:\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|\((?:[^()\\]|\\.)*\))"
+CITATION_TOKEN = re.compile(r"(?<!\w)IEC 61851-1 Annex A(?!\w)")
+FLOOR_TOKEN = re.compile(r"(?<![\w.])6 A(?!\w)")
+PAUSE_TOKEN = re.compile(r"(?<![\w.])0 A(?!\w)")
+
+
+def visible_paragraphs(source):
+    """Paragraphs of the rendered page outside link definitions, link titles and HTML comments, whitespace-normalized."""
+    shown = re.sub(r"(?m)^ {0,3}\[[^\]\n]+\]:[ \t]*\n?[ \t]*" + LINK_DESTINATION + r"(?:[ \t]*\n?[ \t]*" + LINK_TITLE + r")?[ \t]*$", " ", source)
+    shown = re.sub(r"(?m)^ {0,3}\[[^\]\n]+\]:[^\n]*(?:\n[ \t]+[\"'(][^\n]*)?$", " ", shown)
+    shown = re.sub(r"(\]\(\s*" + LINK_DESTINATION + r")\s+" + LINK_TITLE + r"\s*\)", r"\1)", shown)
+    shown = re.sub(r"\[[^\]\n]+\]:\s*\S+(?:\s+" + LINK_TITLE + ")?", " ", shown)
+    shown = re.sub(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)", lambda m: m.group(2).replace("<", "&lt;"), shown, flags=re.DOTALL)
+    shown = re.sub(r"<!--.*?-->", " ", shown, flags=re.DOTALL)
+    shown = shown.replace("*", "")
+    shown = re.sub(r"(?<!\w)_+|_+(?!\w)", "", shown)
+    for block in re.split(r"\n\s*\n", shown):
+        paragraph = " ".join(block.split())
+        if paragraph:
+            yield paragraph
+
+
+def cites_charging_clause(source):
+    """One visible sentence names IEC 61851-1 Annex A together with the 6 A floor and the 0 A pause, in any wording."""
+    for paragraph in visible_paragraphs(source):
+        for sentence in re.split(r"(?<=[.!?]) ", paragraph):
+            if CITATION_TOKEN.search(sentence) and FLOOR_TOKEN.search(sentence) and PAUSE_TOKEN.search(sentence) and re.search(r"(?i)\bpause", sentence):
+                return True
+    return False
+
+
 def check_native_page():
     """The staged ND02 page must exist and state what this gate relies on; absence is never a pass."""
     if not NATIVE_PAGE.is_file():
         fail("native_page_missing")
     text = " ".join(NATIVE_PAGE.read_text(encoding="utf-8").split())
     if any(statement not in text for statement in NATIVE_STATEMENTS):
+        fail("native_page_disagrees")
+    if not cites_charging_clause(NATIVE_PAGE.read_text(encoding="utf-8")):
         fail("native_page_disagrees")
 
 

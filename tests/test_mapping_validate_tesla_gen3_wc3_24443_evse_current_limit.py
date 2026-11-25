@@ -683,6 +683,19 @@ def native_page_cases():
     print("native-page: PASS")
 
 
+def escaped_title_pages(wrong):
+    """Pages whose correct citation sits only in a link title with escaped quotes or on an unindented continuation line."""
+    cited = mapping.CHARGING_CITATION
+    return [
+        ("charging_citation_in_inline_link_escaped_double_quote_title", wrong + '\n\n[source](https://example.invalid "Say \\"wording\\". ' + cited + '")\n'),
+        ("charging_citation_in_inline_link_escaped_single_quote_title", wrong + "\n\n[source](https://example.invalid 'Say \\'wording\\'. " + cited + "')\n"),
+        ("charging_citation_in_inline_link_escaped_parenthesis_title", wrong + "\n\n[source](https://example.invalid (Say \\(wording\\). " + cited + "))\n"),
+        ("charging_citation_in_link_definition_unindented_continuation_title", wrong + '\n\n[x]: https://example.invalid\n"' + cited + '"\n'),
+        ("charging_citation_in_link_definition_escaped_quote_title", wrong + '\n\n[x]: https://example.invalid "Say \\"wording\\". ' + cited + '"\n'),
+        ("charging_citation_in_link_definition_unindented_escaped_quote_title", wrong + '\n\n[x]: https://example.invalid\n"Say \\"wording\\". ' + cited + '"\n'),
+    ]
+
+
 def native_page_text_cases():
     """A page with only the operation statements, or without the relation statements, fails the native check."""
     original = mapping.NATIVE_PAGE
@@ -692,6 +705,18 @@ def native_page_text_cases():
         without_relations = without_relations.replace(statement, "")
     pages = [("operation_statements_only", " ".join(mapping.OPERATION_STATEMENTS)), ("relation_statements_absent", without_relations)]
     pages += [(f"operation_rule_{index}_absent", full.replace(statement, "")) for index, statement in enumerate(mapping.OPERATION_STATEMENTS)]
+    pages += [("charging_citation_absent", full.replace("IEC 61851-1 Annex A", "")), ("charging_citation_other_annex", full.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex B")), ("charging_citation_annex_prefix", full.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex AA"))]
+    raw = original.read_text(encoding="utf-8")
+    wrong = raw.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex B")
+    pages.append(("charging_citation_in_link_definition", wrong + '\n\n[x]: https://example.invalid "' + mapping.CHARGING_CITATION + '"\n'))
+    pages.append(("charging_citation_in_link_title_after_text", wrong + '\n\nRetired text.\n[x]: https://example.invalid "' + mapping.CHARGING_CITATION + '"\n'))
+    pages.append(("charging_citation_in_link_title_same_paragraph", wrong + '\n\nRetired text. [x]: https://example.invalid "' + mapping.CHARGING_CITATION + '"\n'))
+    pages += [(f"charging_citation_in_inline_link_{label}_{kind}_title", wrong + f"\n\n[source]({destination} {opening}Historical wording. " + mapping.CHARGING_CITATION + f"{closing})\n") for label, destination in (("plain_destination", "https://example.invalid"), ("parenthesized_destination", "https://example.invalid/annex(a)")) for kind, opening, closing in (("double_quote", '"', '"'), ("single_quote", "'", "'"), ("parenthesis", "(", ")"))]
+    pages += escaped_title_pages(wrong)
+    pages.append(("charging_citation_in_multiline_comment", wrong + "\n<!--\n" + mapping.CHARGING_CITATION + "\n-->\n"))
+    pages.append(("charging_citation_hidden_in_comment", full.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex B") + " <!-- IEC 61851-1 Annex A -->"))
+    pages.append(("charging_citation_in_comment_after_text", wrong + " visible text <!--\n" + mapping.CHARGING_CITATION + "\n-->\n"))
+    pages.append(("charging_citation_other_part", full.replace("IEC 61851-1 Annex A", "IEC 61851-23 Annex A")))
     pages.append(("pause_encoding_contradicted", full.replace("The pause encodes 6 A with inhibit", "The pause encodes 0 A without inhibit")))
     with tempfile.TemporaryDirectory() as directory:
         try:
@@ -706,6 +731,18 @@ def native_page_text_cases():
                 else:
                     raise AssertionError(f"{name} page accepted")
                 print(f"{name}: REJECTED")
+            accepted = {
+                "citation_reflowed": raw.replace(mapping.CHARGING_CITATION, "\n" + mapping.CHARGING_CITATION.replace(" follow ", "\nfollow ")),
+                "citation_after_wrapped_text": raw.replace("\n" + mapping.CHARGING_CITATION, " " + mapping.CHARGING_CITATION),
+                "citation_rephrased": raw.replace(mapping.CHARGING_CITATION, "IEC 61851-1 Annex A sets 6 A as the lowest charging current a charger can signal; that floor also applies to the 0 A pause."),
+                "citation_bold": raw.replace(mapping.CHARGING_CITATION, "**" + mapping.CHARGING_CITATION + "**"),
+                "citation_between_code_spans": raw.replace(mapping.CHARGING_CITATION, "`<!--`\n\n" + mapping.CHARGING_CITATION + "\n\n`-->`"),
+                "comment_markers_in_code": raw + "\n`<!--` `-->`\n",
+            }
+            for name, text in accepted.items():
+                mapping.NATIVE_PAGE = Path(directory) / f"{name}.md"
+                mapping.NATIVE_PAGE.write_text(text, encoding="utf-8")
+                mapping.check_native_page()
         finally:
             mapping.NATIVE_PAGE = original
     companion = mapping.DOC.read_text(encoding="utf-8")
