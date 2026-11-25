@@ -70,6 +70,9 @@ def readback_cases(baseline, contract):
         ("zero_current_unresolved", [("provisional.LimitCurrentMaxAmps", 0)], [("evse.limit.configured_current", "16")], [("evse.limit.allocated_current", "zero_current_unresolved")]),
         ("zero_configured_unknown", [("provisional.ConfiguredCurrentAmps", 0)], [("evse.limit.allocated_current", "12")], [("evse.limit.configured_current", "zero_configured_unknown")]),
         ("later_persistent_candidate", [("persistent.MaxOutputCurrentAmps", 20), ("evidence.persistent.receipt_timestamp", "2026-09-10T00:00:02Z")], [("evse.limit.configured_current", "20"), ("evse.limit.allocated_current", "12")], []),
+        ("managed_within_cutoff", [("managed_set", {"ack_receipt_timestamp": "2026-09-10T00:00:00Z", "duration_seconds": 60}), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:00:59Z")], [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")], []),
+        ("managed_received_70s_after_60s_set", [("managed_set", {"ack_receipt_timestamp": "2026-09-10T00:00:00Z", "duration_seconds": 60}), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:01:10Z")], [("evse.limit.configured_current", "16")], [("evse.limit.allocated_current", "allocation_expired")]),
+        ("managed_at_cutoff", [("managed_set", {"ack_receipt_timestamp": "2026-09-10T00:00:00Z", "duration_seconds": 60}), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:01:00Z")], [("evse.limit.configured_current", "16")], [("evse.limit.allocated_current", "allocation_expired")]),
     ]
     for name, mutations, facts, withheld in cases:
         candidate = copy.deepcopy(baseline)
@@ -102,6 +105,7 @@ def operation_cases(baseline, contract):
 
 
 SET = {"connector_id": "connector.wc3.alpha", "timeout_seconds": 600}
+RELEASE = {"connector_id": "connector.wc3.alpha", "allocated_current_enabled": False}
 KNOWN = {"t28_known": True, "configured_current": 16}
 UNREAD = {"t28_known": False, "configured_current": None}
 
@@ -124,6 +128,12 @@ def operation_vectors():
         ("malformed_bound_float", dict(SET, amperes=16), {"t28_known": True, "configured_current": 16.0}, "rejected_no_configured_bound"),
         ("malformed_bound_bool", dict(SET, amperes=16), {"t28_known": True, "configured_current": True}, "rejected_no_configured_bound"),
         ("malformed_bound_string", dict(SET, amperes=16), {"t28_known": True, "configured_current": "16"}, "rejected_no_configured_bound"),
+        ("release_known_bound", RELEASE, KNOWN, "send_release"),
+        ("release_read_first", RELEASE, UNREAD, "read_first"),
+        ("release_zero_bound", RELEASE, {"t28_known": True, "configured_current": 0}, "rejected_no_release_bound"),
+        ("release_nan_bound", RELEASE, {"t28_known": True, "configured_current": float("nan")}, "rejected_no_release_bound"),
+        ("release_with_amperes", dict(RELEASE, amperes=0), KNOWN, "rejected_invalid"),
+        ("release_other_connector", dict(RELEASE, connector_id="connector.wc3.beta"), KNOWN, "rejected_other_connector"),
     ]
     for name, request, generation, expected in vectors:
         got = mapping.set_allocated_current_disposition(request, generation, "connector.wc3.alpha")
@@ -138,6 +148,7 @@ def candidate_cases(baseline, contract):
         ("provisional_only_t28", [("delete", "persistent", None), ("delete", "evidence.persistent", None)], [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")], []),
         ("provisional_only_without_configured_field", [("delete", "persistent", None), ("delete", "evidence.persistent", None), ("delete", "provisional.ConfiguredCurrentAmps", None)], [("evse.limit.allocated_current", "12")], [("evse.limit.configured_current", "configured_current_absent")]),
         ("later_provisional_candidate", [("set", "persistent.MaxOutputCurrentAmps", 7), ("set", "provisional.ConfiguredCurrentAmps", 32)], [("evse.limit.configured_current", "32"), ("evse.limit.allocated_current", "12")], []),
+        ("standalone_t28_read_without_mutation_refs", [("delete", "persistent", None), ("delete", "evidence.persistent", None), ("delete", "evidence.provisional.provisional_set", None), ("delete", "evidence.provisional.provisional_ack", None)], [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")], []),
     ]
     for name, edits, facts, withheld in cases:
         candidate = copy.deepcopy(baseline)

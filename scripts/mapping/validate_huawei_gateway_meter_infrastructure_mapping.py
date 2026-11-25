@@ -50,8 +50,16 @@ UNIT_CONVERSION = {
 # Members of a prospective row; no other member, and so no second statement of a conversion, is accepted.
 PROSPECTIVE_ROW_MEMBERS = {"in_force", "target", "dimension", "subject_kind", "measurement_point", "unit", "native", "conversion", "loss", "sign_reference", "role", "direction", "counter"}
 FORBIDDEN_DERIVATIONS = ["serial_number", "esn", "vendor", "model", "firmware_or_version", "routed_unit_alone", "endpoint_address"]
-REGISTRY_FLAGS = {"catalog_registered": False, "automatic_runtime_admission": False, "live_qualified": False, "support_claim": False, "write_authority": False}
+REGISTRY_FLAGS = {"catalog_registered": False, "automatic_runtime_admission": False, "live_qualified": False, "support_claim": False}
 QUALIFICATION = {**REGISTRY_FLAGS, "mapping_qualified": True, "outbound_allowed": False}
+
+def qualification_recorded(qualification):
+    """ND02 decision D14: live qualification is a recorded level, never a rejection; the other flags and the mapping stay pinned."""
+    if not isinstance(qualification, dict) or not isinstance(qualification.get("live_qualified"), bool):
+        return False
+    rest = {key: value for key, value in qualification.items() if key != "live_qualified"}
+    return rest == {key: value for key, value in QUALIFICATION.items() if key != "live_qualified"}
+
 EVIDENCE = {
     "monitoring_contract": {"repository": "helianthus-docs-modbus", "issue": 242, "pull_request": 253, "pages": ["protocols/huawei/monitoring-readonly-v1.md", "protocols/huawei/read-pacing-v1.md", "protocols/huawei/gateway-power-meter-v1.md"]},
     "meter_observation_amendment": {"repository": "helianthus-docs-modbus", "issue": 254},
@@ -476,7 +484,7 @@ def validate_case(case, contract):
     source_id, unit = check_case_source(case, errors)
     declared = check_case_role(case, errors)
     check_case_lifecycle(case, errors)
-    if case.get("qualification") != QUALIFICATION:
+    if not qualification_recorded(case.get("qualification")):
         errors.add("mapping_unqualified")
     if case.get("request_operation") or case.get("request_direction_split") or case.get("request_mixed_sign_references"):
         errors.add("unsupported_or_withheld")

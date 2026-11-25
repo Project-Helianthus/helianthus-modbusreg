@@ -280,12 +280,19 @@ def test_every_lifecycle_axis_is_required(path, value):
         project(document)
 
 
-@parametrize("flag", sorted(v.REGISTRY_FLAGS) + ["mapping_qualified", "outbound_allowed"])
+@parametrize("flag", sorted(k for k in v.REGISTRY_FLAGS if k != "live_qualified") + ["mapping_qualified", "outbound_allowed"])
 def test_every_qualification_flag_is_pinned(flag):
     document = case()
     document["qualification"][flag] = not document["qualification"][flag]
     with Raises(ValueError, match="mapping_unqualified"):
         project(document)
+
+
+def test_live_qualification_is_a_recorded_level_not_a_rejection():
+    """ND02 decision D14: a record that acquires a live qualification level is still the same accepted mapping."""
+    document = case()
+    document["qualification"]["live_qualified"] = True
+    project(document)
 
 
 @parametrize("member,value", [("request_operation", "any"), ("request_direction_split", "signed_power_to_import_export"), ("request_mixed_sign_references", True)])

@@ -19,7 +19,7 @@
     "decoded_meter_words": 0,
     "selection_outcomes_allowed": ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"],
     "selected_meter": "fails_closed_until_this_gate_is_revised",
-    "registry_flags": {"catalog_registered": false, "automatic_runtime_admission": false, "live_qualified": false, "support_claim": false, "write_authority": false},
+    "registry_flags": {"catalog_registered": false, "automatic_runtime_admission": false, "live_qualified": false, "support_claim": false},
     "preconditions_for_any_mapping": ["a_meter_class_contract_exists_with_an_identity_read", "the_exposure_path_is_observed", "type_word_order_gain_unit_and_sign_of_each_consumed_word_are_stated", "a_sign_reference_is_graded_per_source_and_never_mixed", "the_role_is_declared_in_configuration", "this_gate_is_revised_with_executable_vectors"]
   },
   "role": {
@@ -197,7 +197,7 @@
       "role": {"declared": "grid_connection", "source": "operator_configuration"},
       "reads": [],
       "lifecycle": {"observation_id": "observation:demo-0001", "observation_revision": 1, "receipt_wall": "2026-01-01T00:00:00Z", "receipt_monotonic": 1000000000, "clock_epoch": "clock-epoch:demo-1", "source_epoch": "source-epoch:1", "driver_generation": 1, "connection_generation": 1},
-      "qualification": {"catalog_registered": false, "automatic_runtime_admission": false, "live_qualified": false, "support_claim": false, "write_authority": false, "mapping_qualified": true, "outbound_allowed": false}
+      "qualification": {"catalog_registered": false, "automatic_runtime_admission": false, "live_qualified": false, "support_claim": false, "mapping_qualified": true, "outbound_allowed": false}
     }
   },
   "scenarios": [
@@ -487,7 +487,7 @@
     {"id": "MTR-NEG-007-role-derived-from-sign", "polarity": "negative", "baseline": "default", "note": "a role is configuration and never derived from a value", "mutations": [{"path": "role", "value": {"declared": "grid_connection", "source": "derived_from_power_sign"}}], "expect": {"error": "role_invalid"}},
     {"id": "MTR-NEG-008-role-outside-set", "polarity": "negative", "baseline": "default", "mutations": [{"path": "role", "value": {"declared": "consumption", "source": "operator_configuration"}}], "expect": {"error": "role_invalid"}},
     {"id": "MTR-NEG-009-lifecycle-missing", "polarity": "negative", "baseline": "default", "mutations": [{"path": "lifecycle.observation_id", "value": ""}], "expect": {"error": "lifecycle_missing"}},
-    {"id": "MTR-NEG-010-live-qualified", "polarity": "negative", "baseline": "default", "mutations": [{"path": "qualification.live_qualified", "value": true}], "expect": {"error": "mapping_unqualified"}},
+    {"id": "MTR-NEG-010-mapping-unqualified", "polarity": "negative", "baseline": "default", "mutations": [{"path": "qualification.mapping_qualified", "value": false}], "expect": {"error": "mapping_unqualified"}},
     {"id": "MTR-NEG-011-operation", "polarity": "negative", "baseline": "default", "note": "the gate has no operation, route or authority", "mutations": [{"path": "request_operation", "value": "any"}], "expect": {"error": "unsupported_or_withheld"}},
     {"id": "MTR-NEG-012-direction-split", "polarity": "negative", "baseline": "default", "note": "a signed value is not split without a stated sign reference", "mutations": [{"path": "request_direction_split", "value": "signed_power_to_import_export"}], "expect": {"error": "unsupported_or_withheld"}},
     {"id": "MTR-NEG-013-mixed-sign-references", "polarity": "negative", "baseline": "default", "note": "sign references differ by source and are never mixed", "mutations": [{"path": "request_mixed_sign_references", "value": true}], "expect": {"error": "unsupported_or_withheld"}},

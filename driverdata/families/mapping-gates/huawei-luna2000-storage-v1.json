@@ -15,7 +15,7 @@
     "registry_disposition": {"profile": "huawei.luna2000", "outcome": "NO_ADMISSIBLE_PROFILE", "battery_groups": "PRESENT_NOT_ADMITTED", "facts_admitted": false, "decoder_keys": 0},
     "selection_outcomes_allowed": ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"],
     "selected_profile": "fails_closed_until_this_gate_is_revised",
-    "registry_flags": {"catalog_registered": false, "automatic_runtime_admission": false, "live_qualified": false, "support_claim": false, "write_authority": false},
+    "registry_flags": {"catalog_registered": false, "automatic_runtime_admission": false, "live_qualified": false, "support_claim": false},
     "preconditions_for_any_mapping": [
       "a_battery_profile_for_the_exact_family_is_admitted_with_a_consulted_edition",
       "type_word_order_gain_unit_and_sign_of_each_consumed_word_are_stated",
@@ -154,7 +154,7 @@
       "identity": {"asset_id": "storage-asset-demo-gamma", "binding_id": "binding:semantic-storage:demo-gamma"},
       "source": {"source_id": "source:gateway-demo-c"},
       "lifecycle": {"observation_id": "observation:demo-0001", "observation_revision": 1, "receipt_wall": "2026-01-01T00:00:00Z", "receipt_monotonic": 1000000000, "clock_epoch": "clock-epoch:demo-1", "source_epoch": "source-epoch:1", "driver_generation": 1, "connection_generation": 1},
-      "qualification": {"catalog_registered": false, "automatic_runtime_admission": false, "live_qualified": false, "support_claim": false, "write_authority": false, "mapping_qualified": true, "outbound_allowed": false}
+      "qualification": {"catalog_registered": false, "automatic_runtime_admission": false, "live_qualified": false, "support_claim": false, "mapping_qualified": true, "outbound_allowed": false}
     }
   },
   "scenarios": [
@@ -381,7 +381,7 @@
     {"id": "STG-NEG-003-word-count-mismatch", "polarity": "negative", "baseline": "default", "mutations": [{"path": "reads", "value": [{"offset": 37066, "quantity": 4, "outcome": "ANSWERED", "words": [1, 2]}]}], "expect": {"error": "native_evidence_invalid"}},
     {"id": "STG-NEG-004-asset-missing", "polarity": "negative", "baseline": "default", "mutations": [{"path": "identity.asset_id", "value": ""}], "expect": {"error": "identity_missing_or_invalid"}},
     {"id": "STG-NEG-005-lifecycle-missing", "polarity": "negative", "baseline": "default", "mutations": [{"path": "lifecycle.source_epoch", "value": null}], "expect": {"error": "lifecycle_missing"}},
-    {"id": "STG-NEG-006-live-qualified", "polarity": "negative", "baseline": "default", "mutations": [{"path": "qualification.live_qualified", "value": true}], "expect": {"error": "mapping_unqualified"}},
+    {"id": "STG-NEG-006-mapping-unqualified", "polarity": "negative", "baseline": "default", "mutations": [{"path": "qualification.mapping_qualified", "value": false}], "expect": {"error": "mapping_unqualified"}},
     {"id": "STG-NEG-007-charge-limit-operation", "polarity": "negative", "baseline": "default", "note": "the gate has no limit, interlock, route or authority", "mutations": [{"path": "request_operation", "value": "storage.operation.set_charge_limit"}], "expect": {"error": "unsupported_or_withheld"}},
     {"id": "STG-NEG-008-ampere-hour-to-kilowatt-hour", "polarity": "negative", "baseline": "default", "note": "capacity is never converted to energy units", "mutations": [{"path": "request_conversion", "value": "ampere_hour_to_kilowatt_hour"}], "expect": {"error": "unsupported_or_withheld"}},
     {"id": "STG-NEG-009-limit-item-requested", "polarity": "negative", "baseline": "default", "mutations": [{"path": "request_item", "value": "storage.limit.charge_power"}], "expect": {"error": "unsupported_or_withheld"}},

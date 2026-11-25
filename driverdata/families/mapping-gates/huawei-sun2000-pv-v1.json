@@ -260,8 +260,7 @@
       "catalog_registered": false,
       "automatic_runtime_admission": false,
       "live_qualified": false,
-      "support_claim": false,
-      "write_authority": false
+      "support_claim": false
     }
   },
   "identity": {
@@ -1283,7 +1282,6 @@
         "automatic_runtime_admission": false,
         "live_qualified": false,
         "support_claim": false,
-        "write_authority": false,
         "mapping_qualified": true,
         "outbound_allowed": false
       },
@@ -1728,7 +1726,6 @@
         "automatic_runtime_admission": false,
         "live_qualified": false,
         "support_claim": false,
-        "write_authority": false,
         "mapping_qualified": true,
         "outbound_allowed": false
       },
@@ -8968,14 +8965,14 @@
       }
     },
     {
-      "id": "PV-NEG-015-live-qualified",
+      "id": "PV-NEG-015-mapping-unqualified",
       "polarity": "negative",
       "baseline": "m1",
-      "note": "a live qualification requires a revision of this gate",
+      "note": "a mapping that is not declared qualified is rejected",
       "mutations": [
         {
-          "path": "qualification.live_qualified",
-          "value": true
+          "path": "qualification.mapping_qualified",
+          "value": false
         }
       ],
       "expect": {

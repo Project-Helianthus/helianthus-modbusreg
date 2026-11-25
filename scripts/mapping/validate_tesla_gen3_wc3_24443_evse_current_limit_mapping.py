@@ -6,7 +6,7 @@ import copy
 import importlib.util
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -39,7 +39,7 @@ FIELD_RULES = [
 UNSUPPORTED = ["power", "energy", "phase", "session", "readiness", "connector_topology", "state_of_charge", "thermal", "fault", "interlock", "meter", "retry"]
 # Section 6 operations of this charger: the allocated-current set and the persistent setter of the modbusreg namespace.
 OPERATIONS = [
-    {"name": "evse.operation.set_allocated_current", "capability": "evse.capability.set_allocated_current", "service": "evse.service.connector", "effect": "evse.effect.set_allocated_current", "subject_kind": "resource.connector", "route": ["family_6.t25_to_t26", "family_6.t27_to_t28"], "authority": "setting_owner_through_semreg_call_path"},
+    {"name": "evse.operation.set_allocated_current", "capability": "evse.capability.set_allocated_current", "service": "evse.service.connector", "effect": "evse.effect.set_allocated_current", "release_argument": "evse.limit.allocated_current_enabled", "release_effect": "evse.effect.release_allocated_current", "subject_kind": "resource.connector", "route": ["family_6.t25_to_t26", "family_6.t27_to_t28"], "authority": "setting_owner_through_semreg_call_path"},
     {"name": "ConfigurePersistentCurrent", "namespace": "modbusreg", "subject_kind": "resource.evse", "route": ["family_6.t7_to_t8"]},
 ]
 OPERATION_NAMES = [operation["name"] for operation in OPERATIONS]
@@ -56,7 +56,9 @@ DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 PERSISTENT_REFS = ["persistent_request", "persistent_terminal"]
 # Section 6.2 and the projection: the native timeout has no EVSE fact; it is served in the modbusreg namespace.
 NATIVE_NAMESPACE = {"namespace": "modbusreg", "fields": ["LimitTimeoutSeconds"], "reason": "no_catalog_element"}
-PROVISIONAL_REFS = ["provisional_set", "provisional_ack", "provisional_readback_request", "provisional_readback_terminal"]
+READBACK_REFS = ["provisional_readback_request", "provisional_readback_terminal"]
+# Set and acknowledgement references exist only where a managed mutation ran; a standalone t27 to t28 read carries none.
+MUTATION_REFS = ["provisional_set", "provisional_ack"]
 
 
 def load():
@@ -216,7 +218,7 @@ def validate_contract(contract, catalog=None):
     validate_graph(contract, catalog)
     validate_identity(contract.get("identity", {}))
     lifecycle = contract.get("lifecycle", {})
-    if lifecycle != {"required": ["receipt_timestamp", "source_epoch", "driver_generation", "qualification", "semantic_revision", "lifecycle_generation"], "per_fact_evidence": {"persistent": ["immutable_evidence_id", "payload_digest", "persistent_request", "persistent_terminal"], "provisional": ["immutable_evidence_id", "payload_digest", "correlation_id", "provisional_set", "provisional_ack", "provisional_readback_request", "provisional_readback_terminal"]}, "atomicity": "persistent_and_provisional_each_have_one_evidence_id_one_source_epoch_one_driver_generation_one_semantic_revision", "withdrawal": "explicit_generation_fenced", "retention": "native_owner_only_permitted_last_known_good", "physical_qualified": False, "mapping_qualified": True}:
+    if lifecycle != {"required": ["receipt_timestamp", "source_epoch", "driver_generation", "qualification", "semantic_revision", "lifecycle_generation"], "per_fact_evidence": {"persistent": ["immutable_evidence_id", "payload_digest", "persistent_request", "persistent_terminal"], "provisional": ["immutable_evidence_id", "payload_digest", "correlation_id", "provisional_readback_request", "provisional_readback_terminal"], "provisional_mutation": MUTATION_REFS}, "atomicity": "persistent_and_provisional_each_have_one_evidence_id_one_source_epoch_one_driver_generation_one_semantic_revision", "withdrawal": "explicit_generation_fenced", "retention": "native_owner_only_permitted_last_known_good", "physical_qualified": False, "mapping_qualified": True}:
         fail("lifecycle_contract")
     if contract.get("field_rules") != expected_field_rules(catalog):
         fail("field_rules")
@@ -249,13 +251,19 @@ def valid_evidence(evidence, refs, correlation=False):
     return not correlation or evidence.get("correlation_id") == evidence["immutable_evidence_id"]
 
 
+def provisional_evidence_valid(evidence):
+    """A readback alone needs its readback references; a record that names a set or acknowledgement needs those too."""
+    refs = READBACK_REFS + MUTATION_REFS if any(key in evidence for key in MUTATION_REFS) else READBACK_REFS
+    return valid_evidence(evidence, refs, correlation=True)
+
+
 def non_negative_int(value):
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
 def provisional_valid(case):
     provisional = case.get("provisional")
-    return isinstance(provisional, dict) and valid_evidence(case.get("evidence", {}).get("provisional"), PROVISIONAL_REFS, correlation=True)
+    return isinstance(provisional, dict) and isinstance(case.get("evidence", {}).get("provisional"), dict) and provisional_evidence_valid(case["evidence"]["provisional"])
 
 
 def publish_configured_current(case, provisional, facts, withheld):
@@ -301,6 +309,7 @@ def case_errors(case, contract):
     elif not provisional_valid(case):
         errors.add(ERRORS[3])
     if not lifecycle_valid(case.get("lifecycle", {})): errors.add(ERRORS[4])
+    if "managed_set" in case and not managed_set_valid(case["managed_set"]): errors.add(ERRORS[3])
     if case.get("unsupported_fact") or (case.get("operation") is not None and case.get("operation") not in OPERATION_NAMES): errors.add(ERRORS[5])
     return errors
 
@@ -320,13 +329,35 @@ def publish_limits(case, facts, withheld, native):
     if not isinstance(provisional, dict):
         withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_record_absent"})
         provisional = None
-    elif not valid_evidence(evidence.get("provisional"), PROVISIONAL_REFS, correlation=True):
+    elif not provisional_evidence_valid(evidence.get("provisional")):
         withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_evidence_invalid"})
         provisional = None
     publish_configured_current(case, provisional, facts, withheld)
     if provisional is not None:
-        publish_allocated_current(provisional, facts, withheld)
+        publish_allocated_current(case, provisional, facts, withheld)
         publish_native_timeout(provisional, native)
+
+
+def managed_set_valid(managed):
+    """A managed set names its t25 acknowledgement receipt and the requested duration in seconds."""
+    return isinstance(managed, dict) and receipt_text(managed.get("ack_receipt_timestamp")) is not None and non_negative_int(managed.get("duration_seconds"))
+
+
+def receipt_text(text):
+    try:
+        value = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return value if value.tzinfo is not None else None
+
+
+def allocation_expired(case):
+    """ND02 SemReg mapping, field rules: a known nonzero managed timeout ends at the set acknowledgement plus the requested duration; a readback at or after that cutoff is expired."""
+    managed = case.get("managed_set")
+    if managed is None or managed["duration_seconds"] == 0:
+        return False
+    cutoff = receipt_text(managed["ack_receipt_timestamp"]) + timedelta(seconds=managed["duration_seconds"])
+    return receipt_of(case["evidence"]["provisional"]) >= cutoff
 
 
 def publish_native_timeout(provisional, native):
@@ -340,8 +371,8 @@ def amperes_fact(fact_id, dimension, amperes):
     return {"id": fact_id, "dimension": dimension, "value": {"coefficient": str(amperes), "exponent10": 0}, "unit": "unit.ampere"}
 
 
-def publish_allocated_current(provisional, facts, withheld):
-    """Section 6.2: an inhibited readback is 0 A; a known nonzero current is kept whatever the expiry, which stays unknown."""
+def publish_allocated_current(case, provisional, facts, withheld):
+    """Section 6.2: an inhibited readback is 0 A; a nonzero current is withheld at or after a known managed cutoff, else kept with its expiry unknown."""
     inhibit, current = provisional.get("InhibitCharging"), provisional.get("LimitCurrentMaxAmps")
     if not isinstance(inhibit, bool) or not non_negative_int(current):
         withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_record_malformed"})
@@ -349,14 +380,32 @@ def publish_allocated_current(provisional, facts, withheld):
         facts.append(amperes_fact("evse.limit.allocated_current", "connector", 0))
     elif current == 0:
         withheld.append({"id": "evse.limit.allocated_current", "reason": "zero_current_unresolved"})
+    elif allocation_expired(case):
+        withheld.append({"id": "evse.limit.allocated_current", "reason": "allocation_expired"})
     else:
         facts.append(amperes_fact("evse.limit.allocated_current", "connector", current))
+
+
+def release_disposition(request, generation):
+    """ND02 SemReg mapping, operations: boolean false for allocated_current_enabled is a release with no amperage; it needs a valid nonzero configured current."""
+    if "amperes" in request:
+        return "rejected_invalid"
+    if not generation["t28_known"]:
+        return "read_first"
+    bound = generation["configured_current"]
+    if not non_negative_int(bound) or bound == 0:
+        return "rejected_no_release_bound"
+    return "send_release"
 
 
 def set_allocated_current_disposition(request, generation, own_connector):
     """Operation rules for evse.operation.set_allocated_current; a refused request sends nothing."""
     if request.get("connector_id") != own_connector:
         return "rejected_other_connector"
+    if "allocated_current_enabled" in request:
+        if request["allocated_current_enabled"] is not False:
+            return "rejected_invalid"
+        return release_disposition(request, generation)
     amperes, timeout = request.get("amperes"), request.get("timeout_seconds")
     if not non_negative_int(amperes) or not (non_negative_int(timeout) and 1 <= timeout <= MAX_INTEROPERABLE_TIMEOUT_SECONDS):
         return "rejected_invalid"

@@ -24,7 +24,10 @@ carry it in one epoch, the later receipt is the candidate, and an explicit zero
 is unknown. `LimitCurrentMaxAmps` maps exactly, in integer amperes, to
 `evse.limit.allocated_current` when `InhibitCharging` is false and the current
 is nonzero, whatever `LimitTimeoutSeconds` is. A zero or unresolved timeout
-leaves only the expiry unknown. The timeout is served in the modbusreg
+leaves only the expiry unknown. A managed set with a known nonzero duration ends
+at its acknowledgement plus that duration; a readback received at or after that
+cutoff withholds the nonzero allocation as `allocation_expired` and keeps the
+native timeout. The timeout is served in the modbusreg
 namespace as a native value, because no catalog element yet gives it one; it is
 never published as an EVSE fact or as an expiry. An inhibited readback maps to 0 A at the
 connector, not to the 6 A a pause carries natively. A zero current with inhibit
@@ -110,6 +113,10 @@ charger, and the injected MCP projection shows them as SemReg shows them:
   `evse.capability.set_allocated_current` on `evse.service.connector`, effect
   `evse.effect.set_allocated_current` on the connector): route t25 to t26 with
   readback t27 to t28, authority the setting owner through the SemReg call path.
+  The same operation takes boolean `false` for `evse.limit.allocated_current_enabled`
+  with no amperage, effect `evse.effect.release_allocated_current` on the same
+  connector; a release needs a valid nonzero configured bound, and a missing,
+  zero or invalid bound sends nothing.
 - `ConfigurePersistentCurrent` in the modbusreg namespace: the persistent
   `t7` to `t8` current write.
 

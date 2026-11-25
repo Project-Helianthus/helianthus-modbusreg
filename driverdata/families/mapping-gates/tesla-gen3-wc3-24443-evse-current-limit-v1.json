@@ -223,10 +223,12 @@
         "immutable_evidence_id",
         "payload_digest",
         "correlation_id",
-        "provisional_set",
-        "provisional_ack",
         "provisional_readback_request",
         "provisional_readback_terminal"
+      ],
+      "provisional_mutation": [
+        "provisional_set",
+        "provisional_ack"
       ]
     },
     "atomicity": "persistent_and_provisional_each_have_one_evidence_id_one_source_epoch_one_driver_generation_one_semantic_revision",
@@ -300,7 +302,9 @@
           "family_6.t25_to_t26",
           "family_6.t27_to_t28"
         ],
-        "authority": "setting_owner_through_semreg_call_path"
+        "authority": "setting_owner_through_semreg_call_path",
+        "release_argument": "evse.limit.allocated_current_enabled",
+        "release_effect": "evse.effect.release_allocated_current"
       },
       {
         "name": "ConfigurePersistentCurrent",
@@ -902,6 +906,101 @@
         }
       ],
       "expect_error": "evidence_binding_invalid"
+    },
+    {
+      "id": "TESLA-EVSE-POS-011",
+      "polarity": "positive",
+      "mutations": [
+        {
+          "path": "evidence.provisional.provisional_set",
+          "op": "delete"
+        },
+        {
+          "path": "evidence.provisional.provisional_ack",
+          "op": "delete"
+        }
+      ],
+      "expect": {
+        "facts": [
+          {
+            "id": "evse.limit.configured_current",
+            "dimension": "evse",
+            "value": {
+              "coefficient": "16",
+              "exponent10": 0
+            },
+            "unit": "unit.ampere"
+          },
+          {
+            "id": "evse.limit.allocated_current",
+            "dimension": "connector",
+            "value": {
+              "coefficient": "12",
+              "exponent10": 0
+            },
+            "unit": "unit.ampere"
+          }
+        ],
+        "withheld": [],
+        "native": [
+          {
+            "namespace": "modbusreg",
+            "field": "LimitTimeoutSeconds",
+            "value": 600
+          }
+        ],
+        "operations": [
+          "evse.operation.set_allocated_current",
+          "ConfigurePersistentCurrent"
+        ]
+      }
+    },
+    {
+      "id": "TESLA-EVSE-POS-012",
+      "polarity": "positive",
+      "mutations": [
+        {
+          "path": "managed_set",
+          "value": {
+            "ack_receipt_timestamp": "2026-09-10T00:00:00Z",
+            "duration_seconds": 60
+          }
+        },
+        {
+          "path": "evidence.provisional.receipt_timestamp",
+          "value": "2026-09-10T00:01:10Z"
+        }
+      ],
+      "expect": {
+        "facts": [
+          {
+            "id": "evse.limit.configured_current",
+            "dimension": "evse",
+            "value": {
+              "coefficient": "16",
+              "exponent10": 0
+            },
+            "unit": "unit.ampere"
+          }
+        ],
+        "withheld": [
+          {
+            "id": "evse.limit.allocated_current",
+            "reason": "allocation_expired"
+          }
+        ],
+        "native": [
+          {
+            "namespace": "modbusreg",
+            "field": "LimitTimeoutSeconds",
+            "value": 600
+          }
+        ],
+        "operations": [
+          "evse.operation.set_allocated_current",
+          "ConfigurePersistentCurrent"
+        ]
+      }
     }
   ]
 }

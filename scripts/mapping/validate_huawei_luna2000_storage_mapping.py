@@ -98,8 +98,16 @@ UNSTATED_BY = {
     "storage.relation.system_battery": "configuration:no_storage_system_declared_by_this_gate",
 }
 UNSTATED_OUTCOME = "unknown_not_absent"
-REGISTRY_FLAGS = {"catalog_registered": False, "automatic_runtime_admission": False, "live_qualified": False, "support_claim": False, "write_authority": False}
+REGISTRY_FLAGS = {"catalog_registered": False, "automatic_runtime_admission": False, "live_qualified": False, "support_claim": False}
 QUALIFICATION = {**REGISTRY_FLAGS, "mapping_qualified": True, "outbound_allowed": False}
+
+def qualification_recorded(qualification):
+    """ND02 decision D14: live qualification is a recorded level, never a rejection; the other flags and the mapping stay pinned."""
+    if not isinstance(qualification, dict) or not isinstance(qualification.get("live_qualified"), bool):
+        return False
+    rest = {key: value for key, value in qualification.items() if key != "live_qualified"}
+    return rest == {key: value for key, value in QUALIFICATION.items() if key != "live_qualified"}
+
 EVIDENCE = {
     "monitoring_contract": {"repository": "helianthus-docs-modbus", "issue": 242, "pull_request": 253, "pages": ["protocols/huawei/monitoring-readonly-v1.md", "protocols/huawei/read-pacing-v1.md"]},
     "registry_profiles": {"repository": "helianthus-modbusreg", "issue": 348, "pull_request": 357},
@@ -463,7 +471,7 @@ def validate_case(case, contract):
     reads = check_case_reads(case, errors)
     check_case_identity(case, errors)
     check_case_lifecycle(case, errors)
-    if case.get("qualification") != QUALIFICATION:
+    if not qualification_recorded(case.get("qualification")):
         errors.add("mapping_unqualified")
     if case.get("request_operation") or case.get("request_conversion") or case.get("request_item"):
         errors.add("unsupported_or_withheld")

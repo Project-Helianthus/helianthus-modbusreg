@@ -4,8 +4,8 @@ This gate states what `helianthus.pack.storage@1.1.0`, the generic Storage
 family that the Growatt storage mapping also uses, will take from Huawei
 LUNA2000 observations once a battery profile is admitted, and it publishes
 nothing before then. It adds no pack and no vendor-specific semantic family, and
-it makes no stability promise before Helianthus 1.0. It is neither a device
-support claim nor a live qualification. Its machine-readable companion is
+it makes no stability promise before Helianthus 1.0. A live qualification observed on a record is a recorded
+level and does not reject its mapping. Its machine-readable companion is
 [the mapping vectors](huawei-luna2000-storage-v1.json); the vectors are
 synthetic and are not observations from hardware.
 
@@ -52,9 +52,9 @@ No battery offset is in any read plan.
 The gate accepts the registry outcomes `INSUFFICIENT_EVIDENCE`,
 `NO_ADMISSIBLE_PROFILE` and `AMBIGUOUS`. A selected battery profile fails closed
 with `gate_revision_required`: the registry cannot admit a profile before this
-gate is revised. All five registry flags (`catalog_registered`,
-`automatic_runtime_admission`, `live_qualified`, `support_claim`,
-`write_authority`) stay false, and `outbound_allowed=false` grants no operation.
+gate is revised. The registry flags (`catalog_registered`,
+`automatic_runtime_admission`, `support_claim`) stay false, a live qualification
+(`live_qualified`) is a recorded level and not a rejection, and `outbound_allowed=false` grants no operation.
 
 Before any row below may be mapped, a revision of this gate must show that:
 
@@ -320,7 +320,7 @@ generation-fenced.
 | `STG-NEG-003-word-count-mismatch` | A read must carry exactly its quantity of words. |
 | `STG-NEG-004-asset-missing` | A blank asset identifier fails closed. |
 | `STG-NEG-005-lifecycle-missing` | The source epoch is required. |
-| `STG-NEG-006-live-qualified` | A live qualification requires a revision of this gate. |
+| `STG-NEG-006-mapping-unqualified` | A mapping that is not declared qualified is rejected. |
 | `STG-NEG-007-charge-limit-operation` | The gate has no limit, interlock, route or authority. |
 | `STG-NEG-008-ampere-hour-to-kilowatt-hour` | Capacity is never converted to energy units. |
 | `STG-NEG-009-limit-item-requested` | A control-adjacent item is not requestable. |

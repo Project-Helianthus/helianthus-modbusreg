@@ -3,7 +3,7 @@
 This source-specific, read-only gate maps the facts that two offline SUN2000
 monitoring profiles admit to `helianthus.pack.pv@1.0.0`. It adds no pack and no
 vendor-specific semantic family, and it makes no stability promise before
-Helianthus 1.0. It is neither a device-support claim nor a live qualification.
+Helianthus 1.0. A live qualification observed on a record is a recorded level and does not reject its mapping.
 Its machine-readable companion is
 [the mapping vectors](huawei-sun2000-pv-v1.json). The vectors are synthetic and
 derive from the published native contract; they are not observations from
@@ -51,10 +51,10 @@ family-wide statement is a Hypothesis.
 The gate runs only on a registry selection of `PROFILE_SELECTED` for one of these
 two exact profile identifiers. `INSUFFICIENT_EVIDENCE`, `NO_ADMISSIBLE_PROFILE`
 and `AMBIGUOUS` publish nothing. Firmware is neither a predicate nor an identity
-input. The five registry flags `catalog_registered`,
-`automatic_runtime_admission`, `live_qualified`, `support_claim` and
-`write_authority` are all false and the gate requires them false; a live
-qualification needs a revision of this gate. `mapping_qualified=true` describes
+input. The four gate registry flags `catalog_registered`,
+`automatic_runtime_admission`, `live_qualified` and `support_claim` are recorded
+as false at the gate; a live qualification of a record is a recorded level and
+does not reject its mapping. `mapping_qualified=true` describes
 this offline projection only, and `outbound_allowed=false` grants no operation.
 
 The SUN2000 MAP0 series behind the EMMA has no consulted edition. Its
@@ -404,7 +404,7 @@ files use synthetic identifiers and values only.
 | `PV-NEG-012-asset-from-serial` | An identifier that embeds serial text is rejected. |
 | `PV-NEG-013-asset-from-unit-alone` | An identifier equal to the routed unit is rejected. |
 | `PV-NEG-014-lifecycle-missing` | The monotonic receipt axis is required. |
-| `PV-NEG-015-live-qualified` | A live qualification requires a revision of this gate. |
+| `PV-NEG-015-mapping-unqualified` | A mapping that is not declared qualified is rejected. |
 | `PV-NEG-016-operation` | The gate has no operation, route or authority. |
 | `PV-NEG-017-derived-energy` | No energy is derived or summed. |
 | `PV-NEG-018-error-precedence` | The first error of the precedence list is reported. |

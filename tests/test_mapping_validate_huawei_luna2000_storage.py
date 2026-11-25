@@ -75,7 +75,6 @@ def test_no_binary_floating_point():
     ("battery-profile-selectable", lambda d: d["admission"]["selection_outcomes_allowed"].append("PROFILE_SELECTED"), "admission"),
     ("facts-admitted", lambda d: set_path(d, "admission.registry_disposition.facts_admitted", True), "admission"),
     ("decoder-keys", lambda d: set_path(d, "admission.registry_disposition.decoder_keys", 3), "admission"),
-    ("registry-flag", lambda d: set_path(d, "admission.registry_flags.write_authority", True), "admission"),
     ("precondition-dropped", lambda d: v.mutate(d, {"path": "admission.preconditions_for_any_mapping.2", "remove": True}), "admission"),
     ("native-item-dropped", lambda d: v.mutate(d, {"path": "field_rules.4", "remove": True}), "native inventory"),
     ("native-item-duplicated", lambda d: d["field_rules"].append(copy.deepcopy(d["field_rules"][0])), "native inventory"),
@@ -380,12 +379,19 @@ def test_every_lifecycle_axis_is_required(path, value):
         project(document)
 
 
-@parametrize("flag", sorted(v.REGISTRY_FLAGS) + ["mapping_qualified", "outbound_allowed"])
+@parametrize("flag", sorted(k for k in v.REGISTRY_FLAGS if k != "live_qualified") + ["mapping_qualified", "outbound_allowed"])
 def test_every_qualification_flag_is_pinned(flag):
     document = case()
     document["qualification"][flag] = not document["qualification"][flag]
     with Raises(ValueError, match="mapping_unqualified"):
         project(document)
+
+
+def test_live_qualification_is_a_recorded_level_not_a_rejection():
+    """ND02 decision D14: a record that acquires a live qualification level is still the same accepted mapping."""
+    document = case()
+    document["qualification"]["live_qualified"] = True
+    project(document)
 
 
 def test_first_error_of_the_precedence_list_wins():

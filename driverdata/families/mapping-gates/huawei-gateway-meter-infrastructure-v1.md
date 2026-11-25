@@ -3,8 +3,8 @@
 This gate states what `helianthus.pack.infrastructure@1.0.0` will take from a
 power meter behind a Huawei gateway once a meter is decoded, and it publishes
 nothing before then. It adds no pack and no vendor-specific semantic family, and
-it makes no stability promise before Helianthus 1.0. It is neither a device
-support claim nor a live qualification. Its machine-readable companion is
+it makes no stability promise before Helianthus 1.0. A live qualification observed on a record is a recorded
+level and does not reject its mapping. Its machine-readable companion is
 [the mapping vectors](huawei-gateway-meter-infrastructure-v1.json); the vectors
 are synthetic and are not observations from hardware.
 
@@ -314,7 +314,7 @@ generation-fenced.
 | `MTR-NEG-007-role-derived-from-sign` | A role is configuration and never derived from a value. |
 | `MTR-NEG-008-role-outside-set` | A role outside the configured set is rejected. |
 | `MTR-NEG-009-lifecycle-missing` | The observation identifier is required. |
-| `MTR-NEG-010-live-qualified` | A live qualification requires a revision of this gate. |
+| `MTR-NEG-010-mapping-unqualified` | A mapping that is not declared qualified is rejected. |
 | `MTR-NEG-011-operation` | The gate has no operation, route or authority. |
 | `MTR-NEG-012-direction-split` | A signed value is not split without a stated sign reference. |
 | `MTR-NEG-013-mixed-sign-references` | Sign references differ by source and are never mixed. |
