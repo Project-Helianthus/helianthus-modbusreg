@@ -700,7 +700,7 @@ def native_page_text_cases():
     pages.append(("charging_citation_in_link_definition", wrong + '\n\n[x]: https://example.invalid "' + mapping.CHARGING_CITATION + '"\n'))
     pages.append(("charging_citation_in_link_title_after_text", wrong + '\n\nRetired text.\n[x]: https://example.invalid "' + mapping.CHARGING_CITATION + '"\n'))
     pages.append(("charging_citation_in_link_title_same_paragraph", wrong + '\n\nRetired text. [x]: https://example.invalid "' + mapping.CHARGING_CITATION + '"\n'))
-    pages += [(f"charging_citation_in_inline_link_{kind}_quote_title", wrong + f"\n\n[source](https://example.invalid {q}Historical wording. " + mapping.CHARGING_CITATION + f"{q})\n") for kind, q in (("double", '"'), ("single", "'"))]
+    pages += [(f"charging_citation_in_inline_link_{label}_{kind}_title", wrong + f"\n\n[source]({destination} {opening}Historical wording. " + mapping.CHARGING_CITATION + f"{closing})\n") for label, destination in (("plain_destination", "https://example.invalid"), ("parenthesized_destination", "https://example.invalid/annex(a)")) for kind, opening, closing in (("double_quote", '"', '"'), ("single_quote", "'", "'"), ("parenthesis", "(", ")"))]
     pages.append(("charging_citation_in_multiline_comment", wrong + "\n<!--\n" + mapping.CHARGING_CITATION + "\n-->\n"))
     pages.append(("charging_citation_hidden_in_comment", full.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex B") + " <!-- IEC 61851-1 Annex A -->"))
     pages.append(("charging_citation_in_comment_after_text", wrong + " visible text <!--\n" + mapping.CHARGING_CITATION + "\n-->\n"))

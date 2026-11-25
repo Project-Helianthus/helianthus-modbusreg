@@ -577,6 +577,7 @@ NATIVE_STATEMENTS = OPERATION_STATEMENTS + RELATION_STATEMENTS
 CHARGING_CITATION = "The 6 A floor and the 0 A pause follow IEC 61851-1 Annex A, where 6 A is the lowest charging current a charger can signal."
 
 
+LINK_DESTINATION = r"(?:<[^>\n]*>|(?:[^\s()<]|\([^\s()]*\))*)"
 LINK_TITLE = r"(?:\"[^\"]*\"|'[^']*'|\([^)]*\))"
 CITATION_TOKEN = re.compile(r"(?<!\w)IEC 61851-1 Annex A(?!\w)")
 FLOOR_TOKEN = re.compile(r"(?<![\w.])6 A(?!\w)")
@@ -586,7 +587,7 @@ PAUSE_TOKEN = re.compile(r"(?<![\w.])0 A(?!\w)")
 def visible_paragraphs(source):
     """Paragraphs of the rendered page outside link definitions, link titles and HTML comments, whitespace-normalized."""
     shown = re.sub(r"(?m)^ {0,3}\[[^\]\n]+\]:[^\n]*(?:\n[ \t]+[\"'(][^\n]*)?$", " ", source)
-    shown = re.sub(r"(\]\(\s*<?[^\s)>]*>?)\s+" + LINK_TITLE + r"\s*\)", r"\1)", shown)
+    shown = re.sub(r"(\]\(\s*" + LINK_DESTINATION + r")\s+" + LINK_TITLE + r"\s*\)", r"\1)", shown)
     shown = re.sub(r"\[[^\]\n]+\]:\s*\S+(?:\s+" + LINK_TITLE + ")?", " ", shown)
     shown = re.sub(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)", lambda m: m.group(2).replace("<", "&lt;"), shown, flags=re.DOTALL)
     shown = re.sub(r"<!--.*?-->", " ", shown, flags=re.DOTALL)
