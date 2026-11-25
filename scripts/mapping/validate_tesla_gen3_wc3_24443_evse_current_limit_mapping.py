@@ -582,6 +582,8 @@ def check_native_page():
     text = " ".join(NATIVE_PAGE.read_text(encoding="utf-8").split())
     if any(statement not in text for statement in NATIVE_STATEMENTS):
         fail("native_page_disagrees")
+    if not re.search(r"(?<![A-Za-z0-9])IEC 61851-1 Annex A(?![A-Za-z0-9])", text):
+        fail("native_page_disagrees")
 
 
 RELATION_TOKENS = ("connector-to-phase", "connector-to-session", "EVSE-to-meter", "unknown, not absent")
