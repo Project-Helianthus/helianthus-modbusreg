@@ -67,11 +67,11 @@ that declaration, and the reading must come from the routed unit the declaration
 names. A read that differs, a group of another exposure, or a reading from
 another routed unit is reported with `infrastructure.reason.identity_mismatch`:
 nothing is guessed and the declared meter is not replaced by the meter that was
-read. A route that was not read is `infrastructure.reason.identity_not_read`.
+read. A route that was not read is `infrastructure.reason.identity_not_read`. A read exception on a meter group does not erase a runtime route that differs from the declaration: that route is still `infrastructure.reason.identity_mismatch`, and the exception implies no meter absence.
 The plant group is read only from its own routed unit; from another unit it is
 `infrastructure.reason.group_not_read`. A case whose routed unit is the routed unit of its configured meter exposure runs on that meter route and is no
 evidence of the plant route, so its plant group is `infrastructure.reason.group_not_read`; a configured meter exposure at another unit
-publishes or withholds no plant fact. All registry flags stay false, and
+publishes or withholds no plant fact. A case whose runtime route is the known gateway-level route is no evidence of the plant route either, and its plant group is `infrastructure.reason.group_not_read`. All registry flags stay false, and
 `outbound_allowed=false` grants no operation.
 
 Each remaining precondition is decided from the documents, with its grade:

@@ -286,6 +286,20 @@ def test_an_exception_on_the_exposures_own_route_stays_a_read_exception():
     assert row_reasons(project(document))[SMARTLOGGER_GROUP] == "infrastructure.reason.read_exception_no_negation"
 
 
+def test_a_read_exception_does_not_erase_a_runtime_route_that_differs_from_the_declaration():
+    document = with_meter_group(SMARTLOGGER_GROUP, 11, route(SMARTLOGGER, 11), route(SMARTLOGGER, 19))
+    document["reads"] = [{"native_id": SMARTLOGGER_GROUP, "outcome": "EXCEPTION", "exception_code": 3}]
+    output = project(document)
+    assert output["facts"] == [] and row_reasons(output)[SMARTLOGGER_GROUP] == "infrastructure.reason.identity_mismatch"
+
+
+def test_a_plant_read_at_unit_100_with_gateway_level_route_evidence_publishes_no_plant_fact():
+    document = with_plant(1500)
+    document["meter"]["identity_read"] = route(EMMA_GATEWAY, 0)
+    output = project(document)
+    assert output["facts"] == [] and row_reasons(output)["sdongle_plant_grid_power"] == "infrastructure.reason.group_not_read"
+
+
 def test_the_emma_gateway_level_route_at_unit_zero_is_a_known_route_and_no_configured_meter_exposure():
     known = with_meter_group("emma_built_in_sensor_group", 0, None, route(EMMA_GATEWAY, 0))
     output = project(known)
@@ -1039,6 +1053,14 @@ def test_owner_link_exception_needs_a_complete_approved_destination_not_a_markdo
     for text in ("[owner](" + approved + ";other)", "[owner](<" + approved + ";other>)", "[a](https://example.invalid/x \"[b](" + approved + ")\")", "[a]( https://example.invalid/x \"[b](" + approved + ")\")", "[a](\t<https://example.invalid/x> '[b](" + approved + ")')", "[a](https://example.invalid/x '[b](" + approved + ")')", "[owner](" + approved + " \"title\")"):
         with Raises(ValueError, match="publication"):
             v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
+def test_an_escaped_opening_bracket_is_literal_text_and_gets_no_owner_link_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for text in ("\\[owner](" + approved + ")", "\\\\\\[owner](" + approved + ")", "[owner\\](" + approved + ")"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+    v.check_document(v.load(), page() + "\n\\\\[owner](" + approved + ")\n")
 
 
 if __name__ == "__main__":

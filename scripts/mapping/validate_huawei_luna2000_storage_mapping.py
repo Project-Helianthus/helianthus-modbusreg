@@ -45,6 +45,14 @@ def _owner_destination(link):
     return None
 
 
+def _backslash_escaped(text, index):
+    """Whether the character at index is escaped by an odd run of backslashes, so Markdown renders it as literal text."""
+    run = 0
+    while index - run > 0 and text[index - run - 1] == "\\":
+        run += 1
+    return run % 2 == 1
+
+
 CODE_RE = re.compile(r"^[ ]{0,3}(?P<fence>`{3,}|~{3,})[^\n]*\n.*?(?:^[ ]{0,3}(?P=fence)[`~]*[ \t]*$|\Z)|^(?: {4}|\t)[^\n]*$|(?P<tick>`+)(?:(?!(?P=tick))[^`]|`+(?!(?P=tick)(?!`)))*?(?<!`)(?P=tick)(?!`)", re.MULTILINE | re.DOTALL)
 
 
@@ -54,7 +62,8 @@ def unowned_text(text):
 
     def strip(link):
         inside = any(start <= link.start() < stop for start, stop in literal)
-        return (link.group("label") or link.group("ref") or "") if not inside and _owner_destination(link) else link.group(0)
+        escaped = link.group("label") is not None and (_backslash_escaped(text, link.start()) or _backslash_escaped(text, link.end("label")))
+        return (link.group("label") or link.group("ref") or "") if not inside and not escaped and _owner_destination(link) else link.group(0)
 
     return MD_LINK_RE.sub(strip, text)
 ID_FORBIDDEN_TEXT = ("serial", "esn", "sun2000", "huawei", "luna", "smartlogger", "sdongle", "s-dongle", "emma")

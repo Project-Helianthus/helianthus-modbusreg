@@ -46,6 +46,14 @@ def _owner_destination(link):
     return None
 
 
+def _backslash_escaped(text, index):
+    """Whether the character at index is escaped by an odd run of backslashes, so Markdown renders it as literal text."""
+    run = 0
+    while index - run > 0 and text[index - run - 1] == "\\":
+        run += 1
+    return run % 2 == 1
+
+
 CODE_RE = re.compile(r"^[ ]{0,3}(?P<fence>`{3,}|~{3,})[^\n]*\n.*?(?:^[ ]{0,3}(?P=fence)[`~]*[ \t]*$|\Z)|^(?: {4}|\t)[^\n]*$|(?P<tick>`+)(?:(?!(?P=tick))[^`]|`+(?!(?P=tick)(?!`)))*?(?<!`)(?P=tick)(?!`)", re.MULTILINE | re.DOTALL)
 
 
@@ -55,7 +63,8 @@ def unowned_text(text):
 
     def strip(link):
         inside = any(start <= link.start() < stop for start, stop in literal)
-        return (link.group("label") or link.group("ref") or "") if not inside and _owner_destination(link) else link.group(0)
+        escaped = link.group("label") is not None and (_backslash_escaped(text, link.start()) or _backslash_escaped(text, link.end("label")))
+        return (link.group("label") or link.group("ref") or "") if not inside and not escaped and _owner_destination(link) else link.group(0)
 
     return MD_LINK_RE.sub(strip, text)
 ID_FORBIDDEN_TEXT = ("serial", "esn", "sun2000", "huawei", "luna", "smartlogger", "sdongle", "s-dongle", "emma")
@@ -669,13 +678,13 @@ def native_power(words, native):
 
 
 def gate_reason(case, declared, rule, read):
-    """The reason an active row is withheld before its words are decoded, or None: unresolved selection, role, the plant route (a case running on a configured meter exposure's own route is no plant read), then the read."""
+    """The reason an active row is withheld before its words are decoded, or None: unresolved selection, role, the plant route (a case running on a configured meter exposure's own route, or on the known gateway-level route, is no plant read), then the read."""
     if case["selection"]["outcome"] != ADMITTING:
         return PRIMARY_REASON
     if declared != rule["prospective"][0]["role"]:
         return "infrastructure.reason.role_not_declared"
     declared_route = case["meter"]["declared"]
-    if case.get("routed_unit") != PLANT_ROUTE["routed_unit"] or (declared_route is not None and declared_route["routed_unit"] == case.get("routed_unit")):
+    if case["meter"]["identity_read"] == GATEWAY_LEVEL or case.get("routed_unit") != PLANT_ROUTE["routed_unit"] or (declared_route is not None and declared_route["routed_unit"] == case.get("routed_unit")):
         return "infrastructure.reason.group_not_read"
     if read is None or read["outcome"] in ("FAILED", "NOT_READ"):
         return "infrastructure.reason.group_not_read"
@@ -683,12 +692,12 @@ def gate_reason(case, declared, rule, read):
 
 
 def route_mismatch(case, native_id):
-    """True when a configured meter exposure is read on a route other than its own; an exception on that route is no evidence of absence, but the route mismatch is still reported."""
+    """True when a configured meter exposure is read on a route other than its own, or the runtime route read differs from the declaration; an exception on that route is no evidence of absence, but the route mismatch is still reported."""
     meter, exposure = case["meter"], METER_EXPOSURE_OF.get(native_id)
     declared = meter["declared"]
     if declared is None or exposure is None:
         return False
-    return (exposure == "sdongle_inverter_side" and declared["routed_unit"] == PLANT_UNIT) or declared["exposure"] != exposure or case.get("routed_unit") != declared["routed_unit"]
+    return (exposure == "sdongle_inverter_side" and declared["routed_unit"] == PLANT_UNIT) or declared["exposure"] != exposure or case.get("routed_unit") != declared["routed_unit"] or (meter["identity_read"] is not None and meter["identity_read"] != declared)
 
 
 def exposure_reason(case, native_id):

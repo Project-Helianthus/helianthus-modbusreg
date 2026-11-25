@@ -1098,5 +1098,13 @@ def test_owner_link_exception_needs_a_complete_approved_destination_not_a_markdo
             v.check_document(v.load(), page() + "\n" + text + "\n")
 
 
+def test_an_escaped_opening_bracket_is_literal_text_and_gets_no_owner_link_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for text in ("\\[owner](" + approved + ")", "\\\\\\[owner](" + approved + ")", "[owner\\](" + approved + ")"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+    v.check_document(v.load(), page() + "\n\\\\[owner](" + approved + ")\n")
+
+
 if __name__ == "__main__":
     raise SystemExit(support.run(globals()))
