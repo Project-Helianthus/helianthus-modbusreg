@@ -57,7 +57,9 @@ and the configured current is withheld as `configured_current_other_epoch` only
 when no candidate of the case remains; the raw native timeout it carries stays
 served in the modbusreg namespace. A persistent record outside the case's epoch
 and generation does not stand in for evidence: the case still needs valid
-provisional evidence. Permitted last-known-good retention remains the native owner's
+provisional evidence. A persistent record whose evidence member is absent is not
+a record shown to belong to another lifecycle: the case is rejected with
+`evidence_binding_invalid`. Permitted last-known-good retention remains the native owner's
 lifecycle decision.
 
 ## Resources, relations, and identity
@@ -105,9 +107,9 @@ meter is the charger's own energy counter, declared by configuration, and it is
 a meter resource in the graph with a configured identity of its own. The
 connector-to-phase and connector-to-session relations are listed in
 `unstated_relations` as unknown, not absent, each with a reason that names the
-missing native statement: the TEDAPI specification assigns no per-phase
-connector measurement to the Wall Connector vitals message, and gives no session
-start in it (the session duration and session energy members are Not specified).
+missing native statement: no native statement assigns a per-phase connector
+measurement to the Wall Connector vitals message, and none gives a session start
+in it (the session duration and session energy members are not specified).
 The gate publishes no phase or session, and it never claims that a phase or
 session is missing. Native connector topology stays unsupported.
 

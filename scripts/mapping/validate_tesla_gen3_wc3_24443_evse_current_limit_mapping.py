@@ -363,10 +363,12 @@ def case_errors(case, contract):
 
 
 def case_evidence_valid(case):
-    """A persistent record of the case needs its own evidence; one outside the case lifecycle is excluded and the case then needs valid provisional evidence. Without a persistent record the provisional evidence is required."""
+    """A persistent record of the case needs its own evidence, and a record without its evidence member is rejected; one outside the case lifecycle is excluded and the case then needs valid provisional evidence. Without a persistent record the provisional evidence is required."""
     if "persistent" not in case:
         return provisional_valid(case)
     evidence = case.get("evidence", {}).get("persistent")
+    if not isinstance(evidence, dict):
+        return False
     if not bound_to_lifecycle(evidence, case.get("lifecycle")):
         return provisional_valid(case)
     return valid_evidence(evidence, PERSISTENT_REFS)

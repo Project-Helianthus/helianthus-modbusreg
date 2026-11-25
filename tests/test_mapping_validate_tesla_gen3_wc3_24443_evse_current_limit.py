@@ -335,13 +335,21 @@ def unbound_t8_evidence_cases(baseline, contract):
 
 
 def missing_t8_evidence_case(baseline, contract):
-    """A t8 record whose evidence member is absent is not a candidate: the bound t28 decides and no error escapes."""
-    missing = copy.deepcopy(baseline)
-    missing["evidence"].pop("persistent")
-    missing["persistent"]["MaxOutputCurrentAmps"] = 7
-    missing["provisional"]["ConfiguredCurrentAmps"] = 32
-    if facts_of(mapping.project(missing, contract)) != [("evse.limit.configured_current", "32"), ("evse.limit.allocated_current", "12")]:
-        raise AssertionError("a t8 without its evidence was treated as a candidate or crashed the selector")
+    """A t8 record whose evidence member is absent fails closed, whether or not the t28 names another epoch."""
+    for foreign_t28 in (False, True):
+        missing = copy.deepcopy(baseline)
+        missing["evidence"].pop("persistent")
+        missing["persistent"]["MaxOutputCurrentAmps"] = 7
+        missing["provisional"]["ConfiguredCurrentAmps"] = 32
+        if foreign_t28:
+            missing["evidence"]["provisional"]["source_epoch"] = OTHER_BINDING["source_epoch"]
+        try:
+            mapping.project(missing, contract)
+        except ValueError as error:
+            if str(error) != "evidence_binding_invalid":
+                raise AssertionError(f"t8 without evidence (foreign t28 {foreign_t28}): {error}")
+        else:
+            raise AssertionError(f"a t8 without its evidence was admitted (foreign t28 {foreign_t28})")
 
 
 def epoch_cases(baseline, contract):
