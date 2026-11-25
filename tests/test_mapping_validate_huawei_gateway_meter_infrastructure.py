@@ -307,6 +307,47 @@ def test_an_unread_group_with_a_matching_runtime_route_keeps_its_own_reason():
     document["reads"] = []
     assert "infrastructure.reason.identity_mismatch" not in row_reasons(project(document)).values()
 
+MISMATCH, UNREAD, DECODED = "infrastructure.reason.identity_mismatch", "infrastructure.reason.identity_not_read", "infrastructure.reason.answered_not_decoded"
+STATIC, NO_NEGATION = "infrastructure.reason.no_meter_class_contract", "infrastructure.reason.read_exception_no_negation"
+# (route state, routed unit of the request, runtime route read) for a SmartLogger meter configured at unit 11.
+ROUTE_STATES = {
+    "matches": (11, route(SMARTLOGGER, 11)),
+    "differs_by_request_unit": (19, None),
+    "differs_by_runtime_route": (11, route(SMARTLOGGER, 19)),
+    "not_stated": (11, None),
+}
+GROUP_READS = {
+    "answered": {"native_id": SMARTLOGGER_GROUP, "outcome": "ANSWERED"},
+    "failed": {"native_id": SMARTLOGGER_GROUP, "outcome": "FAILED"},
+    "exception": {"native_id": SMARTLOGGER_GROUP, "outcome": "EXCEPTION", "exception_code": 3},
+    "not_read": None,
+}
+# The route identity is decided first and does not depend on the group outcome; a group that was not read carries no request, so only a runtime route read can contradict the declaration there.
+EXPECTED_ROUTE_REASON = {
+    ("answered", "matches"): DECODED, ("answered", "differs_by_request_unit"): MISMATCH, ("answered", "differs_by_runtime_route"): MISMATCH, ("answered", "not_stated"): UNREAD,
+    ("failed", "matches"): STATIC, ("failed", "differs_by_request_unit"): MISMATCH, ("failed", "differs_by_runtime_route"): MISMATCH, ("failed", "not_stated"): STATIC,
+    ("exception", "matches"): NO_NEGATION, ("exception", "differs_by_request_unit"): MISMATCH, ("exception", "differs_by_runtime_route"): MISMATCH, ("exception", "not_stated"): NO_NEGATION,
+    ("not_read", "matches"): STATIC, ("not_read", "differs_by_request_unit"): STATIC, ("not_read", "differs_by_runtime_route"): MISMATCH, ("not_read", "not_stated"): STATIC,
+}
+
+
+@parametrize("read_state,route_state", sorted(EXPECTED_ROUTE_REASON))
+def test_the_meter_route_identity_is_decided_first_and_independent_of_the_group_outcome(read_state, route_state):
+    unit, identity_read = ROUTE_STATES[route_state]
+    document = with_meter_group(SMARTLOGGER_GROUP, unit, route(SMARTLOGGER, 11), identity_read)
+    document["reads"] = [] if GROUP_READS[read_state] is None else [dict(GROUP_READS[read_state])]
+    output = project(document)
+    assert output["facts"] == []
+    assert row_reasons(output)[SMARTLOGGER_GROUP] == EXPECTED_ROUTE_REASON[(read_state, route_state)]
+    assert row_reasons(output)["sdongle_inverter_exposed_meter_group"] != MISMATCH
+
+
+def test_a_wrong_unit_answer_without_a_separate_route_read_is_a_mismatch_like_the_same_request_with_an_exception():
+    answered = project(with_meter_group(SMARTLOGGER_GROUP, 19, route(SMARTLOGGER, 11), None))
+    refused = with_meter_group(SMARTLOGGER_GROUP, 19, route(SMARTLOGGER, 11), None)
+    refused["reads"] = [dict(GROUP_READS["exception"])]
+    assert row_reasons(answered)[SMARTLOGGER_GROUP] == row_reasons(project(refused))[SMARTLOGGER_GROUP] == MISMATCH
+
 
 @parametrize("declared,identity_read", [
     (route(SMARTLOGGER, 11), route(SMARTLOGGER, 100)),
@@ -1111,6 +1152,15 @@ def test_an_escaped_opening_bracket_is_literal_text_and_gets_no_owner_link_excep
         with Raises(ValueError, match="publication"):
             v.check_document(v.load(), page() + "\n" + text + "\n")
     v.check_document(v.load(), page() + "\n\\\\[owner](" + approved + ")\n")
+
+
+@parametrize("text,exempt", support.OWNER_LINK_CASES)
+def test_the_owner_link_table_exempts_only_a_full_approved_destination_of_a_markdown_link(text, exempt):
+    if exempt:
+        v.check_document(v.load(), page() + "\n" + text + "\n")
+        return
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n" + text + "\n")
 
 
 if __name__ == "__main__":

@@ -65,8 +65,8 @@ what never derives it.
   path that relays the child, one for the PV system, one for the inverter and
   one for each of the eight string slots. A phase identifier is allocated by the
   driver, not the gateway, at the native phase position one to three, and only
-  for a position read in an answered power group (Proven for the M1 profile,
-  one reading). No phase identifier exists for a refused power group.
+  for a position read in an answered power group (Proven for the M1 profile).
+  No phase identifier exists for a refused power group.
 
 The class token of the PV pack and the registry profile identifier are native
 interpretation selectors, and the gate classifies both as provenance (section
@@ -340,8 +340,8 @@ names a reason that declares its loss.
 
 The status group is retained as bit fields whose meanings are Unknown, and one of
 its words is derived from a serial number and is never published. The words of
-the power group that are not consumed are the contract's check anchors (grid
-voltages and currents, frequency, reactive power, efficiency, temperature). The
+the power group that are not consumed carry grid voltages and currents,
+frequency, reactive power, efficiency and temperature. The
 pack has fields that could carry some of them (`pv.ac.voltage`, `pv.ac.current`,
 `pv.ac.frequency`, `pv.ac.power_factor`, `pv.temperature.inverter`), so they are
 withheld rather than native-only; they become mappable only when a profile

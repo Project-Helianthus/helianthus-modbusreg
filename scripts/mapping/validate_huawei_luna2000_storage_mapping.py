@@ -28,72 +28,10 @@ GRADES = ["unknown", "hypothesis", "proven"]
 ERROR_PRECEDENCE = ["native_evidence_invalid", "identity_missing_or_invalid", "lifecycle_missing", "mapping_unqualified", "unsupported_or_withheld"]
 OPAQUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
-# Approved immutable owner links (the exception applies only where the link is the Markdown destination): the pinned docs-semantic revision, owning path, optional non-line anchor.
-OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
-OWNER_URL_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?")
-MD_LINK_RE = re.compile(r"\[(?P<label>(?:[^\[\]]|\[[^\[\]]*\])*)\]\(\s*(?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)|^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)(?P<reftitle>[ \t]+(?:\"[^\"]*\"|\'[^\']*\'|\([^\n]*\)))?[ \t]*$", re.MULTILINE)
 # A line anchor and a private or IPv4 endpoint are never published, whether or not an owner link surrounds them.
 LINE_ANCHOR_RE = re.compile(r"#L[0-9]")
 ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")
-
-
-def _owner_destination(link):
-    """The destination of a complete Markdown link when it is an approved owner URL without a title, else None."""
-    destination = link.group("angle") or link.group("bare") or (link.group("refdest") or "").strip("<>")
-    if link.group("title") is None and link.group("reftitle") is None and OWNER_URL_RE.fullmatch(destination):
-        return destination
-    return None
-
-
-def _backslash_escaped(text, index):
-    """Whether the character at index is escaped by an odd run of backslashes, so Markdown renders it as literal text."""
-    run = 0
-    while index - run > 0 and text[index - run - 1] == "\\":
-        run += 1
-    return run % 2 == 1
-
-
-CODE_RE = re.compile(r"^[ ]{0,3}(?P<fence>`{3,}|~{3,})[^\n]*\n.*?(?:^[ ]{0,3}(?P=fence)[`~]*[ \t]*$|\Z)|^(?: {4}|\t)[^\n]*$|(?P<tick>`+)(?:(?!(?P=tick))[^`]|`+(?!(?P=tick)(?!`)))*?(?<!`)(?P=tick)(?!`)", re.MULTILINE | re.DOTALL)
-
-
-LINK_OPENER_RE = re.compile(r"\[(?:[^\[\]]|\[[^\[\]]*\])*\]\(\s*")
-
-
-def _destination_spans(text):
-    """(link start, destination start, destination end) of every inline Markdown link opener, the bare destination read with balanced parentheses to any depth."""
-    spans = []
-    for opener in LINK_OPENER_RE.finditer(text):
-        begin = end = opener.end()
-        if text.startswith("<", begin):
-            end = text.find(">", begin)
-            end = len(text) if end < 0 else end
-        else:
-            depth = 0
-            while end < len(text) and not text[end].isspace():
-                if text[end] == "\\":
-                    end += 1
-                elif text[end] == "(":
-                    depth += 1
-                elif text[end] == ")":
-                    if depth == 0:
-                        break
-                    depth -= 1
-                end += 1
-        spans.append((opener.start(), begin, end))
-    return spans
-
-
-def unowned_text(text):
-    """The published text with the destination of each complete Markdown link to an approved owner URL removed; its label and every other link stay visible, and a link inside a code block or code span is literal text that stays visible."""
-    literal = [code.span() for code in CODE_RE.finditer(text)]
-    destinations = _destination_spans(text)
-
-    def strip(link):
-        inside = any(start <= link.start() < stop for start, stop in literal) or any(opened != link.start() and begin <= link.start() < stop for opened, begin, stop in destinations)
-        escaped = link.group("label") is not None and (_backslash_escaped(text, link.start()) or _backslash_escaped(text, link.end("label")))
-        return (link.group("label") or link.group("ref") or "") if not inside and not escaped and _owner_destination(link) else link.group(0)
-
-    return MD_LINK_RE.sub(strip, text)
+unowned_text = graph_rules.unowned_text
 ID_FORBIDDEN_TEXT = ("serial", "esn", "sun2000", "huawei", "luna", "smartlogger", "sdongle", "s-dongle", "emma")
 ID_ADDRESS_RE = re.compile(r"(\d{1,3}\.){3}\d{1,3}|:\d{3,5}$")
 # Exact conversions of the unit rule in api/README.md: (native unit, canonical SI unit) -> factor and offset, SI = native x factor + offset.

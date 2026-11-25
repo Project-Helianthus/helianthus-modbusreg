@@ -1122,5 +1122,14 @@ def test_an_escaped_opening_bracket_is_literal_text_and_gets_no_owner_link_excep
     v.check_document(v.load(), page() + "\n\\\\[owner](" + approved + ")\n")
 
 
+@parametrize("text,exempt", support.OWNER_LINK_CASES)
+def test_the_owner_link_table_exempts_only_a_full_approved_destination_of_a_markdown_link(text, exempt):
+    if exempt:
+        v.check_document(v.load(), page() + "\n" + text + "\n")
+        return
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
 if __name__ == "__main__":
     raise SystemExit(support.run(globals()))

@@ -737,7 +737,7 @@
     },
     "pv.reason.statistics_time_domain_unresolved": {
       "loss_kind": "time",
-      "description": "the device statistics time lay in local time rather than UTC in one reading per unit; it is never used as a sample time",
+      "description": "the device statistics time is local time rather than UTC; it is never used as a sample time",
       "reversible": false
     },
     "pv.reason.string_reading_names_no_distinct_input": {

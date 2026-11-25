@@ -1399,6 +1399,58 @@ def test_the_shorter_refusal_stays_a_distinct_record_beside_an_answered_aligned_
     with Raises(ValueError, match="native_evidence_invalid"):
         project(document)
 
+POWER_RECORDS = {
+    "aligned": {"offset": 32064, "quantity": 33, "outcome": "ANSWERED"},
+    "refusal": {"offset": 32064, "quantity": 32, "outcome": "EXCEPTION", "exception_code": 3},
+    "other": {"offset": 32064, "quantity": 34, "outcome": "ANSWERED"},
+}
+
+
+def power_group_case(name, order, phases=True):
+    """The profile baseline with its power-group records replaced by the named records in the given order; facts of that group are unknown unless an aligned answer is present."""
+    document = phase_case([1, 2, 3], name=name, ids=PHASES if name == "m1" else M3_PHASES) if phases else case(name)
+    document["groups"] = [group for group in document["groups"] if group["offset"] != 32064] + [dict(POWER_RECORDS[item]) for item in order]
+    if "aligned" not in order:
+        in_group = {rule["native_id"] for rule in v.load()["field_rules"] if (rule.get("native") or {}).get("group_offset") == 32064}
+        for fact in document["facts"]:
+            if fact["key"] in in_group:
+                for member in ("value", "words", "state", "origin"):
+                    fact.pop(member, None)
+                fact["availability"], fact["grade"] = "UNKNOWN", "unknown"
+    return document
+
+
+@parametrize("name", ["m1", "m3"])
+def test_the_projection_of_the_power_group_does_not_depend_on_the_order_of_its_two_records(name):
+    first, second = project(power_group_case(name, ["refusal", "aligned"])), project(power_group_case(name, ["aligned", "refusal"]))
+    assert first == second
+    assert len(phase_relations(first)) == 3
+
+
+def test_an_m1_case_with_a_refusal_before_an_answered_aligned_read_keeps_its_valid_power_facts():
+    for order in (["refusal", "aligned"], ["aligned", "refusal"]):
+        output = project(power_group_case("m1", order, phases=False))
+        assert by_key(output) == by_key(project(case("m1")))
+
+
+@parametrize("name,order,error", [
+    ("m1", ["refusal"], "native_evidence_invalid"),
+    ("m3", ["refusal"], "native_evidence_invalid"),
+    ("m1", ["other"], "native_evidence_invalid"),
+    ("m3", ["other"], "native_evidence_invalid"),
+    ("m1", ["refusal", "other"], "native_evidence_invalid"),
+    ("m3", ["other", "refusal"], "native_evidence_invalid"),
+])
+def test_a_phase_needs_the_aligned_answer_and_a_read_of_another_extent_is_not_the_recorded_refusal(name, order, error):
+    with Raises(ValueError, match=error):
+        project(power_group_case(name, order))
+
+
+@parametrize("name", ["m1", "m3"])
+def test_a_refusal_alone_publishes_no_power_fact_and_an_aligned_answer_alone_publishes_the_phases(name):
+    assert not phase_relations(project(power_group_case(name, ["refusal"], phases=False)))
+    assert len(phase_relations(project(power_group_case(name, ["aligned"])))) == 3
+
 
 def test_a_reported_phase_position_without_its_identity_fails_closed():
     with Raises(ValueError, match="identity_missing_or_invalid"):
@@ -1429,7 +1481,7 @@ def test_the_phase_allocation_is_the_drivers_and_the_gate_publishes_no_source_st
     assert not any("edition_binding" in profile for profile in document["native_contract"]["profiles"])
     for text in (json.dumps(document).lower(), page().lower()):
         assert "consulted" not in text and "edition" not in text and "inspection-only" not in text and "copyright" not in text
-        for word in ("pull request", "pull_request", "issue ", "\"issue\"", "synthetic", "independent check", "helianthus-docs-ebus", "helianthus-modbusreg", "registry_profiles", "program_issues", "multi_endpoint_contract", "derive from the published"):
+        for word in ("pull request", "pull_request", "issue ", "\"issue\"", "synthetic", "independent check", "helianthus-docs-ebus", "helianthus-modbusreg", "registry_profiles", "program_issues", "multi_endpoint_contract", "derive from the published", "one reading", "readings per", "check anchor", "per unit;"):
             assert word not in text, word
     assert document["evidence"] == {"grades": ["proven", "hypothesis", "unknown"]}
 
@@ -1440,6 +1492,15 @@ def test_the_relay_declarations_keep_their_evidence_class_and_publish_no_source_
     for row in rows:
         assert row["basis_class"] == "native_observation" and row["evidence"] and all(item.startswith("native_observation:") for item in row["evidence"]), row["to_kind"]
     assert "native_page" not in json.dumps(contract()).lower() and "native_page" not in page().lower()
+
+
+@parametrize("text,exempt", support.OWNER_LINK_CASES)
+def test_the_owner_link_table_exempts_only_a_full_approved_destination_of_a_markdown_link(text, exempt):
+    if exempt:
+        v.check_document(v.load(), page() + "\n" + text + "\n")
+        return
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n" + text + "\n")
 
 
 if __name__ == "__main__":

@@ -1,14 +1,15 @@
 # Huawei gateway-meter Infrastructure mapping gate v1
 
 This gate states what `helianthus.pack.infrastructure@1.0.0` will take from a
-power meter behind a Huawei gateway once a meter is decoded, and it publishes
-nothing before then. It adds no pack and no vendor-specific semantic family, and
+power meter behind a Huawei gateway once a meter is decoded; until then it
+publishes no meter value. The plant grid exchange at the gateway's plant route is
+a separate statement that the gate publishes without any meter. It adds no pack and no vendor-specific semantic family, and
 it makes no stability promise before Helianthus 1.0. A live qualification observed on a record is a recorded
 level and does not reject its mapping. Its machine-readable companion is
 [the mapping vectors](huawei-gateway-meter-infrastructure-v1.json); the vectors
 are synthetic and are not observations from hardware.
 
-Every meter value is Unknown today. The sibling gates are
+Every meter value is Unknown today; the plant grid exchange is not a meter value. The sibling gates are
 [the SUN2000 PV gate](huawei-sun2000-pv-v1.md) and
 [the LUNA2000 storage gate](huawei-luna2000-storage-v1.md). The existing
 [gateway-local runtime assessment](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/mappings/infrastructure/gateway-runtime.md)
@@ -67,7 +68,7 @@ that declaration, and the reading must come from the routed unit the declaration
 names. A read that differs, a group of another exposure, or a reading from
 another routed unit is reported with `infrastructure.reason.identity_mismatch`:
 nothing is guessed and the declared meter is not replaced by the meter that was
-read. A route that was not read is `infrastructure.reason.identity_not_read`. A read exception, a failed read, a group not read or a group left out does not erase a runtime route that differs from the declaration: every group of the declared exposure is still `infrastructure.reason.identity_mismatch`, and the missing answer implies no meter absence.
+read. The route identity is decided first, from the case, and does not depend on whether the group was answered, failed or not read: a route the case contradicts is `infrastructure.reason.identity_mismatch` in each of those situations and is never reported as unread or hidden by a read exception. A group that answered with no route read and no contradiction is `infrastructure.reason.identity_not_read`. A read exception, a failed read, a group not read or a group left out does not erase a runtime route that differs from the declaration: every group of the declared exposure is still `infrastructure.reason.identity_mismatch`, and the missing answer implies no meter absence.
 The plant group is read only from its own routed unit; from another unit it is
 `infrastructure.reason.group_not_read`. A case whose routed unit is the routed unit of its configured meter exposure runs on that meter route and is no
 evidence of the plant route, so its plant group is `infrastructure.reason.group_not_read`; a configured meter exposure at another unit
