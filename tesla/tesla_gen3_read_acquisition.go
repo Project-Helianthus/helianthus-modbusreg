@@ -134,6 +134,9 @@ type Gen3ReadWindow struct {
 // Gen3ReadAcquisitionConfig is an explicit local configuration. No field
 // is discovered or inferred.
 type Gen3ReadAcquisitionConfig struct {
+	// PersistentIdentityCapacity is the caller-supplied bound on admitted
+	// persistent identities for this acquisition, including expired receipts.
+	PersistentIdentityCapacity int
 	// Endpoint is the public endpoint label carried in evidence.
 	Endpoint string
 	// LocalPath is passed only to the endpoint opener; it never appears in a
@@ -179,6 +182,7 @@ type Gen3ReadRecord struct {
 	OperationVersion       string
 	Gen3Version            string
 	Gen3VersionDisposition Gen3HSCVersionDisposition
+	ReadApplicabilityGrade ReadApplicabilityGrade
 	Source                 string
 	LifecycleEpoch         uint64
 	EndpointInstance       uint64
@@ -202,6 +206,9 @@ type Gen3ReadRecord struct {
 	requestADU             []byte
 	responseADUs           [][]byte
 	results                []FC100OperationResult
+	provisionalReadback    ProvisionalCurrentLimitReadback
+	persistentCurrent      int32
+	hasPersistentCurrent   bool
 }
 
 // RequestADU returns the exact request frame, when one was constructed.
@@ -302,6 +309,7 @@ type Gen3ReadAcquisition struct {
 	// generation that admission must succeed, on this same instance.
 	epochGeneration uint64
 	lastGeneration  uint64
+	readbackSeen    uint64
 	plan            *teslaGen3ReadPlan
 	retained        map[FC100Operation]*teslaGen3ReadRetention
 	// activationObserved is set by the driver or the readiness probe.
@@ -310,12 +318,17 @@ type Gen3ReadAcquisition struct {
 	activationReport   HSCActivationReport
 	activationBasis    HSCActivationBasis
 	// activatingProbe admits exactly one planned read while activating.
-	activatingProbe bool
+	activatingProbe    bool
+	persistentAttempts map[string]teslaPersistentAttempt
 }
 
 // NewGen3ReadAcquisition validates the explicit configuration and every
 // profile, version, and operation gate. It performs no I/O.
 func NewGen3ReadAcquisition(config Gen3ReadAcquisitionConfig) (*Gen3ReadAcquisition, error) {
+	if config.Gen3.documentedCurrentLimitLayout() && config.Profile.config.WCProvisionalReadbackOperationVersion == "" && !config.Profile.config.WCProvisionalReadbackQualified {
+		config.Profile.config.WCProvisionalReadbackOperationVersion = HSCFC100OperationCompatibilityV1
+		config.Profile.config.WCProvisionalReadbackQualified = true
+	}
 	if err := validateTeslaGen3ReadAcquisitionConfig(config); err != nil {
 		return nil, err
 	}
@@ -327,16 +340,28 @@ func NewGen3ReadAcquisition(config Gen3ReadAcquisitionConfig) (*Gen3ReadAcquisit
 	}
 	windows := make(map[FC100Operation]Gen3ReadWindow, len(config.Operations))
 	retained := make(map[FC100Operation]*teslaGen3ReadRetention, len(config.Operations))
+	var operations []FC100Operation
 	for _, operation := range config.Operations {
+		if operation == FC100OperationWCGetProvisional && !config.provisionalReadbackAdmitted() {
+			continue
+		}
+		operations = append(operations, operation)
 		windows[operation] = config.Windows[operation]
 		retained[operation] = &teslaGen3ReadRetention{}
 	}
-	operations := append([]FC100Operation(nil), config.Operations...)
+	if window := config.Windows[FC100OperationWCGetProvisional]; config.provisionalReadbackAdmitted() && validTeslaReadWindow(window) {
+		windows[FC100OperationWCGetProvisional] = window
+		retained[FC100OperationWCGetProvisional] = &teslaGen3ReadRetention{}
+	}
+	if window := config.Windows[FC100OperationWCConfigureSettings]; validTeslaReadWindow(window) {
+		windows[FC100OperationWCConfigureSettings] = window
+	}
 	config.Operations = nil
 	config.Windows = nil
 	return &Gen3ReadAcquisition{
 		config: config, operations: operations, windows: windows,
 		state: Gen3ReadLifecycleStopped, retained: retained,
+		persistentAttempts: make(map[string]teslaPersistentAttempt),
 	}, nil
 }
 
@@ -347,14 +372,11 @@ func validateTeslaGen3ReadAcquisitionConfig(config Gen3ReadAcquisitionConfig) er
 	if !modbusreg.ValidIdentity(config.Endpoint) || config.LocalPath == "" {
 		return noSend("endpoint is invalid")
 	}
-	if config.Profile.Disposition() != HSCQualifiedReadOnly || !config.Gen3.ExchangeEligible() {
-		return noSend("profile is not qualified")
+	if _, reason := config.Gen3.readApplicability(); reason != "" {
+		return noSend(reason)
 	}
-	// The retained catalog and decoders are qualified only for the exact
-	// wc3_24_44_3 operation version. Another Gen3 version label, even a known
-	// observation or a compatible candidate, has no qualified mapping here.
-	if config.Gen3.Version() != HSCFC100OperationCompatibilityV1 {
-		return noSend("Gen3 version is not the qualified operation version")
+	if config.Profile.Disposition() != HSCQualifiedReadOnly {
+		return noSend("profile is not qualified")
 	}
 	if config.Activation == nil {
 		return noSend("has no activation driver")
@@ -374,12 +396,20 @@ func validateTeslaGen3ReadAcquisitionConfig(config Gen3ReadAcquisitionConfig) er
 	seen := make(map[FC100Operation]bool, len(config.Operations))
 	for _, operation := range config.Operations {
 		qualified, ok := teslaGen3ReadQualifiedOperation(operation)
-		if !ok || seen[operation] || !config.Profile.OperationAdmissionFor(qualified).OutboundAllowed {
+		if !ok || seen[operation] {
 			return noSend("operation is not an admitted observation")
 		}
 		seen[operation] = true
-		window, ok := config.Windows[operation]
-		if !ok || window.Freshness <= 0 || window.Retention < window.Freshness || window.Retention > maxTeslaGen3ReadRetention {
+		if operation == FC100OperationWCGetProvisional && !config.provisionalReadbackAdmitted() {
+			if len(config.Operations) == 1 {
+				return noSend("operation is not an admitted observation")
+			}
+			continue
+		}
+		if !config.Profile.OperationAdmissionFor(qualified).OutboundAllowed {
+			return noSend("operation is not an admitted observation")
+		}
+		if !validTeslaReadWindow(config.Windows[operation]) {
 			return noSend("freshness or retention window is invalid")
 		}
 	}
@@ -387,8 +417,7 @@ func validateTeslaGen3ReadAcquisitionConfig(config Gen3ReadAcquisitionConfig) er
 }
 
 // teslaGen3ReadQualifiedOperation maps a retained observation operation to
-// its exact version-gated qualified request. Mutation and readback pairs have
-// no mapping and are never acquired here.
+// its version-gated qualified request. Mutation pairs have no mapping here.
 func teslaGen3ReadQualifiedOperation(operation FC100Operation) (string, bool) {
 	switch operation {
 	case FC100OperationCommonSystemInfo:
@@ -401,6 +430,8 @@ func teslaGen3ReadQualifiedOperation(operation FC100Operation) (string, bool) {
 		return TEDAPIOperationWCSystemInfoV1, true
 	case FC100OperationWCGetLoadSharingState:
 		return TEDAPIOperationWCLoadSharingStateV1, true
+	case FC100OperationWCGetProvisional:
+		return TEDAPIOperationWCProvisionalReadback, true
 	default:
 		return "", false
 	}
@@ -492,6 +523,7 @@ func (acquisition *Gen3ReadAcquisition) startLocked(ctx context.Context) error {
 	acquisition.endpoint = endpoint
 	acquisition.lastGeneration = 0
 	acquisition.epochGeneration = 0
+	acquisition.readbackSeen = 0
 	if acquisition.activationObserved {
 		acquisition.state = Gen3ReadLifecycleReady
 		acquisition.mu.Unlock()

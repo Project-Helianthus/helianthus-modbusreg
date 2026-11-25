@@ -1,112 +1,50 @@
 # Tesla FC100 EVSE catalog scope
 
-The public Gen3 FC100 catalog is limited to EVSE interoperability for HEMS and
-SmartHome consumers, including Matter and eeBUS EVSE profiles. The native owner
-is `helianthus-modbusreg`; this catalog does not define universal semantics or
-consumer bindings. `HSCFC100OperationCompatibilityV1` remains
-`wc3_24_44_3`. An operation name or decoded body does not qualify a live device,
-admit an exchange, or authorize a control.
+This catalog retains Modbus-native evidence for the Wall Connector Gen3 family.
+It does not define semantic bindings, applied charging current, or send
+admission. `HSCFC100OperationCompatibilityV1` identifies the driver codec; it
+is not a firmware range or a qualification claim.
 
-## Retained operation set
-
-The retained set follows the public
-[TEDAPI EVSE scope](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/12bd50b95fddfdfdfb7b73771b05f972dc0ecd09/protocols/tesla/tedapi.md),
-[Gen3 HSC and exact current-limit body contract](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/12bd50b95fddfdfdfb7b73771b05f972dc0ecd09/protocols/tesla/gen3-hsc-rtu.md),
-and [current-limit operation contract V1](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/12bd50b95fddfdfdfb7b73771b05f972dc0ecd09/protocols/tesla/gen3-current-limit-operation-v1.md).
-These pages define the EVSE scope and the three current-limit pairs. They do
-not publish the family/tag numbers for `common.system_info` or the four WC
-observation pairs in the table below. Those five pairs require the
-[helianthus-docs-modbus#155, published at `fb4fee5b`](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/fb4fee5b5097a9d8edf98e24b8a2fea600998ee9/protocols/tesla/tedapi.md) publication described under "Regression and
-evidence boundary"; that documentation companion is merged.
-The two existing system-information pairs retain identity and capability/version
-provenance separately. The retained field labels are Helianthus recovered
-labels; they do not establish new field semantics or live qualification.
-
-Typed vitals and lifetime values stay unknown until a publishable map gives
-each label a wire number. A recovered label is not that map.
-
-| Catalog operation | Family | Request → terminal tag | EVSE scope |
+| Catalog operation | Family | Request → terminal tag | Scope |
 | --- | --- | --- | --- |
-| `common.system_info` | 4 | 2 → 3 | System identity and firmware/version provenance |
-| `wc.get_vitals` | 6 | 1 → 2 | Charging state and electrical observations |
-| `wc.get_lifetime_stats` | 6 | 3 → 4 | Lifetime and energy observations |
+| `common.system_info` | 4 | 2 → 3 | System identity and firmware provenance |
+| `wc.get_vitals` | 6 | 1 → 2 | Native terminal length and digest; typed disposition `unknown` |
+| `wc.get_lifetime_stats` | 6 | 3 → 4 | Lifetime observations |
 | `wc.get_system_info` | 6 | 9 → 10 | Hardware identity and capability provenance |
 | `wc.get_load_sharing_state` | 6 | 11 → 12 | Native current capability and limits |
-| `wc.configure_settings` | 6 | 7 → 8 | Persistent current limit only; t8 is returned settings state |
-| `wc.set_provisional` | 6 | 25 → 26 | Provisional current-limit tuple; t26 is ACK only |
-| `wc.get_provisional` | 6 | 27 → 28 | Provisional readback and distinct configured current |
+| `wc.get_provisional` | 6 | 27 → 28 | Provisional parameters and separate configured-current scalar |
+| `wc.set_provisional` | 6 | 25 → 26 | Explicitly qualified t26 compatibility path only |
+| `wc.configure_settings` | 6 | 7 → 8 | Current-only persistent configuration; t8 is returned settings |
 
-The six observation/readback requests have exact empty bodies. The two mutation
-requests retain structurally validated opaque bodies in the request matrix.
-That validation and the generic request builder are offline codec primitives,
-not safe current-only setter admission. Unrelated settings and unknown request
-members acquire no control authority. The full admission, interlock, phase,
-confirmation, immutable evidence, deadline, quarantine, and duplicate-guard
-requirements remain a separate acquisition-lifecycle task (registry issue #200).
-This change adds no sender, transport dependency, or lifecycle implementation.
+The TEDAPI Specification §§6.4.10–6.4.11 and 7.1 defines the
+provisional pair. On RS-485, 26.34.0 and 26.42.0 return t25, not
+a specified t26; neither version is admitted to this driver's t26 path.
+The typed readback preserves presence independently of the decoded value.
+On 26.34.0 the timeout is remaining time, and zero current or zero
+request timeout removes the limit. This driver does not add a release command
+or infer behavior on another build. A status-bearing error is not an ACK,
+and an ACK is not readback.
 
-Persistent, provisional, configured, and effective/pilot current stay distinct.
-The existing exact-version typed current-limit records and retained-operation
-replay decoders are unchanged. Unknown terminal members remain in the complete
-bounded native body, without new names or qualification claims.
+The TEDAPI Specification §§6.4.4, 6.6.2 and 7.8 defines the settings
+pair on RS-485 for 26.34.0 and 26.42.0. The specification does not say
+whether omitted settings are retained or cleared. The driver therefore
+requires independent qualification of the exact t7/t8 schema and current-only
+scope before it sends a t7. Its encoder writes only signed int32
+`settings.maxOutputCurrentAmps`. A correlated t8 can disagree with the
+request; the result reports both values and retains the native body including
+other settings members. Persistent, provisional, configured and effective
+current are distinct.
 
-## Exclusions and native retention
+The [managed lifecycle](tesla-gen3-read-acquisition.md) exposes only
+`SetProvisionalCurrentLimit` and `ConfigurePersistentCurrent` as native
+mutations. The latter accepts a current, operation identity and deadline and
+returns the original receipt with a new-execution or historical-duplicate
+disposition. The host can register it by hand; it is not the semantic
+allocated-current setter and does not accept raw function, address, or bytes.
 
-Network provisioning, service/update, reset, registration, access control,
-vehicle history, PPU authorization/settings, OCPP, charging schedules/commands,
-fleet/site configuration, country configuration, meter configuration, and
-load-sharing mutations are outside this catalog. `wc.get_config` is also outside
-the retained set; it is not the scoped current-limit readback. Their exported
-operation constants, request-matrix entries, recovered field-name entries, and
-positive tests are removed. The Common system-information `system_update`
-field label is also removed; its native bytes remain opaque in the retained
-terminal. The standalone named PPU replay decoder and its
-profile configuration/version hook are removed as well.
-
-No retained EVSE decoder requires an excluded operation's terminal body, so no
-opaque terminal exception to the retained set is introduced. There is no
-additional native-owner review exemption. Bounded generic native framing and
-unknown bytes inside a retained operation remain available; they do not create
-a named excluded operation or send authority.
-
-FC101 and FC102 have no EVSE operation mapping. Existing profile-scoped opaque
-framing/native-record support remains unnamed and grants no EVSE admission.
-The [legacy Wall Connector contract](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/12bd50b95fddfdfdfb7b73771b05f972dc0ecd09/protocols/tesla/legacy-wall-connector-rs485.md)
-is separate: its retained frames and FBE0/FDE0 dynamic-current records are
-unchanged. Legacy `FC` command bytes are not Modbus function codes, and this
-catalog does not claim support for every Gen2 unit.
-
-## Regression and evidence boundary
-
-`TestTeslaFC100CatalogStaysWithinEVSEScope` pins the eight allowed operations,
-family/tag pairs, and empty-request classification independently of the
-implementation maps. Its source guard walks every non-test Go file in the
-package and checks operation-typed string values in constants, conversion
-expressions, variables, and composite literals. Mutation tests exercise the
-three reported declaration escapes and slice, map, and struct literal variants.
-It checks both the request catalog and recovered-name catalog.
-`TestTeslaFC100RejectsOperationsOutsideEVSEScope` exercises rejection
-through request construction, request-matrix validation, sequence decoding,
-recovered names, and named native records. Existing retained Gen3 and legacy
-replay tests continue to verify offline behavior with self-contained synthetic
-vectors. No private artifact, live capture, network access, or hardware is
-needed by these checks.
-
-This is a public API contraction: callers of removed operation constants,
-`TeslaFC100DeterministicApplicationStatus`, or PPU replay APIs must migrate to
-an in-scope contract. The retained field labels are Helianthus recovered labels,
-not field metadata published by the linked documentation contracts.
-
-The public documentation/evidence gate applies. The family/tag numbers for
-`common.system_info` (4:2 → 3), `wc.get_vitals` (6:1 → 2),
-`wc.get_lifetime_stats` (6:3 → 4), `wc.get_system_info` (6:9 → 10), and
-`wc.get_load_sharing_state` (6:11 → 12) are published by the documentation
-companion [helianthus-docs-modbus#155, published at `fb4fee5b`](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/fb4fee5b5097a9d8edf98e24b8a2fea600998ee9/protocols/tesla/tedapi.md).
-The linked docs-modbus revision `12bd50b9` does not publish those five numeric
-pairs; that documentation companion is merged.
-
-The three current-limit pairs, `wc.configure_settings` (6:7 → 8),
-`wc.set_provisional` (6:25 → 26), and `wc.get_provisional` (6:27 → 28), remain
-cited to the linked `gen3-hsc-rtu.md` exact body contract and
-`gen3-current-limit-operation-v1.md` operation contract. No new firmware
-evidence, control qualification, or acquisition lifecycle is asserted here.
+The RS-485 Site Controller Protocol §§4.1–4.2 and 6–10 defines functions
+100–105 with firmware-specific applicability. This lifecycle does not send
+FC101–105 or expose separate enable/disable commands. Native opaque retention
+for FC101/102 does not imply opaque wire schemas, or grant admission. The
+legacy Wall Connector RS-485 profile remains separate and never acts as a
+fallback.

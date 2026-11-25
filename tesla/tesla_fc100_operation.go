@@ -184,6 +184,16 @@ func decodeTeslaFC100ApplicationError(message []byte) (uint64, bool) {
 	if err != nil {
 		return 0, false
 	}
+	// TEDAPI Specification §§5 and 9: ErrorResponse wraps a Status message.
+	if status, err := decodeTeslaGen3CurrentLimitFields(body, map[uint64]uint8{1: 2}); err == nil {
+		if wrapped, ok := status[1]; ok {
+			if fields, err := decodeTeslaGen3CurrentLimitFields(wrapped.bytes, map[uint64]uint8{1: 0}); err == nil {
+				if code, ok := fields[1]; ok {
+					return code.varint, true
+				}
+			}
+		}
+	}
 	key, width, err := decodeTeslaFC100Varint(body)
 	if err != nil || key != 8 {
 		return 0, false
