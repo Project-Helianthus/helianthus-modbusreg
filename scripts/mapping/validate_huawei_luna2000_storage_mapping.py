@@ -161,8 +161,8 @@ SITE_UNIT, PLANT_UNIT = 0, 100
 ROUTES = {"site_battery_soc": SITE_UNIT, "site_battery_power": SITE_UNIT, "plant_battery_power": PLANT_UNIT, "site_battery_energy_charged_total": SITE_UNIT, "site_battery_energy_discharged_total": SITE_UNIT,
           "site_battery_energy_charged_day": SITE_UNIT, "site_battery_energy_discharged_day": SITE_UNIT, "site_rated_storage_capacity": SITE_UNIT}
 PLAN = {read: ROUTES.get(native_id) for native_id, _, read, _ in INVENTORY if read}
-# What an answered zero word of an active row means: a state of charge word of zero is a value of zero; a power, counter or capacity word of zero is no battery value.
-ZERO_WORDS = {"site_battery_soc": "value", "plant_battery_power": "withheld", "site_battery_energy_charged_total": "withheld", "site_battery_energy_discharged_total": "withheld", "site_rated_storage_capacity": "withheld"}
+# What an answered zero word of an active row means: a state of charge word of zero is a value of zero; a lifetime counter word of zero is a counter value, a power or capacity word of zero is no battery value.
+ZERO_WORDS = {"site_battery_soc": "value", "plant_battery_power": "withheld", "site_battery_energy_charged_total": "value", "site_battery_energy_discharged_total": "value", "site_rated_storage_capacity": "withheld"}
 # The daily counters have no SemReg element: their words are served in the modbusreg namespace and never published as a lifetime fact.
 DAY_COUNTERS = {"site_battery_energy_charged_day", "site_battery_energy_discharged_day"}
 # The rows that publish a fact; the others stay withheld or native-only with their reason.
@@ -405,7 +405,7 @@ def validate_contract(document, catalog=None):
     check_luna_header(document)
     rules = document.get("field_rules", [])
     listed = [(rule.get("native_id"), rule.get("source"), (rule["read"]["offset"], rule["read"]["quantity"]) if rule.get("read") else None, rule.get("word")) for rule in rules]
-    if listed != INVENTORY or [rule["read"].get("unit") for rule in rules] != [ROUTES.get(rule["native_id"]) for rule in rules]:
+    if listed != INVENTORY or [(type(rule["read"].get("unit")), rule["read"].get("unit")) for rule in rules] != [(type(ROUTES.get(rule["native_id"])), ROUTES.get(rule["native_id"])) for rule in rules]:
         fail("native inventory")
     reasons = document.get("reasons", {})
     check_luna_reasons(reasons)
@@ -861,6 +861,7 @@ def graph_tables(contract):
         "## Resources": [[r["kind"], r["anchor_class"], r["anchor_basis"], r["anchor_source"], r["parent_kind"] or "none"] for r in graph["resources"]],
         "## Relations": [[r["definition"], r["basis_class"], r["from_kind"], r["to_kind"], r["validity_scope"]["rule_scope"]] for r in graph["relations"]],
         "## Unknown, not absent": [[r["definition"], r["from_kind"], r["to_kind"], r["withheld_by"]] for r in contract["unstated_relations"]],
+        "## Daily counter native form": [[r["native_id"], native_form(r["native"])] for r in contract["field_rules"] if r["native_id"] in DAY_COUNTERS],
         "## Routes and zero words": [[r["native_id"], str(r["read"]["offset"]), str(r["read"]["quantity"]), str(r["read"]["unit"]) if "unit" in r["read"] else "not stated", r.get("zero_word", "not applicable")] for r in contract["field_rules"]],
         "## Subjects and measurement points": [[r["native_id"], r["prospective"]["target"], r["prospective"]["subject_kind"], r["prospective"]["measurement_point"]] for r in contract["field_rules"] if r.get("prospective")],
     }

@@ -437,11 +437,26 @@ def test_a_battery_power_word_that_is_nonzero_in_either_half_publishes(words, ex
     assert value_of(published(with_reads({"offset": 37498, "quantity": 8, "unit": 100, "outcome": "ANSWERED", "words": words}))["plant_battery_power"]) == expected
 
 
-def test_a_zero_lifetime_counter_beside_a_nonzero_day_counter_is_unknown():
+def test_a_zero_lifetime_counter_is_a_value_beside_a_nonzero_one():
     words = words_at(46, 0, [0, 321])
-    output = project(with_reads({"offset": 30306, "quantity": 46, "unit": 0, "outcome": "ANSWERED", "words": words}))
-    assert output["facts"] == []
-    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["site_battery_energy_charged_total"] == "storage.reason.zero_word_is_not_a_battery_value"
+    words[8:10] = [0, 5]
+    facts = published(with_reads({"offset": 30306, "quantity": 46, "unit": 0, "outcome": "ANSWERED", "words": words}))
+    assert value_of(facts["site_battery_energy_charged_total"]) == 0
+    assert value_of(facts["site_battery_energy_discharged_total"]) != 0
+
+
+def test_a_boolean_is_not_a_routed_unit_in_the_declaration():
+    document = contract()
+    document["field_rules"][rule_index("site_battery_soc")]["read"]["unit"] = False
+    with Raises(ValueError, match="native inventory"):
+        v.validate_contract(document)
+
+
+def test_the_page_states_the_native_form_of_the_daily_counters():
+    document = contract()
+    document["field_rules"][rule_index("site_battery_energy_charged_day")]["native"]["gain"] = 10
+    with Raises(ValueError, match="document tables"):
+        v.check_document(document, page())
 
 
 # DW02 item 5: the site power row and the day counters carry a stated reason naming the missing native statement.

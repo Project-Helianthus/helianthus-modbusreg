@@ -208,8 +208,8 @@ the S-Dongle. A read of a routed group that names another unit, or names none, i
 route and a plant reading never from the site route. The registry battery groups
 state no routed unit and are identified by offset and quantity. A zero word is
 judged on the field's own words and never on the whole read: a state of charge
-word of zero is a value of zero, distinct from an unknown value, while a battery
-power, lifetime counter or rated capacity word of zero is withheld with
+word of zero and a lifetime counter word of zero are values, distinct from an
+unknown value, while a battery power or rated capacity word of zero is withheld with
 `storage.reason.zero_word_is_not_a_battery_value` whatever its neighbours hold.
 A registry group answered with zero words only stays withheld.
 
@@ -222,8 +222,8 @@ A registry group answered with zero words only stays withheld.
 | `site_battery_soc` | 30368 | 1 | 0 | value |
 | `site_battery_power` | 30354 | 12 | 0 | not applicable |
 | `plant_battery_power` | 37498 | 8 | 100 | withheld |
-| `site_battery_energy_charged_total` | 30306 | 46 | 0 | withheld |
-| `site_battery_energy_discharged_total` | 30306 | 46 | 0 | withheld |
+| `site_battery_energy_charged_total` | 30306 | 46 | 0 | value |
+| `site_battery_energy_discharged_total` | 30306 | 46 | 0 | value |
 | `site_battery_energy_charged_day` | 30306 | 46 | 0 | not applicable |
 | `site_battery_energy_discharged_day` | 30306 | 46 | 0 | not applicable |
 | `site_rated_storage_capacity` | 30322 | 2 | 0 | withheld |
@@ -264,8 +264,8 @@ carries no fact, and the reason below records why.
 
 Runtime reasons complete the set:
 `storage.reason.zero_word_is_not_a_battery_value` (a zero battery power,
-lifetime counter, capacity or registry group word is never a value of zero, and
-presence is never decided from it; a state of charge word of zero is a value),
+capacity or registry group word is never a value of zero, and
+presence is never decided from it; a state of charge or lifetime counter word of zero is a value),
 `storage.reason.battery_group_exception_no_negation` (an exception negates
 nothing else), `storage.reason.battery_group_not_read`,
 `storage.reason.value_outside_pack_range` (a converted value outside the pack
@@ -361,6 +361,13 @@ The two site day counters are served the same way when their group answered: eac
 entry carries the routed unit, the offset and quantity of its own words and its
 native form (U32, kilowatt-hours, gain 100). A day counter is never labeled a
 lifetime counter and is never published as a fact.
+
+## Daily counter native form
+
+| Native item | Native form |
+| --- | --- |
+| `site_battery_energy_charged_day` | U32, kWh, gain 100 |
+| `site_battery_energy_discharged_day` | U32, kWh, gain 100 |
 
 ## Lifecycle
 

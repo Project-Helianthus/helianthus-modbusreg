@@ -402,7 +402,7 @@
     },
     "storage.reason.zero_word_is_not_a_battery_value": {
       "loss_kind": "provenance",
-      "description": "a zero word in a battery group, in a battery power or lifetime counter field or in the rated storage capacity word is never a value of zero, and battery presence is never decided from it; a state of charge word of zero is a value",
+      "description": "a zero word in a battery group, in a battery power field or in the rated storage capacity word is never a value of zero, and battery presence is never decided from it; a state of charge word of zero and a lifetime counter word of zero are values",
       "reversible": true
     },
     "storage.reason.battery_group_exception_no_negation": {
@@ -713,7 +713,7 @@
         "unit": 0
       },
       "word": 2,
-      "zero_word": "withheld"
+      "zero_word": "value"
     },
     {
       "native_id": "site_battery_energy_discharged_total",
@@ -765,7 +765,7 @@
         "unit": 0
       },
       "word": 8,
-      "zero_word": "withheld"
+      "zero_word": "value"
     },
     {
       "native_id": "site_battery_energy_charged_day",
@@ -3638,24 +3638,47 @@
       ],
       "expect": {
         "summary": {
-          "facts": [],
+          "facts": [
+            {
+              "item_id": "storage.energy.charged",
+              "number": {
+                "coefficient": "0",
+                "exponent10": 0
+              },
+              "unit": "unit.joule",
+              "native_id": "site_battery_energy_charged_total",
+              "aggregation_basis": "site_group"
+            },
+            {
+              "item_id": "storage.energy.discharged",
+              "number": {
+                "coefficient": "0",
+                "exponent10": 0
+              },
+              "unit": "unit.joule",
+              "native_id": "site_battery_energy_discharged_total",
+              "aggregation_basis": "site_group"
+            }
+          ],
           "dispositions": [
             {
               "item_id": "storage.energy.charged",
-              "outcome": "withheld",
-              "published": 0,
-              "reason": "storage.reason.zero_word_is_not_a_battery_value",
+              "outcome": "transformed",
+              "published": 1,
+              "reason": null,
               "loss": [
-                "provenance"
+                "unit",
+                "policy"
               ]
             },
             {
               "item_id": "storage.energy.discharged",
-              "outcome": "withheld",
-              "published": 0,
-              "reason": "storage.reason.zero_word_is_not_a_battery_value",
+              "outcome": "transformed",
+              "published": 1,
+              "reason": null,
               "loss": [
-                "provenance"
+                "unit",
+                "policy"
               ]
             },
             {
@@ -3733,13 +3756,13 @@
             },
             {
               "native_id": "site_battery_energy_charged_total",
-              "outcome": "withheld",
-              "reason": "storage.reason.zero_word_is_not_a_battery_value"
+              "outcome": "transformed",
+              "target": "storage.energy.charged"
             },
             {
               "native_id": "site_battery_energy_discharged_total",
-              "outcome": "withheld",
-              "reason": "storage.reason.zero_word_is_not_a_battery_value"
+              "outcome": "transformed",
+              "target": "storage.energy.discharged"
             },
             {
               "native_id": "site_battery_energy_charged_day",
