@@ -34,7 +34,10 @@ COEFFICIENT_RE = re.compile(r"^(0|-?[1-9][0-9]*)$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
 # Approved immutable owner links: the pinned docs-semantic revision, owning path, optional non-line anchor.
 OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
-OWNER_LINK_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
+OWNER_LINK_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
+# A line anchor and a private or IPv4 endpoint are never published, whether or not an owner link surrounds them.
+LINE_ANCHOR_RE = re.compile(r"#L[0-9]")
+ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")
 
 
 def unowned_text(text):
@@ -1064,7 +1067,7 @@ def check_document(contract, text):
         if token not in flat:
             fail("document boundary")
     unowned = unowned_text(text)
-    if HEX_RUN_RE.search(unowned) or HEX_RUN_RE.search(json.dumps(contract)) or re.search(r"/(?:blob|commit|tree)/", unowned):
+    if HEX_RUN_RE.search(unowned) or HEX_RUN_RE.search(json.dumps(contract)) or re.search(r"/(?:blob|commit|tree)/", unowned) or LINE_ANCHOR_RE.search(unowned) or ENDPOINT_RE.search(unowned):
         fail("publication: digest or revision literal")
     for profile in contract["native_contract"]["profiles"]:
         if "`%s`" % profile["profile_id"] not in text:

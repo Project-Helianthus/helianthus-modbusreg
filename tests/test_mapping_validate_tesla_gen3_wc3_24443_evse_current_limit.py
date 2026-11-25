@@ -3,6 +3,7 @@
 import copy
 import importlib.util
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +74,7 @@ def readback_cases(baseline, contract):
         ("managed_within_cutoff", [("managed_set", {"ack_receipt_timestamp": "2026-09-10T00:00:00Z", "duration_seconds": 60}), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:00:59Z")], [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")], []),
         ("managed_received_70s_after_60s_set", [("managed_set", {"ack_receipt_timestamp": "2026-09-10T00:00:00Z", "duration_seconds": 60}), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:01:10Z")], [("evse.limit.configured_current", "16")], [("evse.limit.allocated_current", "allocation_expired")]),
         ("managed_at_cutoff", [("managed_set", {"ack_receipt_timestamp": "2026-09-10T00:00:00Z", "duration_seconds": 60}), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:01:00Z")], [("evse.limit.configured_current", "16")], [("evse.limit.allocated_current", "allocation_expired")]),
+        ("provisional_evidence_absent_keeps_persistent", [("evidence.provisional", None)], [("evse.limit.configured_current", "16")], [("evse.limit.allocated_current", "provisional_evidence_invalid")]),
     ]
     for name, mutations, facts, withheld in cases:
         candidate = copy.deepcopy(baseline)
@@ -149,6 +151,7 @@ def candidate_cases(baseline, contract):
         ("provisional_only_without_configured_field", [("delete", "persistent", None), ("delete", "evidence.persistent", None), ("delete", "provisional.ConfiguredCurrentAmps", None)], [("evse.limit.allocated_current", "12")], [("evse.limit.configured_current", "configured_current_absent")]),
         ("later_provisional_candidate", [("set", "persistent.MaxOutputCurrentAmps", 7), ("set", "provisional.ConfiguredCurrentAmps", 32)], [("evse.limit.configured_current", "32"), ("evse.limit.allocated_current", "12")], []),
         ("standalone_t28_read_without_mutation_refs", [("delete", "persistent", None), ("delete", "evidence.persistent", None), ("delete", "evidence.provisional.provisional_set", None), ("delete", "evidence.provisional.provisional_ack", None)], [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")], []),
+        ("standalone_t28_unrelated_old_managed_set", [("delete", "persistent", None), ("delete", "evidence.persistent", None), ("delete", "evidence.provisional.provisional_set", None), ("delete", "evidence.provisional.provisional_ack", None), ("set", "managed_set", {"ack_receipt_timestamp": "2026-09-10T00:00:00Z", "duration_seconds": 60}), ("set", "evidence.provisional.receipt_timestamp", "2026-09-10T00:05:00Z")], [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")], []),
     ]
     for name, edits, facts, withheld in cases:
         candidate = copy.deepcopy(baseline)
@@ -240,7 +243,43 @@ def native_page_cases():
             raise AssertionError("missing ND02 page accepted")
     finally:
         mapping.NATIVE_PAGE = original
+    native_page_text_cases()
     print("native-page: PASS")
+
+
+def native_page_text_cases():
+    """A page with only the operation statements, or without the relation statements, fails the native check."""
+    original = mapping.NATIVE_PAGE
+    full = " ".join(original.read_text(encoding="utf-8").split())
+    without_relations = full
+    for statement in mapping.NATIVE_STATEMENTS[4:]:
+        without_relations = without_relations.replace(statement, "")
+    pages = [("operation_statements_only", " ".join(mapping.NATIVE_STATEMENTS[:4])), ("relation_statements_absent", without_relations)]
+    with tempfile.TemporaryDirectory() as directory:
+        try:
+            for name, text in pages:
+                mapping.NATIVE_PAGE = Path(directory) / f"{name}.md"
+                mapping.NATIVE_PAGE.write_text(text, encoding="utf-8")
+                try:
+                    mapping.check_native_page()
+                except ValueError as error:
+                    if str(error) != "native_page_disagrees":
+                        raise
+                else:
+                    raise AssertionError(f"{name} page accepted")
+                print(f"{name}: REJECTED")
+        finally:
+            mapping.NATIVE_PAGE = original
+    companion = mapping.DOC.read_text(encoding="utf-8")
+    mapping.check_companion_relations(companion)
+    try:
+        mapping.check_companion_relations(companion.replace("connector-to-session", "session"))
+    except ValueError as error:
+        if str(error) != "document_relations":
+            raise
+    else:
+        raise AssertionError("companion without connector-to-session accepted")
+    print("companion-relations: REJECTED")
 
 
 SESSION = {"kind": "resource.charging_session", "anchor_class": "episode", "anchor_basis": "native_slot", "anchor_source": "native_position", "identification_scheme": "none_listed", "parent_kind": "resource.connector", "evidence": ["synthetic:session"]}

@@ -746,5 +746,16 @@ def test_publication_rejects_unapproved_owner_paths_and_suffixes(link):
         v.check_document(v.load(), page() + "\n[owner](" + link + ")\n")
 
 
+@parametrize("suffix", ["\n#L12\n", "\ntcp://192.0.2.10:502\n", "\n192.0.2.10:502\n"])
+def test_publication_rejects_standalone_line_anchor_and_endpoint(suffix):
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + suffix)
+
+
+def test_publication_rejects_digest_shaped_fragment_on_an_approved_owner_link():
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n[owner](" + OWNER_BASE + "api/v1/graph.md#" + "a" * 40 + ")\n")
+
+
 if __name__ == "__main__":
     raise SystemExit(support.run(globals()))

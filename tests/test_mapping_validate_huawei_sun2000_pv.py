@@ -871,6 +871,17 @@ def test_publication_rejects_other_owner_links(link):
         v.check_document(v.load(), page() + "\n[graph](" + link + ")\n")
 
 
+@parametrize("suffix", ["\n#L12\n", "\ntcp://192.0.2.10:502\n", "\n192.0.2.10:502\n"])
+def test_publication_rejects_standalone_line_anchor_and_endpoint(suffix):
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + suffix)
+
+
+def test_publication_rejects_digest_shaped_fragment_on_an_approved_owner_link():
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n[graph](" + OWNER_LINK + "#" + "a" * 40 + ")\n")
+
+
 def test_published_files_cite_no_revision_link_or_endpoint():
     for path in (v.PATH, v.DOC):
         text = path.read_text(encoding="utf-8")

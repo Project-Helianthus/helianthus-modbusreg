@@ -253,6 +253,8 @@ def valid_evidence(evidence, refs, correlation=False):
 
 def provisional_evidence_valid(evidence):
     """A readback alone needs its readback references; a record that names a set or acknowledgement needs those too."""
+    if not isinstance(evidence, dict):
+        return False
     refs = READBACK_REFS + MUTATION_REFS if any(key in evidence for key in MUTATION_REFS) else READBACK_REFS
     return valid_evidence(evidence, refs, correlation=True)
 
@@ -356,6 +358,8 @@ def allocation_expired(case):
     managed = case.get("managed_set")
     if managed is None or managed["duration_seconds"] == 0:
         return False
+    if not any(key in case["evidence"]["provisional"] for key in MUTATION_REFS):
+        return False
     cutoff = receipt_text(managed["ack_receipt_timestamp"]) + timedelta(seconds=managed["duration_seconds"])
     return receipt_of(case["evidence"]["provisional"]) >= cutoff
 
@@ -422,7 +426,19 @@ def set_allocated_current_disposition(request, generation, own_connector):
 
 
 NATIVE_PAGE = ROOT / ".tmp/references/docs-modbus/protocols/tesla/gen3-semreg-mapping-v1.md"
-NATIVE_STATEMENTS = ("`evse.operation.set_allocated_current`", "6 A as its minimum nonzero set", "1 A through 5 A is refused", "is the configured current of the latest t28 in the same lifecycle generation")
+NATIVE_STATEMENTS = (
+    "`evse.operation.set_allocated_current`",
+    "6 A as its minimum nonzero set",
+    "1 A through 5 A is refused",
+    "is the configured current of the latest t28 in the same lifecycle generation",
+    # Section 7 relations: the connector-phase, connector-session and charger-meter statements and their dispositions.
+    "`evse.relation.connector_phase` is a gate rule where the pages document per-phase values",
+    "`evse.relation.connector_session` is a gate rule where the pages document a session per connector",
+    "A session episode requires a documented native session start.",
+    "`evse.relation.evse_meter` is configuration for the charger's own energy counter",
+    "Without those native facts the phase and session relations are unknown, not absent.",
+    "A relation the pages do not support is unknown with a reason naming the missing statement.",
+)
 
 
 def check_native_page():
@@ -432,6 +448,15 @@ def check_native_page():
     text = " ".join(NATIVE_PAGE.read_text(encoding="utf-8").split())
     if any(statement not in text for statement in NATIVE_STATEMENTS):
         fail("native_page_disagrees")
+
+
+RELATION_TOKENS = ("connector-to-phase", "connector-to-session", "EVSE-to-meter", "unknown, not absent")
+
+
+def check_companion_relations(text):
+    """The companion states the phase, session and meter relations and their unknown disposition; missing ones fail."""
+    if any(token not in text for token in RELATION_TOKENS):
+        fail("document_relations")
 
 
 def document(contract):
@@ -455,6 +480,7 @@ def document(contract):
 def main():
     contract = load(); document(contract)
     text = DOC.read_text(encoding="utf-8")
+    check_companion_relations(text)
     for token in ("FC100", "outbound_allowed=false", "field-scoped immutable evidence", "evse.operation.set_allocated_current", "ConfigurePersistentCurrent", "mTLS GraphQL", "operator label", "unknown, not absent", "EN-1", "section 15"):
         if token not in text: fail("document_boundary")
     positive = sum(s["polarity"] == "positive" for s in contract["scenarios"])
