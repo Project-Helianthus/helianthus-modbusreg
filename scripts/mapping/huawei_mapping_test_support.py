@@ -97,6 +97,13 @@ OWNER_LINK_CASES = [
     ("[a [b [c [d]]]](" + NESTED_FOREIGN + ")", False),
     ("[a](" + FOREIGN_URL + " \"[b](" + OWNER_URL + ")\")", False),
     ("`[a](" + OWNER_URL + ")`", False),
+    ("[a](" + FOREIGN_URL + " \"x \\\" [b](" + OWNER_URL + ")\")", False),
+    ("[a](" + FOREIGN_URL + " 'x \\' [b](" + OWNER_URL + ")')", False),
+    ("[a][r]\n\n[r]: " + FOREIGN_URL + " \"x \\\" [b](" + OWNER_URL + ")\"", False),
+    ("[a][r]\n\n[r]: " + OWNER_URL, True),
+    ("[a][r]\n\n[r]: " + FOREIGN_URL + "\n[r]: " + OWNER_URL, False),
+    ("[a][r]\n\n[r]: " + FOREIGN_URL + "\n[R]: <" + OWNER_URL + ">", False),
+    ("[a][r]\n\n[r]: " + OWNER_URL + "\n[r]: " + OWNER_URL, False),
 ]
 
 

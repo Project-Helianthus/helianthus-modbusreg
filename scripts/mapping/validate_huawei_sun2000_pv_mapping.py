@@ -736,14 +736,17 @@ def check_case_lineage(facts, wanted, rules, errors):
 
 
 def check_case_phases(case, resources, groups, errors):
-    """A phase is published only for a native position read in an answered power group, and only with a driver-allocated ResourceID for it."""
+    """A phase is published only for a native position read in an answered power group, only with a driver-allocated ResourceID for it, and a ResourceID is allocated only for such a position."""
+    allocated = {position for position, item in enumerate((resources or {}).get("phases") or [], 1) if item is not None}
     if "phases" not in case:
+        if allocated:
+            errors.add("identity_missing_or_invalid")
         return
     positions = case["phases"]
     slots = RESOURCE_ROLES["phases"]["slots"]
     if not isinstance(positions, list) or not positions or any(type(item) is not int or not 1 <= item <= slots for item in positions) or len(set(positions)) != len(positions) or "ANSWERED" not in (groups.get(PHASE_GROUP), groups.get(PHASE_GROUP_ALIGNED)):
         errors.add("native_evidence_invalid")
-    elif resources is None or "phases" not in resources or any(resources["phases"][position - 1] is None for position in positions):
+    elif resources is None or "phases" not in resources or any(resources["phases"][position - 1] is None for position in positions) or allocated - set(positions):
         errors.add("identity_missing_or_invalid")
 
 

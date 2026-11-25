@@ -1329,7 +1329,7 @@ def test_the_same_opaque_phase_identifier_at_another_native_position_projects_a_
 
 @parametrize("positions", [[1], [2], [3], [3, 1]])
 def test_each_phase_position_reaches_exactly_its_own_resource_and_relation(positions):
-    output = project(phase_case(positions))
+    output = project(phase_case(positions, ids=[PHASES[n] if n + 1 in positions else None for n in range(3)]))
     assert sorted(phase_relations(output)) == sorted((INVERTER, PHASES[position - 1]) for position in positions)
     assert sorted(item["resource_id"] for item in output["resources"] if item["kind"] == "resource.phase") == sorted(PHASES[position - 1] for position in positions)
 
@@ -1338,6 +1338,32 @@ def test_each_phase_position_reaches_exactly_its_own_resource_and_relation(posit
 def test_phase_identities_are_required_only_for_the_positions_reported(positions, ids):
     output = project(phase_case(positions, ids=ids))
     assert sorted(phase_relations(output)) == sorted((INVERTER, PHASES[position - 1]) for position in positions)
+
+
+@parametrize("positions", [[1], [2], [1, 3]])
+def test_a_phase_identifier_without_an_answered_reported_position_is_rejected(positions):
+    with Raises(ValueError, match="identity_missing_or_invalid"):
+        project(phase_case(positions))
+
+
+@parametrize("name,ids", [("m3", ["resource:demo-phase-beta-%d" % n for n in range(1, 4)]), ("m1", PHASES)])
+def test_a_case_without_phase_positions_allocates_no_phase_identifier(name, ids):
+    document = case(name)
+    document["identity"]["resources"]["phases"] = list(ids)
+    with Raises(ValueError, match="identity_missing_or_invalid"):
+        project(document)
+
+
+def test_the_statistics_time_reason_keeps_the_time_domain_unresolved_and_asserts_no_clock_domain():
+    description = v.load()["reasons"]["pv.reason.statistics_time_domain_unresolved"]["description"].lower()
+    assert "unresolved" in description and "never used as a sample time" in description
+    assert not any(word in description for word in ("local time", "utc"))
+    assert "time domain of the device statistics time is unresolved" in page()
+
+
+def test_a_case_without_phase_positions_and_without_allocation_still_projects():
+    assert not phase_relations(project(case("m3")))
+    assert not phase_relations(project(case("m1")))
 
 
 def test_the_value_aligned_power_group_extent_validates_the_allocated_phases():

@@ -648,14 +648,19 @@ def meter_route_at(route, unit):
     return route is not None and route["exposure"] != PLANT_ROUTE["exposure"] and route["routed_unit"] == unit
 
 
-def gate_reason(case, declared, rule, read):
-    """The reason an active row is withheld before its words are decoded, or None: unresolved selection, role, the plant route (a case running on a configured or runtime-identified meter exposure's own route, or on the known gateway-level route, is no plant read), then the read."""
+def meter_group_requested(reads):
+    """True when the case requests a documented meter exposure's group: the case's routed unit is then identified as that meter exposure's route."""
+    return any(reads[native_id]["outcome"] != "NOT_READ" for native_id in METER_EXPOSURE_OF if native_id in reads)
+
+
+def gate_reason(case, declared, rule, read, reads):
+    """The reason an active row is withheld before its words are decoded, or None: unresolved selection, role, the plant route (a case running on a configured or runtime-identified meter exposure's own route, on the route of a requested meter group, or on the known gateway-level route, is no plant read), then the read."""
     if case["selection"]["outcome"] != ADMITTING:
         return PRIMARY_REASON
     if declared != rule["prospective"][0]["role"]:
         return "infrastructure.reason.role_not_declared"
     declared_route, runtime_route = case["meter"]["declared"], case["meter"]["identity_read"]
-    if runtime_route == GATEWAY_LEVEL or case.get("routed_unit") != PLANT_ROUTE["routed_unit"] or (declared_route is not None and declared_route["routed_unit"] == case.get("routed_unit")) or meter_route_at(runtime_route, case.get("routed_unit")):
+    if runtime_route == GATEWAY_LEVEL or case.get("routed_unit") != PLANT_ROUTE["routed_unit"] or (declared_route is not None and declared_route["routed_unit"] == case.get("routed_unit")) or meter_route_at(runtime_route, case.get("routed_unit")) or meter_group_requested(reads):
         return "infrastructure.reason.group_not_read"
     if read is None or read["outcome"] in ("FAILED", "NOT_READ"):
         return "infrastructure.reason.group_not_read"
@@ -692,7 +697,7 @@ def meter_group_reason(case, rule, read):
 def active_facts(case, rule, reads, fields):
     """(reason, facts) of the plant grid power row: one fact of the stated direction; the other direction is Unknown, never zero."""
     read = reads.get(rule["native_id"])
-    reason = gate_reason(case, case["role"]["declared"], rule, read)
+    reason = gate_reason(case, case["role"]["declared"], rule, read, reads)
     if reason:
         return reason, []
     start = rule["word"]

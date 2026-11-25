@@ -75,8 +75,8 @@ OWNER_URL_RE = re.compile(
     + "|".join(re.escape(path) for path in OWNER_PATHS)
     + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?"
 )
-INLINE_TAIL_RE = re.compile(r"\(\s*(?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)")
-REFERENCE_RE = re.compile(r"^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)(?P<reftitle>[ \t]+(?:\"[^\"]*\"|\'[^\']*\'|\([^\n]*\)))?[ \t]*$", re.MULTILINE)
+INLINE_TAIL_RE = re.compile(r"\(\s*(?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'))?\s*\)")
+REFERENCE_RE = re.compile(r"^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)(?P<reftitle>[ \t]+(?:\"(?:[^\"\\\n]|\\.)*\"|\'(?:[^\'\\\n]|\\.)*\'|\([^\n]*\)))?[ \t]*$", re.MULTILINE)
 CODE_RE = re.compile(r"^[ ]{0,3}(?P<fence>`{3,}|~{3,})[^\n]*\n.*?(?:^[ ]{0,3}(?P=fence)[`~]*[ \t]*$|\Z)|^(?: {4}|\t)[^\n]*$|(?P<tick>`+)(?:(?!(?P=tick))[^`]|`+(?!(?P=tick)(?!`)))*?(?<!`)(?P=tick)(?!`)", re.MULTILINE | re.DOTALL)
 SPACE_RE = re.compile(r"\s*")
 
@@ -144,10 +144,15 @@ def inline_link(text: str, opened: int, closed: int) -> Link:
 def markdown_links(text: str, literal: list) -> list:
     """Every inline link whose label brackets balance to any depth, and every reference definition, in order of their start."""
     inline = [inline_link(text, opened, closed) for opened, closed in bracket_pairs(text, literal) if text[closed + 1:closed + 2] == "("]
-    references = []
+    references, defined = [], set()
     for found in REFERENCE_RE.finditer(text):
+        label = " ".join(found.group("ref").casefold().split())
+        # Only the first definition of a label is the destination of the links that use it; a later duplicate is never one.
+        first = label not in defined and not any(start <= found.start() < stop for start, stop in literal)
+        if first:
+            defined.add(label)
         titled = found.group("reftitle") is not None
-        references.append(Link(found.start(), found.end(), found.group("ref"), None if titled else found.group("refdest").strip("<>"), None))
+        references.append(Link(found.start(), found.end(), found.group("ref"), None if titled or not first else found.group("refdest").strip("<>"), None))
     return sorted(inline + references, key=lambda link: link.start)
 
 

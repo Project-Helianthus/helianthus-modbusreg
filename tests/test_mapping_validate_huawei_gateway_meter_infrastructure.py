@@ -362,6 +362,20 @@ def test_a_runtime_meter_route_at_unit_100_is_no_plant_route_evidence(declared, 
     assert row_reasons(output)[SMARTLOGGER_GROUP] == "infrastructure.reason.identity_mismatch"
 
 
+@parametrize("native_id", sorted(v.METER_EXPOSURE_OF))
+def test_a_requested_meter_group_at_unit_100_is_no_plant_route_evidence_without_any_declaration(native_id):
+    document = with_plant(1500)
+    document["reads"].append({"native_id": native_id, "outcome": "ANSWERED"})
+    output = project(document)
+    assert output["facts"] == [] and row_reasons(output)["sdongle_plant_grid_power"] == "infrastructure.reason.group_not_read"
+
+
+def test_a_meter_group_that_was_not_read_leaves_the_plant_read_publishing():
+    document = with_plant(1500)
+    document["reads"].append({"native_id": SMARTLOGGER_GROUP, "outcome": "NOT_READ"})
+    assert [fact["item_id"] for fact in project(document)["facts"]] == ["infrastructure.power.import_active"]
+
+
 def test_a_plant_read_publishes_beside_a_meter_route_read_at_another_unit():
     document = with_plant(1500)
     document["meter"]["declared"] = document["meter"]["identity_read"] = route(SMARTLOGGER, 11)

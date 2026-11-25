@@ -737,7 +737,7 @@
     },
     "pv.reason.statistics_time_domain_unresolved": {
       "loss_kind": "time",
-      "description": "the device statistics time is local time rather than UTC; it is never used as a sample time",
+      "description": "the time domain of the device statistics time is unresolved; it is never used as a sample time",
       "reversible": false
     },
     "pv.reason.string_reading_names_no_distinct_input": {
@@ -7243,9 +7243,9 @@
         {
           "path": "identity.resources.phases",
           "value": [
-            "resource:demo-phase-alpha-1",
+            null,
             "resource:demo-phase-alpha-2",
-            "resource:demo-phase-alpha-3"
+            null
           ]
         }
       ],
@@ -7653,6 +7653,50 @@
           "value": [
             "resource:demo-phase-alpha-1",
             "resource:demo-phase-alpha-1",
+            "resource:demo-phase-alpha-3"
+          ]
+        }
+      ],
+      "expect": {
+        "error": "identity_missing_or_invalid"
+      }
+    },
+    {
+      "id": "PV-NEG-028-phase-allocated-for-refused-power-group",
+      "polarity": "negative",
+      "baseline": "m3",
+      "note": "a refused power group allocates no phase; a phase identifier in the case without an answered native position fails closed",
+      "mutations": [
+        {
+          "path": "identity.resources.phases",
+          "value": [
+            "resource:demo-phase-beta-1",
+            "resource:demo-phase-beta-2",
+            "resource:demo-phase-beta-3"
+          ]
+        }
+      ],
+      "expect": {
+        "error": "identity_missing_or_invalid"
+      }
+    },
+    {
+      "id": "PV-NEG-029-phase-allocated-beyond-reported-position",
+      "polarity": "negative",
+      "baseline": "m1",
+      "note": "a phase identifier is allocated only for a native position reported in the answered power group",
+      "mutations": [
+        {
+          "path": "phases",
+          "value": [
+            2
+          ]
+        },
+        {
+          "path": "identity.resources.phases",
+          "value": [
+            "resource:demo-phase-alpha-1",
+            "resource:demo-phase-alpha-2",
             "resource:demo-phase-alpha-3"
           ]
         }

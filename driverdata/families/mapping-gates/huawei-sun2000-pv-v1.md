@@ -317,7 +317,7 @@ inverter. The hour counter stays
 unpublished: it is not a pack yield period. The monitoring contract has no
 month or year yield word, so `pv.energy.yield_month` and `pv.energy.yield_year`
 stay prospective and unpublished. Nothing is summed across inverters into a
-plant total. The device statistics time is never used as a sample time.
+plant total. The time domain of the device statistics time is unresolved, and it is never used as a sample time.
 
 ## Withheld and native-only
 
@@ -429,6 +429,8 @@ files use opaque identifiers and values only.
 | `PV-NEG-025-phase-from-refused-power-group` | A phase position is never published from a refused power group. |
 | `PV-NEG-026-phase-position-outside-native-range` | The native phase positions are one to three. |
 | `PV-NEG-027-phase-identifier-reused` | One resource identifier never names two phases. |
+| `PV-NEG-028-phase-allocated-for-refused-power-group` | A refused power group allocates no phase; a phase identifier with no answered native position fails closed. |
+| `PV-NEG-029-phase-allocated-beyond-reported-position` | A phase identifier is allocated only for a native position that is reported in the answered power group. |
 
 ## Unresolved and falsifiers
 
