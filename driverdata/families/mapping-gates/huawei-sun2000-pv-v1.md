@@ -145,6 +145,7 @@ The validity scope of every row is the two admitted profiles at version 1.0.0.
 | `relation.relays` | `native_observation` | `resource.equipment` | `resource.inverter` | `each_admitted_child_is_read_through_the_gateway_path_its_profile_names` |
 | `pv.relation.system_inverter` | `gate_rule` | `resource.pv_system` | `resource.inverter` | `one_pv_system_per_admitted_inverter_child` |
 | `pv.relation.inverter_input` | `gate_rule` | `resource.inverter` | `resource.dc_input` | `native_string_index_1_to_8_with_a_nonzero_voltage_or_current_word` |
+| `pv.relation.inverter_phase` | `gate_rule` | `resource.inverter` | `resource.phase` | `phase_values_are_dimensions_of_the_inverter` |
 
 - Each profile names the gateway path its reads go through, so the binding that
   reads a child observes the relay. The basis is a native observation, a
@@ -154,6 +155,15 @@ The validity scope of every row is the two admitted profiles at version 1.0.0.
   is published, and one inverter-to-input record for each published input.
 - The gate makes no absence statement. A zero pair does not show that an input
   is absent, and a withheld child is not absent.
+- The inverter-to-phase relation is a gate rule: phase components are allocated
+  under the inverter at their native position, and their values are phase
+  dimensions of the inverter. No phase is published by these profiles.
+- The inverter-to-battery and inverter-to-meter relays are conditional
+  statements of the native register space (`native_observation`). Each is
+  published when the battery or meter resource of its own family exists and is
+  unknown, never absent, while that resource is outside this gate. Both are
+  stated in `conditional_relations` of the executable contract with their
+  evidence and scope.
 
 Relayed values follow section 15 item 3. If the same inverter is also observed
 directly, its anchor source there is again an operator label. The gate
@@ -175,7 +185,6 @@ relation is unknown, not absent. These relations stay unknown here.
 | --- | --- | --- | --- |
 | `pv.relation.array_string` | `resource.pv_array` | `resource.pv_string` | `unsupported:array_or_string_topology` |
 | `pv.relation.inverter_array` | `resource.inverter` | `resource.pv_array` | `unsupported:array_or_string_topology` |
-| `pv.relation.inverter_phase` | `resource.inverter` | `resource.phase` | `unsupported:per_phase_values` |
 | `relation.relays` | `resource.inverter` | `resource.battery` | `pv.reason.battery_outside_pv_family` |
 | `relation.relays` | `resource.inverter` | `resource.meter` | `pv.reason.meter_outside_pv_family` |
 

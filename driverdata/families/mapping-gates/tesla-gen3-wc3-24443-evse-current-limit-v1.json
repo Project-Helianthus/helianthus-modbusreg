@@ -5,7 +5,7 @@
     "id": "helianthus.pack.evse",
     "version": "1.0.0"
   },
-  "status": "accepted_source_specific_read_only_mapping_gate",
+  "status": "accepted_source_specific_mapping_gate",
   "pins": {
     "docs_semantic_base": "f830ace6c2b9dd1af0e87ce808fa545662578418",
     "semreg": "f3f761bc67e10d6a65eba6c13cb4dc51002d6955",
@@ -64,7 +64,13 @@
       "ordinal_of_sorted_identifiers",
       "asset_identifier"
     ],
-    "failure": "missing_blank_invalid_reused_or_ambiguous_identity_fails_closed"
+    "failure": "missing_blank_invalid_reused_or_ambiguous_identity_fails_closed",
+    "meter_id": {
+      "source": "gateway_allocated_resource_id",
+      "dimension": "evse.dimension.meter",
+      "required": true,
+      "non_secret": true
+    }
   },
   "graph": {
     "resources": [
@@ -106,6 +112,19 @@
           "native_position:none_on_current_limit_path",
           "native_owner_token_stability:no_connector_token_on_current_limit_path"
         ]
+      },
+      {
+        "kind": "resource.meter",
+        "anchor_class": "equipment",
+        "anchor_basis": "operator_slot",
+        "anchor_source": "operator_label",
+        "identification_scheme": "none_listed",
+        "parent_kind": null,
+        "evidence": [
+          "native_contract:modbus.v1.tesla.gen3.evse.current_limit.get",
+          "native_position:none_on_current_limit_path",
+          "native_owner_token_stability:no_meter_token_on_current_limit_path"
+        ]
       }
     ],
     "relations": [
@@ -140,6 +159,22 @@
           "rule_scope": "one_configured_connector_per_configured_evse"
         },
         "absence_sides": []
+      },
+      {
+        "definition": "evse.relation.evse_meter",
+        "basis_class": "configuration",
+        "from_kind": "resource.evse",
+        "to_kind": "resource.meter",
+        "evidence": [
+          "operator_configuration:evse_energy_counter_is_meter",
+          "native_contract:no_meter_structure_on_current_limit_path"
+        ],
+        "validity_scope": {
+          "profile": "wc3_24_44_3",
+          "version": "24.44.3",
+          "rule_scope": "configured_energy_counter_of_the_evse"
+        },
+        "absence_sides": []
       }
     ],
     "relayed": [],
@@ -166,11 +201,6 @@
       "definition": "evse.relation.connector_session",
       "outcome": "unknown_not_absent",
       "unpublished_endpoint": "resource.charging_session"
-    },
-    {
-      "definition": "evse.relation.evse_meter",
-      "outcome": "unknown_not_absent",
-      "unpublished_endpoint": "resource.meter"
     }
   ],
   "lifecycle": {
@@ -281,7 +311,14 @@
         ]
       }
     ],
-    "missing_native": "withheld_unavailable_never_zero"
+    "missing_native": "withheld_unavailable_never_zero",
+    "native_namespace": {
+      "namespace": "modbusreg",
+      "fields": [
+        "LimitTimeoutSeconds"
+      ],
+      "reason": "no_catalog_element"
+    }
   },
   "consumer_cutover": {
     "sequence": [
@@ -327,6 +364,13 @@
           }
         ],
         "withheld": [],
+        "native": [
+          {
+            "namespace": "modbusreg",
+            "field": "LimitTimeoutSeconds",
+            "value": 600
+          }
+        ],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -337,7 +381,8 @@
         "identity": {
           "asset_id": "asset.wc3.alpha",
           "evse_id": "evse.wc3.alpha",
-          "connector_id": "connector.wc3.alpha"
+          "connector_id": "connector.wc3.alpha",
+          "meter_id": "meter.wc3.alpha"
         },
         "source_path": "modbus.v1.tesla.gen3.evse.current_limit.get",
         "evidence": {
@@ -409,6 +454,13 @@
           }
         ],
         "withheld": [],
+        "native": [
+          {
+            "namespace": "modbusreg",
+            "field": "LimitTimeoutSeconds",
+            "value": 0
+          }
+        ],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -446,6 +498,7 @@
             "reason": "provisional_record_absent"
           }
         ],
+        "native": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -483,6 +536,13 @@
           }
         ],
         "withheld": [],
+        "native": [
+          {
+            "namespace": "modbusreg",
+            "field": "LimitTimeoutSeconds",
+            "value": 600
+          }
+        ],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -516,6 +576,7 @@
             "reason": "provisional_evidence_invalid"
           }
         ],
+        "native": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -549,6 +610,7 @@
             "reason": "provisional_evidence_invalid"
           }
         ],
+        "native": [],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -582,6 +644,13 @@
             "reason": "zero_current_unresolved"
           }
         ],
+        "native": [
+          {
+            "namespace": "modbusreg",
+            "field": "LimitTimeoutSeconds",
+            "value": 600
+          }
+        ],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -613,6 +682,13 @@
           {
             "id": "evse.limit.configured_current",
             "reason": "zero_configured_unknown"
+          }
+        ],
+        "native": [
+          {
+            "namespace": "modbusreg",
+            "field": "LimitTimeoutSeconds",
+            "value": 600
           }
         ],
         "operations": [
@@ -656,6 +732,13 @@
           }
         ],
         "withheld": [],
+        "native": [
+          {
+            "namespace": "modbusreg",
+            "field": "LimitTimeoutSeconds",
+            "value": 600
+          }
+        ],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"
@@ -693,6 +776,13 @@
           }
         ],
         "withheld": [],
+        "native": [
+          {
+            "namespace": "modbusreg",
+            "field": "LimitTimeoutSeconds",
+            "value": 600
+          }
+        ],
         "operations": [
           "evse.operation.set_allocated_current",
           "ConfigurePersistentCurrent"

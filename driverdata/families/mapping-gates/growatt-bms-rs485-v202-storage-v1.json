@@ -5,7 +5,7 @@
     "id": "helianthus.pack.storage",
     "version": "1.1.0"
   },
-  "status": "accepted_source_specific_read_only_mapping_gate",
+  "status": "accepted_source_specific_mapping_gate",
   "pins": {
     "docs_semantic_base": "ed33276cddb2dd86757efcf335c95936bdf4efe2",
     "semreg": "f3f761bc67e10d6a65eba6c13cb4dc51002d6955",

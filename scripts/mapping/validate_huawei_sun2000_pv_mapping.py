@@ -33,7 +33,8 @@ OPAQUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$")
 COEFFICIENT_RE = re.compile(r"^(0|-?[1-9][0-9]*)$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
 # Approved immutable owner links: the pinned docs-semantic revision, owning path, optional non-line anchor.
-OWNER_LINK_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/[A-Za-z0-9_./-]+(?:#(?!L[0-9])[A-Za-z0-9_-]+)?(?![A-Za-z0-9_./#-])")
+OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
+OWNER_LINK_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
 
 
 def unowned_text(text):
@@ -87,6 +88,7 @@ STATED_RELATIONS = [
     ("relation.relays", "native_observation", "each_admitted_child_is_read_through_the_gateway_path_its_profile_names"),
     ("pv.relation.system_inverter", "gate_rule", "one_pv_system_per_admitted_inverter_child"),
     ("pv.relation.inverter_input", "gate_rule", "native_string_index_1_to_8_with_a_nonzero_voltage_or_current_word"),
+    ("pv.relation.inverter_phase", "gate_rule", "phase_values_are_dimensions_of_the_inverter"),
 ]
 # Section 6.4: an inverter relayed by its gateway path and also seen directly.
 TWO_PATHS = ["relayed_by_the_gateway_path", "observed_directly"]
@@ -344,10 +346,14 @@ def check_graph_paths(graph, catalog):
         fail("graph_joins")
 
 
+def admitted_scope(document):
+    profiles = document["native_contract"]["profiles"]
+    return {"profile": "_and_".join(profile["key"] for profile in profiles), "version": "+".join(sorted({profile["profile_id"].rsplit("@", 1)[-1] for profile in profiles}))}
+
+
 def check_graph_relations(graph, document, catalog):
     """Section 15 item 2, REL-3 and section 7.2: stated basis and rule scope, the admitted profiles' scope, no absence statement."""
-    profiles = document["native_contract"]["profiles"]
-    scope = {"profile": "_and_".join(profile["key"] for profile in profiles), "version": "+".join(sorted({profile["profile_id"].rsplit("@", 1)[-1] for profile in profiles}))}
+    scope = admitted_scope(document)
     kinds = catalog.role_kinds()
     if [(relation["definition"], relation["basis_class"], relation["validity_scope"]["rule_scope"]) for relation in graph["relations"]] != STATED_RELATIONS:
         fail("graph_relations")
@@ -357,6 +363,33 @@ def check_graph_relations(graph, document, catalog):
         stated_scope = {key: relation["validity_scope"][key] for key in scope}
         if (relation["from_kind"], relation["to_kind"]) != ends or relation["absence_sides"] or stated_scope != scope:
             fail("graph_relations")
+
+
+def check_conditional_relations(document, catalog):
+    """Rule 14: each inverter relay to a battery or meter is stated with evidence and scope, and stays unknown, never absent,
+    while that child's resource is outside this family's gate."""
+    published = {resource["kind"] for resource in document["graph"]["resources"]}
+    rows = document.get("conditional_relations")
+    scope = admitted_scope(document)
+    if not isinstance(rows, list) or [row.get("to_kind") for row in rows] != list(CONDITIONAL_TARGETS):
+        fail("conditional_relations")
+    for row in rows:
+        if (row.get("definition"), row.get("basis_class"), row.get("from_kind")) != ("relation.relays", "native_observation", catalog.role_kinds()["inverter"]) or row["to_kind"] in published:
+            fail("conditional_relations")
+        if row.get("outcome_when_absent") != UNSTATED_OUTCOME or not row.get("evidence") or {key: row.get("validity_scope", {}).get(key) for key in scope} != scope or not row["validity_scope"].get("rule_scope"):
+            fail("conditional_relations")
+
+
+def check_native_relations(document, text):
+    """The gate's phase and relay statements are the rows the staged ND02 relations page states; a missing row fails."""
+    rows = {tuple(row[:4]) for row in table(text, "## Relations")}
+    kinds = element_catalog().role_kinds()
+    stated = {(relation["definition"], relation["from_kind"].removeprefix("resource."), relation["to_kind"].removeprefix("resource."), relation["basis_class"]) for relation in document["graph"]["relations"] + document["conditional_relations"]}
+    for statement in PAGE_STATEMENTS:
+        if statement not in rows or statement not in stated:
+            fail("native_relations")
+    if kinds["inverter"].removeprefix("resource.") != "inverter":
+        fail("native_relations")
 
 
 def expected_aggregates(document, catalog):
@@ -390,6 +423,7 @@ def validate_graph(document, catalog):
     check_graph_resources(graph, catalog)
     check_graph_paths(graph, catalog)
     check_graph_relations(graph, document, catalog)
+    check_conditional_relations(document, catalog)
     if graph["aggregates"] != expected_aggregates(document, catalog):
         fail("graph_aggregates")
     if graph["selectors"] != SELECTORS:
@@ -432,7 +466,7 @@ def validate_contract(document, catalog=None):
 
 
 def check_contract_header(document):
-    if document.get("contract") != "helianthus.semantic.mapping.huawei-sun2000.pv/v1" or document.get("mapping_id") != "pv.mapping.huawei.sun2000.monitoring" or document.get("pack") != PACK or document.get("status") != "accepted_source_specific_read_only_mapping_gate":
+    if document.get("contract") != "helianthus.semantic.mapping.huawei-sun2000.pv/v1" or document.get("mapping_id") != "pv.mapping.huawei.sun2000.monitoring" or document.get("pack") != PACK or document.get("status") != "accepted_source_specific_mapping_gate":
         fail("contract")
     if document.get("evidence") != EVIDENCE:
         fail("evidence")
@@ -944,6 +978,9 @@ def check_positive_scenario(scenario, expected, output):
         fail("scenario summary " + scenario["id"])
 
 
+# The statements the ND02 relations page must state for this gate: the phase relation and the two inverter relays.
+PAGE_STATEMENTS = (("pv.relation.inverter_phase", "inverter", "phase", "gate_rule"), ("relation.relays", "inverter", "battery", "native_observation"), ("relation.relays", "inverter", "meter", "native_observation"))
+CONDITIONAL_TARGETS = ("resource.battery", "resource.meter")
 # The staged ND02 relations page the PV gate's relation statements cite; its absence is never a pass.
 NATIVE_PAGE = ROOT / ".tmp/references/docs-modbus/protocols/huawei/sun2000-semreg-relations-v1.md"
 
@@ -955,6 +992,7 @@ def check_native_page(path=NATIVE_PAGE):
 
 def document(contract):
     check_native_page()
+    check_native_relations(contract, NATIVE_PAGE.read_text(encoding="utf-8"))
     validate_contract(contract)
     validate_scenarios(contract)
 
@@ -1017,7 +1055,8 @@ def check_document(contract, text):
     for token in DOC_TOKENS:
         if token not in flat:
             fail("document boundary")
-    if HEX_RUN_RE.search(unowned_text(text)) or HEX_RUN_RE.search(json.dumps(contract)):
+    unowned = unowned_text(text)
+    if HEX_RUN_RE.search(unowned) or HEX_RUN_RE.search(json.dumps(contract)) or re.search(r"/(?:blob|commit|tree)/", unowned):
         fail("publication: digest or revision literal")
     for profile in contract["native_contract"]["profiles"]:
         if "`%s`" % profile["profile_id"] not in text:

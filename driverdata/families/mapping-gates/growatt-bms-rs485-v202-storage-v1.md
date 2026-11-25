@@ -11,20 +11,12 @@ hardware and not a device-compatibility claim.
 
 ## Publishable evidence pins
 
-The native source is [Growatt RS-485 v2.02 documentation at substantive revision
-`6c08d4d`](https://github.com/Project-Helianthus/helianthus-docs-modbus/blob/6c08d4d2acf70bea622da333f6d75e26d2d92621/protocols/growatt/bms-rs485-1xsxxp-v202.md).
-The [lifecycle gate](https://github.com/Project-Helianthus/helianthus-docs-modbus/commit/35151979c8561d5dc4215030899277aec36d2f9f),
-[registry input](https://github.com/Project-Helianthus/helianthus-modbusreg/commit/7853d903970a4fdded35abaef01fe30f7e93be6a),
-and [SemReg input](https://github.com/Project-Helianthus/helianthus-semreg/commit/f3f761bc67e10d6a65eba6c13cb4dc51002d6955)
-are pinned. Storage docs/runtime inputs are `c20fdef000fe95df95fca60c55d651a0614c4efd`
-and `6556bf4b3fffd645b6c14ebfd194d8570b7c5207`.
-
-Gateway composition is accepted only at [main
-`32244901c4c8337266cd348bdad90fb9e8eb0a61`](https://github.com/Project-Helianthus/helianthus-ebusgateway/commit/32244901c4c8337266cd348bdad90fb9e8eb0a61), tree
-`0a850d5646d46f5782b1396d72a3d93bffa6974e`, from reviewed source
-[`15ab7f0f4197485c83c04f8fe24000ebe058cb7a`](https://github.com/Project-Helianthus/helianthus-ebusgateway/commit/15ab7f0f4197485c83c04f8fe24000ebe058cb7a).
-These pins are evidence, not a
-runtime dependency on a sibling checkout.
+The native source is the Growatt RS-485 v2.02 page
+`protocols/growatt/bms-rs485-1xsxxp-v202.md` of the docs-modbus repository, at
+the substantive revision named in the `pins` member of the executable contract.
+The lifecycle gate, the registry input, the SemReg input, the storage docs and
+runtime inputs, and the gateway composition are pinned in the same member.
+These pins are evidence, not a runtime dependency on a sibling checkout.
 
 ## Native admission and preservation
 

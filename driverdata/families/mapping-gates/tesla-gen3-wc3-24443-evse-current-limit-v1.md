@@ -11,18 +11,10 @@ separately below.
 
 ## Publishable inputs and evidence boundary
 
-The native current-limit contract is pinned to
-[docs-modbus `e9d0471`](https://github.com/Project-Helianthus/helianthus-docs-modbus/commit/e9d0471ccc7bd0cb82e2552e630ebaae5436d867),
-the read-only native-projection revision is
-[`1127c333`](https://github.com/Project-Helianthus/helianthus-docs-modbus/commit/1127c333de1f1d02305952a58f8745ee05c42e12),
-the typed registry is
-[`57f7eb84`](https://github.com/Project-Helianthus/helianthus-modbusreg/commit/57f7eb84f7d4e1173621711bf64624726c71bc75),
-the semantic package is
-[`f3f761bc`](https://github.com/Project-Helianthus/helianthus-semreg/commit/f3f761bc67e10d6a65eba6c13cb4dc51002d6955),
-and gateway composition is
-[`32244901`](https://github.com/Project-Helianthus/helianthus-ebusgateway/commit/32244901c4c8337266cd348bdad90fb9e8eb0a61).
-The accepted generic EVSE input is `helianthus.pack.evse@1.0.0` at this
-repository's base `f830ace6c2b9dd1af0e87ce808fa545662578418`.
+The pinned inputs are listed in the `pins` member of the executable contract:
+the native current-limit contract, the read-only native projection, the typed
+registry, the semantic package, and gateway composition. The accepted generic
+EVSE input is `helianthus.pack.evse@1.0.0`.
 
 Only FC100 family-6 evidence for this exact profile is admissible.
 `ConfiguredCurrentAmps` of the provisional readback `t27` to `t28` maps exactly,
@@ -32,7 +24,9 @@ carry it in one epoch, the later receipt is the candidate, and an explicit zero
 is unknown. `LimitCurrentMaxAmps` maps exactly, in integer amperes, to
 `evse.limit.allocated_current` when `InhibitCharging` is false and the current
 is nonzero, whatever `LimitTimeoutSeconds` is. A zero or unresolved timeout
-leaves only the expiry unknown. An inhibited readback maps to 0 A at the
+leaves only the expiry unknown. The timeout is served in the modbusreg
+namespace as a native value, because no catalog element yet gives it one; it is
+never published as an EVSE fact or as an expiry. An inhibited readback maps to 0 A at the
 connector, not to the 6 A a pause carries natively. A zero current with inhibit
 false leaves the allocated current unknown. Timeout and inhibit have no EVSE
 fact of their own.
@@ -87,12 +81,13 @@ invalid, reused, or ambiguous identifiers fail closed.
 
 The station-to-EVSE and EVSE-to-connector relations are stated with basis
 class `configuration`, scoped to this profile and its version, and with no
-absence statement (REL-3, REL-8). The connector-to-phase, connector-to-session
-and EVSE-to-meter relations are listed in `unstated_relations` as
-unknown, not absent: the gate publishes no phase, session or meter, and it
-never claims that a meter is missing. The configured relation for the charger's
-own energy counter is not yet stated; it needs a meter resource in the graph and
-is outstanding. Native connector topology stays unsupported.
+absence statement (REL-3, REL-8). The EVSE-to-meter relation is stated with basis class `configuration`: the
+meter is the charger's own energy counter, declared by configuration, and it is
+a meter resource in the graph with a configured identity of its own. The
+connector-to-phase and connector-to-session relations are listed in
+`unstated_relations` as unknown, not absent: the gate publishes no phase or
+session, and it never claims that a phase or session is missing. Native
+connector topology stays unsupported.
 
 Under EN-1 each field rule names its subject kind and measurement point. The
 configured current limit's subject is the EVSE it applies to, defined at the
@@ -118,7 +113,9 @@ charger, and the injected MCP projection shows them as SemReg shows them:
 - `ConfigurePersistentCurrent` in the modbusreg namespace: the persistent
   `t7` to `t8` current write.
 
-The allocated-current set accepts whole amperes only. Its upper bound is the
+The allocated-current set accepts whole amperes only. The configured-current
+bound is a non-negative integer read from the device; a missing, malformed or
+non-integer bound sends nothing. Its upper bound is the
 configured current of the latest t28 in the same lifecycle generation. Where that
 generation has no t28, the prerequisite t27 to t28 read may run first, and a
 value above the configured current then read sends no t25. A pause at 0 A

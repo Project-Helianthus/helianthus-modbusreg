@@ -391,7 +391,7 @@ def validate_contract(document, catalog=None):
 
 
 def check_growatt_header(document):
-    if document.get("contract") != "helianthus.semantic.mapping.growatt-bms-rs485-v202.storage/v1" or document.get("mapping_id") != "storage.mapping.growatt.rs485.1xsxxp.v202" or document.get("pack") != PACK or document.get("status") != "accepted_source_specific_read_only_mapping_gate" or document.get("pins") != PINS:
+    if document.get("contract") != "helianthus.semantic.mapping.growatt-bms-rs485-v202.storage/v1" or document.get("mapping_id") != "storage.mapping.growatt.rs485.1xsxxp.v202" or document.get("pack") != PACK or document.get("status") != "accepted_source_specific_mapping_gate" or document.get("pins") != PINS:
         fail("contract")
 
 

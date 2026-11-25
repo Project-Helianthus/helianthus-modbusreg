@@ -28,7 +28,8 @@ ERROR_PRECEDENCE = ["gate_revision_required", "native_evidence_invalid", "identi
 OPAQUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
 # Approved immutable owner links: the pinned docs-semantic revision, owning path, optional non-line anchor.
-OWNER_LINK_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/[A-Za-z0-9_./-]+(?:#(?!L[0-9])[A-Za-z0-9_-]+)?(?![A-Za-z0-9_./#-])")
+OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
+OWNER_LINK_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
 
 
 def unowned_text(text):
@@ -669,7 +670,8 @@ def check_document(contract, text):
     for token in DOC_TOKENS:
         if token not in flat:
             fail("document boundary")
-    if HEX_RUN_RE.search(unowned_text(text)) or HEX_RUN_RE.search(json.dumps(contract)):
+    unowned = unowned_text(text)
+    if HEX_RUN_RE.search(unowned) or HEX_RUN_RE.search(json.dumps(contract)) or re.search(r"/(?:blob|commit|tree)/", unowned):
         fail("publication: digest or revision literal")
 
 

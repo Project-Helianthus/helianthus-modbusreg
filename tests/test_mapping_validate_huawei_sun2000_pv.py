@@ -971,7 +971,7 @@ GRAPH_NEGATIVES = [
     ("two_paths_two_identities", [("set", "graph.joins", [])], "graph_joins"),
     ("join_of_one_observation", [("set", "graph.joins.0.observations", ["observed_directly"])], "graph invalid_value $.graph.joins[0].observations"),
     # Item 5: a relation record whose endpoint is not a published resource.
-    ("dangling_battery_endpoint", [("append", "graph.relations", BATTERY_RELAYS)], "graph dangling_endpoint $.graph.relations[3].to_kind"),
+    ("dangling_battery_endpoint", [("append", "graph.relations", BATTERY_RELAYS)], "graph dangling_endpoint $.graph.relations[4].to_kind"),
     ("dangling_logger_endpoint", [("set", "graph.resources.0.kind", "resource.meter")], "graph dangling_endpoint $.graph.relations[0].from_kind"),
     # Resources (section 15 item 1): kind, class, basis, source, scheme, parent and evidence each varied.
     ("resource_kind_not_member", [("set", "graph.resources.4.kind", "resource.not_a_catalog_kind")], "graph kind_not_member $.graph.resources[4].kind"),
@@ -1014,10 +1014,16 @@ GRAPH_NEGATIVES = [
     ("plane_on_resource", [("set", "graph.resources.0.planes", ["physical"])], "graph plane_membership_stated $.graph.resources[0].planes"),
     ("plane_on_field_rule", [("set", "field_rules.0.planes", ["energy"])], "graph plane_membership_stated $.field_rules[0].planes"),
     # Withheld children: unknown, never absent (section 7.2).
-    ("unstated_phase_dropped", [("delete", "unstated_relations.2", None)], "unstated_relations"),
-    ("unstated_battery_absent", [("set", "unstated_relations.3.outcome", "absent")], "unstated_relations"),
-    ("unstated_battery_from_logger", [("set", "unstated_relations.3.from_kind", "resource.equipment")], "unstated_relations"),
-    ("unstated_meter_reason", [("set", "unstated_relations.4.withheld_by", "pv.reason.native_fact_unknown")], "unstated_relations"),
+    ("unstated_battery_dropped", [("delete", "unstated_relations.2", None)], "unstated_relations"),
+    ("unstated_phase_also_unknown", [("append", "unstated_relations", {"definition": "pv.relation.inverter_phase", "from_kind": "resource.inverter", "to_kind": "resource.phase", "outcome": "unknown_not_absent", "withheld_by": "unsupported:per_phase_values"})], "unstated_relations"),
+    ("unstated_battery_absent", [("set", "unstated_relations.2.outcome", "absent")], "unstated_relations"),
+    ("unstated_battery_from_logger", [("set", "unstated_relations.2.from_kind", "resource.equipment")], "unstated_relations"),
+    ("unstated_meter_reason", [("set", "unstated_relations.3.withheld_by", "pv.reason.native_fact_unknown")], "unstated_relations"),
+    ("conditional_battery_as_gate_rule", [("set", "conditional_relations.0.basis_class", "gate_rule")], "conditional_relations"),
+    ("conditional_meter_published", [("append", "graph.resources", {"kind": "resource.meter", "anchor_class": "equipment", "anchor_basis": "operator_slot", "anchor_source": "operator_label", "identification_scheme": "none_listed", "parent_kind": None, "evidence": ["synthetic:meter"]})], "graph_resources"),
+    ("conditional_wrong_target", [("set", "conditional_relations.1.to_kind", "resource.phase")], "conditional_relations"),
+    ("conditional_scope_profile", [("set", "conditional_relations.0.validity_scope.profile", "m3")], "conditional_relations"),
+    ("conditional_absence_not_unknown", [("set", "conditional_relations.1.outcome_when_absent", "absent")], "conditional_relations"),
     # Identity (section 6.3).
     ("identity_class_token_allowed", [("delete", "identity.asset_id.forbidden_derivations.7", None)], "identity contract"),
     ("identity_profile_allowed", [("delete", "identity.asset_id.forbidden_derivations.8", None)], "identity contract"),
@@ -1054,7 +1060,7 @@ def catalog_with(element_id, mutate_attributes):
     ("pv.energy.generated", lambda a: a["subject"].update(kind="resource.inverter"), "graph subject_kind_mismatch $.graph.aggregates[2].subject_kind"),
     ("pv.dimension.input", lambda a: a.update(resource_kind="resource.pv_string"), "graph_resources"),
     ("pv.relation.inverter_input", lambda a: a.update(basis_classes=["configuration"]), "graph basis_class_not_admitted $.graph.relations[2].basis_class"),
-    ("pv.relation.inverter_phase", lambda a: a.update(from_kinds=["resource.pv_system"]), "graph_parent"),
+    ("pv.relation.inverter_phase", lambda a: a.update(from_kinds=["resource.pv_system"]), "graph endpoint_kind_mismatch $.graph.relations[3].from_kind"),
     ("pv.ac.aggregate_active_power", lambda a: a.update(aggregation="member"), "graph not_an_aggregate $.graph.aggregates[1].fact"),
 ])
 def test_catalog_facts_are_looked_up_not_repeated(element_id, mutate_attributes, expected):
@@ -1065,8 +1071,10 @@ def test_withheld_children_stay_unknown_and_never_absent():
     document = contract()
     rows = {(row["definition"], row["from_kind"], row["to_kind"]): row for row in document["unstated_relations"]}
     assert set(rows) == {("pv.relation.array_string", "resource.pv_array", "resource.pv_string"), ("pv.relation.inverter_array", "resource.inverter", "resource.pv_array"),
-                         ("pv.relation.inverter_phase", "resource.inverter", "resource.phase"), ("relation.relays", "resource.inverter", "resource.battery"),
-                         ("relation.relays", "resource.inverter", "resource.meter")}
+                         ("relation.relays", "resource.inverter", "resource.battery"), ("relation.relays", "resource.inverter", "resource.meter")}
+    stated = {(relation["definition"], relation["from_kind"], relation["to_kind"]) for relation in document["graph"]["relations"]}
+    assert ("pv.relation.inverter_phase", "resource.inverter", "resource.phase") in stated
+    assert {(row["to_kind"], row["from_kind"]) for row in document["conditional_relations"]} == {("resource.battery", "resource.inverter"), ("resource.meter", "resource.inverter")}
     assert {row["outcome"] for row in rows.values()} == {"unknown_not_absent"}
     assert all(not relation["absence_sides"] for relation in document["graph"]["relations"])
 
@@ -1089,6 +1097,35 @@ def test_managed_namespace_exception_does_not_allow_native_identity_text(source)
     document["source"]["source_id"] = source
     with Raises(ValueError, match="identity_missing_or_invalid"):
         project(document)
+
+
+OWNER_BASE = "https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/"
+
+
+def test_publication_accepts_each_approved_owner_path():
+    for path in ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md"):
+        v.check_document(v.load(), page() + "\n[owner](" + OWNER_BASE + path + ")\n")
+
+
+@parametrize("link", [
+    OWNER_BASE + "api/v1/" + "a" * 40 + ".md",
+    OWNER_BASE + "api/v1/unlisted.md",
+    OWNER_BASE + "api/v1/graph.md?plain=1",
+    OWNER_BASE + "api/v1/graph.md.bak",
+    OWNER_BASE + "api/v1/element-catalog-v1.json#L10",
+])
+def test_publication_rejects_unapproved_owner_paths_and_suffixes(link):
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n[owner](" + link + ")\n")
+
+
+def test_native_relations_page_states_each_phase_and_relay_statement():
+    document = contract()
+    text = v.NATIVE_PAGE.read_text(encoding="utf-8")
+    v.check_native_relations(document, text)
+    without_battery = "\n".join(line for line in text.splitlines() if not (line.startswith("|") and "| battery |" in line))
+    with Raises(ValueError, match="native_relations"):
+        v.check_native_relations(document, without_battery)
 
 
 if __name__ == "__main__":

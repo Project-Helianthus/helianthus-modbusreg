@@ -20,12 +20,12 @@ _GRAPH_SPEC.loader.exec_module(graph_rules)
 PACK = {"id": "helianthus.pack.evse", "version": "1.0.0"}
 DIMENSION_PREFIX = "evse.dimension."
 # Identity keys name the pack's resource dimensions; each value is the gateway-allocated ResourceID (graph.md 6.3).
-IDENTITY_KEYS = ("asset_id", "evse_id", "connector_id")
+IDENTITY_KEYS = ("asset_id", "evse_id", "connector_id", "meter_id")
 IDENTITY_SOURCE = "gateway_allocated_resource_id"
 FORBIDDEN_DERIVATIONS = ["unit_id", "firmware_text", "observation_values", "payload_bytes", "request_order", "network_address", "ordinal_of_sorted_identifiers", "asset_identifier"]
 IDENTITY_FAILURE = "missing_blank_invalid_reused_or_ambiguous_identity_fails_closed"
 # Section 15 item 2: the relations this gate states, all declared by configuration.
-STATED_RELATIONS = ["evse.relation.asset_evse", "evse.relation.evse_connector"]
+STATED_RELATIONS = ["evse.relation.asset_evse", "evse.relation.evse_connector", "evse.relation.evse_meter"]
 STATED_BASIS = "configuration"
 NATIVE_VERSION = "24.44.3"
 UNSTATED_OUTCOME = "unknown_not_absent"
@@ -47,11 +47,15 @@ SET_ALLOCATED_CURRENT = "evse.operation.set_allocated_current"
 # IEC 61851-1 Annex A: 6 A is the lowest charging current a charger can signal; the pause encodes 6 A with inhibit.
 MIN_NONZERO_SET_AMPS = 6
 MAX_INTEROPERABLE_TIMEOUT_SECONDS = 86399
+# The gate admits operations (projection.operations), so its status is not read-only (P1-7; rule 2).
+STATUS = "accepted_source_specific_mapping_gate"
 PINS = {"docs_semantic_base": "f830ace6c2b9dd1af0e87ce808fa545662578418", "semreg": "f3f761bc67e10d6a65eba6c13cb4dc51002d6955", "docs_modbus_current_limit": "e9d0471ccc7bd0cb82e2552e630ebaae5436d867", "docs_modbus_native_projection": "1127c333de1f1d02305952a58f8745ee05c42e12", "modbusreg": "57f7eb84f7d4e1173621711bf64624726c71bc75", "gateway_main": "32244901c4c8337266cd348bdad90fb9e8eb0a61"}
 ERRORS = ["profile_or_version_invalid", "identity_invalid", "source_path_invalid", "evidence_binding_invalid", "lifecycle_invalid", "unsupported_fact_or_operation"]
 OPAQUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 PERSISTENT_REFS = ["persistent_request", "persistent_terminal"]
+# Section 6.2 and the projection: the native timeout has no EVSE fact; it is served in the modbusreg namespace.
+NATIVE_NAMESPACE = {"namespace": "modbusreg", "fields": ["LimitTimeoutSeconds"], "reason": "no_catalog_element"}
 PROVISIONAL_REFS = ["provisional_set", "provisional_ack", "provisional_readback_request", "provisional_readback_terminal"]
 
 
@@ -204,7 +208,7 @@ def expected_field_rules(catalog):
 
 def validate_contract(contract, catalog=None):
     catalog = Catalog(graph_rules.load_catalog() if catalog is None else catalog)
-    if contract.get("contract") != "helianthus.semantic.mapping.tesla-gen3-wc3-24443.evse-current-limit/v1" or contract.get("pack") != PACK or contract.get("pins") != PINS:
+    if contract.get("contract") != "helianthus.semantic.mapping.tesla-gen3-wc3-24443.evse-current-limit/v1" or contract.get("pack") != PACK or contract.get("pins") != PINS or contract.get("status") != STATUS:
         fail("contract")
     native = contract.get("native_contract")
     if native != {"profile": "wc3_24_44_3", "source_path": "modbus.v1.tesla.gen3.evse.current_limit.get", "function": "FC100", "read_only": True, "outbound_allowed": False, "persistent": {"request_response": "family_6.t7_to_t8", "field": "MaxOutputCurrentAmps", "unit": "unit.ampere"}, "provisional": {"set_ack": "family_6.t25_to_t26", "readback": "family_6.t27_to_t28", "configured_field": "ConfiguredCurrentAmps", "allocated_field": "LimitCurrentMaxAmps", "timeout": "LimitTimeoutSeconds", "inhibit": "InhibitCharging", "unit": "unit.ampere"}}:
@@ -219,7 +223,7 @@ def validate_contract(contract, catalog=None):
     if contract.get("withheld") != [] or contract.get("unsupported") != UNSUPPORTED:
         fail("withheld_or_unsupported")
     projection = contract.get("projection", {})
-    if projection.get("source_path") != "modbus.v1.tesla.gen3.evse.current_limit.get" or projection.get("error_precedence") != ERRORS or projection.get("operations") != OPERATIONS or projection.get("missing_native") != "withheld_unavailable_never_zero":
+    if projection.get("source_path") != "modbus.v1.tesla.gen3.evse.current_limit.get" or projection.get("error_precedence") != ERRORS or projection.get("operations") != OPERATIONS or projection.get("native_namespace") != NATIVE_NAMESPACE or projection.get("missing_native") != "withheld_unavailable_never_zero":
         fail("projection")
     cutover = contract.get("consumer_cutover", {})
     if cutover != {"sequence": ["one_semreg_projection", "versioned_semantic_mcp", "mtls_graphql_and_portal_parity", "home_assistant_adoption"], "forbidden": ["fallback", "comparator", "compatibility_adapter", "shadow_authority", "dual_publication", "caller_supplied_provenance", "write_route"], "until_implemented": "no_consumer_binding"}:
@@ -249,12 +253,21 @@ def non_negative_int(value):
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
+def provisional_valid(case):
+    provisional = case.get("provisional")
+    return isinstance(provisional, dict) and valid_evidence(case.get("evidence", {}).get("provisional"), PROVISIONAL_REFS, correlation=True)
+
+
 def publish_configured_current(case, provisional, facts, withheld):
-    """Section 6.1: the t28 and the t8 configured current are candidates; the later receipt of the epoch wins."""
+    """Section 6.1: the t28 and the t8 configured current are each sufficient; with both in one epoch the later receipt wins."""
     candidates = []
     if provisional is not None and "ConfiguredCurrentAmps" in provisional:
         candidates.append((receipt_of(case["evidence"]["provisional"]), provisional["ConfiguredCurrentAmps"]))
-    candidates.append((receipt_of(case["evidence"]["persistent"]), case["persistent"]["MaxOutputCurrentAmps"]))
+    if "persistent" in case:
+        candidates.append((receipt_of(case["evidence"]["persistent"]), case["persistent"]["MaxOutputCurrentAmps"]))
+    if not candidates:
+        withheld.append({"id": "evse.limit.configured_current", "reason": "configured_current_absent"})
+        return
     _, configured = max(candidates, key=lambda candidate: candidate[0])
     if not non_negative_int(configured):
         withheld.append({"id": "evse.limit.configured_current", "reason": "provisional_record_malformed"})
@@ -268,22 +281,25 @@ def project(case, contract):
     errors = case_errors(case, contract)
     for error in ERRORS:
         if error in errors: fail(error)
-    persistent, provisional = case.get("persistent"), case.get("provisional")
-    if not isinstance(persistent, dict) or not isinstance(persistent.get("MaxOutputCurrentAmps"), int) or isinstance(persistent["MaxOutputCurrentAmps"], bool) or persistent["MaxOutputCurrentAmps"] < 0: fail(ERRORS[3])
-    facts, withheld = [], []
-    publish_limits(case, facts, withheld)
-    return {"facts": facts, "withheld": withheld, "operations": list(OPERATION_NAMES)}
+    persistent = case.get("persistent")
+    if "persistent" in case and (not isinstance(persistent, dict) or not non_negative_int(persistent.get("MaxOutputCurrentAmps"))): fail(ERRORS[3])
+    facts, withheld, native = [], [], []
+    publish_limits(case, facts, withheld, native)
+    return {"facts": facts, "withheld": withheld, "native": native, "operations": list(OPERATION_NAMES)}
 
 
 def case_errors(case, contract):
     errors = set()
     if case.get("profile") != "wc3_24_44_3": errors.add(ERRORS[0])
     identity = case.get("identity", {})
-    values = [identity.get(k) for k in ("asset_id", "evse_id", "connector_id")]
-    if not all(valid_id(v) for v in values) or len(set(values)) != 3: errors.add(ERRORS[1])
+    values = [identity.get(k) for k in IDENTITY_KEYS]
+    if not all(valid_id(v) for v in values) or len(set(values)) != len(IDENTITY_KEYS): errors.add(ERRORS[1])
     if case.get("source_path") != contract["projection"]["source_path"]: errors.add(ERRORS[2])
     evidence = case.get("evidence", {})
-    if not valid_evidence(evidence.get("persistent"), PERSISTENT_REFS): errors.add(ERRORS[3])
+    if "persistent" in case:
+        if not valid_evidence(evidence.get("persistent"), PERSISTENT_REFS): errors.add(ERRORS[3])
+    elif not provisional_valid(case):
+        errors.add(ERRORS[3])
     if not lifecycle_valid(case.get("lifecycle", {})): errors.add(ERRORS[4])
     if case.get("unsupported_fact") or (case.get("operation") is not None and case.get("operation") not in OPERATION_NAMES): errors.add(ERRORS[5])
     return errors
@@ -298,7 +314,7 @@ def lifecycle_valid(lifecycle):
     return receipt_ok and valid_id(lifecycle.get("source_epoch")) and lifecycle.get("qualification") == "qualified" and lifecycle.get("semantic_revision") == "1.0.0" and not any(not isinstance(lifecycle.get(k), int) or isinstance(lifecycle.get(k), bool) or lifecycle[k] < 1 for k in ("driver_generation", "lifecycle_generation"))
 
 
-def publish_limits(case, facts, withheld):
+def publish_limits(case, facts, withheld, native):
     provisional = case.get("provisional")
     evidence = case.get("evidence", {})
     if not isinstance(provisional, dict):
@@ -310,6 +326,14 @@ def publish_limits(case, facts, withheld):
     publish_configured_current(case, provisional, facts, withheld)
     if provisional is not None:
         publish_allocated_current(provisional, facts, withheld)
+        publish_native_timeout(provisional, native)
+
+
+def publish_native_timeout(provisional, native):
+    """Section 6.2: the timeout only decides the expiry, which stays unknown; the value is served natively, never as a fact."""
+    timeout = provisional.get("LimitTimeoutSeconds")
+    if non_negative_int(timeout):
+        native.append({"namespace": NATIVE_NAMESPACE["namespace"], "field": "LimitTimeoutSeconds", "value": timeout})
 
 
 def amperes_fact(fact_id, dimension, amperes):
@@ -341,7 +365,7 @@ def set_allocated_current_disposition(request, generation, own_connector):
     if not generation["t28_known"]:
         return "read_first"
     bound = generation["configured_current"]
-    if bound is None:
+    if not non_negative_int(bound):
         return "rejected_no_configured_bound"
     if amperes == 0:
         return "send_pause" if bound >= MIN_NONZERO_SET_AMPS else "rejected_pause_bound"

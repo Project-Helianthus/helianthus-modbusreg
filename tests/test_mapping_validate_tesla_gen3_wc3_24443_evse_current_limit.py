@@ -119,12 +119,76 @@ def operation_vectors():
         ("negative_zero_timeout", dict(SET, amperes=16, timeout_seconds=0), KNOWN, "rejected_invalid"),
         ("negative_other_connector", dict(SET, amperes=16, connector_id="connector.wc3.beta"), KNOWN, "rejected_other_connector"),
         ("pause_bound_below_6A", dict(SET, amperes=0), {"t28_known": True, "configured_current": 5}, "rejected_pause_bound"),
+        ("malformed_bound_nan_16A", dict(SET, amperes=16), {"t28_known": True, "configured_current": float("nan")}, "rejected_no_configured_bound"),
+        ("malformed_bound_nan_pause", dict(SET, amperes=0), {"t28_known": True, "configured_current": float("nan")}, "rejected_no_configured_bound"),
+        ("malformed_bound_float", dict(SET, amperes=16), {"t28_known": True, "configured_current": 16.0}, "rejected_no_configured_bound"),
+        ("malformed_bound_bool", dict(SET, amperes=16), {"t28_known": True, "configured_current": True}, "rejected_no_configured_bound"),
+        ("malformed_bound_string", dict(SET, amperes=16), {"t28_known": True, "configured_current": "16"}, "rejected_no_configured_bound"),
     ]
     for name, request, generation, expected in vectors:
         got = mapping.set_allocated_current_disposition(request, generation, "connector.wc3.alpha")
         if got != expected:
             raise AssertionError(f"{name}: expected {expected}, got {got}")
         print(name + ": " + got)
+
+
+def candidate_cases(baseline, contract):
+    """Section 6.1: either configured-current record alone is sufficient; with both in one epoch the later receipt wins."""
+    cases = [
+        ("provisional_only_t28", [("delete", "persistent", None), ("delete", "evidence.persistent", None)], [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")], []),
+        ("provisional_only_without_configured_field", [("delete", "persistent", None), ("delete", "evidence.persistent", None), ("delete", "provisional.ConfiguredCurrentAmps", None)], [("evse.limit.allocated_current", "12")], [("evse.limit.configured_current", "configured_current_absent")]),
+        ("later_provisional_candidate", [("set", "persistent.MaxOutputCurrentAmps", 7), ("set", "provisional.ConfiguredCurrentAmps", 32)], [("evse.limit.configured_current", "32"), ("evse.limit.allocated_current", "12")], []),
+    ]
+    for name, edits, facts, withheld in cases:
+        candidate = copy.deepcopy(baseline)
+        for op, path, value in edits:
+            edit(candidate, op, path, value)
+        result = mapping.project(candidate, contract)
+        if facts_of(result) != facts or withheld_of(result) != withheld:
+            raise AssertionError(f"{name}: facts {facts_of(result)} withheld {withheld_of(result)}")
+        print(name + ": CANDIDATE")
+    neither = copy.deepcopy(baseline)
+    for op, path, value in [("delete", "persistent", None), ("delete", "evidence.persistent", None), ("delete", "provisional", None), ("delete", "evidence.provisional", None)]:
+        edit(neither, op, path, value)
+    try:
+        mapping.project(neither, contract)
+    except ValueError as error:
+        if str(error) != "evidence_binding_invalid":
+            raise AssertionError(f"no configured candidate: {error}")
+    else:
+        raise AssertionError("no configured candidate accepted")
+    print("no_configured_candidate: REJECTED")
+
+
+def native_timeout_cases(baseline, contract):
+    """Section 6.2: the timeout is served in the modbusreg namespace and never becomes an EVSE expiry fact."""
+    result = mapping.project(baseline, contract)
+    if result["native"] != [{"namespace": "modbusreg", "field": "LimitTimeoutSeconds", "value": 600}]:
+        raise AssertionError("timeout not served natively: " + repr(result["native"]))
+    if any("timeout" in fact["id"] or "expiry" in fact["id"] for fact in result["facts"]):
+        raise AssertionError("timeout published as a semantic fact")
+    zero = copy.deepcopy(baseline)
+    mapping.mutate(zero, {"path": "provisional.LimitTimeoutSeconds", "value": 0})
+    zero_result = mapping.project(zero, contract)
+    if zero_result["native"] != [{"namespace": "modbusreg", "field": "LimitTimeoutSeconds", "value": 0}] or facts_of(zero_result) != facts_of(result):
+        raise AssertionError("zero timeout is not served natively with the allocated current kept")
+    malformed = copy.deepcopy(baseline)
+    mapping.mutate(malformed, {"path": "provisional.LimitTimeoutSeconds", "value": -1})
+    if mapping.project(malformed, contract)["native"] != []:
+        raise AssertionError("malformed timeout served natively")
+    print("native-timeout: PASS")
+
+
+def edit(contract, op, path, value):
+    if op == "append":
+        target = contract
+        for part in path.split("."):
+            target = target[int(part)] if isinstance(target, list) else target[part]
+        target.append(copy.deepcopy(value))
+    elif op == "delete":
+        mapping.mutate(contract, {"path": path, "op": "delete"})
+    else:
+        mapping.mutate(contract, {"path": path, "value": copy.deepcopy(value)})
 
 
 def main():
@@ -134,7 +198,9 @@ def main():
     operation_cases(baseline, contract)
     readback_cases(baseline, contract)
     operation_vectors()
-    cases = [("pin", "pins.gateway_main", "0" * 40, "contract"), ("profile", "native_contract.profile", "wc3_24_44_4", "native_contract"), ("outbound", "native_contract.outbound_allowed", True, "native_contract"), ("identity_derivation", "identity.forbidden_derivations.0", "serial", "identity_contract"), ("identity_reuse", "identity.failure", "allow_reuse", "identity_contract"), ("lifecycle", "lifecycle.required.0", "timestamp", "lifecycle_contract"), ("persistent_target", "field_rules.0.target", "evse.limit.allocated_current", "field_rules"), ("provisional_disposition", "field_rules.2.disposition", "always", "field_rules"), ("unsupported", "unsupported.0", "power_allowed", "withheld_or_unsupported"), ("precedence", "projection.error_precedence.0", "x", "projection"), ("operations", "projection.operations", "available", "projection"), ("operation_unlisted", "projection.operations.0.name", "evse.operation.release_allocated_current", "projection"), ("cutover", "consumer_cutover.forbidden.0", "allowed", "consumer_cutover")]
+    candidate_cases(baseline, contract)
+    native_timeout_cases(baseline, contract)
+    cases = [("status_read_only", "status", "accepted_source_specific_read_only_mapping_gate", "contract"), ("pin", "pins.gateway_main", "0" * 40, "contract"), ("profile", "native_contract.profile", "wc3_24_44_4", "native_contract"), ("outbound", "native_contract.outbound_allowed", True, "native_contract"), ("identity_derivation", "identity.forbidden_derivations.0", "serial", "identity_contract"), ("identity_reuse", "identity.failure", "allow_reuse", "identity_contract"), ("lifecycle", "lifecycle.required.0", "timestamp", "lifecycle_contract"), ("persistent_target", "field_rules.0.target", "evse.limit.allocated_current", "field_rules"), ("provisional_disposition", "field_rules.2.disposition", "always", "field_rules"), ("unsupported", "unsupported.0", "power_allowed", "withheld_or_unsupported"), ("precedence", "projection.error_precedence.0", "x", "projection"), ("operations", "projection.operations", "available", "projection"), ("operation_unlisted", "projection.operations.0.name", "evse.operation.release_allocated_current", "projection"), ("cutover", "consumer_cutover.forbidden.0", "allowed", "consumer_cutover")]
     for case in cases: reject(*case)
     for name, path, value, expected in [("blank_identity", "identity.asset_id", "", "identity_invalid"), ("wrong_unit_profile", "profile", "other", "profile_or_version_invalid"), ("missing_receipt", "lifecycle.receipt_timestamp", "", "lifecycle_invalid"), ("operation_attempt", "operation", "evse.operation.release_allocated_current", "unsupported_fact_or_operation"), ("persistent_evidence", "evidence.persistent.persistent_terminal", "bad", "evidence_binding_invalid"), ("persistent_receipt", "evidence.persistent.receipt_timestamp", "", "evidence_binding_invalid")]:
         candidate = copy.deepcopy(baseline); mapping.mutate(candidate, {"path": path, "value": value})
@@ -167,7 +233,7 @@ def native_page_cases():
 
 
 SESSION = {"kind": "resource.charging_session", "anchor_class": "episode", "anchor_basis": "native_slot", "anchor_source": "native_position", "identification_scheme": "none_listed", "parent_kind": "resource.connector", "evidence": ["synthetic:session"]}
-METER_RELATION = {"definition": "evse.relation.evse_meter", "basis_class": "configuration", "from_kind": "resource.evse", "to_kind": "resource.meter", "evidence": ["synthetic:meter"], "validity_scope": {"profile": "wc3_24_44_3", "version": "24.44.3", "rule_scope": "synthetic"}, "absence_sides": []}
+METER_UNSTATED = {"definition": "evse.relation.evse_meter", "outcome": "unknown_not_absent", "unpublished_endpoint": "resource.meter"}
 ORDINAL_JOIN = {"kind": "resource.connector", "observations": ["connector.first", "connector.second"], "basis": "ordinal_of_sorted_identifiers", "native_tokens": "not_exposed"}
 FALSE_JOIN = {"kind": "resource.connector", "observations": ["connector.first", "connector.second"], "basis": "operator_declaration", "native_tokens": "differ"}
 DECLARED_JOIN = {"kind": "resource.connector", "observations": ["connector.first", "connector.second"], "basis": "operator_declaration", "native_tokens": "not_exposed"}
@@ -196,7 +262,7 @@ GRAPH_NEGATIVES = [
     ("relation_basis_class", [("set", "graph.relations.0.basis_class", "gate_rule")], "graph basis_class_not_admitted $.graph.relations[0].basis_class"),
     ("relation_from_kind", [("set", "graph.relations.1.from_kind", "resource.charging_station")], "graph endpoint_kind_mismatch $.graph.relations[1].from_kind"),
     ("relation_to_kind", [("set", "graph.relations.0.to_kind", "resource.connector")], "graph endpoint_kind_mismatch $.graph.relations[0].to_kind"),
-    ("meter_relation_dangling", [("append", "graph.relations", METER_RELATION)], "graph dangling_endpoint $.graph.relations[2].to_kind"),
+    ("meter_relation_endpoint_kind", [("set", "graph.relations.2.to_kind", "resource.phase")], "graph endpoint_kind_mismatch $.graph.relations[2].to_kind"),
     ("relation_evidence_empty", [("set", "graph.relations.1.evidence", [])], "graph invalid_value $.graph.relations[1].evidence"),
     ("relation_scope_profile", [("set", "graph.relations.0.validity_scope.profile", "wc3_24_44_4")], "graph_relations"),
     ("relation_scope_version", [("set", "graph.relations.1.validity_scope.version", "24.44.4")], "graph_relations"),
@@ -210,8 +276,11 @@ GRAPH_NEGATIVES = [
     ("selector_renamed", [("set", "graph.selectors.0.selector", "unit_id")], "graph_selectors"),
     ("plane_on_resource", [("set", "graph.resources.0.planes", ["physical"])], "graph plane_membership_stated $.graph.resources[0].planes"),
     ("plane_on_field_rule", [("set", "field_rules.0.planes", ["energy"])], "graph plane_membership_stated $.field_rules[0].planes"),
-    ("meter_relation_dropped", [("delete", "unstated_relations.2", None)], "unstated_relations"),
-    ("meter_absence_asserted", [("set", "unstated_relations.2.outcome", "absent")], "unstated_relations"),
+    ("meter_relation_dropped", [("delete", "graph.relations.2", None)], "graph_relations"),
+    ("meter_absence_asserted", [("set", "graph.relations.2.absence_sides", ["to"])], "graph_relations"),
+    ("meter_relation_also_unstated", [("append", "unstated_relations", METER_UNSTATED)], "unstated_relations"),
+    ("meter_resource_dropped", [("delete", "graph.resources.3", None)], "graph dangling_endpoint $.graph.relations[2].to_kind"),
+    ("identity_meter_dimension_unpublished", [("set", "identity.meter_id.dimension", "evse.dimension.phase")], "identity_contract"),
     ("identity_configured_text", [("set", "identity.asset_id.source", "gateway_configured_semantic_asset_id")], "identity_contract"),
     ("identity_dimension_unpublished", [("set", "identity.connector_id.dimension", "evse.dimension.phase")], "identity_contract"),
     ("identity_address_allowed", [("delete", "identity.forbidden_derivations.5", None)], "identity_contract"),
@@ -219,18 +288,6 @@ GRAPH_NEGATIVES = [
     ("field_rule_measurement_point", [("set", "field_rules.0.measurement_point", "")], "field_rules"),
     ("field_rule_dimension", [("set", "field_rules.0.dimension", "connector")], "field_rules"),
 ]
-
-
-def edit(contract, op, path, value):
-    if op == "append":
-        target = contract
-        for part in path.split("."):
-            target = target[int(part)] if isinstance(target, list) else target[part]
-        target.append(copy.deepcopy(value))
-    elif op == "delete":
-        mapping.mutate(contract, {"path": path, "op": "delete"})
-    else:
-        mapping.mutate(contract, {"path": path, "value": copy.deepcopy(value)})
 
 
 def rejection(edits, catalog=None):

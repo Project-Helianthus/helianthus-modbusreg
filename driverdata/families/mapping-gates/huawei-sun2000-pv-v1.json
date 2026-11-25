@@ -5,7 +5,7 @@
     "id": "helianthus.pack.pv",
     "version": "1.0.0"
   },
-  "status": "accepted_source_specific_read_only_mapping_gate",
+  "status": "accepted_source_specific_mapping_gate",
   "evidence": {
     "monitoring_contract": {
       "repository": "helianthus-docs-modbus",
@@ -451,6 +451,22 @@
           "rule_scope": "native_string_index_1_to_8_with_a_nonzero_voltage_or_current_word"
         },
         "absence_sides": []
+      },
+      {
+        "definition": "pv.relation.inverter_phase",
+        "basis_class": "gate_rule",
+        "from_kind": "resource.inverter",
+        "to_kind": "resource.phase",
+        "evidence": [
+          "native_page:huawei/sun2000-semreg-relations-v1",
+          "native_pages:per_phase_values_stated_by_the_native_owner"
+        ],
+        "validity_scope": {
+          "profile": "m3_and_m1",
+          "version": "1.0.0",
+          "rule_scope": "phase_values_are_dimensions_of_the_inverter"
+        },
+        "absence_sides": []
       }
     ],
     "relayed": [
@@ -532,13 +548,6 @@
       "withheld_by": "unsupported:array_or_string_topology"
     },
     {
-      "definition": "pv.relation.inverter_phase",
-      "from_kind": "resource.inverter",
-      "to_kind": "resource.phase",
-      "outcome": "unknown_not_absent",
-      "withheld_by": "unsupported:per_phase_values"
-    },
-    {
       "definition": "relation.relays",
       "from_kind": "resource.inverter",
       "to_kind": "resource.battery",
@@ -551,6 +560,42 @@
       "to_kind": "resource.meter",
       "outcome": "unknown_not_absent",
       "withheld_by": "pv.reason.meter_outside_pv_family"
+    }
+  ],
+  "conditional_relations": [
+    {
+      "definition": "relation.relays",
+      "basis_class": "native_observation",
+      "from_kind": "resource.inverter",
+      "to_kind": "resource.battery",
+      "condition": "battery_resource_of_its_own_family_exists",
+      "outcome_when_absent": "unknown_not_absent",
+      "evidence": [
+        "native_page:huawei/sun2000-semreg-relations-v1",
+        "native_observation:battery_read_through_the_inverter_register_space"
+      ],
+      "validity_scope": {
+        "profile": "m3_and_m1",
+        "version": "1.0.0",
+        "rule_scope": "battery_read_through_the_inverter_register_space"
+      }
+    },
+    {
+      "definition": "relation.relays",
+      "basis_class": "native_observation",
+      "from_kind": "resource.inverter",
+      "to_kind": "resource.meter",
+      "condition": "meter_resource_of_its_own_family_exists",
+      "outcome_when_absent": "unknown_not_absent",
+      "evidence": [
+        "native_page:huawei/sun2000-semreg-relations-v1",
+        "native_observation:meter_read_through_the_inverter_register_space"
+      ],
+      "validity_scope": {
+        "profile": "m3_and_m1",
+        "version": "1.0.0",
+        "rule_scope": "meter_read_through_the_inverter_register_space"
+      }
     }
   ],
   "lifecycle": {

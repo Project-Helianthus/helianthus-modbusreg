@@ -719,5 +719,25 @@ def test_page_graph_tables_must_match_the_contract(old, new):
         v.check_document(v.load(), mutated)
 
 
+OWNER_BASE = "https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/"
+
+
+def test_publication_accepts_each_approved_owner_path():
+    for path in ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md"):
+        v.check_document(v.load(), page() + "\n[owner](" + OWNER_BASE + path + ")\n")
+
+
+@parametrize("link", [
+    OWNER_BASE + "api/v1/" + "a" * 40 + ".md",
+    OWNER_BASE + "api/v1/unlisted.md",
+    OWNER_BASE + "api/v1/graph.md?plain=1",
+    OWNER_BASE + "api/v1/graph.md.bak",
+    OWNER_BASE + "api/v1/element-catalog-v1.json#L10",
+])
+def test_publication_rejects_unapproved_owner_paths_and_suffixes(link):
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n[owner](" + link + ")\n")
+
+
 if __name__ == "__main__":
     raise SystemExit(support.run(globals()))
