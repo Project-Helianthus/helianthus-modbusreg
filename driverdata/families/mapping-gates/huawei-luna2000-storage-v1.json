@@ -857,13 +857,21 @@
     "interlock",
     "working_mode_or_schedule",
     "remote_dispatch",
-    "authority",
-    "write_operations",
     "acknowledgement",
     "readback",
     "retry",
     "control_routes"
   ],
+  "write_authority": {
+    "declared": true,
+    "source": "vendor_published_interface",
+    "pages": [
+      "protocols/huawei/monitoring-readonly-v1.md",
+      "protocols/huawei/inverter-battery-readonly-v1.md"
+    ],
+    "executor": "battery_charge_and_discharge_executor_owned_by_MM09",
+    "gate_requests_no_operation": true
+  },
   "pack_items_never_requested": [
     "storage.limit.charge_power",
     "storage.limit.discharge_power",
@@ -901,6 +909,10 @@
     ],
     "primary_reason": "storage.reason.no_admitted_battery_profile",
     "missing_native": "unavailable_withheld_never_zero",
+    "native_namespace": {
+      "namespace": "modbusreg",
+      "reason": "no_catalog_element"
+    },
     "error_precedence": [
       "native_evidence_invalid",
       "identity_missing_or_invalid",
@@ -908,7 +920,7 @@
       "mapping_unqualified",
       "unsupported_or_withheld"
     ],
-    "operations": "unsupported_no_authority"
+    "operations": "write_authority_declared_executor_owned_by_MM09"
   },
   "consumer_cutover": {
     "consumers": [
@@ -1160,6 +1172,7 @@
               "reason": "storage.reason.battery_group_not_read"
             }
           ],
+          "native": [],
           "operations": []
         }
       }
@@ -1316,6 +1329,7 @@
               "reason": "storage.reason.battery_group_not_read"
             }
           ],
+          "native": [],
           "operations": []
         }
       }
@@ -1480,6 +1494,7 @@
               "reason": "storage.reason.battery_group_not_read"
             }
           ],
+          "native": [],
           "operations": []
         }
       }
@@ -1644,6 +1659,7 @@
               "reason": "storage.reason.battery_group_not_read"
             }
           ],
+          "native": [],
           "operations": []
         }
       }
@@ -1857,6 +1873,7 @@
               "reason": "storage.reason.battery_group_not_read"
             }
           ],
+          "native": [],
           "operations": []
         }
       }
@@ -2013,6 +2030,7 @@
               "reason": "storage.reason.battery_group_not_read"
             }
           ],
+          "native": [],
           "operations": []
         }
       }
@@ -2174,6 +2192,7 @@
               "reason": "storage.reason.battery_group_not_read"
             }
           ],
+          "native": [],
           "operations": []
         }
       }
@@ -2367,6 +2386,67 @@
               "reason": "storage.reason.battery_group_not_read"
             }
           ],
+          "native": [
+            {
+              "namespace": "modbusreg",
+              "native_id": "battery_group_37000_30",
+              "offset": 37000,
+              "quantity": 30,
+              "words": [
+                3,
+                1,
+                0,
+                7,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "namespace": "modbusreg",
+              "native_id": "battery_group_37066_4",
+              "offset": 37066,
+              "quantity": 4,
+              "words": [
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "namespace": "modbusreg",
+              "native_id": "battery_group_47000_1",
+              "offset": 47000,
+              "quantity": 1,
+              "words": [
+                9
+              ]
+            }
+          ],
           "operations": []
         }
       }
@@ -2521,6 +2601,7 @@
               "reason": "storage.reason.battery_group_not_read"
             }
           ],
+          "native": [],
           "operations": []
         }
       }
@@ -2670,6 +2751,7 @@
               "reason": "storage.reason.no_admitted_battery_profile"
             }
           ],
+          "native": [],
           "operations": []
         }
       }
@@ -2815,6 +2897,7 @@
               "reason": "storage.reason.battery_group_not_read"
             }
           ],
+          "native": [],
           "operations": []
         }
       }
@@ -2972,6 +3055,7 @@
               "target": "storage.energy.nominal_capacity"
             }
           ],
+          "native": [],
           "operations": []
         }
       }
@@ -3124,6 +3208,7 @@
               "reason": "storage.reason.battery_group_not_read"
             }
           ],
+          "native": [],
           "operations": []
         }
       }

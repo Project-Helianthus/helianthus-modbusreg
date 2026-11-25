@@ -165,7 +165,11 @@ NATIVE_ONLY_REASON = "storage.reason.group_native_only_no_catalog_row"
 STATUS_REASON = "storage.reason.status_symbols_not_stated"
 REQUESTED = ["storage.energy.charged", "storage.energy.discharged", "storage.energy.nominal_capacity", "storage.pack.power", "storage.state.soc", "storage.status.operating"]
 NEVER_REQUESTED = ["storage.limit.charge_power", "storage.limit.discharge_power", "storage.status.interlock", "storage.operation.set_charge_limit", "storage.operation.set_discharge_limit"]
-UNSUPPORTED = ["state_of_health", "cell_and_module_values", "charge_and_discharge_power_limits", "interlock", "working_mode_or_schedule", "remote_dispatch", "authority", "write_operations", "acknowledgement", "readback", "retry", "control_routes"]
+# Write authority is declared from the vendor's published interface; the charge and discharge executor belongs to the executor row, so this gate requests no operation.
+WRITE_AUTHORITY = {"declared": True, "source": "vendor_published_interface", "pages": ["protocols/huawei/monitoring-readonly-v1.md", "protocols/huawei/inverter-battery-readonly-v1.md"], "executor": "battery_charge_and_discharge_executor_owned_by_MM09", "gate_requests_no_operation": True}
+NATIVE_NAMESPACE = {"namespace": "modbusreg", "reason": "no_catalog_element"}
+OPERATIONS_DISPOSITION = "write_authority_declared_executor_owned_by_MM09"
+UNSUPPORTED = ["state_of_health", "cell_and_module_values", "charge_and_discharge_power_limits", "interlock", "working_mode_or_schedule", "remote_dispatch", "acknowledgement", "readback", "retry", "control_routes"]
 SIGNS = {"unknown_no_value_without_a_graded_sign", "positive_while_charging_negative_while_discharging"}
 COUNTERS = {"reset_wrap_and_continuity_never_inferred"}
 DOC_TOKENS = ("gateway-allocated", "operator label", "no anchor key source", "unknown, not absent", "section 15", "en-1", "unknown, never zero", "no binary floating point", "rated storage capacity is mapped in joules", "outbound_allowed=false", "one atomic cutover", "never converted")
@@ -467,6 +471,13 @@ def check_prospective(rule, prospective, fields, catalog):
     return target
 
 
+def check_projection_member(projection):
+    if projection.get("primary_reason") != PRIMARY_REASON or projection.get("error_precedence") != ERROR_PRECEDENCE or projection.get("operations") != OPERATIONS_DISPOSITION or projection.get("missing_native") != "unavailable_withheld_never_zero" or projection.get("target") != "SemReg_storage_projection":
+        fail("projection")
+    if projection.get("native_namespace") != NATIVE_NAMESPACE:
+        fail("projection")
+
+
 def check_luna_policies(document, fields, operations):
     if document.get("identity") != IDENTITY_CONTRACT:
         fail("identity contract")
@@ -481,12 +492,12 @@ def check_luna_policies(document, fields, operations):
         fail("capacity")
     if document.get("unsupported") != UNSUPPORTED:
         fail("unsupported")
+    if document.get("write_authority") != WRITE_AUTHORITY:
+        fail("write authority")
     never = document.get("pack_items_never_requested")
     if never != NEVER_REQUESTED or any(item not in fields and item not in operations for item in never) or set(never) & set(REQUESTED):
         fail("control-adjacent items")
-    projection = document.get("projection", {})
-    if projection.get("primary_reason") != PRIMARY_REASON or projection.get("error_precedence") != ERROR_PRECEDENCE or projection.get("operations") != "unsupported_no_authority" or projection.get("missing_native") != "unavailable_withheld_never_zero" or projection.get("target") != "SemReg_storage_projection":
-        fail("projection")
+    check_projection_member(document.get("projection", {}))
     if document.get("consumer_cutover") != {"consumers": ["semantic_mcp", "graphql", "portal", "home_assistant"], "path": "shared_semantic_snapshot_only", "until_implemented": "no_public_consumer_binding"}:
         fail("consumer cutover")
 
@@ -631,6 +642,13 @@ def native_row(rule, reads, selected, fields, pack_count):
     return {"native_id": rule["native_id"], "outcome": "withheld", "reason": reason}, None
 
 
+def native_values(rules, rows, reads):
+    """The answered words of every battery group that has no catalog row, served in the modbusreg namespace with the group's native identity."""
+    served = {row["native_id"] for row in rows if row["outcome"] == "native_only"}
+    return [{"namespace": NATIVE_NAMESPACE["namespace"], "native_id": rule["native_id"], "offset": rule["read"]["offset"], "quantity": rule["read"]["quantity"],
+             "words": list(reads[(rule["read"]["offset"], rule["read"]["quantity"])]["words"])} for rule in rules if rule["native_id"] in served]
+
+
 def item_disposition(item_id, rules, rows, facts, reasons, lifecycle):
     """One requested item: published when a row of its target published, otherwise withheld with the reason of its active row first."""
     mine = [fact for fact in facts if fact["rule"]["prospective"]["target"] == item_id]
@@ -665,7 +683,7 @@ def project(case, contract):
                   "observation_id": lifecycle["observation_id"], "observation_revision": lifecycle["observation_revision"]} for fact in facts]
     requested = copy.deepcopy(contract["projection"]["requested_items"])
     dispositions = [item_disposition(item["item_id"], contract["field_rules"], rows, facts, contract["reasons"], lifecycle) for item in requested]
-    output = {"facts": published, "relations": [], "requested": requested, "dispositions": dispositions, "native_dispositions": rows, "operations": []}
+    output = {"facts": published, "relations": [], "requested": requested, "dispositions": dispositions, "native_dispositions": rows, "native": native_values(contract["field_rules"], rows, reads), "operations": []}
     assert_complete(output, contract)
     return output
 
@@ -684,7 +702,7 @@ def assert_complete(output, contract):
 def summarize(output):
     return {"facts": [{"item_id": fact["item_id"], "number": fact["value"]["number"], "unit": fact["value"]["unit"], "native_id": fact["provenance"]["native_id"], "aggregation_basis": fact["provenance"]["aggregation_basis"]} for fact in output["facts"]],
             "dispositions": [{"item_id": item["item_id"], "outcome": item["outcome"], "published": len(item["source_keys"]), "reason": item.get("reason"), "loss": [loss["kind"] for loss in item["loss"]]} for item in output["dispositions"]],
-            "native_dispositions": output["native_dispositions"], "operations": output["operations"]}
+            "native_dispositions": output["native_dispositions"], "native": output["native"], "operations": output["operations"]}
 
 
 def run_scenario(scenario, contract):

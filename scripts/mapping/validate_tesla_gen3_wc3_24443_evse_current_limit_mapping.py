@@ -376,6 +376,9 @@ def allocation_cutoff(case):
     managed = case.get("managed_set")
     if managed is None or managed["duration_seconds"] == 0:
         return None
+    timeout = case["provisional"].get("LimitTimeoutSeconds")
+    if not non_negative_int(timeout) or timeout == 0:
+        return None
     if any(managed[key] != case["evidence"]["provisional"].get(key) for key in MUTATION_REFS):
         return None
     return receipt_text(managed["ack_receipt_timestamp"]) + timedelta(seconds=managed["duration_seconds"])
@@ -419,9 +422,14 @@ def publish_allocated_current(case, provisional, facts, withheld):
         facts.append(amperes_fact("evse.limit.allocated_current", "connector", current))
 
 
+def valid_request_timeout(timeout):
+    """A request timeout is a whole number of seconds from 1 through the interoperable maximum; zero is not an interoperable request value."""
+    return non_negative_int(timeout) and 1 <= timeout <= MAX_INTEROPERABLE_TIMEOUT_SECONDS
+
+
 def release_disposition(request, generation):
     """ND02 SemReg mapping, operations: boolean false for allocated_current_enabled is a release with no amperage; it needs a valid nonzero configured current."""
-    if "amperes" in request:
+    if "amperes" in request or ("timeout_seconds" in request and not valid_request_timeout(request["timeout_seconds"])):
         return "rejected_invalid"
     if not generation["t28_known"]:
         return "read_first"
@@ -440,7 +448,7 @@ def set_allocated_current_disposition(request, generation, own_connector):
             return "rejected_invalid"
         return release_disposition(request, generation)
     amperes, timeout = request.get("amperes"), request.get("timeout_seconds")
-    if not non_negative_int(amperes) or not (non_negative_int(timeout) and 1 <= timeout <= MAX_INTEROPERABLE_TIMEOUT_SECONDS):
+    if not non_negative_int(amperes) or not valid_request_timeout(timeout):
         return "rejected_invalid"
     if 0 < amperes < MIN_NONZERO_SET_AMPS:
         return "rejected_below_minimum"
@@ -455,12 +463,21 @@ def set_allocated_current_disposition(request, generation, own_connector):
 
 
 NATIVE_PAGE = ROOT / ".tmp/references/docs-modbus/protocols/tesla/gen3-semreg-mapping-v1.md"
-NATIVE_STATEMENTS = (
+OPERATION_STATEMENTS = (
     "`evse.operation.set_allocated_current`",
     "6 A as its minimum nonzero set",
     "1 A through 5 A is refused",
+    "0 A requests a pause",
+    "The pause encodes 6 A with inhibit and therefore needs a usable same-generation t28 configured bound of at least 6 A before t25.",
+    "Release sends only the documented triple with a valid nonzero configured current",
+    "Missing, zero or invalid configured current sends no release t25",
     "is the configured current of the latest t28 in the same lifecycle generation",
-    # Section 7 relations: the connector-phase, connector-session and charger-meter statements and their dispositions.
+    "A value refused before a read is needed sends nothing.",
+    "Where the generation has no t28, the t27 to t28 limit read may run first, and a value above the limit then read sends no t25",
+    "do not reinterpret the specified 26.34.0 removal behavior or authorize a zero-timeout send",
+)
+# Section 7 relations: the connector-phase, connector-session and charger-meter statements and their dispositions.
+RELATION_STATEMENTS = (
     "`evse.relation.connector_phase` is a gate rule where the pages document per-phase values",
     "`evse.relation.connector_session` is a gate rule where the pages document a session per connector",
     "A session episode requires a documented native session start.",
@@ -468,6 +485,7 @@ NATIVE_STATEMENTS = (
     "Without those native facts the phase and session relations are unknown, not absent.",
     "A relation the pages do not support is unknown with a reason naming the missing statement.",
 )
+NATIVE_STATEMENTS = OPERATION_STATEMENTS + RELATION_STATEMENTS
 
 
 def check_native_page():

@@ -305,8 +305,19 @@ The charge and discharge power limits, the interlock, working modes, schedules,
 remote dispatch and every write are withheld or unsupported. `storage.limit.charge_power`,
 `storage.limit.discharge_power`, `storage.status.interlock`,
 `storage.operation.set_charge_limit` and `storage.operation.set_discharge_limit`
-are never requested by this gate. No authority, acknowledgement, readback, retry
-or route exists, and a request for one is rejected with `unsupported_or_withheld`.
+are never requested by this gate. The write authority is declared from the
+vendor's published interface, in the member `write_authority`; the battery charge
+and discharge executor is owned by the executor row, not by this gate, and the
+gate requests no operation. No acknowledgement, readback, retry or route is
+declared here, and a request for one is rejected with `unsupported_or_withheld`.
+
+## Raw group values
+
+A battery group that answered with data and has no catalog row is native-only. Its
+raw words are served unchanged in the modbusreg namespace, in the output member
+`native`, with the group identity, offset and quantity, because no catalog element
+yet gives them a fact. They are never published as a fact, and a group that was
+not read, raised an exception or answered only zero words carries no entry.
 
 ## Lifecycle
 

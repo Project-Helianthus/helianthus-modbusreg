@@ -96,6 +96,20 @@ def readback_cases(baseline, contract):
         print(name + ": READBACK")
 
 
+def unresolved_timeout_cases(baseline, contract):
+    """A t28 whose timeout is zero or unresolved keeps its known allocated current and has no expiry, even for a matching managed set received after its duration."""
+    for name, timeout in (("zero", 0), ("unresolved", None)):
+        candidate = copy.deepcopy(baseline)
+        for path, value in (("provisional.LimitTimeoutSeconds", timeout), ("managed_set", managed_set()), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:01:10Z")):
+            mapping.mutate(candidate, {"path": path, "value": value})
+        result = mapping.project(candidate, contract)
+        if facts_of(result) != [("evse.limit.configured_current", "16"), ("evse.limit.allocated_current", "12")] or withheld_of(result):
+            raise AssertionError(f"{name} timeout lost the known allocated current: {result}")
+        if any(entry["field"] == "AllocationExpiry" for entry in result["native"]):
+            raise AssertionError(f"{name} timeout gained an expiry: {result['native']}")
+        print(f"{name}_timeout_matching_managed_set: KEPT")
+
+
 def operation_cases(baseline, contract):
     """Listed operations are emitted by project() and accepted; an unlisted one is rejected there."""
     result = mapping.project(baseline, contract)
@@ -146,6 +160,11 @@ def operation_vectors():
         ("release_nan_bound", RELEASE, {"t28_known": True, "configured_current": float("nan")}, "rejected_no_release_bound"),
         ("release_with_amperes", dict(RELEASE, amperes=0), KNOWN, "rejected_invalid"),
         ("release_other_connector", dict(RELEASE, connector_id="connector.wc3.beta"), KNOWN, "rejected_other_connector"),
+        ("release_zero_timeout", dict(RELEASE, timeout_seconds=0), KNOWN, "rejected_invalid"),
+        ("release_zero_timeout_read_first", dict(RELEASE, timeout_seconds=0), UNREAD, "rejected_invalid"),
+        ("release_timeout_above_maximum", dict(RELEASE, timeout_seconds=mapping.MAX_INTEROPERABLE_TIMEOUT_SECONDS + 1), KNOWN, "rejected_invalid"),
+        ("release_timeout_malformed", dict(RELEASE, timeout_seconds="600"), KNOWN, "rejected_invalid"),
+        ("release_valid_timeout", dict(RELEASE, timeout_seconds=600), KNOWN, "send_release"),
     ]
     for name, request, generation, expected in vectors:
         got = mapping.set_allocated_current_disposition(request, generation, "connector.wc3.alpha")
@@ -275,6 +294,7 @@ def main():
     readback_fields_are_independent()
     contract = mapping.load(); baseline = contract["scenarios"][0]["input"]
     operation_cases(baseline, contract)
+    unresolved_timeout_cases(baseline, contract)
     readback_cases(baseline, contract)
     operation_vectors()
     candidate_cases(baseline, contract)
@@ -319,9 +339,11 @@ def native_page_text_cases():
     original = mapping.NATIVE_PAGE
     full = " ".join(original.read_text(encoding="utf-8").split())
     without_relations = full
-    for statement in mapping.NATIVE_STATEMENTS[4:]:
+    for statement in mapping.RELATION_STATEMENTS:
         without_relations = without_relations.replace(statement, "")
-    pages = [("operation_statements_only", " ".join(mapping.NATIVE_STATEMENTS[:4])), ("relation_statements_absent", without_relations)]
+    pages = [("operation_statements_only", " ".join(mapping.OPERATION_STATEMENTS)), ("relation_statements_absent", without_relations)]
+    pages += [(f"operation_rule_{index}_absent", full.replace(statement, "")) for index, statement in enumerate(mapping.OPERATION_STATEMENTS)]
+    pages.append(("pause_encoding_contradicted", full.replace("The pause encodes 6 A with inhibit", "The pause encodes 0 A without inhibit")))
     with tempfile.TemporaryDirectory() as directory:
         try:
             for name, text in pages:

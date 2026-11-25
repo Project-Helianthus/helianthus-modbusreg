@@ -109,6 +109,12 @@ def test_no_binary_floating_point():
     ("capacity-converted", lambda d: set_path(d, "capacity.conversion", "allowed"), "capacity"),
     ("capacity-published", lambda d: set_path(d, "capacity.energy_units", "published"), "capacity"),
     ("unsupported-dropped", lambda d: v.mutate(d, {"path": "unsupported.0", "remove": True}), "unsupported"),
+    ("native-namespace-dropped", lambda d: v.mutate(d, {"path": "projection.native_namespace", "remove": True}), "projection"),
+    ("write-authority-denied", lambda d: set_path(d, "write_authority.declared", False), "write authority"),
+    ("write-authority-removed", lambda d: d.pop("write_authority"), "write authority"),
+    ("write-authority-executor-dropped", lambda d: v.mutate(d, {"path": "write_authority.executor", "remove": True}), "write authority"),
+    ("authority-listed-unsupported", lambda d: d["unsupported"].append("authority"), "unsupported"),
+    ("operations-denied-for-no-authority", lambda d: set_path(d, "projection.operations", "unsupported_no_authority"), "projection"),
     ("limit-item-requested", lambda d: set_path(d, "pack_items_never_requested.0", "storage.limit.discharge_power"), "control-adjacent items"),
     ("operation-item-not-in-pack", lambda d: set_path(d, "pack_items_never_requested.4", "storage.operation.set_dispatch"), "control-adjacent items"),
     ("requested-added", lambda d: d["projection"]["requested_items"].append({"kind": "fact", "item_id": "storage.limit.charge_power"}), "requested items"),
@@ -195,6 +201,18 @@ def test_reads_select_the_reason_and_never_a_value(reads, expected):
         assert rows[native_id] == "storage.reason." + reason
     assert output["facts"] == []
     assert not any("quantity" in str(item) for item in output["facts"])
+
+
+def test_answered_native_only_groups_keep_their_raw_words_in_the_modbusreg_namespace():
+    document = case()
+    document["reads"] = [{"offset": 37066, "quantity": 4, "outcome": "ANSWERED", "words": [0, 0, 0, 1]}, {"offset": 47000, "quantity": 1, "outcome": "ANSWERED", "words": [7]}, {"offset": 37000, "quantity": 30, "outcome": "EXCEPTION", "exception_code": 3}]
+    output = project(document)
+    assert output["facts"] == []
+    assert output["native"] == [
+        {"namespace": "modbusreg", "native_id": "battery_group_37066_4", "offset": 37066, "quantity": 4, "words": [0, 0, 0, 1]},
+        {"namespace": "modbusreg", "native_id": "battery_group_47000_1", "offset": 47000, "quantity": 1, "words": [7]}]
+    document["reads"] = [{"offset": 37066, "quantity": 4, "outcome": "ANSWERED", "words": [0, 0, 0, 0]}, {"offset": 47000, "quantity": 1, "outcome": "FAILED"}]
+    assert project(document)["native"] == []
 
 
 def test_withheld_items_keep_their_reason_whatever_is_read():
