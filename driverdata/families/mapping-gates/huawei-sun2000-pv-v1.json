@@ -333,6 +333,12 @@
         "dimension": "pv.dimension.phase",
         "source": "not_allocated_no_profile_admits_a_per_phase_word",
         "required": false
+      },
+      "strings": {
+        "dimension": "pv.dimension.string",
+        "source": "not_allocated_until_a_string_scoped_catalog_row_publishes_a_string_fact",
+        "required": false,
+        "slots": 8
       }
     },
     "failure": "missing_invalid_reused_or_ambiguous_identity_fails_closed"
@@ -398,6 +404,18 @@
         "parent_kind": "resource.inverter",
         "evidence": [
           "native_contract:phase_positions_of_the_power_group_not_consumed",
+          "native_owner_token_stability:position_fixed_by_the_native_contract"
+        ]
+      },
+      {
+        "kind": "resource.pv_string",
+        "anchor_class": "component",
+        "anchor_basis": "native_slot",
+        "anchor_source": "native_position",
+        "identification_scheme": "none_listed",
+        "parent_kind": "resource.inverter",
+        "evidence": [
+          "native_contract:pv_string_index_1_to_8",
           "native_owner_token_stability:position_fixed_by_the_native_contract"
         ]
       }
@@ -537,7 +555,7 @@
       "from_kind": "resource.pv_array",
       "to_kind": "resource.pv_string",
       "outcome": "unknown_not_absent",
-      "withheld_by": "unsupported:array_or_string_topology"
+      "withheld_by": "catalog:no_relation_from_an_inverter_to_its_strings_and_no_array_statement"
     },
     {
       "definition": "pv.relation.inverter_array",
@@ -597,6 +615,53 @@
       }
     }
   ],
+  "strings": {
+    "resource": {
+      "kind": "resource.pv_string",
+      "dimension": "pv.dimension.string",
+      "positions": "native_string_index_1_to_8",
+      "parent_kind": "resource.inverter",
+      "parent_relation": {
+        "outcome": "unknown_not_absent",
+        "withheld_by": "catalog:no_relation_from_an_inverter_to_its_strings_and_no_array_statement"
+      }
+    },
+    "quantities": [
+      {
+        "quantity": "string_voltage",
+        "native_id": "pv_string_voltage",
+        "subject_kind": "resource.pv_string",
+        "dimension": "pv.dimension.string",
+        "unit": "unit.volt",
+        "element": "modbusreg_namespace_until_a_string_scoped_catalog_row"
+      },
+      {
+        "quantity": "string_current",
+        "native_id": "pv_string_current",
+        "subject_kind": "resource.pv_string",
+        "dimension": "pv.dimension.string",
+        "unit": "unit.ampere",
+        "element": "modbusreg_namespace_until_a_string_scoped_catalog_row"
+      },
+      {
+        "quantity": "string_power",
+        "native_id": "none",
+        "subject_kind": "resource.pv_string",
+        "dimension": "pv.dimension.string",
+        "unit": "unit.watt",
+        "element": "modbusreg_namespace_until_a_string_scoped_catalog_row",
+        "transform": {
+          "operation": "product",
+          "operands": [
+            "pv_string_voltage",
+            "pv_string_current"
+          ],
+          "scope": "same_read_and_index"
+        }
+      }
+    ],
+    "inputs": "resource.dc_input_stays_where_the_vendor_names_inputs"
+  },
   "lifecycle": {
     "required_observation_evidence": [
       "observation_id",

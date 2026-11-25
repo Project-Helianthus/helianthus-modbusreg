@@ -118,6 +118,7 @@ credential, a class token or a profile identifier is never an anchor source.
 | `resource.inverter` | equipment | `operator_slot` | `operator_label` | none |
 | `resource.dc_input` | component | `native_slot` | `native_position` | `resource.inverter` |
 | `resource.phase` | component | `native_slot` | `native_position` | `resource.inverter` |
+| `resource.pv_string` | component | `native_slot` | `native_position` | `resource.inverter` |
 
 - The gateway path of the profile, the SmartLogger or the S-Dongle, is generic
   equipment. It has no token on the admitted read plans.
@@ -130,6 +131,10 @@ credential, a class token or a profile identifier is never an anchor source.
 - The PV system is a function anchored by an operator label. This gate gives
   each admitted inverter child its own system.
 - A DC input is a component of its inverter at the native string index 1 to 8.
+- A string is a component of its inverter at the native string index 1 to 8. It
+  is a string resource on the string dimension and never a DC input; the
+  frozen catalog states no relation from an inverter to its strings, so that
+  relation stays unknown, not absent, until the catalog states it.
 - A phase is a component of its inverter at its native position. The kind is
   stated so that its anchor is fixed, but no phase is allocated or published
   until a profile admits a per-phase word.
@@ -183,7 +188,7 @@ relation is unknown, not absent. These relations stay unknown here.
 
 | Definition | From kind | To kind | Withheld by |
 | --- | --- | --- | --- |
-| `pv.relation.array_string` | `resource.pv_array` | `resource.pv_string` | `unsupported:array_or_string_topology` |
+| `pv.relation.array_string` | `resource.pv_array` | `resource.pv_string` | `catalog:no_relation_from_an_inverter_to_its_strings_and_no_array_statement` |
 | `pv.relation.inverter_array` | `resource.inverter` | `resource.pv_array` | `unsupported:array_or_string_topology` |
 | `relation.relays` | `resource.inverter` | `resource.battery` | `pv.reason.battery_outside_pv_family` |
 | `relation.relays` | `resource.inverter` | `resource.meter` | `pv.reason.meter_outside_pv_family` |
@@ -191,6 +196,24 @@ relation is unknown, not absent. These relations stay unknown here.
 The battery and meter groups are fields of the inverter child's profile. They
 are withheld here and governed by the storage and gateway-meter gates, so the
 inverter's relay of a battery or a meter is neither stated nor denied.
+
+## Strings
+
+Each string of the native string group is a `resource.pv_string` on
+`pv.dimension.string`, a component of its inverter at its native position. The
+string voltage and the string current are read per string. The string power is
+the product of the voltage and the current of the same read and the same
+index, so a voltage and a current of two reads never combine. The frozen
+catalog has no string-scoped element for these quantities, so each is served in
+the modbusreg namespace until a string-scoped catalog row exists; this gate
+names no element id for them. The DC input resources and their facts stay where
+the vendor names inputs and are unchanged.
+
+| Quantity | Native id | Subject kind | Dimension | Unit | Transform |
+| --- | --- | --- | --- | --- | --- |
+| `string_voltage` | `pv_string_voltage` | `resource.pv_string` | `pv.dimension.string` | `unit.volt` | none |
+| `string_current` | `pv_string_current` | `resource.pv_string` | `pv.dimension.string` | `unit.ampere` | none |
+| `string_power` | `none` | `resource.pv_string` | `pv.dimension.string` | `unit.watt` | product of pv_string_voltage and pv_string_current same read and index |
 
 ## Subjects and measurement points
 

@@ -77,6 +77,7 @@ RESOURCE_ROLES = {
     "inverter": {"dimension": "pv.dimension.inverter", "source": ALLOCATED, "required": True},
     "inputs": {"dimension": "pv.dimension.input", "source": ALLOCATED, "required": True, "slots": 8},
     "phases": {"dimension": "pv.dimension.phase", "source": "not_allocated_no_profile_admits_a_per_phase_word", "required": False},
+    "strings": {"dimension": "pv.dimension.string", "source": "not_allocated_until_a_string_scoped_catalog_row_publishes_a_string_fact", "required": False, "slots": 8},
 }
 IDENTITY_CONTRACT = {
     "asset_id": {"source": "gateway_allocated_asset_id", "required": True, "non_secret": True, "granularity": "one_home_asset_per_admitted_inverter_child_within_an_endpoint_instance", "forbidden_derivations": ASSET_FORBIDDEN},
@@ -102,7 +103,7 @@ SELECTORS = [
     {"selector": "class_token", "classification": "provenance", "evidence": ["graph:6.3:a_pack_class_is_never_an_anchor", "graph:6.3:selector_is_provenance_until_native_owner_states_otherwise"]},
 ]
 # Section 7.2: what withholds each pack relation the gate does not state, and the child kind of each withheld group.
-UNSTATED_BY = {"pv.relation.array_string": "unsupported:array_or_string_topology", "pv.relation.inverter_array": "unsupported:array_or_string_topology", "pv.relation.inverter_phase": "unsupported:per_phase_values"}
+UNSTATED_BY = {"pv.relation.array_string": "catalog:no_relation_from_an_inverter_to_its_strings_and_no_array_statement", "pv.relation.inverter_array": "unsupported:array_or_string_topology", "pv.relation.inverter_phase": "unsupported:per_phase_values"}
 WITHHELD_CHILDREN = {"battery": "resource.battery", "meter": "resource.meter"}
 UNSTATED_OUTCOME = "unknown_not_absent"
 # The family segment is a fixed gateway namespace, not a device observation.
@@ -328,6 +329,11 @@ def expected_basis(resource, anchor_class):
     return "native_slot" if anchor_class == "component" else "operator_slot"
 
 
+def expected_parent(kind, catalog):
+    """RES-2: a component's catalog parent; a string is a child of its inverter, whose relation the frozen catalog does not state."""
+    return catalog.role_kinds()["inverter"] if kind == catalog.role_kinds()["strings"] else catalog.parent(kind)
+
+
 def check_graph_resources(graph, catalog):
     """Section 15 item 1, RES-1 and RES-2: one resource per role, in role order, with its anchor, parent and token-stability statement."""
     kinds = catalog.role_kinds()
@@ -337,7 +343,7 @@ def check_graph_resources(graph, catalog):
         anchor_class = catalog.index.kinds[resource["kind"]]["anchor_class"]
         if resource["anchor_basis"] != expected_basis(resource, anchor_class):
             fail("graph_anchor")
-        if resource["parent_kind"] != (catalog.parent(resource["kind"]) if anchor_class == "component" else None):
+        if resource["parent_kind"] != (expected_parent(resource["kind"], catalog) if anchor_class == "component" else None):
             fail("graph_parent")
         stated = {item.split(":")[0] for item in resource["evidence"]}
         if "native_owner_token_stability" not in stated or (resource["kind"] == kinds["inverter"] and "future_native_token" not in stated):
@@ -387,8 +393,44 @@ def check_conditional_relations(document, catalog):
     for row in rows:
         if (row.get("definition"), row.get("basis_class"), row.get("from_kind")) != ("relation.relays", "native_observation", catalog.role_kinds()["inverter"]) or row["to_kind"] in published:
             fail("conditional_relations")
-        if row.get("outcome_when_absent") != UNSTATED_OUTCOME or not row.get("evidence") or {key: row.get("validity_scope", {}).get(key) for key in scope} != scope or not row["validity_scope"].get("rule_scope"):
+        if row.get("outcome_when_absent") != UNSTATED_OUTCOME or not row.get("evidence") or {key: row.get("validity_scope", {}).get(key) for key in scope} != scope:
             fail("conditional_relations")
+        if row.get("condition") != CONDITIONAL_CONDITIONS[row["to_kind"]] or row["validity_scope"].get("rule_scope") != CONDITIONAL_RULE_SCOPES[row["to_kind"]]:
+            fail("conditional_relations")
+
+
+def expected_strings(catalog):
+    """Rule 14 and the string declaration: a string is a resource.pv_string on the string dimension, never a DC input; its voltage and
+    current are read per string, and its power is their product of the same read. No string element id is named: the frozen catalog
+    gives none, so each quantity is served in the modbusreg namespace until a string-scoped catalog row exists."""
+    kinds = catalog.role_kinds()
+    quantity = {"subject_kind": kinds["strings"], "dimension": "pv.dimension.string", "element": "modbusreg_namespace_until_a_string_scoped_catalog_row"}
+    return {
+        "resource": {"kind": kinds["strings"], "dimension": "pv.dimension.string", "positions": "native_string_index_1_to_8", "parent_kind": kinds["inverter"],
+                     "parent_relation": {"outcome": UNSTATED_OUTCOME, "withheld_by": UNSTATED_BY["pv.relation.array_string"]}},
+        "quantities": [
+            {"quantity": "string_voltage", "native_id": "pv_string_voltage", **quantity, "unit": "unit.volt"},
+            {"quantity": "string_current", "native_id": "pv_string_current", **quantity, "unit": "unit.ampere"},
+            {"quantity": "string_power", "native_id": "none", **quantity, "unit": "unit.watt", "transform": {"operation": "product", "operands": ["pv_string_voltage", "pv_string_current"], "scope": "same_read_and_index"}},
+        ],
+        "inputs": "resource.dc_input_stays_where_the_vendor_names_inputs",
+    }
+
+
+def check_strings(document, catalog):
+    """The string declaration is exactly the one above and the string dimension is the catalog's string dimension."""
+    if catalog.dimensions.get("pv.dimension.string") != catalog.role_kinds()["strings"] or document.get("strings") != expected_strings(catalog):
+        fail("strings")
+
+
+def string_power(voltage, current):
+    """The declared transform of a string's power: the product of the string voltage and current of the same read and index."""
+    if (voltage.get("key"), current.get("key")) != ("pv_string_voltage", "pv_string_current") or {voltage.get("availability"), current.get("availability")} != {"VALUE"}:
+        fail("string_power_operands")
+    if any(voltage.get(member) != current.get(member) for member in ("index", "observation_id", "observation_revision", "retained")):
+        fail("string_power_read")
+    left, right = voltage["value"], current["value"]
+    return canonical(int(left["coefficient"]) * int(right["coefficient"]), left["exponent10"] + right["exponent10"])
 
 
 def check_native_relations(document, text):
@@ -435,6 +477,7 @@ def validate_graph(document, catalog):
     check_graph_paths(graph, catalog)
     check_graph_relations(graph, document, catalog)
     check_conditional_relations(document, catalog)
+    check_strings(document, catalog)
     if graph["aggregates"] != expected_aggregates(document, catalog):
         fail("graph_aggregates")
     if graph["selectors"] != SELECTORS:
@@ -992,6 +1035,9 @@ def check_positive_scenario(scenario, expected, output):
 # The statements the ND02 relations page must state for this gate: the phase relation and the two inverter relays.
 PAGE_STATEMENTS = (("pv.relation.inverter_phase", "inverter", "phase", "gate_rule"), ("relation.relays", "inverter", "battery", "native_observation"), ("relation.relays", "inverter", "meter", "native_observation"))
 CONDITIONAL_TARGETS = ("resource.battery", "resource.meter")
+# Each conditional relay is published only where its child resource of the family exists, and is read through the inverter register space.
+CONDITIONAL_CONDITIONS = {"resource.battery": "battery_resource_of_its_own_family_exists", "resource.meter": "meter_resource_of_its_own_family_exists"}
+CONDITIONAL_RULE_SCOPES = {"resource.battery": "battery_read_through_the_inverter_register_space", "resource.meter": "meter_read_through_the_inverter_register_space"}
 # The staged ND02 relations page the PV gate's relation statements cite; its absence is never a pass.
 NATIVE_PAGE = ROOT / ".tmp/references/docs-modbus/protocols/huawei/sun2000-semreg-relations-v1.md"
 
@@ -1051,6 +1097,7 @@ def graph_tables(contract):
         "## Relations": [[r["definition"], r["basis_class"], r["from_kind"], r["to_kind"], r["validity_scope"]["rule_scope"]] for r in graph["relations"]],
         "## Unknown, not absent": [[r["definition"], r["from_kind"], r["to_kind"], r["withheld_by"]] for r in contract["unstated_relations"]],
         "## Subjects and measurement points": [[r["native_id"], r["target"], r["subject_kind"], r["measurement_point"]] for r in contract["field_rules"] if r.get("target")],
+        "## Strings": [[q["quantity"], q["native_id"], q["subject_kind"], q["dimension"], q["unit"], "product of %s same read and index" % " and ".join(q["transform"]["operands"]) if q.get("transform") else "none"] for q in contract["strings"]["quantities"]],
     }
 
 

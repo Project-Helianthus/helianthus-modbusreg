@@ -45,18 +45,34 @@ MEASUREMENT_POINTS = {
     "storage.cell.voltage_minimum": "extreme_cell_unindexed", "storage.cell.voltage_maximum": "extreme_cell_unindexed",
 }
 ALLOCATED = "gateway_allocated_resource_id"
+NOT_ALLOCATED = "not_allocated_until_a_fact_publishes_on_it"
 # Section 6.3: one gateway-allocated ResourceID per resource role; a role's kind is its dimension's kind in the element catalog.
 # The pack and one cell are roles. The native contract does not name the cell that holds an extreme, so both extremes share that cell.
 RESOURCE_ROLES = {
     "pack": {"dimension": "storage.dimension.pack", "source": ALLOCATED, "required": True},
     "cell": {"dimension": "storage.dimension.cell", "source": ALLOCATED, "required": True},
+    "battery": {"dimension": "storage.dimension.battery", "source": NOT_ALLOCATED, "required": False},
+    "system": {"dimension": "storage.dimension.system", "source": NOT_ALLOCATED, "required": False},
+    "interface": {"dimension": "storage.dimension.interface", "source": NOT_ALLOCATED, "required": False},
 }
 # Section 15 item 1: the statements the evidence of each resource role carries.
 ROLE_STATEMENTS = {
-    "pack": ("future_native_token", "native_owner_token_stability", "identification_scheme"),
+    "pack": ("native_contract", "native_owner_token_stability", "identification_scheme"),
     "cell": ("native_owner_token_stability", "identification_scheme"),
+    "battery": ("native_contract", "native_owner_token_stability", "identification_scheme"),
+    "system": ("configuration", "native_owner_token_stability"),
+    "interface": ("native_contract", "native_owner_token_stability", "identification_scheme"),
 }
-PARENTS = {"pack": None, "cell": "resource.battery_module"}
+PARENTS = {"pack": None, "cell": "resource.battery_module", "battery": None, "system": None, "interface": "resource.battery_pack"}
+# A pack and an interface are anchored by their native position under the configured battery, never by an address or a label (rule 20).
+NATIVE_POSITION_ROLES = {"pack", "interface"}
+# Section 15 item 2: (definition, basis class, scope of the rule) of the three required storage relations, in the order the gate states them.
+PROFILE = "growatt.bms.rs485.1xsxxp.v2_02.readonly.v1"
+STATED_RELATIONS = [
+    ("storage.relation.battery_pack", "gate_rule", "the_pack_at_the_native_position_the_unit_reports_under_its_configured_battery"),
+    ("storage.relation.pack_interface", "gate_rule", "one_rs485_interface_per_pack_at_the_native_position_of_its_pack"),
+    ("storage.relation.system_battery", "configuration", "the_storage_system_the_operator_declares_for_each_configured_battery"),
+]
 WITHHELD_WAITS = {
     "remaining_capacity_amp_hours": "storage.energy.remaining",
     "full_charge_capacity_amp_hours": "storage.energy.usable_capacity",
@@ -79,12 +95,9 @@ SELECTORS = [
 NATIVE_IDENTITY_EVIDENCE = ["mcu_software_version", "gauge_version", "bms_company", "bms_generation", "pack_company", "pack_generation", "box_or_battery_topology", "cell_series_count"]
 # Section 7.2: what withholds each storage relation the gate does not state; none is stated, none is absent.
 UNSTATED_BY = {
-    "storage.relation.battery_pack": "unsupported:repeated_pack_identity",
-    "storage.relation.module_cell": "unsupported:pack_module_cell_string_topology",
-    "storage.relation.pack_interface": "unsupported:charge_discharge_limits",
-    "storage.relation.pack_module": "unsupported:pack_module_cell_string_topology",
-    "storage.relation.pack_string": "unsupported:pack_module_cell_string_topology",
-    "storage.relation.system_battery": "configuration:no_storage_system_declared_by_this_gate",
+    "storage.relation.module_cell": "native_contract:no_module_cell_or_string_structure_stated_for_a_pack",
+    "storage.relation.pack_module": "native_contract:no_module_cell_or_string_structure_stated_for_a_pack",
+    "storage.relation.pack_string": "native_contract:no_module_cell_or_string_structure_stated_for_a_pack",
 }
 UNSTATED_OUTCOME = "unknown_not_absent"
 REVISION = {"family": "1xSxxP ESS", "file_revision": "Rev2.01", "header_version": "V2.0", "cumulative_revision": "2.02"}
@@ -305,7 +318,8 @@ def check_graph_resources(graph, catalog):
         fail("graph_resources")
     for role, resource in zip(kinds, graph["resources"]):
         listed = resource["identification_scheme"] != graph_rules.NONE_LISTED
-        if resource["anchor_basis"] != ("native_identity" if listed else "operator_slot"):
+        unlisted = "native_slot" if role in NATIVE_POSITION_ROLES else "operator_slot"
+        if resource["anchor_basis"] != ("native_identity" if listed else unlisted):
             fail("graph_anchor")
         if resource["parent_kind"] != PARENTS[role]:
             fail("graph_parent")
@@ -314,10 +328,21 @@ def check_graph_resources(graph, catalog):
             fail("graph_evidence")
 
 
-def check_graph_paths(graph, catalog):
-    """Section 15 items 2 and 3 and section 6.4: no relation is stated, nothing relays the pack, a second view joins by declaration."""
-    if graph["relations"]:
+def check_graph_relations(graph, catalog):
+    """Section 15 item 2, REL-3 and section 7.2: the three required storage relations, each with evidence and the native contract's scope, no absence statement."""
+    scope = {"profile": PROFILE, "version": REVISION["cumulative_revision"]}
+    if [(relation["definition"], relation["basis_class"], relation["validity_scope"]["rule_scope"]) for relation in graph["relations"]] != STATED_RELATIONS:
         fail("graph_relations")
+    for relation in graph["relations"]:
+        definition = catalog.index.relations[relation["definition"]]
+        stated_scope = {key: relation["validity_scope"][key] for key in scope}
+        if (relation["from_kind"], relation["to_kind"]) != (definition["from_kinds"][0], definition["to_kinds"][0]) or relation["absence_sides"] or stated_scope != scope:
+            fail("graph_relations")
+
+
+def check_graph_paths(graph, document, catalog):
+    """Section 15 items 2 and 3 and section 6.4: the required relations are stated, nothing relays the pack, a second view joins by declaration."""
+    check_graph_relations(graph, catalog)
     if graph["relayed"]:
         fail("graph_relayed")
     kind = catalog.role_kinds()["pack"]
@@ -358,7 +383,7 @@ def validate_graph(document, catalog):
     check_shared(document, catalog)
     graph = document["graph"]
     check_graph_resources(graph, catalog)
-    check_graph_paths(graph, catalog)
+    check_graph_paths(graph, document, catalog)
     if graph["aggregates"] != expected_aggregates(document, catalog):
         fail("graph_aggregates")
     if graph["selectors"] != SELECTORS:

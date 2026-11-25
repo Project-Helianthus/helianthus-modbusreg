@@ -58,7 +58,7 @@ def test_no_binary_floating_point():
     with Raises(ValueError, match="binary floating point"):
         v.loads('{"gain": 100.0}')
     document = contract()
-    set_path(document, "admission.registry_disposition.decoder_keys", 0.0)
+    set_path(document, "admission.decisions.0.grade", 0.5)
     with Raises(ValueError):
         v.validate_contract(document)
     float_case = case()
@@ -72,20 +72,28 @@ def test_no_binary_floating_point():
     ("pack-version", lambda d: set_path(d, "pack.version", "1.0.0"), "contract"),
     ("status", lambda d: set_path(d, "status", "accepted_source_specific_read_only_mapping_gate"), "contract"),
     ("evidence-issue", lambda d: set_path(d, "evidence.registry_profiles.issue", 349), "evidence"),
-    ("battery-profile-selectable", lambda d: d["admission"]["selection_outcomes_allowed"].append("PROFILE_SELECTED"), "admission"),
-    ("facts-admitted", lambda d: set_path(d, "admission.registry_disposition.facts_admitted", True), "admission"),
-    ("decoder-keys", lambda d: set_path(d, "admission.registry_disposition.decoder_keys", 3), "admission"),
-    ("precondition-dropped", lambda d: v.mutate(d, {"path": "admission.preconditions_for_any_mapping.2", "remove": True}), "admission"),
+    ("unresolved-outcome-dropped", lambda d: d["admission"]["selection"]["unresolved"].remove("AMBIGUOUS"), "admission"),
+    ("facts-not-admitted", lambda d: set_path(d, "admission.facts_admitted", False), "admission"),
+    ("profile-source-dropped", lambda d: v.mutate(d, {"path": "admission.profile_source.pages.1", "remove": True}), "admission"),
+    ("unresolved-publishes", lambda d: set_path(d, "admission.selection.unresolved_outcome", "published_as_zero"), "admission"),
+    ("precondition-dropped", lambda d: v.mutate(d, {"path": "admission.decisions.2", "remove": True}), "admission"),
+    ("power-sign-graded-proven", lambda d: set_path(d, "admission.decisions.2.grade", "proven"), "admission"),
+    ("aggregation-basis-unrecorded", lambda d: set_path(d, "admission.decisions.3.decision", "not_recorded"), "admission"),
+    ("status-read-only-withheld", lambda d: set_path(d, "status", "accepted_withheld_mapping_gate_no_battery_profile"), "contract"),
     ("native-item-dropped", lambda d: v.mutate(d, {"path": "field_rules.4", "remove": True}), "native inventory"),
     ("native-item-duplicated", lambda d: d["field_rules"].append(copy.deepcopy(d["field_rules"][0])), "native inventory"),
     ("native-item-added", lambda d: d["field_rules"].append({**copy.deepcopy(d["field_rules"][0]), "native_id": "battery_cell_voltage"}), "native inventory"),
     ("native-item-source", lambda d: set_path(d, "field_rules.4.source", "registry_disposition"), "native inventory"),
     ("native-item-read", lambda d: set_path(d, "field_rules.0.read.quantity", 31), "native inventory"),
-    ("outcome-mapped", lambda d: set_path(d, "field_rules.4.disposition.outcome", "exact"), "withheld reason"),
-    ("withheld-without-reason", lambda d: v.mutate(d, {"path": "field_rules.4.disposition.reason", "remove": True}), "withheld reason"),
-    ("withheld-unknown-reason", lambda d: set_path(d, "field_rules.4.disposition.reason", "storage.reason.invented"), "withheld reason"),
+    ("outcome-mapped", lambda d: set_path(d, "field_rules.9.disposition.outcome", "exact"), "withheld reason"),
+    ("active-outcome-exact", lambda d: set_path(d, "field_rules.4.disposition.outcome", "exact"), "active disposition"),
+    ("active-without-unit-loss", lambda d: set_path(d, "field_rules.4.disposition.loss", []), "active disposition"),
+    ("active-row-withheld", lambda d: set_path(d, "field_rules.4.disposition", {"outcome": "withheld", "reason": "storage.reason.battery_group_not_read"}), "active disposition"),
+    ("withheld-without-reason", lambda d: v.mutate(d, {"path": "field_rules.9.disposition.reason", "remove": True}), "withheld reason"),
+    ("withheld-unknown-reason", lambda d: set_path(d, "field_rules.9.disposition.reason", "storage.reason.invented"), "withheld reason"),
+    ("site-power-published", lambda d: set_path(d, "field_rules.5.prospective.in_force", True), "prospective target"),
     ("grade", lambda d: set_path(d, "field_rules.4.grade", "certain"), "withheld reason"),
-    ("prospective-in-force", lambda d: set_path(d, "field_rules.4.prospective.in_force", True), "prospective target"),
+    ("prospective-not-in-force", lambda d: set_path(d, "field_rules.4.prospective.in_force", False), "prospective target"),
     ("prospective-target-not-in-pack", lambda d: set_path(d, "field_rules.4.prospective.target", "storage.capacity.rated_energy"), "prospective target"),
     ("prospective-other-fact", lambda d: set_path(d, "field_rules.4.prospective.target", "storage.state.soh"), "requested items"),
     ("prospective-unit", lambda d: set_path(d, "field_rules.4.prospective.unit", "unit.ampere_hour"), "prospective target"),
@@ -106,7 +114,7 @@ def test_no_binary_floating_point():
     ("requested-added", lambda d: d["projection"]["requested_items"].append({"kind": "fact", "item_id": "storage.limit.charge_power"}), "requested items"),
     ("requested-dropped", lambda d: v.mutate(d, {"path": "projection.requested_items.0", "remove": True}), "requested items"),
     ("primary-reason", lambda d: set_path(d, "projection.primary_reason", "storage.reason.battery_group_not_read"), "projection"),
-    ("precedence", lambda d: set_path(d, "projection.error_precedence.0", "native_evidence_invalid"), "projection"),
+    ("precedence", lambda d: set_path(d, "projection.error_precedence.0", "identity_missing_or_invalid"), "projection"),
     ("operations", lambda d: set_path(d, "projection.operations", "allowed"), "projection"),
     ("identity-forbidden", lambda d: set_path(d, "identity.asset_id.forbidden_derivations.0", "vendor"), "identity contract"),
     ("identity-distinct", lambda d: set_path(d, "identity.source_id.distinct_from", "binding_id"), "identity contract"),
@@ -133,23 +141,26 @@ def test_every_reason_declares_its_loss(field, value):
         v.validate_contract(document)
 
 
-def test_every_native_item_has_exactly_one_withheld_disposition_and_nothing_is_published():
+def test_every_native_item_has_exactly_one_disposition_and_only_an_active_row_publishes():
     document = v.load()
-    assert [rule["native_id"] for rule in document["field_rules"]] == [nid for nid, _, _ in v.INVENTORY]
+    assert [rule["native_id"] for rule in document["field_rules"]] == [nid for nid, _, _, _ in v.INVENTORY]
     for scenario in document["scenarios"]:
         if scenario["polarity"] != "positive":
             continue
         output = v.run_scenario(scenario, document)
-        assert [row["native_id"] for row in output["native_dispositions"]] == [nid for nid, _, _ in v.INVENTORY]
-        assert {row["outcome"] for row in output["native_dispositions"]} == {"withheld"}
-        assert output["facts"] == [] and output["relations"] == [] and output["operations"] == []
-        assert [item["outcome"] for item in output["dispositions"]] == ["withheld"] * 5
-        assert all(item["source_keys"] == [] and item["reason"] and item["loss"] for item in output["dispositions"])
+        assert [row["native_id"] for row in output["native_dispositions"]] == [nid for nid, _, _, _ in v.INVENTORY]
+        assert {row["outcome"] for row in output["native_dispositions"]} <= {"withheld", "native_only", "transformed"}
+        assert {row["native_id"] for row in output["native_dispositions"] if row["outcome"] == "transformed"} == {fact["provenance"]["native_id"] for fact in output["facts"]} <= v.ACTIVE
+        assert output["relations"] == [] and output["operations"] == []
+        assert len(output["dispositions"]) == 5
+        for item in output["dispositions"]:
+            assert item["loss"] and (item["source_keys"] if item["outcome"] == "transformed" else item["reason"] and not item["source_keys"])
+        assert [item["item_id"] for item in output["dispositions"] if item["outcome"] == "transformed"] == [fact["item_id"] for fact in output["facts"]] or not output["facts"]
 
 
 def test_completeness_check_catches_damage():
     document = v.load()
-    output = v.run_scenario(document["scenarios"][0], document)
+    output = v.run_scenario(next(scenario for scenario in document["scenarios"] if scenario["id"] == "STG-POS-002-site-state-of-charge"), document)
     for damage in ("drop", "duplicate", "fact", "outcome", "reason"):
         broken = copy.deepcopy(output)
         if damage == "drop":
@@ -157,7 +168,7 @@ def test_completeness_check_catches_damage():
         elif damage == "duplicate":
             broken["native_dispositions"].append(copy.deepcopy(broken["native_dispositions"][-1]))
         elif damage == "fact":
-            broken["facts"].append({"key": {}})
+            del broken["facts"][0]
         elif damage == "outcome":
             broken["native_dispositions"][0]["outcome"] = "exact"
         else:
@@ -171,7 +182,7 @@ def test_completeness_check_catches_damage():
     ([{"offset": 37000, "quantity": 1, "outcome": "ANSWERED", "words": [0]}, {"offset": 47000, "quantity": 1, "outcome": "ANSWERED", "words": [0]}],
      {"battery_group_37000_30": "battery_group_not_read", "battery_single_read_37000_1": "zero_word_is_not_a_battery_value", "battery_group_37066_4": "battery_group_not_read", "battery_group_47000_1": "zero_word_is_not_a_battery_value"}),
     ([{"offset": 37066, "quantity": 4, "outcome": "ANSWERED", "words": [0, 0, 0, 0]}], {"battery_group_37066_4": "zero_word_is_not_a_battery_value"}),
-    ([{"offset": 37066, "quantity": 4, "outcome": "ANSWERED", "words": [0, 0, 0, 1]}], {"battery_group_37066_4": "no_admitted_battery_profile"}),
+    ([{"offset": 37066, "quantity": 4, "outcome": "ANSWERED", "words": [0, 0, 0, 1]}], {"battery_group_37066_4": "group_native_only_no_catalog_row"}),
     ([{"offset": 37000, "quantity": 30, "outcome": "EXCEPTION", "exception_code": 3}], {"battery_group_37000_30": "battery_group_exception_no_negation"}),
     ([{"offset": 47000, "quantity": 1, "outcome": "FAILED"}, {"offset": 37000, "quantity": 1, "outcome": "NOT_READ"}], {"battery_group_47000_1": "battery_group_not_read", "battery_single_read_37000_1": "battery_group_not_read"}),
 ])
@@ -179,24 +190,26 @@ def test_reads_select_the_reason_and_never_a_value(reads, expected):
     document = case()
     document["reads"] = reads
     output = project(document)
-    rows = {row["native_id"]: row["reason"] for row in output["native_dispositions"]}
+    rows = {row["native_id"]: row.get("reason") for row in output["native_dispositions"]}
     for native_id, reason in expected.items():
         assert rows[native_id] == "storage.reason." + reason
     assert output["facts"] == []
     assert not any("quantity" in str(item) for item in output["facts"])
 
 
-def test_planned_items_keep_their_reason_whatever_is_read():
+def test_withheld_items_keep_their_reason_whatever_is_read():
     document = case()
     document["reads"] = [{"offset": 37000, "quantity": 30, "outcome": "ANSWERED", "words": [1] * 30}]
     rows = {row["native_id"]: row["reason"] for row in project(document)["native_dispositions"]}
-    assert rows["site_battery_soc"] == "storage.reason.planned_group_not_observed"
+    assert rows["site_battery_soc"] == "storage.reason.battery_group_not_read"
+    assert rows["site_battery_power"] == "storage.reason.sign_not_graded"
     assert rows["site_rated_storage_capacity"] == "storage.reason.no_energy_capacity_fact_in_pack"
     assert rows["site_battery_energy_charged_day"] == "storage.reason.period_counter_time_domain_not_represented"
 
 
 @parametrize("read", [
-    {"offset": 30368, "quantity": 1, "outcome": "ANSWERED", "words": [7550]},
+    {"offset": 30369, "quantity": 1, "outcome": "ANSWERED", "words": [7550]},
+    {"offset": 30368, "quantity": 2, "outcome": "ANSWERED", "words": [7550, 0]},
     {"offset": 37000, "quantity": 29, "outcome": "ANSWERED", "words": [0] * 29},
     {"offset": 37066, "quantity": 4, "outcome": "ANSWERED", "words": [1, 2]},
     {"offset": 37066, "quantity": 4, "outcome": "ANSWERED", "words": [1, 2, 3, 70000]},
@@ -223,8 +236,8 @@ def test_a_duplicate_read_is_rejected():
         project(document)
 
 
-@parametrize("outcome,message", [("PROFILE_SELECTED", "gate_revision_required"), ("INSUFFICIENT_EVIDENCE", None), ("NO_ADMISSIBLE_PROFILE", None), ("AMBIGUOUS", None), ("", "native_evidence_invalid"), (None, "native_evidence_invalid"), ("OFFLINE_PROFILE_ADMITTED", "native_evidence_invalid")])
-def test_a_selected_battery_profile_fails_closed(outcome, message):
+@parametrize("outcome,message", [("PROFILE_SELECTED", None), ("INSUFFICIENT_EVIDENCE", None), ("NO_ADMISSIBLE_PROFILE", None), ("AMBIGUOUS", None), ("", "native_evidence_invalid"), (None, "native_evidence_invalid"), ("OFFLINE_PROFILE_ADMITTED", "native_evidence_invalid")])
+def test_only_the_registry_outcomes_are_accepted(outcome, message):
     document = case()
     document["luna_selection"]["outcome"] = outcome
     if message is None:
@@ -232,6 +245,94 @@ def test_a_selected_battery_profile_fails_closed(outcome, message):
         return
     with Raises(ValueError, match=message):
         project(document)
+
+
+def published(document):
+    return {fact["provenance"]["native_id"]: fact for fact in project(document)["facts"]}
+
+
+def value_of(fact):
+    return fraction_of(fact["value"]["number"])
+
+
+def with_reads(*reads, outcome=None):
+    document = case()
+    document["reads"] = list(reads)
+    if outcome:
+        document["luna_selection"]["outcome"] = outcome
+    return document
+
+
+def words_at(length, index, values):
+    words = [0] * length
+    words[index:index + len(values)] = values
+    return words
+
+
+def test_a_documented_state_of_charge_publishes_a_ratio_on_its_pack():
+    facts = published(with_reads({"offset": 30368, "quantity": 1, "outcome": "ANSWERED", "words": [7550]}))
+    fact = facts["site_battery_soc"]
+    assert fact["item_id"] == "storage.state.soc" and fact["value"]["unit"] == "unit.ratio"
+    assert value_of(fact) == Fraction(755, 1000)
+    assert fact["subject"] == {"dimension": "storage.dimension.pack", "resource": "resource:demo-pack-gamma-1"}
+    assert fact["provenance"] == {"native_id": "site_battery_soc", "aggregation_basis": "site_group"} and fact["grade"] == "hypothesis"
+
+
+@parametrize("raw,watts", [(2500, 2500), (-1500, -1500), (1, 1)])
+def test_plant_battery_power_keeps_its_documented_sign_in_watts(raw, watts):
+    read = {"offset": 37498, "quantity": 8, "outcome": "ANSWERED", "words": words_at(8, 6, [(raw & 0xFFFFFFFF) >> 16, raw & 0xFFFF])}
+    fact = published(with_reads(read))["plant_battery_power"]
+    assert fact["value"]["unit"] == "unit.watt" and value_of(fact) == watts
+    assert fact["provenance"]["aggregation_basis"] == "plant_group" and fact["provenance"]["sign"] == "positive_while_charging_negative_while_discharging"
+
+
+def test_site_lifetime_counters_publish_joules_and_the_day_counters_stay_withheld():
+    words = words_at(46, 2, [0, 0, 1, 0xE240])
+    words[8:12] = [0, 0, 9, 0xFBF1]
+    output = project(with_reads({"offset": 30306, "quantity": 46, "outcome": "ANSWERED", "words": words}))
+    facts = {fact["provenance"]["native_id"]: fact for fact in output["facts"]}
+    assert value_of(facts["site_battery_energy_charged_total"]) == Fraction(123456, 100) * 3600000
+    assert value_of(facts["site_battery_energy_discharged_total"]) == Fraction(654321, 100) * 3600000
+    rows = {row["native_id"]: row for row in output["native_dispositions"]}
+    assert rows["site_battery_energy_charged_day"]["reason"] == "storage.reason.period_counter_time_domain_not_represented"
+    assert "storage.pack.power" not in {fact["item_id"] for fact in output["facts"]}
+
+
+def test_the_site_power_group_states_no_sign_so_its_battery_power_is_withheld():
+    output = project(with_reads({"offset": 30354, "quantity": 12, "outcome": "ANSWERED", "words": words_at(12, 6, [0, 1500])}))
+    assert output["facts"] == []
+    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["site_battery_power"] == "storage.reason.sign_not_graded"
+
+
+@parametrize("outcome", ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"])
+def test_an_unresolved_selection_withholds_a_documented_reading(outcome):
+    output = project(with_reads({"offset": 30368, "quantity": 1, "outcome": "ANSWERED", "words": [7550]}, outcome=outcome))
+    assert output["facts"] == []
+    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["site_battery_soc"] == "storage.reason.no_admitted_battery_profile"
+
+
+def test_a_zero_or_out_of_range_or_unread_state_of_charge_is_withheld_never_published():
+    for words, reason in (([0], "zero_word_is_not_a_battery_value"), ([10001], "value_outside_pack_range")):
+        output = project(with_reads({"offset": 30368, "quantity": 1, "outcome": "ANSWERED", "words": words}))
+        assert output["facts"] == []
+        assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["site_battery_soc"] == "storage.reason." + reason
+    exception = project(with_reads({"offset": 30368, "quantity": 1, "outcome": "EXCEPTION", "exception_code": 2}))
+    assert exception["facts"] == []
+
+
+@parametrize("packs", [[], ["resource:demo-pack-gamma-1", "resource:demo-pack-gamma-1"], ["resource:demo-pack-gamma-1", "resource:2", "resource:3", "resource:4"], ["storage-asset-demo-gamma"]])
+def test_a_pack_identity_is_required_and_distinct(packs):
+    document = case()
+    document["identity"]["resources"]["packs"] = packs
+    with Raises(ValueError, match="identity_missing_or_invalid"):
+        project(document)
+
+
+def test_the_battery_power_sign_is_graded_hypothesis_and_the_aggregation_basis_is_provenance():
+    decisions = {decision["precondition"]: decision for decision in v.load()["admission"]["decisions"]}
+    assert decisions["battery_power_sign"]["grade"] == "hypothesis"
+    assert decisions["aggregation_basis"]["decision"] == "site_or_plant_group_recorded_as_provenance"
+    assert set(v.AGGREGATION_BASIS) == v.ACTIVE
 
 
 def test_capacity_is_never_converted_to_energy_units_or_published():
@@ -260,7 +361,7 @@ def test_no_limit_interlock_or_operation_is_requested_or_available():
             project(document)
 
 
-def test_prospective_rows_are_not_in_force_and_match_the_pack():
+def test_only_the_active_rows_are_in_force_and_every_row_matches_the_pack():
     fields, operations = v.pack_tables()
     document = v.load()
     seen = set()
@@ -268,7 +369,7 @@ def test_prospective_rows_are_not_in_force_and_match_the_pack():
         plan = rule.get("prospective")
         if not plan:
             continue
-        assert plan["in_force"] is False
+        assert plan["in_force"] is (rule["native_id"] in v.ACTIVE)
         assert plan["dimension"] == fields[plan["target"]]["dimension"] == "storage.dimension.pack"
         assert plan.get("unit") == fields[plan["target"]].get("unit")
         seen.add(plan["target"])
@@ -396,17 +497,17 @@ def test_live_qualification_is_a_recorded_level_not_a_rejection():
 
 def test_first_error_of_the_precedence_list_wins():
     document = case()
-    document["luna_selection"]["outcome"] = "PROFILE_SELECTED"
+    document["luna_selection"]["outcome"] = "AMBIGUOUS"
     document["identity"]["asset_id"] = ""
     document["request_operation"] = "storage.operation.set_charge_limit"
-    with Raises(ValueError, match="gate_revision_required"):
-        project(document)
-    document["luna_selection"]["outcome"] = "AMBIGUOUS"
     document["reads"] = [{"offset": 1, "quantity": 1, "outcome": "ANSWERED", "words": [0]}]
     with Raises(ValueError, match="native_evidence_invalid"):
         project(document)
     document["reads"] = []
     with Raises(ValueError, match="identity_missing_or_invalid"):
+        project(document)
+    document["identity"]["asset_id"] = "storage-asset-demo-gamma"
+    with Raises(ValueError, match="unsupported_or_withheld"):
         project(document)
 
 
@@ -414,7 +515,7 @@ def test_scenario_expectations_are_executed_not_trusted():
     for damage, message in (
         (lambda d: d["scenarios"][0]["expect"]["output"]["native_dispositions"][0].update({"reason": "storage.reason.zero_word_is_not_a_battery_value"}), "scenario output"),
         (lambda d: d["scenarios"][1]["expect"]["summary"]["native_dispositions"].pop(), "scenario summary"),
-        (lambda d: d["scenarios"][-1]["expect"].update({"error": "lifecycle_missing"}), "gate_revision_required"),
+        (lambda d: d["scenarios"][-1]["expect"].update({"error": "lifecycle_missing"}), "native_evidence_invalid"),
     ):
         document = contract()
         damage(document)
@@ -424,7 +525,7 @@ def test_scenario_expectations_are_executed_not_trusted():
 
 
 def test_scenario_coverage_is_enforced():
-    for dropped, message in (("STG-POS-002-zero-words-without-battery", "cover every reason"), ("STG-POS-004-battery-read-exception", "cover every reason"), ("STG-NEG-005-lifecycle-missing", "cover every error")):
+    for dropped, message in (("STG-POS-007-zero-words-without-battery", "cover every reason"), ("STG-POS-009-battery-read-exception", "cover every reason"), ("STG-POS-011-state-of-charge-outside-range", "cover every reason"), ("STG-NEG-006-lifecycle-missing", "cover every error")):
         document = contract()
         document["scenarios"] = [s for s in document["scenarios"] if s["id"] != dropped]
         with Raises(ValueError, match=message):
@@ -443,13 +544,13 @@ def page():
 
 
 @parametrize("old,new", [
-    ("| `site_rated_storage_capacity` | monitoring_contract_planned | Hypothesis | `storage.reason.no_energy_capacity_fact_in_pack` | capability |", "| `site_rated_storage_capacity` | monitoring_contract_planned | Hypothesis | `storage.reason.planned_group_not_observed` | provenance |"),
+    ("| `site_rated_storage_capacity` | monitoring_contract_planned | Hypothesis | `storage.reason.no_energy_capacity_fact_in_pack` | capability |", "| `site_rated_storage_capacity` | monitoring_contract_planned | Hypothesis | `storage.reason.sign_not_graded` | provenance |"),
     ("| `storage.state.soc` | `storage.dimension.pack` | `site_battery_soc` | U16, %, gain 100 | `unit.ratio`, factor 0.01, offset 0 | unit | none | Hypothesis |", "| `storage.state.soc` | `storage.dimension.pack` | `site_battery_soc` | U16, %, gain 10 | `unit.ratio`, factor 0.01, offset 0 | unit | none | Hypothesis |"),
     ("| `storage.state.soc` | `storage.dimension.pack` | `site_battery_soc` | U16, %, gain 100 | `unit.ratio`, factor 0.01, offset 0 | unit | none | Hypothesis |", "| `storage.state.soc` | `storage.dimension.pack` | `site_battery_soc` | U16, %, gain 100 | `unit.percent`, factor 1, offset 0 | none | none | Hypothesis |"),
     ("| `storage.energy.charged` | `storage.dimension.pack` | `site_battery_energy_charged_total` | U64, kWh, gain 100 | `unit.joule`, factor 3600000, offset 0 | unit+policy |", "| `storage.energy.charged` | `storage.dimension.pack` | `site_battery_energy_charged_total` | U64, kWh, gain 100 | `unit.joule`, factor 360000, offset 0 | unit+policy |"),
     ("| `storage.pack.power` | `storage.dimension.pack` | `site_battery_power` | I32, kW, gain 1000 | `unit.watt`, factor 1000, offset 0 | unit+provenance | `unknown_no_value_without_a_graded_sign` | Hypothesis |", "| `storage.pack.power` | `storage.dimension.pack` | `site_battery_power` | I32, kW, gain 1000 | `unit.watt`, factor 1000, offset 0 | unit | `unknown_no_value_without_a_graded_sign` | Hypothesis |"),
     ("| `storage.pack.power` | `storage.dimension.pack` | `site_battery_power` | I32, kW, gain 1000 | `unit.watt`, factor 1000, offset 0 | unit+provenance | `unknown_no_value_without_a_graded_sign` | Hypothesis |", "| `storage.pack.power` | `storage.dimension.pack` | `site_battery_power` | I32, kW, gain 1000 | `unit.watt`, factor 1000, offset 0 | unit+provenance | `positive_while_charging_negative_while_discharging` | Hypothesis |"),
-    ("| `STG-NEG-010-error-precedence` |", "| `STG-NEG-099-other` |"),
+    ("| `STG-NEG-011-error-precedence` |", "| `STG-NEG-099-other` |"),
     ("Capacity in energy units is withheld", "Capacity in energy units is published"),
     ("never converted", "converted"),
     ("outbound_allowed=false", "outbound allowed"),
@@ -528,8 +629,9 @@ def test_gate_states_its_graph_and_passes_the_shared_checker():
 
 def test_the_battery_is_relayed_by_the_inverter_and_exposes_no_anchor_key_source():
     graph = contract()["graph"]
-    assert [resource["kind"] for resource in graph["resources"]] == ["resource.inverter", "resource.battery", "resource.battery_pack"]
-    assert {resource["anchor_source"] for resource in graph["resources"]} == {"operator_label"}
+    assert [resource["kind"] for resource in graph["resources"]] == ["resource.inverter", "resource.battery", "resource.battery_pack", "resource.storage_system", "resource.storage_interface"]
+    assert {resource["kind"] for resource in graph["resources"] if resource["anchor_source"] == "native_position"} == {"resource.battery_pack", "resource.storage_interface"}
+    assert {resource["kind"] for resource in graph["resources"] if resource["anchor_source"] == "operator_label"} == {"resource.inverter", "resource.battery", "resource.storage_system"}
     assert graph["relayed"] == [{"relaying_kind": "resource.inverter", "relayed_kind": "resource.battery", "direct_anchor_key_source": "none"}]
     assert graph["joins"] == [{"kind": "resource.battery", "observations": ["relayed_by_the_inverter", "seen_through_another_path"], "basis": "operator_declaration", "native_tokens": "not_exposed"}]
     relays = graph["relations"][0]
@@ -545,7 +647,7 @@ def relation_record(definition, from_kind, to_kind):
 
 PACK_POWER_AGGREGATE = {"fact": "storage.pack.power", "subject_kind": "resource.battery_pack", "coverage": []}
 
-# (name, edits, expected error). Indices: resources inverter, battery, battery pack; relations relays, battery to pack;
+# (name, edits, expected error). Indices: resources inverter, battery, battery pack, storage system, interface; relations relays, battery to pack, pack to interface, system to battery;
 # selectors profile identifier, class token; prospective rows at field rules 0, 4, 5, 6, 7 and 8.
 GRAPH_NEGATIVES = [
     # False join: a battery joined to a second view by name or by position, or over differing native tokens.
@@ -559,9 +661,9 @@ GRAPH_NEGATIVES = [
     ("join_of_the_inverter", [("set", "graph.joins.0.kind", "resource.inverter")], "graph_joins"),
     # Dangling endpoint: a module or cell relation whose endpoint the gate does not publish.
     ("dangling_module_cell", [("append", "graph.relations", relation_record("storage.relation.module_cell", "resource.battery_module", "resource.battery_cell"))],
-     "graph dangling_endpoint $.graph.relations[2].from_kind"),
+     "graph dangling_endpoint $.graph.relations[4].from_kind"),
     ("dangling_pack_module", [("append", "graph.relations", relation_record("storage.relation.pack_module", "resource.battery_pack", "resource.battery_module"))],
-     "graph dangling_endpoint $.graph.relations[2].to_kind"),
+     "graph dangling_endpoint $.graph.relations[4].to_kind"),
     ("dangling_battery_after_kind_change", [("set", "graph.resources.1.kind", "resource.meter")], "graph dangling_endpoint $.graph.relations[0].to_kind"),
     # Resources (section 15 item 1): kind, class, basis, source, scheme, parent and evidence each varied.
     ("battery_kind_not_member", [("set", "graph.resources.1.kind", "resource.not_a_catalog_kind")], "graph kind_not_member $.graph.resources[1].kind"),
@@ -577,7 +679,7 @@ GRAPH_NEGATIVES = [
     ("pack_parent_battery", [("set", "graph.resources.2.parent_kind", "resource.battery")], "graph_parent"),
     ("battery_relay_statement_dropped", [("set", "graph.resources.1.evidence", ["registry_disposition:battery_groups_present_not_admitted", "native_owner_token_stability:no_battery_token_on_the_relaying_path"])], "graph_evidence"),
     ("battery_token_stability_unstated", [("delete", "graph.resources.1.evidence.2", None)], "graph_evidence"),
-    ("pack_token_stability_unstated", [("delete", "graph.resources.2.evidence.2", None)], "graph_evidence"),
+    ("pack_token_stability_unstated", [("delete", "graph.resources.2.evidence.1", None)], "graph_evidence"),
     ("inverter_future_token_unstated", [("delete", "graph.resources.0.evidence.1", None)], "graph_evidence"),
     ("battery_evidence_empty", [("set", "graph.resources.1.evidence", [])], "graph invalid_value $.graph.resources[1].evidence"),
     ("pack_resource_dropped", [("delete", "graph.resources.2", None)], "graph dangling_endpoint $.graph.relations[1].to_kind"),
@@ -597,6 +699,19 @@ GRAPH_NEGATIVES = [
     ("scope_rule_widened", [("set", "graph.relations.1.validity_scope.rule_scope", "every_pack_of_the_site")], "graph_relations"),
     ("absence_claimed", [("set", "graph.relations.0.absence_sides", ["to"])], "graph_relations"),
     ("relation_dropped", [("delete", "graph.relations.1", None)], "graph_relations"),
+    # The three required storage relations are stated, each with evidence and scope; a pack is anchored on its native position.
+    ("pack_anchored_on_label", [("set", "graph.resources.2.anchor_basis", "operator_slot"), ("set", "graph.resources.2.anchor_source", "operator_label")], "graph_anchor"),
+    ("pack_anchored_on_address", [("set", "graph.resources.2.anchor_source", "network_address")], "graph anchor_source_not_allowed $.graph.resources[2].anchor_source"),
+    ("pack_interface_dropped", [("delete", "graph.relations.2", None)], "graph_relations"),
+    ("pack_interface_by_configuration", [("set", "graph.relations.2.basis_class", "configuration")], "graph basis_class_not_admitted $.graph.relations[2].basis_class"),
+    ("pack_interface_evidence_empty", [("set", "graph.relations.2.evidence", [])], "graph invalid_value $.graph.relations[2].evidence"),
+    ("pack_interface_scope_widened", [("set", "graph.relations.2.validity_scope.rule_scope", "every_interface")], "graph_relations"),
+    ("system_battery_dropped", [("delete", "graph.relations.3", None)], "graph_relations"),
+    ("system_battery_by_gate_rule", [("set", "graph.relations.3.basis_class", "gate_rule")], "graph basis_class_not_admitted $.graph.relations[3].basis_class"),
+    ("system_battery_evidence_empty", [("set", "graph.relations.3.evidence", [])], "graph invalid_value $.graph.relations[3].evidence"),
+    ("system_resource_dropped", [("delete", "graph.resources.3", None)], "graph dangling_endpoint $.graph.relations[3].from_kind"),
+    ("interface_parent_battery", [("set", "graph.resources.4.parent_kind", "resource.battery")], "graph_parent"),
+    ("unstated_pack_interface_returned", [("append", "unstated_relations", {"definition": "storage.relation.pack_interface", "from_kind": "resource.battery_pack", "to_kind": "resource.storage_interface", "outcome": "unknown_not_absent", "withheld_by": "native_contract:none"})], "unstated_relations"),
     # Relayed (section 15 item 3).
     ("relayed_direct_key_claimed", [("set", "graph.relayed.0.direct_anchor_key_source", "operator_label")], "graph_relayed"),
     ("relayed_direct_key_address", [("set", "graph.relayed.0.direct_anchor_key_source", "network_address")], "graph anchor_source_not_allowed $.graph.relayed[0].direct_anchor_key_source"),
@@ -613,7 +728,7 @@ GRAPH_NEGATIVES = [
     # Section 7.2: the storage relations the gate does not state stay unknown, never absent.
     ("unstated_module_cell_dropped", [("delete", "unstated_relations.0", None)], "unstated_relations"),
     ("unstated_absent", [("set", "unstated_relations.1.outcome", "absent")], "unstated_relations"),
-    ("unstated_endpoint", [("set", "unstated_relations.4.to_kind", "resource.battery_pack")], "unstated_relations"),
+    ("unstated_endpoint", [("set", "unstated_relations.2.to_kind", "resource.battery_pack")], "unstated_relations"),
     ("unstated_reason", [("set", "unstated_relations.2.withheld_by", "unsupported:state_of_health")], "unstated_relations"),
     # Identity (section 6.3): one field of each identifier and each resource role varied.
     ("identity_asset_configured", [("set", "identity.asset_id.source", "gateway_configured_semantic_asset_id")], "identity contract"),
@@ -626,7 +741,9 @@ GRAPH_NEGATIVES = [
     ("identity_battery_source", [("set", "identity.resources.battery.source", "gateway_derived_semantic_asset_id")], "identity contract"),
     ("identity_battery_optional", [("set", "identity.resources.battery.required", False)], "identity contract"),
     ("identity_inverter_kind", [("set", "identity.resources.inverter.kind", "resource.equipment")], "identity contract"),
-    ("identity_packs_allocated", [("set", "identity.resources.packs.source", "gateway_allocated_resource_id")], "identity contract"),
+    ("identity_packs_not_allocated", [("set", "identity.resources.packs.source", "not_allocated_no_profile_states_the_packs_of_a_battery")], "identity contract"),
+    ("identity_pack_slots_open", [("set", "identity.resources.packs.slots", 4)], "identity contract"),
+    ("identity_system_not_required", [("set", "identity.resources.system.required", False)], "identity contract"),
     ("identity_unresolved_granularity_restored", [("set", "identity.storage_asset_granularity", "unresolved_batteries_are_registers_of_the_inverter_units_not_units_of_their_own")], "identity contract"),
     ("identity_failure", [("set", "identity.failure", "missing_or_invalid_asset_or_source_identity_fails_closed")], "identity contract"),
     # EN-1: every prospective row names its subject kind and measurement point.
@@ -684,7 +801,10 @@ def test_each_prospective_row_names_its_catalog_subject_and_a_measurement_point(
 @parametrize("old,new", [
     ("| `resource.battery` | equipment | `operator_slot` | `operator_label` | none |", "| `resource.battery` | equipment | `native_slot` | `native_position` | none |"),
     ("| `relation.relays` | `configuration` |", "| `relation.relays` | `native_observation` |"),
-    ("| `storage.relation.module_cell` | `resource.battery_module` | `resource.battery_cell` | `unsupported:cell_and_module_values` |", "| `storage.relation.module_cell` | `resource.battery_module` | `resource.battery_cell` | `none` |"),
+    ("| `storage.relation.module_cell` | `resource.battery_module` | `resource.battery_cell` | `native_contract:no_module_or_cell_structure_stated_for_a_pack` |", "| `storage.relation.module_cell` | `resource.battery_module` | `resource.battery_cell` | `none` |"),
+    ("| `storage.relation.pack_interface` | `gate_rule` |", "| `storage.relation.pack_interface` | `configuration` |"),
+    ("| `storage.relation.system_battery` | `configuration` |", "| `storage.relation.system_battery` | `gate_rule` |"),
+    ("| `resource.battery_pack` | equipment | `native_slot` | `native_position` | none |", "| `resource.battery_pack` | equipment | `operator_slot` | `operator_label` | none |"),
     ("| `site_battery_soc` | `storage.state.soc` | `resource.battery_pack` | `pack_as_a_whole` |", "| `site_battery_soc` | `storage.state.soc` | `resource.battery` | `pack_as_a_whole` |"),
 ])
 def test_page_graph_tables_must_match_the_contract(old, new):

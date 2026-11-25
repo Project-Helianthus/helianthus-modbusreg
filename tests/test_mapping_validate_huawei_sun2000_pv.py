@@ -831,6 +831,8 @@ def page():
     ("| `PV-NEG-018-error-precedence` |", "| `PV-NEG-099-other` |"),
     ("Proven only where the monitoring contract is Proven", "Proven where a document says so"),
     ("outbound_allowed=false", "outbound allowed"),
+    ("| `string_power` | `none` | `resource.pv_string` | `pv.dimension.string` | `unit.watt` |", "| `string_power` | `none` | `resource.dc_input` | `pv.dimension.input` | `unit.watt` |"),
+    ("| `resource.pv_string` | component | `native_slot` | `native_position` | `resource.inverter` |", "| `resource.pv_string` | component | `native_slot` | `native_position` | `resource.pv_array` |"),
 ])
 def test_page_must_match_the_contract(old, new):
     pattern = re.escape(old).replace(r"\ ", r"\s+")
@@ -993,7 +995,25 @@ GRAPH_NEGATIVES = [
     ("dangling_logger_endpoint", [("set", "graph.resources.0.kind", "resource.meter")], "graph dangling_endpoint $.graph.relations[0].from_kind"),
     # Resources (section 15 item 1): kind, class, basis, source, scheme, parent and evidence each varied.
     ("resource_kind_not_member", [("set", "graph.resources.4.kind", "resource.not_a_catalog_kind")], "graph kind_not_member $.graph.resources[4].kind"),
-    ("resource_unpublished_kind", [("append", "graph.resources", STRING_RESOURCE)], "graph_resources"),
+    ("resource_duplicated_string_kind", [("append", "graph.resources", STRING_RESOURCE)], "graph duplicate_entry $.graph.resources[6]"),
+    # The string resource is stated: a component of the inverter at its native position, on its own dimension.
+    ("string_resource_dropped", [("delete", "graph.resources.5", None)], "graph_resources"),
+    ("string_parent_system", [("set", "graph.resources.5.parent_kind", "resource.pv_system")], "graph_parent"),
+    ("string_anchored_on_label", [("set", "graph.resources.5.anchor_basis", "operator_slot"), ("set", "graph.resources.5.anchor_source", "operator_label")], "graph_anchor"),
+    ("string_token_stability_unstated", [("set", "graph.resources.5.evidence", ["native_contract:pv_string_index_1_to_8"])], "graph_evidence"),
+    ("identity_string_dimension", [("set", "identity.resources.strings.dimension", "pv.dimension.input")], "identity contract"),
+    # The string declaration: a string subject on the string dimension and a same-read power transform, never a DC-input substitution.
+    ("strings_declaration_dropped", [("delete", "strings", None)], "strings"),
+    ("string_voltage_on_input_subject", [("set", "strings.quantities.0.subject_kind", "resource.dc_input")], "strings"),
+    ("string_current_on_input_dimension", [("set", "strings.quantities.1.dimension", "pv.dimension.input")], "strings"),
+    ("string_power_on_input_dimension", [("set", "strings.quantities.2.dimension", "pv.dimension.input")], "strings"),
+    ("string_resource_as_input_kind", [("set", "strings.resource.kind", "resource.dc_input")], "strings"),
+    ("string_power_transform_dropped", [("delete", "strings.quantities.2.transform", None)], "strings"),
+    ("string_power_from_voltage_twice", [("set", "strings.quantities.2.transform.operands", ["pv_string_voltage", "pv_string_voltage"])], "strings"),
+    ("string_power_from_any_read", [("set", "strings.quantities.2.transform.scope", "any_read")], "strings"),
+    ("string_names_an_input_element", [("set", "strings.quantities.0.element", "pv.dc.voltage")], "strings"),
+    ("string_parent_relation_stated_absent", [("set", "strings.resource.parent_relation.outcome", "absent")], "strings"),
+    ("string_inputs_statement_dropped", [("set", "strings.inputs", "none")], "strings"),
     ("input_anchor_class", [("set", "graph.resources.3.anchor_class", "equipment")], "graph anchor_class_mismatch $.graph.resources[3].anchor_class"),
     ("input_anchored_on_label", [("set", "graph.resources.3.anchor_basis", "operator_slot"), ("set", "graph.resources.3.anchor_source", "operator_label")], "graph_anchor"),
     ("system_anchored_on_position", [("set", "graph.resources.1.anchor_basis", "native_slot"), ("set", "graph.resources.1.anchor_source", "native_position")], "graph_anchor"),
@@ -1042,6 +1062,9 @@ GRAPH_NEGATIVES = [
     ("conditional_wrong_target", [("set", "conditional_relations.1.to_kind", "resource.phase")], "conditional_relations"),
     ("conditional_scope_profile", [("set", "conditional_relations.0.validity_scope.profile", "m3")], "conditional_relations"),
     ("conditional_absence_not_unknown", [("set", "conditional_relations.1.outcome_when_absent", "absent")], "conditional_relations"),
+    ("conditional_battery_unconditional", [("set", "conditional_relations.0.condition", "none")], "conditional_relations"),
+    ("conditional_meter_unconditional", [("set", "conditional_relations.1.condition", "always")], "conditional_relations"),
+    ("conditional_battery_scope_widened", [("set", "conditional_relations.0.validity_scope.rule_scope", "any_register_read")], "conditional_relations"),
     # Identity (section 6.3).
     ("identity_class_token_allowed", [("delete", "identity.asset_id.forbidden_derivations.7", None)], "identity contract"),
     ("identity_profile_allowed", [("delete", "identity.asset_id.forbidden_derivations.8", None)], "identity contract"),
@@ -1144,6 +1167,35 @@ def test_native_relations_page_states_each_phase_and_relay_statement():
     without_battery = "\n".join(line for line in text.splitlines() if not (line.startswith("|") and "| battery |" in line))
     with Raises(ValueError, match="native_relations"):
         v.check_native_relations(document, without_battery)
+
+
+def string_pair(index=1):
+    baseline = case()
+    return (baseline["facts"][fact_position(baseline, "pv_string_voltage", index)], baseline["facts"][fact_position(baseline, "pv_string_current", index)])
+
+
+def test_string_declaration_is_a_string_resource_and_not_a_dc_input():
+    document = contract()
+    v.validate_contract(document)
+    kinds = v.element_catalog().role_kinds()
+    assert kinds["strings"] == "resource.pv_string" and kinds["strings"] != kinds["inputs"]
+    assert {quantity["subject_kind"] for quantity in document["strings"]["quantities"]} == {"resource.pv_string"}
+    assert {quantity["dimension"] for quantity in document["strings"]["quantities"]} == {"pv.dimension.string"}
+    assert document["strings"]["resource"]["parent_kind"] == kinds["inverter"]
+    # The DC input rules of the frozen catalog stay on the input subject.
+    assert {rule["subject_kind"] for rule in document["field_rules"] if rule["native_id"] in ("pv_string_voltage", "pv_string_current")} == {"resource.dc_input"}
+
+
+def test_string_power_is_the_product_of_the_voltage_and_current_of_the_same_read():
+    voltage, current = string_pair(1)
+    assert v.string_power(voltage, current) == {"coefficient": "4509", "exponent10": 0}
+    other_voltage, other_current = string_pair(2)
+    assert v.string_power(other_voltage, other_current) != v.string_power(voltage, current)
+    for damage in ({"index": 2}, {"observation_revision": 6}, {"observation_id": "observation:other"}, {"retained": True}, {"availability": "UNKNOWN"}):
+        with Raises(ValueError, match="string_power"):
+            v.string_power(voltage, {**current, **damage})
+    with Raises(ValueError, match="string_power_operands"):
+        v.string_power(current, voltage)
 
 
 if __name__ == "__main__":

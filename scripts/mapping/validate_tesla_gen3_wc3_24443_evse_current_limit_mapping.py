@@ -37,16 +37,31 @@ FIELD_RULES = [
     {"source": "provisional.readback.LimitCurrentMaxAmps", "target": "evse.limit.allocated_current", "measurement_point": "limit_defined_at_connector_output", "unit": "unit.ampere", "disposition": "exact_nonzero_when_not_inhibited; inhibited_is_zero_amperes; expiry_unknown_when_timeout_zero_or_unresolved"},
 ]
 UNSUPPORTED = ["power", "energy", "phase", "session", "readiness", "connector_topology", "state_of_charge", "thermal", "fault", "interlock", "meter", "retry"]
+# IEC 61851-1 Annex A: 6 A is the lowest charging current a charger can signal; the pause encodes 6 A with inhibit.
+MIN_NONZERO_SET_AMPS = 6
+MAX_INTEROPERABLE_TIMEOUT_SECONDS = 86399
+# Argument and dispatch rules of evse.operation.set_allocated_current; set_allocated_current_disposition applies the same constants.
+ARGUMENT_RULES = {
+    "amperes": {
+        "type": "non_negative_integer",
+        "upper_bound": "configured_current_of_latest_t28_in_the_lifecycle_generation",
+        "upper_bound_device_query": "the_device_limit_query_result_wins_where_offered",
+        "pause": {"amperes": 0, "encoding": "6_A_with_inhibit_true", "requires_configured_bound_at_least": MIN_NONZERO_SET_AMPS},
+        "refused_range": {"minimum_nonzero_amperes": MIN_NONZERO_SET_AMPS, "maximum_refused_nonzero_amperes": MIN_NONZERO_SET_AMPS - 1, "outcome": "invalid_nothing_sent", "source_clause": "IEC 61851-1 Annex A"},
+        "above_configured": "invalid_nothing_sent",
+        "no_t28_in_generation": "prerequisite_t27_to_t28_read_only_then_no_t25_when_above_configured",
+    },
+    "timeout_seconds": {"interoperable_range": [1, MAX_INTEROPERABLE_TIMEOUT_SECONDS], "zero": "not_an_interoperable_request_value", "refused_outcome": "invalid_nothing_sent"},
+    "connector": "own_connector_only",
+    "release": {"allocated_current_enabled": False, "amperes": "forbidden", "requires_configured_bound": "nonzero_known_configured_current"},
+}
 # Section 6 operations of this charger: the allocated-current set and the persistent setter of the modbusreg namespace.
 OPERATIONS = [
-    {"name": "evse.operation.set_allocated_current", "capability": "evse.capability.set_allocated_current", "service": "evse.service.connector", "effect": "evse.effect.set_allocated_current", "release_argument": "evse.limit.allocated_current_enabled", "release_effect": "evse.effect.release_allocated_current", "subject_kind": "resource.connector", "route": ["family_6.t25_to_t26", "family_6.t27_to_t28"], "authority": "setting_owner_through_semreg_call_path"},
+    {"name": "evse.operation.set_allocated_current", "capability": "evse.capability.set_allocated_current", "service": "evse.service.connector", "effect": "evse.effect.set_allocated_current", "release_argument": "evse.limit.allocated_current_enabled", "release_effect": "evse.effect.release_allocated_current", "subject_kind": "resource.connector", "route": ["family_6.t25_to_t26", "family_6.t27_to_t28"], "authority": "setting_owner_through_semreg_call_path", "argument_rules": ARGUMENT_RULES},
     {"name": "ConfigurePersistentCurrent", "namespace": "modbusreg", "subject_kind": "resource.evse", "route": ["family_6.t7_to_t8"]},
 ]
 OPERATION_NAMES = [operation["name"] for operation in OPERATIONS]
 SET_ALLOCATED_CURRENT = "evse.operation.set_allocated_current"
-# IEC 61851-1 Annex A: 6 A is the lowest charging current a charger can signal; the pause encodes 6 A with inhibit.
-MIN_NONZERO_SET_AMPS = 6
-MAX_INTEROPERABLE_TIMEOUT_SECONDS = 86399
 # The gate admits operations (projection.operations), so its status is not read-only (P1-7; rule 2).
 STATUS = "accepted_source_specific_mapping_gate"
 PINS = {"docs_semantic_base": "f830ace6c2b9dd1af0e87ce808fa545662578418", "semreg": "f3f761bc67e10d6a65eba6c13cb4dc51002d6955", "docs_modbus_current_limit": "e9d0471ccc7bd0cb82e2552e630ebaae5436d867", "docs_modbus_native_projection": "1127c333de1f1d02305952a58f8745ee05c42e12", "modbusreg": "57f7eb84f7d4e1173621711bf64624726c71bc75", "gateway_main": "32244901c4c8337266cd348bdad90fb9e8eb0a61"}
@@ -380,9 +395,9 @@ def publish_allocated_current(case, provisional, facts, withheld):
     inhibit, current = provisional.get("InhibitCharging"), provisional.get("LimitCurrentMaxAmps")
     if not isinstance(inhibit, bool) or not non_negative_int(current):
         withheld.append({"id": "evse.limit.allocated_current", "reason": "provisional_record_malformed"})
-    elif inhibit:
+    elif inhibit and not allocation_expired(case):
         facts.append(amperes_fact("evse.limit.allocated_current", "connector", 0))
-    elif current == 0:
+    elif not inhibit and current == 0:
         withheld.append({"id": "evse.limit.allocated_current", "reason": "zero_current_unresolved"})
     elif allocation_expired(case):
         withheld.append({"id": "evse.limit.allocated_current", "reason": "allocation_expired"})

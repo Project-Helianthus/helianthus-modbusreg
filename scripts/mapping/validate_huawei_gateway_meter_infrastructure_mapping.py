@@ -7,6 +7,7 @@ import importlib.util
 import json
 import re
 from datetime import datetime
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 
@@ -73,15 +74,29 @@ EVIDENCE = {
     "sibling_gates": ["huawei-sun2000-pv-v1", "huawei-luna2000-storage-v1"],
     "grades": ["proven", "hypothesis", "unknown"],
 }
+# The meter identity and its exposure path are declared from the documented gateway listing; the identity read at runtime is checked against the declaration.
 ADMISSION = {
-    "meter_class_contract": False, "meter_identity": "INSUFFICIENT_EVIDENCE", "decoded_meter_words": 0,
-    "selection_outcomes_allowed": ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"],
-    "selected_meter": "fails_closed_until_this_gate_is_revised", "registry_flags": REGISTRY_FLAGS,
-    "preconditions_for_any_mapping": [
-        "a_meter_class_contract_exists_with_an_identity_read", "the_exposure_path_is_observed",
-        "type_word_order_gain_unit_and_sign_of_each_consumed_word_are_stated", "a_sign_reference_is_graded_per_source_and_never_mixed",
-        "the_role_is_declared_in_configuration", "this_gate_is_revised_with_executable_vectors"],
+    "meter_class_contract": False,
+    "meter_identity": {"declared_from": "documented_gateway_listing", "source": {"repository": "helianthus-docs-modbus", "pages": ["protocols/huawei/gateway-power-meter-v1.md", "protocols/huawei/monitoring-readonly-v1.md"]},
+                       "exposure": {"path": "sdongle_plant_group", "routed_unit": 100}, "runtime_check": "the_identity_read_equals_the_declaration",
+                       "on_mismatch": "reported_never_guessed_and_never_a_replacement"},
+    "selection": {"admitting": "DECLARED_FROM_LISTING", "unresolved": ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"], "refused": ["PROFILE_SELECTED"], "unresolved_outcome": "withheld_never_zero"},
+    "registry_flags": REGISTRY_FLAGS,
+    "decisions": [
+        {"precondition": "meter_identity", "decision": "declared_from_the_documented_gateway_listing_and_checked_at_runtime", "grade": "hypothesis"},
+        {"precondition": "exposure_path", "decision": "the_documented_plant_group_of_the_gateway_at_its_routed_unit", "grade": "proven"},
+        {"precondition": "word_form", "decision": "type_word_order_gain_and_unit_stated_per_row", "grade": "hypothesis"},
+        {"precondition": "sign_reference", "decision": "plant_group_states_positive_import_and_is_never_mixed_with_another_source", "grade": "hypothesis"},
+        {"precondition": "role", "decision": "declared_in_configuration_never_derived", "grade": "proven"},
+        {"precondition": "executable_vectors", "decision": "the_scenarios_of_this_gate", "grade": "proven"},
+    ],
 }
+ADMITTING, UNRESOLVED, REFUSED = "DECLARED_FROM_LISTING", ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"], "PROFILE_SELECTED"
+# The one meter row that publishes: the documented plant group, its word position and word form.
+ACTIVE = {"sdongle_plant_grid_power": {"read": {"offset": 37498, "quantity": 8}, "word": 4}}
+GAINS = {1: 0, 10: -1, 100: -2, 1000: -3}
+WORD_COUNT = {"I32": 2, "U32": 2}
+IDENTITY_REASONS = {"infrastructure.reason.identity_not_read", "infrastructure.reason.identity_mismatch", "infrastructure.reason.role_not_declared", "infrastructure.reason.opposite_direction", "infrastructure.reason.value_outside_pack_range", "infrastructure.reason.group_not_read"}
 ROLE = {
     "source": "operator_configuration_keyed_to_endpoint_and_routed_unit",
     "values": ["grid_connection", "feeder", "circuit"],
@@ -104,7 +119,7 @@ STATED_RELATIONS = [
     ("infrastructure.relation.site_grid_connection", "configuration", "each_grid_connection_the_operator_declares_in_a_site"),
     ("infrastructure.relation.grid_connection_meter", "configuration", "each_meter_the_operator_declares_with_role_grid_connection"),
 ]
-SCOPE = {"profile": "no_meter_class_contract", "version": "no_admitted_profile"}
+SCOPE = {"profile": "documented_gateway_listing", "version": "gateway_power_meter_v1"}
 # Section 6.4: no meter identity read exists, so two views of one meter join only by an operator declaration.
 TWO_VIEWS = ["exposed_at_a_gateway_meter_unit", "exposed_by_an_inverter_child"]
 SELECTORS = [
@@ -124,11 +139,11 @@ INVENTORY = [
 ]
 FEEDABLE = [nid for nid, path in INVENTORY[:6]]
 PRIMARY_REASON = "infrastructure.reason.no_meter_class_contract"
-RUNTIME_REASONS = {"infrastructure.reason.answered_not_decoded", "infrastructure.reason.read_exception_no_negation"}
+RUNTIME_REASONS = {"infrastructure.reason.answered_not_decoded", "infrastructure.reason.read_exception_no_negation"} | IDENTITY_REASONS
 REQUESTED = ["infrastructure.ac.active_power", "infrastructure.ac.current", "infrastructure.ac.power_factor", "infrastructure.ac.voltage", "infrastructure.energy.export", "infrastructure.energy.import", "infrastructure.power.export_active", "infrastructure.power.import_active"]
 UNSUPPORTED = ["role_inference", "direction_split_without_a_stated_sign", "mixed_sign_references", "meter_identity", "connection_readiness_breaker_fault_interlock_state", "gateway_runtime_state_as_electrical_state", "write_operations", "acknowledgement", "readback", "retry", "control_routes"]
 SIGN_REFERENCES = {"positive_export", "positive_import", "not_stated"}
-DOC_TOKENS = ("gateway-configured", "unknown, never zero", "no binary floating point", "outbound_allowed=false", "one atomic cutover", "role is configuration", "no meter register is decoded",
+DOC_TOKENS = ("gateway-configured", "unknown, never zero", "no binary floating point", "outbound_allowed=false", "one atomic cutover", "role is configuration", "word positions the documents do not state",
               "section 15", "en-1", "en-8", "operator label", "unknown, not absent", "never the device that reports it")
 
 
@@ -414,7 +429,7 @@ def validate_contract(document, catalog=None):
 
 
 def check_meter_header(document):
-    if document.get("contract") != "helianthus.semantic.mapping.huawei-gateway-meter.infrastructure/v1" or document.get("mapping_id") != "infrastructure.mapping.huawei.gateway_meter" or document.get("pack") != PACK or document.get("status") != "accepted_withheld_mapping_gate_no_meter_decoded":
+    if document.get("contract") != "helianthus.semantic.mapping.huawei-gateway-meter.infrastructure/v1" or document.get("mapping_id") != "infrastructure.mapping.huawei.gateway_meter" or document.get("pack") != PACK or document.get("status") != "accepted_source_specific_mapping_gate":
         fail("contract")
     if document.get("evidence") != EVIDENCE or not LOCAL_ASSESSMENT.is_file():
         fail("evidence")
@@ -432,18 +447,24 @@ def check_meter_rules(document, rules, reasons, fields, catalog):
     used, targets = set(), set()
     for rule in rules:
         disposition = rule.get("disposition", {})
-        if set(disposition) != {"outcome", "reason"} or disposition["outcome"] != "withheld" or disposition["reason"] not in reasons or rule.get("grade") not in GRADES:
+        active = ACTIVE.get(rule.get("native_id"))
+        if rule.get("grade") not in GRADES or (active is None and (set(disposition) != {"outcome", "reason"} or disposition["outcome"] != "withheld" or disposition["reason"] not in reasons)):
             fail("withheld reason")
-        used.add(disposition["reason"])
+        if active is None:
+            used.add(disposition["reason"])
+            if "read" in rule or "word" in rule:
+                fail("active disposition")
+        elif disposition != {"outcome": "transformed", "loss": ["unit"]} or rule.get("read") != active["read"] or rule.get("word") != active["word"]:
+            fail("active disposition")
         for row in rule.get("prospective", []):
-            targets.add(check_meter_prospective(row, document, fields, catalog))
+            targets.add(check_meter_prospective(row, rule, document, fields, catalog))
     return used, targets
 
 
-def check_meter_prospective(row, document, fields, catalog):
+def check_meter_prospective(row, rule, document, fields, catalog):
     pack_field = fields.get(row.get("target"))
     native = row.get("native")
-    if row.get("in_force") is not False or pack_field is None or row.get("dimension") != catalog.subject(row["target"]).get("dimension", {}).get("id") or row.get("unit") != pack_field.get("unit") or not isinstance(native, dict):
+    if row.get("in_force") is not (rule["native_id"] in ACTIVE) or pack_field is None or row.get("dimension") != catalog.subject(row["target"]).get("dimension", {}).get("id") or row.get("unit") != pack_field.get("unit") or not isinstance(native, dict):
         fail("prospective target")
     check_subject(row, catalog)
     check_row_role(row, document, catalog)
@@ -478,13 +499,14 @@ def validate_case(case, contract):
         fail("native_evidence_invalid")
     selection = case.get("selection")
     outcome = selection.get("outcome") if isinstance(selection, dict) else None
-    if outcome == "PROFILE_SELECTED" or "asset_id" in (case.get("identity") if isinstance(case.get("identity"), dict) else {}):
+    if outcome == REFUSED or "asset_id" in (case.get("identity") if isinstance(case.get("identity"), dict) else {}):
         fail("gate_revision_required")
     errors = set()
-    if outcome not in ADMISSION["selection_outcomes_allowed"] or contains_float(case):
+    if outcome not in [ADMITTING] + UNRESOLVED or contains_float(case):
         errors.add("native_evidence_invalid")
     reads = check_case_reads(case, errors)
     source_id, unit = check_case_source(case, errors)
+    check_case_meter(case, errors)
     declared = check_case_role(case, errors)
     check_case_lifecycle(case, errors)
     if not qualification_recorded(case.get("qualification")):
@@ -501,7 +523,10 @@ def check_case_reads(case, errors):
     reads = {}
     for read in case.get("reads") if isinstance(case.get("reads"), list) else [None]:
         key = read.get("native_id") if isinstance(read, dict) else None
-        if key not in FEEDABLE or key in reads or read.get("outcome") not in ("ANSWERED", "EXCEPTION", "FAILED", "NOT_READ") or set(read) - {"native_id", "outcome", "exception_code"}:
+        if key not in FEEDABLE or key in reads or read.get("outcome") not in ("ANSWERED", "EXCEPTION", "FAILED", "NOT_READ") or set(read) - {"native_id", "outcome", "exception_code", "words"}:
+            errors.add("native_evidence_invalid")
+            continue
+        if not read_words_valid(read, key):
             errors.add("native_evidence_invalid")
             continue
         code = read.get("exception_code")
@@ -509,6 +534,30 @@ def check_case_reads(case, errors):
             errors.add("native_evidence_invalid")
         reads[key] = read
     return reads
+
+
+def read_words_valid(read, key):
+    """An answered read of the active row carries exactly its quantity of 16-bit words; no other read carries words."""
+    words = read.get("words")
+    if key in ACTIVE and read["outcome"] == "ANSWERED":
+        return isinstance(words, list) and len(words) == ACTIVE[key]["read"]["quantity"] and all(type(word) is int and 0 <= word <= 0xFFFF for word in words)
+    return words is None
+
+
+def meter_identity(value):
+    return isinstance(value, dict) and set(value) == {"exposure", "routed_unit"} and isinstance(value["exposure"], str) and type(value["routed_unit"]) is int and 1 <= value["routed_unit"] <= 247
+
+
+def check_case_meter(case, errors):
+    """The meter identity is declared from the documented listing; the identity read at runtime is absent or a second statement of the same shape."""
+    meter = case.get("meter")
+    if not isinstance(meter, dict) or set(meter) != {"declared", "identity_read", "resources"} or not meter_identity(meter["declared"]) or (meter["identity_read"] is not None and not meter_identity(meter["identity_read"])):
+        errors.add("identity_missing_or_invalid")
+        return
+    grid = (meter["resources"] or {}).get("grid_connection") if isinstance(meter["resources"], dict) else None
+    source = (case.get("source") or {}).get("source_id") if isinstance(case.get("source"), dict) else None
+    if not isinstance(grid, str) or not OPAQUE_RE.fullmatch(grid) or any(token in grid.lower() for token in ID_FORBIDDEN_TEXT) or ID_ADDRESS_RE.search(grid) or grid == source:
+        errors.add("identity_missing_or_invalid")
 
 
 def check_case_source(case, errors):
@@ -539,10 +588,82 @@ def check_case_lifecycle(case, errors):
         errors.add("lifecycle_missing")
 
 
-def project(case, contract):
-    reads, source_id, unit, declared = validate_case(case, contract)
-    rows = []
+def decimal_of(number):
+    return Decimal(int(number["coefficient"])).scaleb(number["exponent10"])
+
+
+def canonical(coefficient, exponent):
+    if coefficient == 0:
+        return {"coefficient": "0", "exponent10": 0}
+    while coefficient % 10 == 0:
+        coefficient //= 10
+        exponent += 1
+    return {"coefficient": str(coefficient), "exponent10": exponent}
+
+
+def convert(coefficient, exponent, conversion):
+    """Exact native x factor + offset in integers; the native value and unit stay in the evidence."""
+    factor, offset = conversion["factor"], conversion["offset"]
+    product, product_exponent = coefficient * int(factor["coefficient"]), exponent + factor["exponent10"]
+    shared = min(product_exponent, offset["exponent10"])
+    return canonical(product * 10 ** (product_exponent - shared) + int(offset["coefficient"]) * 10 ** (offset["exponent10"] - shared), shared)
+
+
+def native_power(words, native):
+    raw = 0
+    for word in words:
+        raw = (raw << 16) | word
+    if native["type"].startswith("I") and raw >= 1 << (16 * len(words) - 1):
+        raw -= 1 << (16 * len(words))
+    return raw, GAINS[native["gain"]]
+
+
+def gate_reason(case, declared, rule, read):
+    """The reason an active row is withheld before its words are decoded, or None: unresolved selection, role, identity, then the read."""
+    if case["selection"]["outcome"] != ADMITTING:
+        return PRIMARY_REASON
+    if declared != rule["prospective"][0]["role"]:
+        return "infrastructure.reason.role_not_declared"
+    meter = case["meter"]
+    if meter["identity_read"] is None:
+        return "infrastructure.reason.identity_not_read"
+    if meter["identity_read"] != meter["declared"] or meter["declared"] != {"exposure": ADMISSION["meter_identity"]["exposure"]["path"], "routed_unit": ADMISSION["meter_identity"]["exposure"]["routed_unit"]}:
+        return "infrastructure.reason.identity_mismatch"
+    if read is None or read["outcome"] in ("FAILED", "NOT_READ"):
+        return "infrastructure.reason.group_not_read"
+    return "infrastructure.reason.read_exception_no_negation" if read["outcome"] == "EXCEPTION" else None
+
+
+def active_facts(case, rule, reads, fields):
+    """(reason, facts) of the plant grid power row: one fact of the stated direction; the other direction is Unknown, never zero."""
+    read = reads.get(rule["native_id"])
+    reason = gate_reason(case, case["role"]["declared"], rule, read)
+    if reason:
+        return reason, []
+    start = rule["word"]
+    native = rule["prospective"][0]["native"]
+    raw, exponent = native_power(read["words"][start:start + WORD_COUNT[native["type"]]], native)
+    direction = "infrastructure.power.import_active" if raw >= 0 else "infrastructure.power.export_active"
+    row = next(item for item in rule["prospective"] if item["target"] == direction)
+    number = convert(abs(raw), exponent, row["conversion"])
+    bounds = fields[direction]["bounds"]
+    if not all(limit is None or (decimal_of(number) >= decimal_of(limit) if name == "minimum" else decimal_of(number) <= decimal_of(limit)) for name, limit in bounds.items()):
+        return "infrastructure.reason.value_outside_pack_range", []
+    resource = case["meter"]["resources"]["grid_connection"]
+    return None, [{"item_id": direction, "subject": {"dimension": row["dimension"], "resource": resource}, "value": {"number": number, "unit": row["unit"]}, "grade": rule["grade"],
+                   "provenance": {"native_id": rule["native_id"], "sign_reference": row["sign_reference"], "meter": copy.deepcopy(case["meter"]["declared"])},
+                   "observation_id": case["lifecycle"]["observation_id"], "observation_revision": case["lifecycle"]["observation_revision"]}]
+
+
+def native_rows(case, contract, reads, fields):
+    rows, facts, held = [], [], {}
     for rule in contract["field_rules"]:
+        if rule["native_id"] in ACTIVE:
+            reason, made = active_facts(case, rule, reads, fields)
+            facts += made
+            rows.append({"native_id": rule["native_id"], "outcome": "transformed", "target": made[0]["item_id"]} if made else {"native_id": rule["native_id"], "outcome": "withheld", "reason": reason})
+            held[rule["native_id"]] = reason
+            continue
         reason = rule["disposition"]["reason"]
         read = reads.get(rule["native_id"])
         if read is not None and read["outcome"] == "ANSWERED":
@@ -550,26 +671,53 @@ def project(case, contract):
         elif read is not None and read["outcome"] == "EXCEPTION":
             reason = "infrastructure.reason.read_exception_no_negation"
         rows.append({"native_id": rule["native_id"], "outcome": "withheld", "reason": reason})
-    spec = contract["reasons"][PRIMARY_REASON]
-    dispositions = [{"kind": "fact", "item_id": item["item_id"], "outcome": "withheld", "source_keys": [], "reason": PRIMARY_REASON,
-                     "loss": [{"kind": spec["loss_kind"], "source_items": [NATIVE_PREFIX + "meter"], "description": spec["description"], "reversible": spec["reversible"]}]} for item in contract["projection"]["requested_items"]]
+    return rows, facts, held
+
+
+def item_dispositions(contract, facts, held):
+    """A requested item is published when a fact carries it; an item of the active row whose other direction was read is opposite_direction; every other item keeps the reason of its row."""
+    reasons, items = contract["reasons"], []
+    published = {fact["item_id"] for fact in facts}
+    reason_of = held.get("sdongle_plant_grid_power")
+    for item in contract["projection"]["requested_items"]:
+        item_id = item["item_id"]
+        if item_id in published:
+            items.append({"kind": "fact", "item_id": item_id, "outcome": "transformed", "source_keys": ["sdongle_plant_grid_power"], "loss": [{"kind": "unit", "source_items": [NATIVE_PREFIX + "sdongle_plant_grid_power"]}]})
+            continue
+        reason = PRIMARY_REASON
+        if item_id.startswith("infrastructure.power.") and (reason_of or published):
+            reason = reason_of or "infrastructure.reason.opposite_direction"
+        spec = reasons[reason]
+        items.append({"kind": "fact", "item_id": item_id, "outcome": "withheld", "source_keys": [], "reason": reason,
+                      "loss": [{"kind": spec["loss_kind"], "source_items": [NATIVE_PREFIX + "meter"], "description": spec["description"], "reversible": spec["reversible"]}]})
+    return items
+
+
+def project(case, contract):
+    reads, source_id, unit, declared = validate_case(case, contract)
+    fields = pack_catalog()[0]
+    rows, facts, held = native_rows(case, contract, reads, fields)
     dimensions = role_placement(contract, declared) if declared else "role_unknown_role_dependent_facts_not_published"
     role = {"declared": declared, "keyed_to": {"source_id": source_id, "routed_unit": unit}, "dimension_if_admitted": dimensions}
-    output = {"facts": [], "relations": [], "requested": copy.deepcopy(contract["projection"]["requested_items"]), "dispositions": dispositions, "native_dispositions": rows, "role": role, "operations": []}
+    output = {"facts": facts, "relations": [], "requested": copy.deepcopy(contract["projection"]["requested_items"]), "dispositions": item_dispositions(contract, facts, held), "native_dispositions": rows, "role": role, "operations": []}
     assert_complete(output, contract)
     return output
 
 
 def assert_complete(output, contract):
-    """Every native item carries exactly one disposition, a reason, and no value."""
-    if [row["native_id"] for row in output["native_dispositions"]] != [nid for nid, _ in INVENTORY] or output["facts"] or output["relations"]:
+    """Every native item carries exactly one disposition; a withheld row a declared reason; a transformed row exactly its fact."""
+    rows = output["native_dispositions"]
+    if [row["native_id"] for row in rows] != [nid for nid, _ in INVENTORY] or output["relations"]:
         fail("native disposition completeness")
-    if any(row["outcome"] != "withheld" or row["reason"] not in contract["reasons"] for row in output["native_dispositions"]):
+    if any(row["outcome"] not in ("withheld", "transformed") or (row["outcome"] == "withheld" and row["reason"] not in contract["reasons"]) for row in rows):
         fail("withheld without reason")
+    if [row["native_id"] for row in rows if row["outcome"] == "transformed"] != sorted({fact["provenance"]["native_id"] for fact in output["facts"]}):
+        fail("native disposition completeness")
 
 
 def summarize(output):
-    return {"facts": output["facts"], "dispositions": [{"item_id": item["item_id"], "outcome": item["outcome"], "published": len(item["source_keys"]), "reason": item["reason"], "loss": [loss["kind"] for loss in item["loss"]]} for item in output["dispositions"]],
+    return {"facts": [{"item_id": fact["item_id"], "number": fact["value"]["number"], "unit": fact["value"]["unit"], "native_id": fact["provenance"]["native_id"], "sign_reference": fact["provenance"]["sign_reference"]} for fact in output["facts"]],
+            "dispositions": [{"item_id": item["item_id"], "outcome": item["outcome"], "published": len(item["source_keys"]), "reason": item.get("reason"), "loss": [loss["kind"] for loss in item["loss"]]} for item in output["dispositions"]],
             "native_dispositions": output["native_dispositions"], "role": output["role"], "operations": output["operations"]}
 
 
@@ -595,7 +743,7 @@ def validate_scenarios(contract):
             continue
         output = run_scenario(scenario, contract)
         check_positive_scenario(scenario, expected, output)
-        seen_reasons |= {row["reason"] for row in output["native_dispositions"]} | {item["reason"] for item in output["dispositions"]}
+        seen_reasons |= {row["reason"] for row in output["native_dispositions"] if "reason" in row} | {item["reason"] for item in output["dispositions"] if "reason" in item}
     if seen_errors != set(ERROR_PRECEDENCE):
         fail("negative scenarios do not cover every error code")
     if seen_reasons != set(contract["reasons"]):
@@ -650,12 +798,13 @@ def native_form(native):
 def expected_tables(contract):
     withheld, prospective = [], []
     for rule in contract["field_rules"]:
-        reason = rule["disposition"]["reason"]
-        withheld.append([rule["native_id"], rule["gateway_path"], rule["grade"].capitalize(), reason, contract["reasons"][reason]["loss_kind"]])
+        reason = rule["disposition"].get("reason")
+        if reason:
+            withheld.append([rule["native_id"], rule["gateway_path"], rule["grade"].capitalize(), reason, contract["reasons"][reason]["loss_kind"]])
         for row in rule.get("prospective", []):
             rule_text = row.get("sign_reference") or ("direction %s; %s" % (row["direction"], row["counter"]) if "direction" in row else "none")
             conversion = "%s, factor %s, offset %s" % (row["unit"], plain(row["conversion"]["factor"]), plain(row["conversion"]["offset"]))
-            prospective.append([row["target"], row["dimension"], rule["native_id"], native_form(row["native"]), conversion, "+".join(row["loss"]) or "none", rule_text, row.get("role", "any role")])
+            prospective.append([row["target"], row["dimension"], rule["native_id"], native_form(row["native"]), conversion, "+".join(row["loss"]) or "none", rule_text, row.get("role", "any role"), "yes" if row["in_force"] else "no"])
     return withheld, prospective
 
 

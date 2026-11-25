@@ -60,7 +60,7 @@ def test_no_binary_floating_point():
     with Raises(ValueError):
         project(float_case)
     document = contract()
-    set_path(document, "admission.decoded_meter_words", 0.0)
+    set_path(document, "admission.decisions.0.grade", 0.5)
     with Raises(ValueError):
         v.validate_contract(document)
 
@@ -72,10 +72,21 @@ def test_no_binary_floating_point():
     ("evidence-amendment", lambda d: set_path(d, "evidence.meter_observation_amendment.issue", 255), "evidence"),
     ("evidence-page", lambda d: d["evidence"]["monitoring_contract"]["pages"].pop(), "evidence"),
     ("class-contract-claimed", lambda d: set_path(d, "admission.meter_class_contract", True), "admission"),
-    ("meter-identity-claimed", lambda d: set_path(d, "admission.meter_identity", "PROFILE_SELECTED"), "admission"),
-    ("decoded-words", lambda d: set_path(d, "admission.decoded_meter_words", 4), "admission"),
-    ("meter-selectable", lambda d: d["admission"]["selection_outcomes_allowed"].append("PROFILE_SELECTED"), "admission"),
-    ("precondition-dropped", lambda d: v.mutate(d, {"path": "admission.preconditions_for_any_mapping.3", "remove": True}), "admission"),
+    ("meter-identity-not-from-the-listing", lambda d: set_path(d, "admission.meter_identity.declared_from", "operator_label"), "admission"),
+    ("meter-exposure-moved", lambda d: set_path(d, "admission.meter_identity.exposure.routed_unit", 11), "admission"),
+    ("identity-mismatch-replaces", lambda d: set_path(d, "admission.meter_identity.on_mismatch", "replace_the_declared_meter"), "admission"),
+    ("identity-check-dropped", lambda d: v.mutate(d, {"path": "admission.meter_identity.runtime_check", "remove": True}), "admission"),
+    ("registry-profile-admitted", lambda d: d["admission"]["selection"]["refused"].clear(), "admission"),
+    ("unresolved-publishes", lambda d: set_path(d, "admission.selection.unresolved_outcome", "published_as_zero"), "admission"),
+    ("sign-reference-graded-proven", lambda d: set_path(d, "admission.decisions.3.grade", "proven"), "admission"),
+    ("precondition-dropped", lambda d: v.mutate(d, {"path": "admission.decisions.3", "remove": True}), "admission"),
+    ("status-withheld", lambda d: set_path(d, "status", "accepted_withheld_mapping_gate_no_meter_decoded"), "contract"),
+    ("active-row-withheld", lambda d: set_path(d, "field_rules.5.disposition", {"outcome": "withheld", "reason": "infrastructure.reason.no_meter_class_contract"}), "active disposition"),
+    ("active-row-word-moved", lambda d: set_path(d, "field_rules.5.word", 0), "active disposition"),
+    ("active-row-read-moved", lambda d: set_path(d, "field_rules.5.read.offset", 37502), "active disposition"),
+    ("other-row-given-a-read", lambda d: set_path(d, "field_rules.0.read", {"offset": 32260, "quantity": 33}), "active disposition"),
+    ("active-prospective-not-in-force", lambda d: set_path(d, "field_rules.5.prospective.0.in_force", False), "prospective target"),
+    ("other-prospective-in-force", lambda d: set_path(d, "field_rules.0.prospective.0.in_force", True), "prospective target"),
     ("role-derived", lambda d: d["role"]["never_derived_from"].remove("sign_or_magnitude_of_a_power_value"), "role"),
     ("role-default", lambda d: set_path(d, "role.undeclared", "assume_grid_connection"), "role"),
     ("role-value-added", lambda d: d["role"]["values"].append("consumption"), "role"),
@@ -131,7 +142,7 @@ def test_every_reason_declares_its_loss(field, value):
         v.validate_contract(document)
 
 
-def test_every_native_item_has_exactly_one_withheld_disposition_and_nothing_is_published():
+def test_every_native_item_has_exactly_one_disposition_and_only_the_active_row_publishes():
     document = v.load()
     assert [rule["native_id"] for rule in document["field_rules"]] == [nid for nid, _ in v.INVENTORY]
     for scenario in document["scenarios"]:
@@ -139,15 +150,17 @@ def test_every_native_item_has_exactly_one_withheld_disposition_and_nothing_is_p
             continue
         output = v.run_scenario(scenario, document)
         assert [row["native_id"] for row in output["native_dispositions"]] == [nid for nid, _ in v.INVENTORY]
-        assert {row["outcome"] for row in output["native_dispositions"]} == {"withheld"}
-        assert output["facts"] == [] and output["relations"] == [] and output["operations"] == []
-        assert [item["outcome"] for item in output["dispositions"]] == ["withheld"] * 8
-        assert all(item["source_keys"] == [] and item["reason"] == v.PRIMARY_REASON and item["loss"] for item in output["dispositions"])
+        assert {row["outcome"] for row in output["native_dispositions"]} <= {"withheld", "transformed"}
+        assert {fact["provenance"]["native_id"] for fact in output["facts"]} <= set(v.ACTIVE)
+        assert output["relations"] == [] and output["operations"] == [] and len(output["dispositions"]) == 8
+        for item in output["dispositions"]:
+            assert item["loss"] and (item["source_keys"] if item["outcome"] == "transformed" else item["reason"] and not item["source_keys"])
+        assert [item["item_id"] for item in output["dispositions"] if item["outcome"] == "transformed"] == sorted(fact["item_id"] for fact in output["facts"])
 
 
 def test_completeness_check_catches_damage():
     document = v.load()
-    output = v.run_scenario(document["scenarios"][0], document)
+    output = v.run_scenario(next(scenario for scenario in document["scenarios"] if scenario["id"] == "MTR-POS-002-plant-grid-import"), document)
     for damage in ("drop", "duplicate", "fact", "outcome", "reason"):
         broken = copy.deepcopy(output)
         if damage == "drop":
@@ -155,7 +168,7 @@ def test_completeness_check_catches_damage():
         elif damage == "duplicate":
             broken["native_dispositions"].append(copy.deepcopy(broken["native_dispositions"][-1]))
         elif damage == "fact":
-            broken["facts"].append({"key": {}})
+            del broken["facts"][0]
         elif damage == "outcome":
             broken["native_dispositions"][0]["outcome"] = "exact"
         else:
@@ -166,13 +179,106 @@ def test_completeness_check_catches_damage():
 
 def test_an_answering_group_is_neither_a_value_nor_an_identity():
     document = case()
-    document["reads"] = [{"native_id": native_id, "outcome": "ANSWERED"} for native_id in v.FEEDABLE]
+    document["reads"] = [{"native_id": native_id, "outcome": "ANSWERED"} for native_id in v.FEEDABLE if native_id not in v.ACTIVE]
     output = project(document)
     assert output["facts"] == []
     rows = {row["native_id"]: row["reason"] for row in output["native_dispositions"]}
-    assert all(rows[native_id] == "infrastructure.reason.answered_not_decoded" for native_id in v.FEEDABLE)
+    assert all(rows[native_id] == "infrastructure.reason.answered_not_decoded" for native_id in v.FEEDABLE if native_id not in v.ACTIVE)
+    assert rows["sdongle_plant_grid_power"] == "infrastructure.reason.group_not_read"
     assert rows["sun2000_inverter_exposed_meter_group_refused"] == "infrastructure.reason.refused_on_family"
     assert rows["profile_meter_groups"] == "infrastructure.reason.profile_withholds_meter"
+
+
+def plant_read(raw):
+    words = [0] * 8
+    words[4], words[5] = (raw & 0xFFFFFFFF) >> 16, raw & 0xFFFF
+    return {"native_id": "sdongle_plant_grid_power", "outcome": "ANSWERED", "words": words}
+
+
+def with_plant(raw, **members):
+    document = case()
+    document["reads"] = [plant_read(raw)]
+    for path, value in members.items():
+        set_path(document, path.replace("__", "."), value)
+    return document
+
+
+def watts(fact):
+    return fraction_of(fact["value"]["number"])
+
+
+@parametrize("raw,item,expected,other", [(1500, "infrastructure.power.import_active", 1500, "infrastructure.power.export_active"), (-2000, "infrastructure.power.export_active", 2000, "infrastructure.power.import_active"), (0, "infrastructure.power.import_active", 0, "infrastructure.power.export_active")])
+def test_a_documented_plant_grid_power_publishes_the_stated_direction_in_watts(raw, item, expected, other):
+    output = project(with_plant(raw))
+    assert [fact["item_id"] for fact in output["facts"]] == [item]
+    fact = output["facts"][0]
+    assert watts(fact) == expected and fact["value"]["unit"] == "unit.watt"
+    assert fact["subject"] == {"dimension": "infrastructure.dimension.grid_connection", "resource": "resource:demo-grid-delta"}
+    assert fact["provenance"]["sign_reference"] == "positive_import" and fact["provenance"]["meter"] == {"exposure": "sdongle_plant_group", "routed_unit": 100}
+    held = {row["item_id"]: row for row in output["dispositions"]}
+    assert held[other]["outcome"] == "withheld" and held[other]["reason"] == "infrastructure.reason.opposite_direction"
+
+
+def test_an_identity_mismatch_is_reported_and_replaces_nothing():
+    document = with_plant(1500, meter__identity_read={"exposure": "sdongle_plant_group", "routed_unit": 19})
+    output = project(document)
+    assert output["facts"] == []
+    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["sdongle_plant_grid_power"] == "infrastructure.reason.identity_mismatch"
+    assert document["meter"]["declared"] == {"exposure": "sdongle_plant_group", "routed_unit": 100}
+    assert all(item["reason"] == "infrastructure.reason.identity_mismatch" for item in output["dispositions"] if item["item_id"].startswith("infrastructure.power."))
+    other_exposure = project(with_plant(1500, meter__identity_read={"exposure": "emma_gateway", "routed_unit": 100}))
+    assert other_exposure["facts"] == []
+    undeclared_path = project(with_plant(1500, meter__declared={"exposure": "emma_gateway", "routed_unit": 100}, meter__identity_read={"exposure": "emma_gateway", "routed_unit": 100}))
+    assert undeclared_path["facts"] == []
+
+
+def test_an_identity_that_was_not_read_confirms_and_replaces_nothing():
+    output = project(with_plant(1500, meter__identity_read=None))
+    assert output["facts"] == []
+    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["sdongle_plant_grid_power"] == "infrastructure.reason.identity_not_read"
+
+
+@parametrize("outcome", ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"])
+def test_an_unresolved_selection_withholds_a_documented_reading(outcome):
+    output = project(with_plant(1500, selection__outcome=outcome))
+    assert output["facts"] == [] and {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["sdongle_plant_grid_power"] == v.PRIMARY_REASON
+
+
+@parametrize("role", [None, "feeder", "circuit"])
+def test_a_role_other_than_the_declared_grid_connection_publishes_no_grid_fact(role):
+    output = project(with_plant(1500, role={"declared": role, "source": "operator_configuration"}))
+    assert output["facts"] == []
+    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["sdongle_plant_grid_power"] == "infrastructure.reason.role_not_declared"
+
+
+def test_a_power_outside_the_pack_bound_is_withheld_never_clamped():
+    output = project(with_plant(20000000))
+    assert output["facts"] == []
+    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["sdongle_plant_grid_power"] == "infrastructure.reason.value_outside_pack_range"
+
+
+@parametrize("meter", [None, {"declared": None, "identity_read": None, "resources": {"grid_connection": "resource:demo-grid-delta"}}, {"declared": {"exposure": "sdongle_plant_group", "routed_unit": 100}, "identity_read": None, "resources": {"grid_connection": ""}},
+                       {"declared": {"exposure": "sdongle_plant_group", "routed_unit": 100}, "identity_read": None, "resources": {"grid_connection": "source:gateway-demo-d"}},
+                       {"declared": {"exposure": "sdongle_plant_group", "routed_unit": 100}, "identity_read": {"exposure": "sdongle_plant_group"}, "resources": {"grid_connection": "resource:demo-grid-delta"}}])
+def test_the_meter_declaration_and_its_grid_resource_are_required(meter):
+    document = with_plant(1500)
+    document["meter"] = meter
+    with Raises(ValueError, match="identity_missing_or_invalid"):
+        project(document)
+
+
+def test_a_group_without_a_documented_word_position_publishes_nothing_even_when_it_answers():
+    document = case()
+    document["reads"] = [{"native_id": "smartlogger_meter_electrical_group", "outcome": "ANSWERED"}]
+    assert project(document)["facts"] == []
+
+
+def test_the_sign_reference_is_graded_hypothesis_and_the_identity_is_declared_from_the_listing():
+    admission = v.load()["admission"]
+    decisions = {item["precondition"]: item for item in admission["decisions"]}
+    assert decisions["sign_reference"]["grade"] == "hypothesis" and decisions["meter_identity"]["decision"].startswith("declared_from_the_documented_gateway_listing")
+    assert admission["meter_identity"]["on_mismatch"] == "reported_never_guessed_and_never_a_replacement"
+    assert admission["selection"]["refused"] == ["PROFILE_SELECTED"]
 
 
 @parametrize("read", [
@@ -323,12 +429,12 @@ def test_first_error_of_the_precedence_list_wins():
         project(document)
 
 
-def test_prospective_rows_are_not_in_force_and_match_the_pack():
+def test_only_the_active_row_is_in_force_and_every_row_matches_the_pack():
     fields, dimensions, relations = v.pack_catalog()
     document = v.load()
     for rule in document["field_rules"]:
         for row in rule.get("prospective", []):
-            assert row["in_force"] is False
+            assert row["in_force"] is (rule["native_id"] in v.ACTIVE)
             assert row["dimension"] == fields[row["target"]]["dimension"] and row["unit"] == fields[row["target"]]["unit"]
             if row["dimension"] == "infrastructure.dimension.grid_connection":
                 assert row["role"] == "grid_connection"
@@ -402,7 +508,7 @@ def test_scenario_expectations_are_executed_not_trusted():
 
 
 def test_scenario_coverage_is_enforced():
-    for dropped, message in ((("MTR-POS-004-groups-answer-nothing-decoded",), "cover every reason"), (("MTR-POS-005-meter-read-exception",), "cover every reason"), (("MTR-NEG-007-role-derived-from-sign", "MTR-NEG-008-role-outside-set"), "cover every error")):
+    for dropped, message in ((("MTR-POS-008-groups-answer-nothing-decoded",), "cover every reason"), (("MTR-POS-009-meter-read-exception",), "cover every reason"), (("MTR-POS-004-identity-mismatch",), "cover every reason"), (("MTR-POS-005-identity-not-read",), "cover every reason"), (("MTR-POS-011-grid-power-outside-range",), "cover every reason"), (("MTR-NEG-009-role-derived-from-sign", "MTR-NEG-010-role-outside-set"), "cover every error")):
         document = contract()
         document["scenarios"] = [s for s in document["scenarios"] if s["id"] not in dropped]
         with Raises(ValueError, match=message):
@@ -411,7 +517,7 @@ def test_scenario_coverage_is_enforced():
 
 def test_a_negative_scenario_that_is_accepted_fails():
     document = contract()
-    next(s for s in document["scenarios"] if s["id"] == "MTR-NEG-006-source-missing")["mutations"] = []
+    next(s for s in document["scenarios"] if s["id"] == "MTR-NEG-008-source-missing")["mutations"] = []
     with Raises(ValueError, match="accepted"):
         v.validate_scenarios(document)
 
@@ -427,9 +533,9 @@ def page():
     ("| I32, kWh, gain 100 | `unit.joule`, factor 3600000, offset 0 | unit+policy |", "| I32, kWh, gain 100 | `unit.joule`, factor 3600000, offset 0 | policy |"),
     ("| I32, W, gain 1 | `unit.watt`, factor 1, offset 0 |", "| I32, W, gain 1 | `unit.watt`, factor 1000, offset 0 |"),
     ("| `feeder` | withheld | `infrastructure.dimension.meter` | unknown |", "| `feeder` | `infrastructure.dimension.grid_connection` | `infrastructure.dimension.meter` | unknown |"),
-    ("| `MTR-NEG-014-error-precedence` |", "| `MTR-NEG-099-other` |"),
+    ("| `MTR-NEG-016-error-precedence` |", "| `MTR-NEG-099-other` |"),
     ("role is configuration", "role is derived"),
-    ("no meter register is decoded", "a meter register is decoded"),
+    ("word positions the documents do not state", "word positions are guessed"),
     ("outbound_allowed=false", "outbound allowed"),
 ])
 def test_page_must_match_the_contract(old, new):
@@ -488,9 +594,9 @@ def test_the_role_member_rejects_earlier_spellings(member):
 
 
 @parametrize("scenario_id,member,path", [
-    ("MTR-POS-001-grid-role-no-meter-read", "output", ()),
-    ("MTR-POS-001-grid-role-no-meter-read", "output", ("role", "dimension_if_admitted")),
-    ("MTR-POS-003-feeder-role", "summary", ("role", "dimension_if_admitted")),
+    ("MTR-POS-001-declared-meter-no-read", "output", ()),
+    ("MTR-POS-001-declared-meter-no-read", "output", ("role", "dimension_if_admitted")),
+    ("MTR-POS-007-feeder-role", "summary", ("role", "dimension_if_admitted")),
 ])
 def test_expected_outputs_reject_the_earlier_relation_members(scenario_id, member, path):
     document = contract()

@@ -117,6 +117,21 @@
         "dimension": "storage.dimension.cell",
         "source": "gateway_allocated_resource_id",
         "required": true
+      },
+      "battery": {
+        "dimension": "storage.dimension.battery",
+        "source": "not_allocated_until_a_fact_publishes_on_it",
+        "required": false
+      },
+      "system": {
+        "dimension": "storage.dimension.system",
+        "source": "not_allocated_until_a_fact_publishes_on_it",
+        "required": false
+      },
+      "interface": {
+        "dimension": "storage.dimension.interface",
+        "source": "not_allocated_until_a_fact_publishes_on_it",
+        "required": false
       }
     }
   },
@@ -125,14 +140,14 @@
       {
         "kind": "resource.battery_pack",
         "anchor_class": "equipment",
-        "anchor_basis": "operator_slot",
-        "anchor_source": "operator_label",
+        "anchor_basis": "native_slot",
+        "anchor_source": "native_position",
         "identification_scheme": "none_listed",
         "parent_kind": null,
         "evidence": [
           "catalog_subject:storage.dimension.pack",
-          "future_native_token:none_until_the_native_owner_documents_a_stable_pack_token",
-          "native_owner_token_stability:unknown_until_the_native_owner_states_it",
+          "native_contract:explicit_pack_identity_of_each_repeated_register_region",
+          "native_owner_token_stability:position_fixed_by_the_native_contract",
           "identification_scheme:none_listed_for_family"
         ]
       },
@@ -147,9 +162,96 @@
           "native_owner_token_stability:cell_index_not_named_by_the_native_contract",
           "identification_scheme:none_listed_for_family"
         ]
+      },
+      {
+        "kind": "resource.battery",
+        "anchor_class": "equipment",
+        "anchor_basis": "operator_slot",
+        "anchor_source": "operator_label",
+        "identification_scheme": "none_listed",
+        "parent_kind": null,
+        "evidence": [
+          "native_contract:one_unit_reports_the_pack_of_one_battery",
+          "native_owner_token_stability:no_battery_token_on_the_read_path",
+          "identification_scheme:none_listed_for_family"
+        ]
+      },
+      {
+        "kind": "resource.storage_system",
+        "anchor_class": "function",
+        "anchor_basis": "operator_slot",
+        "anchor_source": "operator_label",
+        "identification_scheme": "none_listed",
+        "parent_kind": null,
+        "evidence": [
+          "configuration:one_storage_system_declared_for_the_configured_battery",
+          "native_owner_token_stability:no_native_token_for_an_operator_declared_function"
+        ]
+      },
+      {
+        "kind": "resource.storage_interface",
+        "anchor_class": "component",
+        "anchor_basis": "native_slot",
+        "anchor_source": "native_position",
+        "identification_scheme": "none_listed",
+        "parent_kind": "resource.battery_pack",
+        "evidence": [
+          "native_contract:rs485_unit_of_the_pack",
+          "native_owner_token_stability:position_fixed_by_the_native_contract",
+          "identification_scheme:none_listed_for_family"
+        ]
       }
     ],
-    "relations": [],
+    "relations": [
+      {
+        "definition": "storage.relation.battery_pack",
+        "basis_class": "gate_rule",
+        "from_kind": "resource.battery",
+        "to_kind": "resource.battery_pack",
+        "evidence": [
+          "native_contract:one_unit_reports_the_pack_of_one_battery",
+          "pack_contract:storage.relation.battery_pack"
+        ],
+        "validity_scope": {
+          "profile": "growatt.bms.rs485.1xsxxp.v2_02.readonly.v1",
+          "version": "2.02",
+          "rule_scope": "the_pack_at_the_native_position_the_unit_reports_under_its_configured_battery"
+        },
+        "absence_sides": []
+      },
+      {
+        "definition": "storage.relation.pack_interface",
+        "basis_class": "gate_rule",
+        "from_kind": "resource.battery_pack",
+        "to_kind": "resource.storage_interface",
+        "evidence": [
+          "native_contract:rs485_unit_of_the_pack",
+          "pack_contract:storage.relation.pack_interface"
+        ],
+        "validity_scope": {
+          "profile": "growatt.bms.rs485.1xsxxp.v2_02.readonly.v1",
+          "version": "2.02",
+          "rule_scope": "one_rs485_interface_per_pack_at_the_native_position_of_its_pack"
+        },
+        "absence_sides": []
+      },
+      {
+        "definition": "storage.relation.system_battery",
+        "basis_class": "configuration",
+        "from_kind": "resource.storage_system",
+        "to_kind": "resource.battery",
+        "evidence": [
+          "operator_configuration:one_storage_system_declared_for_the_configured_battery",
+          "native_contract:battery_attachment_not_documented_as_observable"
+        ],
+        "validity_scope": {
+          "profile": "growatt.bms.rs485.1xsxxp.v2_02.readonly.v1",
+          "version": "2.02",
+          "rule_scope": "the_storage_system_the_operator_declares_for_each_configured_battery"
+        },
+        "absence_sides": []
+      }
+    ],
     "relayed": [],
     "joins": [
       {
@@ -192,46 +294,25 @@
   },
   "unstated_relations": [
     {
-      "definition": "storage.relation.battery_pack",
-      "from_kind": "resource.battery",
-      "to_kind": "resource.battery_pack",
-      "outcome": "unknown_not_absent",
-      "withheld_by": "unsupported:repeated_pack_identity"
-    },
-    {
       "definition": "storage.relation.module_cell",
       "from_kind": "resource.battery_module",
       "to_kind": "resource.battery_cell",
       "outcome": "unknown_not_absent",
-      "withheld_by": "unsupported:pack_module_cell_string_topology"
-    },
-    {
-      "definition": "storage.relation.pack_interface",
-      "from_kind": "resource.battery_pack",
-      "to_kind": "resource.storage_interface",
-      "outcome": "unknown_not_absent",
-      "withheld_by": "unsupported:charge_discharge_limits"
+      "withheld_by": "native_contract:no_module_cell_or_string_structure_stated_for_a_pack"
     },
     {
       "definition": "storage.relation.pack_module",
       "from_kind": "resource.battery_pack",
       "to_kind": "resource.battery_module",
       "outcome": "unknown_not_absent",
-      "withheld_by": "unsupported:pack_module_cell_string_topology"
+      "withheld_by": "native_contract:no_module_cell_or_string_structure_stated_for_a_pack"
     },
     {
       "definition": "storage.relation.pack_string",
       "from_kind": "resource.battery_pack",
       "to_kind": "resource.battery_string",
       "outcome": "unknown_not_absent",
-      "withheld_by": "unsupported:pack_module_cell_string_topology"
-    },
-    {
-      "definition": "storage.relation.system_battery",
-      "from_kind": "resource.storage_system",
-      "to_kind": "resource.battery",
-      "outcome": "unknown_not_absent",
-      "withheld_by": "configuration:no_storage_system_declared_by_this_gate"
+      "withheld_by": "native_contract:no_module_cell_or_string_structure_stated_for_a_pack"
     }
   ],
   "lifecycle": {

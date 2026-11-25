@@ -102,14 +102,16 @@ jobs:
           python3 "$RUNNER_TEMP/qq06-classify/acceptance/tools/manifest/main.py" check \
             --manifest "$manifest" \
             --donor "$RUNNER_TEMP/donor"
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: success() && steps.suite.outputs.run_full != 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Project-Helianthus/helianthus-docs-semantic
           ref: de3a0b49535582ad51a0ec23011d3aebf9c04c76
           path: .tmp/references/docs-semantic
           persist-credentials: false
           clean: true
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: success() && steps.suite.outputs.run_full != 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Project-Helianthus/helianthus-docs-modbus
           ref: e9d0471ccc7bd0cb82e2552e630ebaae5436d867

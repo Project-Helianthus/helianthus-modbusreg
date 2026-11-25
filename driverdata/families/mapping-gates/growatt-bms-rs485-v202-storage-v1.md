@@ -49,22 +49,28 @@ The gate states what section 15 of the [graph contract](https://github.com/Proje
 a mapping gate, and its validator runs the shared graph rules before its own.
 
 This is section 15 item 1. The catalog lists no identification
-scheme for this low-voltage BMS family, so an operator label anchors each
-published resource. No pack token is read, so none is recorded as a future
-native token. A pack serial becomes one only when the native owner documents
-it as stable; until then its stability is Unknown.
+scheme for this low-voltage BMS family. A pack and an interface are anchored by
+their native position under the configured battery, so a pack keeps its
+identity from start to start and never takes it from an address or a label.
+Every other published resource is anchored by an operator label. A pack serial
+becomes a native token only when the native owner documents it as stable.
 
 | Kind | Anchor class | Basis | Anchor source | Scheme | Parent kind |
 | --- | --- | --- | --- | --- | --- |
-| `resource.battery_pack` | equipment | `operator_slot` | `operator_label` | none listed | none |
+| `resource.battery_pack` | equipment | `native_slot` | `native_position` | none listed | none |
 | `resource.battery_cell` | component | `operator_slot` | `operator_label` | none listed | `resource.battery_module` |
+| `resource.battery` | equipment | `operator_slot` | `operator_label` | none listed | none |
+| `resource.storage_system` | function | `operator_slot` | `operator_label` | none listed | none |
+| `resource.storage_interface` | component | `native_slot` | `native_position` | none listed | `resource.battery_pack` |
 
 The pack is the subject of the pack facts. The cell voltage extremes are
 subjects of one allocated cell. The native contract does not name which cell
 holds either extreme, so both facts share that one cell and the index stays
 unknown. The cell's parent kind is the module. The module itself is not
-published, and the module-to-cell relation stays unknown, not absent. No
-battery, string, interface or storage system is published. In every fact key,
+published, and the module-to-cell relation stays unknown, not absent. The
+battery, the storage system and the interface are resources of the graph; no
+fact is published on them, so no identifier is allocated for them yet. No
+string is published. In every fact key,
 the value of the subject dimension is the gateway-allocated resource
 identifier of that subject (RES-5). It is never the asset, source or binding
 identifier. A key that carries one of them, or no subject identifier, fails
@@ -73,25 +79,31 @@ closed as `identity_missing_or_invalid`.
 ## Relations
 
 This is section 15 item 2. One unit reports the values of one pack and the
-two cell-voltage extremes. It states neither the battery the pack belongs to
-nor its modules, strings or interfaces, and it does not state which cell
-holds an extreme, so the gate's evidence supports no relation. The gate states none
-and makes no absence statement. A relation record whose endpoint the gate does
+two cell-voltage extremes. The gate states the three storage relations its
+evidence supports, each with evidence and the validity scope of this native
+profile and revision: the battery contains its pack, the pack contains its
+RS-485 interface, and the storage system the operator declares groups the
+battery. It does not state which cell holds an extreme, nor any module or
+string. The gate makes no absence statement. A relation record whose endpoint the gate does
 not publish is rejected as a dangling endpoint (REL-8). An example is a
 module-to-cell relation keyed by a cell index with no published module. An
 ordinal position is never a basis (section 7.2).
 
 Section 7.2: when neither an instance nor an absence statement exists, a
-relation is unknown, not absent. Every Storage relation stays unknown here.
+relation is unknown, not absent. The relations whose structure the native
+contract does not state stay unknown here.
+
+| Definition | Basis class | From kind | To kind | Scope of the rule |
+| --- | --- | --- | --- | --- |
+| `storage.relation.battery_pack` | `gate_rule` | `resource.battery` | `resource.battery_pack` | `the_pack_at_the_native_position_the_unit_reports_under_its_configured_battery` |
+| `storage.relation.pack_interface` | `gate_rule` | `resource.battery_pack` | `resource.storage_interface` | `one_rs485_interface_per_pack_at_the_native_position_of_its_pack` |
+| `storage.relation.system_battery` | `configuration` | `resource.storage_system` | `resource.battery` | `the_storage_system_the_operator_declares_for_each_configured_battery` |
 
 | Definition | From kind | To kind | Withheld by |
 | --- | --- | --- | --- |
-| `storage.relation.battery_pack` | `resource.battery` | `resource.battery_pack` | `unsupported:repeated_pack_identity` |
-| `storage.relation.module_cell` | `resource.battery_module` | `resource.battery_cell` | `unsupported:pack_module_cell_string_topology` |
-| `storage.relation.pack_interface` | `resource.battery_pack` | `resource.storage_interface` | `unsupported:charge_discharge_limits` |
-| `storage.relation.pack_module` | `resource.battery_pack` | `resource.battery_module` | `unsupported:pack_module_cell_string_topology` |
-| `storage.relation.pack_string` | `resource.battery_pack` | `resource.battery_string` | `unsupported:pack_module_cell_string_topology` |
-| `storage.relation.system_battery` | `resource.storage_system` | `resource.battery` | `configuration:no_storage_system_declared_by_this_gate` |
+| `storage.relation.module_cell` | `resource.battery_module` | `resource.battery_cell` | `native_contract:no_module_cell_or_string_structure_stated_for_a_pack` |
+| `storage.relation.pack_module` | `resource.battery_pack` | `resource.battery_module` | `native_contract:no_module_cell_or_string_structure_stated_for_a_pack` |
+| `storage.relation.pack_string` | `resource.battery_pack` | `resource.battery_string` | `native_contract:no_module_cell_or_string_structure_stated_for_a_pack` |
 
 Relayed values follow section 15 item 3. The pack is read directly over RS-485
 and no unit relays it. A second view of the same pack through another path

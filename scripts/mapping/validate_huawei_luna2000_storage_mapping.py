@@ -7,6 +7,7 @@ import importlib.util
 import json
 import re
 from datetime import datetime
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 
@@ -24,7 +25,7 @@ PACK = {"id": "helianthus.pack.storage", "version": "1.1.0"}
 NATIVE_PREFIX = "native.huawei.luna2000."
 LOSS_KINDS = {"unit", "range", "precision", "time", "symbol", "provenance", "identity", "capability", "operation", "policy"}
 GRADES = ["unknown", "hypothesis", "proven"]
-ERROR_PRECEDENCE = ["gate_revision_required", "native_evidence_invalid", "identity_missing_or_invalid", "lifecycle_missing", "mapping_unqualified", "unsupported_or_withheld"]
+ERROR_PRECEDENCE = ["native_evidence_invalid", "identity_missing_or_invalid", "lifecycle_missing", "mapping_unqualified", "unsupported_or_withheld"]
 OPAQUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
 # Approved immutable owner links: the pinned docs-semantic revision, owning path, optional non-line anchor.
@@ -65,8 +66,12 @@ ALLOCATED = "gateway_allocated_resource_id"
 RESOURCE_ROLES = {
     "inverter": {"kind": "resource.inverter", "source": ALLOCATED, "required": True},
     "battery": {"dimension": "storage.dimension.battery", "source": ALLOCATED, "required": True},
-    "packs": {"dimension": "storage.dimension.pack", "source": "not_allocated_no_profile_states_the_packs_of_a_battery", "required": False},
+    "packs": {"dimension": "storage.dimension.pack", "source": ALLOCATED, "required": False, "slots": 3},
+    "system": {"dimension": "storage.dimension.system", "source": ALLOCATED, "required": True},
+    "interfaces": {"dimension": "storage.dimension.interface", "source": ALLOCATED, "required": False, "slots": 3},
 }
+# A pack is anchored by its native position under the configured battery, never by an address or a label (rule 20).
+NATIVE_POSITION_ROLES = {"packs"}
 IDENTITY_CONTRACT = {
     "asset_id": {"source": "gateway_allocated_asset_id", "required": True, "non_secret": True, "granularity": "the_home_asset_of_the_inverter_child_that_relays_the_battery", "forbidden_derivations": ASSET_FORBIDDEN},
     "source_id": {"source": "gateway_managed_instance_source_id", "required": True, "non_secret": True, "granularity": "one_source_per_endpoint_instance", "distinct_from": "asset_id", "forbidden_derivations": FORBIDDEN_DERIVATIONS},
@@ -75,15 +80,17 @@ IDENTITY_CONTRACT = {
     "failure": "missing_invalid_reused_or_ambiguous_identity_fails_closed",
 }
 # Section 15 item 1: the statement each resource role's evidence must carry, besides the native owner's token stability.
-ROLE_STATEMENTS = {"inverter": "future_native_token", "battery": "relaying_path", "packs": "native_contract"}
+ROLE_STATEMENTS = {"inverter": "future_native_token", "battery": "relaying_path", "packs": "native_contract", "system": "configuration", "interfaces": "native_contract"}
 # Section 15 item 2: (definition, basis class, scope of the rule) in the order the gate states them. The battery's
 # attachment is configuration: no native owner documents it as observable. A pack relation's endpoint kinds come from
 # the element catalog; those of relays from the resource roles.
 STATED_RELATIONS = [
     ("relation.relays", "configuration", "each_battery_the_operator_attaches_to_an_inverter_child"),
-    ("storage.relation.battery_pack", "gate_rule", "one_record_per_pack_an_admitted_battery_profile_reads_none_before_admission"),
+    ("storage.relation.battery_pack", "gate_rule", "one_record_per_pack_at_its_native_position"),
+    ("storage.relation.pack_interface", "gate_rule", "one_interface_per_pack_at_the_native_position_of_its_pack"),
+    ("storage.relation.system_battery", "configuration", "the_storage_system_the_operator_declares_for_each_configured_battery"),
 ]
-SCOPE_VERSION = "no_admitted_profile"
+SCOPE_VERSION = "monitoring_contract_v1"
 # Section 15 item 3 and section 6.4: the relaying path exposes no battery token and no direct path is documented,
 # so a second view of the battery joins only by an operator declaration.
 DIRECT_BATTERY_KEY = "none"
@@ -94,11 +101,9 @@ SELECTORS = [
 ]
 # Section 7.2: what withholds each storage relation the gate does not state.
 UNSTATED_BY = {
-    "storage.relation.module_cell": "unsupported:cell_and_module_values",
-    "storage.relation.pack_interface": "unsupported:charge_and_discharge_power_limits",
-    "storage.relation.pack_module": "unsupported:cell_and_module_values",
-    "storage.relation.pack_string": "registry_disposition:no_string_structure_admitted",
-    "storage.relation.system_battery": "configuration:no_storage_system_declared_by_this_gate",
+    "storage.relation.module_cell": "native_contract:no_module_or_cell_structure_stated_for_a_pack",
+    "storage.relation.pack_module": "native_contract:no_module_or_cell_structure_stated_for_a_pack",
+    "storage.relation.pack_string": "native_contract:no_string_structure_stated_for_a_pack",
 }
 UNSTATED_OUTCOME = "unknown_not_absent"
 REGISTRY_FLAGS = {"catalog_registered": False, "automatic_runtime_admission": False, "live_qualified": False, "support_claim": False}
@@ -119,32 +124,42 @@ EVIDENCE = {
     "sibling_gates": ["huawei-sun2000-pv-v1", "huawei-gateway-meter-infrastructure-v1"],
     "grades": ["proven", "hypothesis", "unknown"],
 }
+# The gate admits the facts of the native monitoring contract for the exact family; each remaining precondition is decided from the documents with its grade.
 ADMISSION = {
-    "registry_disposition": {"profile": "huawei.luna2000", "outcome": "NO_ADMISSIBLE_PROFILE", "battery_groups": "PRESENT_NOT_ADMITTED", "facts_admitted": False, "decoder_keys": 0},
-    "selection_outcomes_allowed": ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"],
-    "selected_profile": "fails_closed_until_this_gate_is_revised",
+    "profile_source": {"repository": "helianthus-docs-modbus", "pages": ["protocols/huawei/monitoring-readonly-v1.md", "protocols/huawei/inverter-battery-readonly-v1.md"], "profile": "huawei.luna2000", "scope": "hybrid_inverter_battery_and_monitoring_contract"},
+    "selection": {"admitting": "PROFILE_SELECTED", "unresolved": ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"], "unresolved_outcome": "withheld_never_zero"},
+    "facts_admitted": True,
     "registry_flags": REGISTRY_FLAGS,
-    "preconditions_for_any_mapping": [
-        "a_battery_profile_for_the_exact_family_is_admitted_with_a_consulted_edition",
-        "type_word_order_gain_unit_and_sign_of_each_consumed_word_are_stated",
-        "a_sign_is_graded_before_any_power_is_published",
-        "the_aggregation_basis_is_recorded_as_provenance",
-        "the_storage_asset_granularity_is_settled",
-        "this_gate_is_revised_with_executable_vectors",
+    "decisions": [
+        {"precondition": "battery_profile", "decision": "declared_from_the_profile_source_for_the_exact_family", "grade": "hypothesis"},
+        {"precondition": "word_form", "decision": "type_word_order_gain_and_unit_stated_per_row", "grade": "hypothesis"},
+        {"precondition": "battery_power_sign", "decision": "plant_group_states_positive_while_charging_and_site_group_states_none_so_site_power_is_withheld", "grade": "hypothesis"},
+        {"precondition": "aggregation_basis", "decision": "site_or_plant_group_recorded_as_provenance", "grade": "proven"},
+        {"precondition": "asset_granularity", "decision": "one_storage_system_with_its_battery_packs_as_the_pack_defines", "grade": "proven"},
+        {"precondition": "executable_vectors", "decision": "the_scenarios_of_this_gate", "grade": "proven"},
     ],
 }
-# native item -> (source, read group or None). Registry items come from the LUNA2000 disposition; planned items from the monitoring contract.
+ADMITTING, UNRESOLVED = "PROFILE_SELECTED", ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"]
+# The aggregation basis of each mapped group reading, recorded as provenance on its fact.
+AGGREGATION_BASIS = {"site_battery_soc": "site_group", "plant_battery_power": "plant_group", "site_battery_energy_charged_total": "site_group", "site_battery_energy_discharged_total": "site_group"}
+GAINS = {1: 0, 10: -1, 100: -2, 1000: -3}
+WORD_COUNT = {"U16": 1, "U32": 2, "I32": 2, "U64": 4}
+# native item -> (source, read group, word index in the read). Registry items come from the LUNA2000 disposition; mapped items from the monitoring contract.
 INVENTORY = [
-    ("battery_group_37000_30", "registry_disposition", (37000, 30)), ("battery_single_read_37000_1", "registry_disposition", (37000, 1)),
-    ("battery_group_37066_4", "registry_disposition", (37066, 4)), ("battery_group_47000_1", "registry_disposition", (47000, 1)),
-    ("site_battery_soc", "monitoring_contract_planned", None), ("site_battery_power", "monitoring_contract_planned", None), ("plant_battery_power", "monitoring_contract_planned", None),
-    ("site_battery_energy_charged_total", "monitoring_contract_planned", None), ("site_battery_energy_discharged_total", "monitoring_contract_planned", None),
-    ("site_battery_energy_charged_day", "monitoring_contract_planned", None), ("site_battery_energy_discharged_day", "monitoring_contract_planned", None),
-    ("site_rated_storage_capacity", "monitoring_contract_planned", None),
+    ("battery_group_37000_30", "registry_disposition", (37000, 30), None), ("battery_single_read_37000_1", "registry_disposition", (37000, 1), None),
+    ("battery_group_37066_4", "registry_disposition", (37066, 4), None), ("battery_group_47000_1", "registry_disposition", (47000, 1), None),
+    ("site_battery_soc", "monitoring_contract_planned", (30368, 1), 0), ("site_battery_power", "monitoring_contract_planned", (30354, 12), 6), ("plant_battery_power", "monitoring_contract_planned", (37498, 8), 6),
+    ("site_battery_energy_charged_total", "monitoring_contract_planned", (30306, 46), 2), ("site_battery_energy_discharged_total", "monitoring_contract_planned", (30306, 46), 8),
+    ("site_battery_energy_charged_day", "monitoring_contract_planned", (30306, 46), 0), ("site_battery_energy_discharged_day", "monitoring_contract_planned", (30306, 46), 6),
+    ("site_rated_storage_capacity", "monitoring_contract_planned", None, None),
 ]
-READS = {read: nid for nid, source, read in INVENTORY if read}
-RUNTIME_REASONS = {"storage.reason.battery_group_not_read", "storage.reason.zero_word_is_not_a_battery_value", "storage.reason.battery_group_exception_no_negation"}
+READS = {read for _, _, read, _ in INVENTORY if read}
+# The rows that publish a fact; the others stay withheld or native-only with their reason.
+ACTIVE = {"site_battery_soc", "plant_battery_power", "site_battery_energy_charged_total", "site_battery_energy_discharged_total"}
+RUNTIME_REASONS = {"storage.reason.battery_group_not_read", "storage.reason.zero_word_is_not_a_battery_value", "storage.reason.battery_group_exception_no_negation", "storage.reason.value_outside_pack_range"}
 PRIMARY_REASON = "storage.reason.no_admitted_battery_profile"
+NATIVE_ONLY_REASON = "storage.reason.group_native_only_no_catalog_row"
+STATUS_REASON = "storage.reason.status_symbols_not_stated"
 REQUESTED = ["storage.energy.charged", "storage.energy.discharged", "storage.pack.power", "storage.state.soc", "storage.status.operating"]
 NEVER_REQUESTED = ["storage.limit.charge_power", "storage.limit.discharge_power", "storage.status.interlock", "storage.operation.set_charge_limit", "storage.operation.set_discharge_limit"]
 UNSUPPORTED = ["rated_capacity_in_energy_units", "state_of_health", "cell_and_module_values", "charge_and_discharge_power_limits", "interlock", "working_mode_or_schedule", "remote_dispatch", "authority", "write_operations", "acknowledgement", "readback", "retry", "control_routes"]
@@ -282,11 +297,11 @@ def check_sign(prospective, catalog):
         fail("prospective sign")
 
 
-def expected_basis(resource, anchor_class):
-    """Section 6.3: a listed scheme anchors on a native token, a component on its native position, anything else on an operator label."""
+def expected_basis(resource, anchor_class, role=None):
+    """Section 6.3: a listed scheme anchors on a native token, a component or a pack on its native position, anything else on an operator label."""
     if resource["identification_scheme"] != graph_rules.NONE_LISTED:
         return "native_identity"
-    return "native_slot" if anchor_class == "component" else "operator_slot"
+    return "native_slot" if anchor_class == "component" or role in NATIVE_POSITION_ROLES else "operator_slot"
 
 
 def check_graph_resources(graph, catalog):
@@ -296,7 +311,7 @@ def check_graph_resources(graph, catalog):
         fail("graph_resources")
     for role, resource in zip(kinds, graph["resources"]):
         anchor_class = catalog.index.kinds[resource["kind"]]["anchor_class"]
-        if resource["anchor_basis"] != expected_basis(resource, anchor_class):
+        if resource["anchor_basis"] != expected_basis(resource, anchor_class, role):
             fail("graph_anchor")
         if resource["parent_kind"] != (catalog.parent(resource["kind"]) if anchor_class == "component" else None):
             fail("graph_parent")
@@ -319,7 +334,7 @@ def check_graph_paths(graph, catalog):
 
 def check_graph_relations(graph, document, catalog):
     """Section 15 item 2, REL-3 and section 7.2: stated basis and rule scope, the registry profile's scope, no absence statement."""
-    scope = {"profile": document["admission"]["registry_disposition"]["profile"], "version": SCOPE_VERSION}
+    scope = {"profile": document["admission"]["profile_source"]["profile"], "version": SCOPE_VERSION}
     kinds = catalog.role_kinds()
     if [(relation["definition"], relation["basis_class"], relation["validity_scope"]["rule_scope"]) for relation in graph["relations"]] != STATED_RELATIONS:
         fail("graph_relations")
@@ -374,7 +389,7 @@ def validate_contract(document, catalog=None):
     fields, operations = pack_tables()
     check_luna_header(document)
     rules = document.get("field_rules", [])
-    listed = [(rule.get("native_id"), rule.get("source"), (rule["read"]["offset"], rule["read"]["quantity"]) if rule.get("read") else None) for rule in rules]
+    listed = [(rule.get("native_id"), rule.get("source"), (rule["read"]["offset"], rule["read"]["quantity"]) if rule.get("read") else None, rule.get("word")) for rule in rules]
     if listed != INVENTORY:
         fail("native inventory")
     reasons = document.get("reasons", {})
@@ -382,7 +397,7 @@ def validate_contract(document, catalog=None):
     used, targets = check_luna_rules(rules, reasons, fields, catalog)
     if sorted(targets) != REQUESTED or document.get("projection", {}).get("requested_items") != [{"kind": "fact", "item_id": item} for item in REQUESTED]:
         fail("requested items")
-    if set(reasons) != used | RUNTIME_REASONS | {PRIMARY_REASON}:
+    if set(reasons) != used | RUNTIME_REASONS | {PRIMARY_REASON, NATIVE_ONLY_REASON, STATUS_REASON}:
         fail("reason inventory")
     check_luna_policies(document, fields, operations)
     validate_graph(document, catalog)
@@ -391,7 +406,7 @@ def validate_contract(document, catalog=None):
 
 
 def check_luna_header(document):
-    if document.get("contract") != "helianthus.semantic.mapping.huawei-luna2000.storage/v1" or document.get("mapping_id") != "storage.mapping.huawei.luna2000.battery" or document.get("pack") != PACK or document.get("status") != "accepted_withheld_mapping_gate_no_battery_profile":
+    if document.get("contract") != "helianthus.semantic.mapping.huawei-luna2000.storage/v1" or document.get("mapping_id") != "storage.mapping.huawei.luna2000.battery" or document.get("pack") != PACK or document.get("status") != "accepted_source_specific_mapping_gate":
         fail("contract")
     if document.get("evidence") != EVIDENCE:
         fail("evidence")
@@ -406,12 +421,10 @@ def check_luna_reasons(reasons):
 
 
 def check_luna_rules(rules, reasons, fields, catalog):
+    """A row either publishes its fact (an active row, with its loss) or is withheld or native-only with a declared reason; a row with a target states its prospective mapping."""
     used, targets = set(), set()
     for rule in rules:
-        disposition = rule.get("disposition", {})
-        if set(disposition) != {"outcome", "reason"} or disposition["outcome"] != "withheld" or disposition["reason"] not in reasons or rule.get("grade") not in GRADES:
-            fail("withheld reason")
-        used.add(disposition["reason"])
+        check_luna_disposition(rule, reasons, used)
         prospective = rule.get("prospective")
         if prospective is None:
             continue
@@ -419,10 +432,24 @@ def check_luna_rules(rules, reasons, fields, catalog):
     return used, targets
 
 
+def check_luna_disposition(rule, reasons, used):
+    disposition = rule.get("disposition", {})
+    if rule.get("grade") not in GRADES:
+        fail("withheld reason")
+    if rule.get("native_id") in ACTIVE:
+        if set(disposition) != {"outcome", "loss"} or disposition["outcome"] != "transformed" or not isinstance(disposition["loss"], list) or not set(disposition["loss"]) <= LOSS_KINDS or "unit" not in disposition["loss"]:
+            fail("active disposition")
+        return
+    expected = "native_only" if rule.get("source") == "registry_disposition" else "withheld"
+    if set(disposition) != {"outcome", "reason"} or disposition["outcome"] not in ("withheld", expected) or disposition["reason"] not in reasons:
+        fail("withheld reason")
+    used.add(disposition["reason"])
+
+
 def check_prospective(rule, prospective, fields, catalog):
     target = prospective.get("target")
     pack_field = fields.get(target)
-    if prospective.get("in_force") is not False or pack_field is None or prospective.get("dimension") != catalog.subject(target).get("dimension", {}).get("id") or prospective.get("unit") != pack_field.get("unit"):
+    if prospective.get("in_force") is not (rule.get("native_id") in ACTIVE) or pack_field is None or prospective.get("dimension") != catalog.subject(target).get("dimension", {}).get("id") or prospective.get("unit") != pack_field.get("unit"):
         fail("prospective target")
     native = prospective.get("native")
     if pack_field["kind"] == "symbol":
@@ -467,9 +494,7 @@ def validate_case(case, contract):
     errors = set()
     selection = case.get("luna_selection")
     outcome = selection.get("outcome") if isinstance(selection, dict) else None
-    if outcome == "PROFILE_SELECTED":
-        fail("gate_revision_required")
-    if outcome not in ADMISSION["selection_outcomes_allowed"] or contains_float(case):
+    if outcome not in [ADMITTING] + UNRESOLVED or contains_float(case):
         errors.add("native_evidence_invalid")
     reads = check_case_reads(case, errors)
     check_case_identity(case, errors)
@@ -506,10 +531,16 @@ def read_is_valid(read, key):
     return words is None and code is None
 
 
+def case_packs(identity):
+    """The gateway-allocated pack ResourceIDs of the configured battery, by native position 1 to 3."""
+    packs = (identity.get("resources") or {}).get("packs") if isinstance(identity, dict) else None
+    return packs if isinstance(packs, list) and 1 <= len(packs) <= RESOURCE_ROLES["packs"]["slots"] else [None]
+
+
 def check_case_identity(case, errors):
     identity, source = case.get("identity"), case.get("source")
-    values = (identity.get("asset_id") if isinstance(identity, dict) else None, identity.get("binding_id") if isinstance(identity, dict) else None, source.get("source_id") if isinstance(source, dict) else None)
-    if any(not isinstance(item, str) or not OPAQUE_RE.fullmatch(item) or any(token in item.lower() for token in ID_FORBIDDEN_TEXT) or ID_ADDRESS_RE.search(item) for item in values) or len(set(values)) != 3:
+    values = (identity.get("asset_id") if isinstance(identity, dict) else None, identity.get("binding_id") if isinstance(identity, dict) else None, source.get("source_id") if isinstance(source, dict) else None, *case_packs(identity))
+    if any(not isinstance(item, str) or not OPAQUE_RE.fullmatch(item) or any(token in item.lower() for token in ID_FORBIDDEN_TEXT) or ID_ADDRESS_RE.search(item) for item in values) or len(set(values)) != len(values):
         errors.add("identity_missing_or_invalid")
 
 
@@ -524,40 +555,130 @@ def check_case_lifecycle(case, errors):
         errors.add("lifecycle_missing")
 
 
+def decimal_of(number):
+    return Decimal(int(number["coefficient"])).scaleb(number["exponent10"])
+
+
+def canonical(coefficient, exponent):
+    if coefficient == 0:
+        return {"coefficient": "0", "exponent10": 0}
+    while coefficient % 10 == 0:
+        coefficient //= 10
+        exponent += 1
+    return {"coefficient": str(coefficient), "exponent10": exponent}
+
+
+def convert(coefficient, exponent, conversion):
+    """Exact native x factor + offset in integers; the native value and unit stay in the evidence."""
+    factor, offset = conversion["factor"], conversion["offset"]
+    product, product_exponent = coefficient * int(factor["coefficient"]), exponent + factor["exponent10"]
+    shared = min(product_exponent, offset["exponent10"])
+    return canonical(product * 10 ** (product_exponent - shared) + int(offset["coefficient"]) * 10 ** (offset["exponent10"] - shared), shared)
+
+
+def native_value(words, native):
+    """The native word form of a row: big-endian words, two's complement for a signed type, the gain as a decimal exponent."""
+    raw = 0
+    for word in words:
+        raw = (raw << 16) | word
+    if native["type"].startswith("I") and raw >= 1 << (16 * len(words) - 1):
+        raw -= 1 << (16 * len(words))
+    return raw, GAINS[native["gain"]]
+
+
+def within_bounds(number, bounds):
+    value = decimal_of(number)
+    return all(limit is None or (value >= decimal_of(limit) if name == "minimum" else value <= decimal_of(limit)) for name, limit in bounds.items())
+
+
+def read_reason(read):
+    """The reason a read of a battery group withholds its words, or None when it answered with data."""
+    if read is None or read["outcome"] in ("FAILED", "NOT_READ"):
+        return "storage.reason.battery_group_not_read"
+    if read["outcome"] == "EXCEPTION":
+        return "storage.reason.battery_group_exception_no_negation"
+    return "storage.reason.zero_word_is_not_a_battery_value" if all(word == 0 for word in read["words"]) else None
+
+
+def mapped_row(rule, reads, selected, fields):
+    """(native row, fact) of one active row: withheld by selection or read, withheld out of range, or its fact in SI."""
+    nid = rule["native_id"]
+    reason = None if selected else PRIMARY_REASON
+    read = reads.get((rule["read"]["offset"], rule["read"]["quantity"]))
+    reason = reason or read_reason(read)
+    if reason:
+        return {"native_id": nid, "outcome": "withheld", "reason": reason}, None
+    prospective = rule["prospective"]
+    width = WORD_COUNT[rule["native"]["type"]]
+    raw, exponent = native_value(read["words"][rule["word"]:rule["word"] + width], rule["native"])
+    number = convert(raw, exponent, prospective["conversion"])
+    if not within_bounds(number, fields[prospective["target"]]["bounds"]):
+        return {"native_id": nid, "outcome": "withheld", "reason": "storage.reason.value_outside_pack_range"}, None
+    return {"native_id": nid, "outcome": "transformed", "target": prospective["target"]}, {"rule": rule, "number": number}
+
+
+def native_row(rule, reads, selected, fields):
+    if rule["native_id"] in ACTIVE:
+        return mapped_row(rule, reads, selected, fields)
+    reason = rule["disposition"]["reason"]
+    if rule["source"] == "registry_disposition":
+        reason = read_reason(reads.get((rule["read"]["offset"], rule["read"]["quantity"]))) or NATIVE_ONLY_REASON
+        return {"native_id": rule["native_id"], "outcome": "native_only" if reason == NATIVE_ONLY_REASON else "withheld", "reason": reason}, None
+    return {"native_id": rule["native_id"], "outcome": "withheld", "reason": reason}, None
+
+
+def item_disposition(item_id, rules, rows, facts, reasons, lifecycle):
+    """One requested item: published when a row of its target published, otherwise withheld with the reason of its active row first."""
+    mine = [fact for fact in facts if fact["rule"]["prospective"]["target"] == item_id]
+    if mine:
+        kinds = [kind for kind in LOSS_ORDER if any(kind in fact["rule"]["disposition"]["loss"] for fact in mine)]
+        return {"kind": "fact", "item_id": item_id, "outcome": "transformed", "source_keys": [fact["rule"]["native_id"] for fact in mine], "loss": [{"kind": kind, "source_items": [NATIVE_PREFIX + fact["rule"]["native_id"] for fact in mine]} for kind in kinds]}
+    targeted = sorted((rule for rule in rules if (rule.get("prospective") or {}).get("target") == item_id), key=lambda rule: rule["native_id"] not in ACTIVE)
+    reason = STATUS_REASON if item_id == "storage.status.operating" else (next(row["reason"] for row in rows if row["native_id"] == targeted[0]["native_id"]) if targeted else PRIMARY_REASON)
+    spec = reasons[reason]
+    return {"kind": "fact", "item_id": item_id, "outcome": "withheld", "source_keys": [], "reason": reason,
+            "loss": [{"kind": spec["loss_kind"], "source_items": [NATIVE_PREFIX + "battery"], "description": spec["description"], "reversible": spec["reversible"]}]}
+
+
+LOSS_ORDER = ["unit", "provenance", "policy"]
+
+
 def project(case, contract):
     reads = validate_case(case, contract)
-    rows = []
+    fields, _ = pack_tables()
+    selected = case["luna_selection"]["outcome"] == ADMITTING
+    pack, lifecycle = case_packs(case["identity"])[0], case["lifecycle"]
+    rows, facts = [], []
     for rule in contract["field_rules"]:
-        reason = rule["disposition"]["reason"]
-        if rule["source"] == "registry_disposition":
-            read = reads.get((rule["read"]["offset"], rule["read"]["quantity"]))
-            if read is None or read["outcome"] in ("FAILED", "NOT_READ"):
-                reason = "storage.reason.battery_group_not_read"
-            elif read["outcome"] == "EXCEPTION":
-                reason = "storage.reason.battery_group_exception_no_negation"
-            elif all(word == 0 for word in read["words"]):
-                reason = "storage.reason.zero_word_is_not_a_battery_value"
-            else:
-                reason = PRIMARY_REASON
-        rows.append({"native_id": rule["native_id"], "outcome": "withheld", "reason": reason})
-    spec = contract["reasons"][PRIMARY_REASON]
-    dispositions = [{"kind": "fact", "item_id": item["item_id"], "outcome": "withheld", "source_keys": [], "reason": PRIMARY_REASON,
-                     "loss": [{"kind": spec["loss_kind"], "source_items": [NATIVE_PREFIX + "battery"], "description": spec["description"], "reversible": spec["reversible"]}]} for item in contract["projection"]["requested_items"]]
-    output = {"facts": [], "relations": [], "requested": copy.deepcopy(contract["projection"]["requested_items"]), "dispositions": dispositions, "native_dispositions": rows, "operations": []}
+        row, fact = native_row(rule, reads, selected, fields)
+        rows.append(row)
+        if fact:
+            facts.append(fact)
+    published = [{"item_id": fact["rule"]["prospective"]["target"], "subject": {"dimension": fact["rule"]["prospective"]["dimension"], "resource": pack},
+                  "value": {"number": fact["number"], "unit": fact["rule"]["prospective"]["unit"]}, "grade": fact["rule"]["grade"],
+                  "provenance": {"native_id": fact["rule"]["native_id"], "aggregation_basis": AGGREGATION_BASIS[fact["rule"]["native_id"]], **({"sign": fact["rule"]["prospective"]["sign"]} if "sign" in fact["rule"]["prospective"] else {})},
+                  "observation_id": lifecycle["observation_id"], "observation_revision": lifecycle["observation_revision"]} for fact in facts]
+    requested = copy.deepcopy(contract["projection"]["requested_items"])
+    dispositions = [item_disposition(item["item_id"], contract["field_rules"], rows, facts, contract["reasons"], lifecycle) for item in requested]
+    output = {"facts": published, "relations": [], "requested": requested, "dispositions": dispositions, "native_dispositions": rows, "operations": []}
     assert_complete(output, contract)
     return output
 
 
 def assert_complete(output, contract):
-    """Every native item carries exactly one disposition, a reason, and no value."""
-    if [row["native_id"] for row in output["native_dispositions"]] != [nid for nid, _, _ in INVENTORY] or output["facts"] or output["relations"]:
+    """Every native item carries exactly one disposition; a withheld or native-only row a declared reason; a transformed row exactly its fact."""
+    rows = output["native_dispositions"]
+    if [row["native_id"] for row in rows] != [nid for nid, _, _, _ in INVENTORY] or output["relations"]:
         fail("native disposition completeness")
-    if any(row["outcome"] != "withheld" or row["reason"] not in contract["reasons"] for row in output["native_dispositions"]):
+    if any(row["outcome"] not in ("withheld", "native_only", "transformed") or (row["outcome"] != "transformed" and row["reason"] not in contract["reasons"]) for row in rows):
         fail("withheld without reason")
+    if [row["native_id"] for row in rows if row["outcome"] == "transformed"] != [fact["provenance"]["native_id"] for fact in output["facts"]]:
+        fail("native disposition completeness")
 
 
 def summarize(output):
-    return {"facts": output["facts"], "dispositions": [{"item_id": item["item_id"], "outcome": item["outcome"], "published": len(item["source_keys"]), "reason": item["reason"], "loss": [loss["kind"] for loss in item["loss"]]} for item in output["dispositions"]],
+    return {"facts": [{"item_id": fact["item_id"], "number": fact["value"]["number"], "unit": fact["value"]["unit"], "native_id": fact["provenance"]["native_id"], "aggregation_basis": fact["provenance"]["aggregation_basis"]} for fact in output["facts"]],
+            "dispositions": [{"item_id": item["item_id"], "outcome": item["outcome"], "published": len(item["source_keys"]), "reason": item.get("reason"), "loss": [loss["kind"] for loss in item["loss"]]} for item in output["dispositions"]],
             "native_dispositions": output["native_dispositions"], "operations": output["operations"]}
 
 
@@ -583,7 +704,7 @@ def validate_scenarios(contract):
             continue
         output = run_scenario(scenario, contract)
         check_positive_scenario(scenario, expected, output)
-        seen_reasons |= {row["reason"] for row in output["native_dispositions"]} | {item["reason"] for item in output["dispositions"]}
+        seen_reasons |= {row["reason"] for row in output["native_dispositions"] if "reason" in row} | {item["reason"] for item in output["dispositions"] if "reason" in item}
     if seen_errors != set(ERROR_PRECEDENCE):
         fail("negative scenarios do not cover every error code")
     if seen_reasons != set(contract["reasons"]):
@@ -648,13 +769,14 @@ def plain(number):
 def expected_tables(contract):
     withheld, prospective = [], []
     for rule in contract["field_rules"]:
-        reason = rule["disposition"]["reason"]
-        withheld.append([rule["native_id"], rule["source"], rule["grade"].capitalize(), reason, contract["reasons"][reason]["loss_kind"]])
+        reason = rule["disposition"].get("reason")
+        if reason:
+            withheld.append([rule["native_id"], rule["source"], rule["grade"].capitalize(), reason, contract["reasons"][reason]["loss_kind"]])
         plan = rule.get("prospective")
         if plan:
             rule_text = plan.get("sign") or plan.get("counter") or ("empty table, observed states only" if plan.get("symbols") == [] else "none")
             conversion = "%s, factor %s, offset %s" % (plan["unit"], plain(plan["conversion"]["factor"]), plain(plan["conversion"]["offset"])) if plan.get("conversion") else "none"
-            prospective.append([plan["target"], plan["dimension"], rule["native_id"], native_form(plan.get("native") or rule.get("native")), conversion, "+".join(plan.get("loss", [])) or "none", rule_text, rule["grade"].capitalize()])
+            prospective.append([plan["target"], plan["dimension"], rule["native_id"], native_form(plan.get("native") or rule.get("native")), conversion, "+".join(plan.get("loss", [])) or "none", rule_text, rule["grade"].capitalize(), "yes" if plan["in_force"] else "no"])
     return withheld, prospective
 
 

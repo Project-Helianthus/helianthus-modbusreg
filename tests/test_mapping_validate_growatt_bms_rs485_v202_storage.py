@@ -168,26 +168,41 @@ def graph_member_cases():
     """Section 15 items 1 to 6: every member of each graph entry varied, through the shared checker or the gate's own rules."""
     return [
         # Resource: kind, anchor class, anchor basis, anchor source, scheme, parent kind, evidence.
-        ('resource-kind', lambda d: res(d).update(kind='resource.battery'), 'kind_not_published'),
+        ('resource-kind', lambda d: res(d).update(kind='resource.battery'), 'duplicate_entry'),
         ('resource-kind-not-member', lambda d: res(d).update(kind='resource.storage_bank'), 'kind_not_member'),
         ('resource-anchor-class', lambda d: res(d).update(anchor_class='function'), 'anchor_class_mismatch'),
         ('resource-anchor-basis', lambda d: res(d).update(anchor_basis='native_identity'), 'anchor_basis_mismatch'),
         ('resource-anchor-source-address', lambda d: res(d).update(anchor_source='unit_id'), 'anchor_source_not_allowed'),
-        ('resource-native-slot-for-equipment', lambda d: res(d).update(anchor_basis='native_slot', anchor_source='native_position'), 'graph_anchor'),
+        ('resource-pack-on-operator-label', lambda d: res(d).update(anchor_basis='operator_slot', anchor_source='operator_label'), 'graph_anchor'),
+        ('resource-battery-on-native-position', lambda d: d['graph']['resources'][2].update(anchor_basis='native_slot', anchor_source='native_position'), 'graph_anchor'),
+        ('resource-interface-on-label', lambda d: d['graph']['resources'][4].update(anchor_basis='operator_slot', anchor_source='operator_label'), 'graph_anchor'),
+        ('resource-interface-parent-battery', lambda d: d['graph']['resources'][4].update(parent_kind='resource.battery'), 'graph_parent'),
+        ('resource-system-dropped', lambda d: d['graph']['resources'].pop(3), 'dangling_endpoint $.graph.relations[2].from_kind'),
         ('resource-scheme-not-listed', lambda d: res(d).update(identification_scheme={'id': 'scheme.pack_serial', 'issuer_registry': 'none'}), 'scheme_not_listed'),
         ('resource-parent-kind', lambda d: res(d).update(parent_kind='resource.battery'), 'graph_parent'),
         ('resource-token-stability-unstated', lambda d: res(d).update(evidence=[e for e in res(d)['evidence'] if not e.startswith('native_owner_token_stability:')]), 'graph_evidence'),
-        ('resource-future-token-unstated', lambda d: res(d).update(evidence=[e for e in res(d)['evidence'] if not e.startswith('future_native_token:')]), 'graph_evidence'),
-        ('resource-second-kind', lambda d: d['graph']['resources'].append(dict(res(d), kind='resource.battery')), 'graph_resources'),
+        ('resource-native-contract-unstated', lambda d: res(d).update(evidence=[e for e in res(d)['evidence'] if not e.startswith('native_contract:')]), 'graph_evidence'),
+        ('resource-second-kind', lambda d: d['graph']['resources'].append(dict(res(d), kind='resource.battery')), 'duplicate_entry'),
         # Relations: the named negative, a dangling battery endpoint, a stated relation the evidence does not support.
-        ('cell-relation-by-index-without-module', cell_by_index, 'dangling_endpoint $.graph.relations[0].from_kind'),
-        ('battery-pack-relation-without-battery', lambda d: d['graph']['relations'].append(relation('storage.relation.battery_pack', 'resource.battery', PACK_KIND, ['gate_rule:one_pack'])), 'dangling_endpoint $.graph.relations[0].from_kind'),
+        ('cell-relation-by-index-without-module', cell_by_index, 'dangling_endpoint $.graph.relations[3].from_kind'),
+        ('battery-pack-relation-duplicated', lambda d: d['graph']['relations'].append(relation('storage.relation.battery_pack', 'resource.battery', PACK_KIND, ['gate_rule:one_pack'])), 'duplicate_entry'),
+        # The three required storage relations are stated, each with evidence and scope.
+        ('battery-pack-dropped', lambda d: d['graph']['relations'].pop(0), 'graph_relations'),
+        ('pack-interface-dropped', lambda d: d['graph']['relations'].pop(1), 'graph_relations'),
+        ('system-battery-dropped', lambda d: d['graph']['relations'].pop(2), 'graph_relations'),
+        ('system-battery-by-gate-rule', lambda d: d['graph']['relations'][2].update(basis_class='gate_rule'), 'basis_class_not_admitted'),
+        ('pack-interface-by-configuration', lambda d: d['graph']['relations'][1].update(basis_class='configuration'), 'basis_class_not_admitted'),
+        ('battery-pack-evidence-empty', lambda d: d['graph']['relations'][0].update(evidence=[]), 'invalid_value'),
+        ('pack-interface-scope-widened', lambda d: d['graph']['relations'][1]['validity_scope'].update(rule_scope='every_interface'), 'graph_relations'),
+        ('system-battery-scope-profile', lambda d: d['graph']['relations'][2]['validity_scope'].update(profile='other'), 'graph_relations'),
+        ('battery-pack-absence-claimed', lambda d: d['graph']['relations'][0].update(absence_sides=['to']), 'graph_relations'),
         ('relation-not-supported-by-evidence', lambda d: d['graph']['relations'].append(dict(relation('relation.relays', PACK_KIND, PACK_KIND, ['gate_rule:x']), basis_class='configuration')), 'graph_relations'),
         # Relayed values: the pack is read directly.
         ('relayed-stated', lambda d: d['graph']['relayed'].append({'relaying_kind': PACK_KIND, 'relayed_kind': PACK_KIND, 'direct_anchor_key_source': 'none'}), 'graph_relayed'),
         ('relayed-address-key', lambda d: d['graph']['relayed'].append({'relaying_kind': PACK_KIND, 'relayed_kind': PACK_KIND, 'direct_anchor_key_source': 'unit_id'}), 'anchor_source_not_allowed'),
         # Two paths: kind, observations, basis, native tokens.
-        ('join-kind', lambda d: join(d).update(kind='resource.battery'), 'kind_not_published'),
+        ('join-kind', lambda d: join(d).update(kind='resource.battery'), 'graph_joins'),
+        ('join-kind-unpublished', lambda d: join(d).update(kind='resource.meter'), 'kind_not_published'),
         ('join-observations', lambda d: join(d).update(observations=['read_directly_over_rs485', 'seen_by_label']), 'graph_joins'),
         ('join-by-label', lambda d: join(d).update(basis='label'), 'join_basis_not_allowed'),
         ('join-false-native-tokens', lambda d: join(d).update(native_tokens='differ'), 'false_join'),
@@ -220,8 +235,9 @@ def unstated_cases():
         ('unstated-from-kind', lambda d: row(d, 'storage.relation.module_cell').update(from_kind=PACK_KIND), 'unstated_relations'),
         ('unstated-to-kind', lambda d: row(d, 'storage.relation.module_cell').update(to_kind='resource.battery_module'), 'unstated_relations'),
         ('unstated-absent', lambda d: row(d, 'storage.relation.pack_string').update(outcome='absent'), 'unstated_relations'),
-        ('unstated-withheld-by', lambda d: row(d, 'storage.relation.pack_interface').update(withheld_by='unsupported:not_in_the_list'), 'unstated_relations'),
-        ('unstated-system-battery', lambda d: row(d, 'storage.relation.system_battery').update(withheld_by='gate_rule:none'), 'unstated_relations'),
+        ('unstated-withheld-by', lambda d: row(d, 'storage.relation.pack_string').update(withheld_by='unsupported:not_in_the_list'), 'unstated_relations'),
+        ('unstated-system-battery-returned', lambda d: d['unstated_relations'].append({'definition': 'storage.relation.system_battery', 'from_kind': 'resource.storage_system', 'to_kind': 'resource.battery', 'outcome': 'unknown_not_absent', 'withheld_by': 'configuration:none'}), 'unstated_relations'),
+        ('unstated-pack-interface-returned', lambda d: d['unstated_relations'].append({'definition': 'storage.relation.pack_interface', 'from_kind': PACK_KIND, 'to_kind': 'resource.storage_interface', 'outcome': 'unknown_not_absent', 'withheld_by': 'native_contract:none'}), 'unstated_relations'),
     ]
 
 
@@ -299,7 +315,7 @@ def check_published_subjects():
     baseline = contract['scenarios'][0]
     resources = baseline['identity']['resources']
     role_of = {spec['dimension']: role for role, spec in m.RESOURCE_ROLES.items()}
-    identifiers = [resources[role] for role in m.RESOURCE_ROLES]
+    identifiers = [resources[role] for role, spec in m.RESOURCE_ROLES.items() if spec['source'] == m.ALLOCATED]
     if len(set(identifiers + [baseline['identity']['asset_id'], baseline['identity']['binding_id'], baseline['source']['source_id']])) != len(identifiers) + 3:
         raise AssertionError('a ResourceID repeats another identifier')
     case = copy.deepcopy(baseline)
