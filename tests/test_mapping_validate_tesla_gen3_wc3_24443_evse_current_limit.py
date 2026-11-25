@@ -234,13 +234,13 @@ def candidate_cases(baseline, contract):
 
 
 BOUND = {"source_epoch": "epoch.wc3.1", "driver_generation": 1, "lifecycle_generation": 1}
-OTHER = {"source_epoch": "epoch.wc3.2", "driver_generation": 2, "lifecycle_generation": 2}
+OTHER_BINDING = {"source_epoch": "epoch.wc3.2", "driver_generation": 2, "lifecycle_generation": 2}
 
 
 def newer_t28_cases(baseline, contract):
     """Every binding member is varied, removed and kept on the newer t28; the configured current, allocated current and retained native timeout follow."""
     newer = [("set", "provisional.ConfiguredCurrentAmps", 32), ("set", "evidence.provisional.receipt_timestamp", "2026-09-10T00:00:05Z")]
-    bound, other = BOUND, OTHER
+    bound, other = BOUND, OTHER_BINDING
     cases = [("newer_t28_same_binding_wins", {}, "32")]
     for key in bound:
         cases.append((f"newer_t28_same_{key}_wins", {key: bound[key]}, "32"))
@@ -273,7 +273,7 @@ def newer_t28_cases(baseline, contract):
 
 def foreign_t8_cases(baseline, contract):
     """A t8 of another epoch or generation, with a malformed current, is excluded and does not veto the current lifecycle; a malformed t8 that merely leaves a member out is still rejected."""
-    bound, other = BOUND, OTHER
+    bound, other = BOUND, OTHER_BINDING
     for key in bound:
         foreign_t8 = copy.deepcopy(baseline)
         foreign_t8["evidence"]["persistent"][key] = other[key]
@@ -293,11 +293,34 @@ def foreign_t8_cases(baseline, contract):
             raise AssertionError(f"a malformed t8 without {key} was accepted")
 
 
+def unbound_t8_evidence_cases(baseline, contract):
+    """A t8 that leaves a binding member out does not satisfy the case evidence without a valid t28; each member is removed."""
+    for key in BOUND:
+        unbound = copy.deepcopy(baseline)
+        unbound["evidence"]["persistent"].pop(key)
+        unbound["evidence"]["provisional"]["provisional_readback_terminal"] = "bad"
+        try:
+            mapping.project(unbound, contract)
+        except ValueError as error:
+            if str(error) != "evidence_binding_invalid":
+                raise AssertionError(f"unbound t8 without {key}: {error}")
+        else:
+            raise AssertionError(f"an unbound t8 without {key} satisfied the evidence gate")
+        kept = copy.deepcopy(baseline)
+        kept["evidence"]["provisional"]["provisional_readback_terminal"] = "bad"
+        mapping.mutate(kept, {"path": "evidence.provisional.provisional_readback_terminal", "value": "bad"})
+        try:
+            mapping.project(kept, contract)
+        except ValueError:
+            raise AssertionError("a bound t8 no longer satisfies the evidence gate")
+
+
 def epoch_cases(baseline, contract):
     """Section 6.1: the later receipt wins only among candidates of the case's own epoch and generation."""
-    bound, other = BOUND, OTHER
+    bound, other = BOUND, OTHER_BINDING
     newer_t28_cases(baseline, contract)
     foreign_t8_cases(baseline, contract)
+    unbound_t8_evidence_cases(baseline, contract)
     for key in bound:
         older_other = copy.deepcopy(baseline)
         older_other["evidence"]["persistent"][key] = other[key]
@@ -319,7 +342,7 @@ def foreign_evidence_cases(baseline, contract):
     """A foreign t8 does not stand in for missing valid evidence, and a foreign t28 derives no expiry; each binding member is varied."""
     for key in BOUND:
         both_malformed = copy.deepcopy(baseline)
-        both_malformed["evidence"]["persistent"][key] = OTHER[key]
+        both_malformed["evidence"]["persistent"][key] = OTHER_BINDING[key]
         both_malformed["evidence"]["persistent"]["persistent_terminal"] = "bad"
         both_malformed["evidence"]["provisional"]["provisional_readback_terminal"] = "bad"
         try:
@@ -332,7 +355,7 @@ def foreign_evidence_cases(baseline, contract):
         foreign_t28 = copy.deepcopy(baseline)
         for path, value in (("managed_set", managed_set()), ("evidence.provisional.receipt_timestamp", "2026-09-10T00:01:10Z")):
             mapping.mutate(foreign_t28, {"path": path, "value": value})
-        foreign_t28["evidence"]["provisional"][key] = OTHER[key]
+        foreign_t28["evidence"]["provisional"][key] = OTHER_BINDING[key]
         result = mapping.project(foreign_t28, contract)
         if any(entry["field"] == "AllocationExpiry" for entry in result["native"]):
             raise AssertionError(f"a t28 of another {key} derived an expiry")

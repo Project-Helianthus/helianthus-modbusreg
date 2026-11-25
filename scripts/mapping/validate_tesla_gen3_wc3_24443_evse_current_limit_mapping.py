@@ -367,7 +367,7 @@ def case_evidence_valid(case):
     if "persistent" not in case:
         return provisional_valid(case)
     evidence = case.get("evidence", {}).get("persistent")
-    if foreign_to_lifecycle(evidence, case.get("lifecycle")):
+    if not bound_to_lifecycle(evidence, case.get("lifecycle")):
         return provisional_valid(case)
     return valid_evidence(evidence, PERSISTENT_REFS)
 
