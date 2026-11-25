@@ -32,7 +32,7 @@ HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
 # Approved immutable owner links (the exception applies only where the link is the Markdown destination): the pinned docs-semantic revision, owning path, optional non-line anchor.
 OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
 OWNER_URL_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?")
-MD_LINK_RE = re.compile(r"\[(?P<label>(?:[^\[\]]|\[[^\[\]]*\])*)\]\(\s*(?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)|^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)[ \t]*$", re.MULTILINE)
+MD_LINK_RE = re.compile(r"\[(?P<label>(?:[^\[\]]|\[[^\[\]]*\])*)\]\(\s*(?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)|^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)(?P<reftitle>[ \t]+(?:\"[^\"]*\"|\'[^\']*\'|\([^\n]*\)))?[ \t]*$", re.MULTILINE)
 # A line anchor and a private or IPv4 endpoint are never published, whether or not an owner link surrounds them.
 LINE_ANCHOR_RE = re.compile(r"#L[0-9]")
 ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")
@@ -41,7 +41,7 @@ ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-
 def _owner_destination(link):
     """The destination of a complete Markdown link when it is an approved owner URL without a title, else None."""
     destination = link.group("angle") or link.group("bare") or (link.group("refdest") or "").strip("<>")
-    if link.group("title") is None and OWNER_URL_RE.fullmatch(destination):
+    if link.group("title") is None and link.group("reftitle") is None and OWNER_URL_RE.fullmatch(destination):
         return destination
     return None
 
@@ -677,14 +677,19 @@ def native_power(words, native):
     return raw, GAINS[native["gain"]]
 
 
+def meter_route_at(route, unit):
+    """True when a runtime route read identifies the given routed unit as a meter exposure: that unit is then a meter route, and the plant route is not evidenced there."""
+    return route is not None and route["exposure"] != PLANT_ROUTE["exposure"] and route["routed_unit"] == unit
+
+
 def gate_reason(case, declared, rule, read):
-    """The reason an active row is withheld before its words are decoded, or None: unresolved selection, role, the plant route (a case running on a configured meter exposure's own route, or on the known gateway-level route, is no plant read), then the read."""
+    """The reason an active row is withheld before its words are decoded, or None: unresolved selection, role, the plant route (a case running on a configured or runtime-identified meter exposure's own route, or on the known gateway-level route, is no plant read), then the read."""
     if case["selection"]["outcome"] != ADMITTING:
         return PRIMARY_REASON
     if declared != rule["prospective"][0]["role"]:
         return "infrastructure.reason.role_not_declared"
-    declared_route = case["meter"]["declared"]
-    if case["meter"]["identity_read"] == GATEWAY_LEVEL or case.get("routed_unit") != PLANT_ROUTE["routed_unit"] or (declared_route is not None and declared_route["routed_unit"] == case.get("routed_unit")):
+    declared_route, runtime_route = case["meter"]["declared"], case["meter"]["identity_read"]
+    if runtime_route == GATEWAY_LEVEL or case.get("routed_unit") != PLANT_ROUTE["routed_unit"] or (declared_route is not None and declared_route["routed_unit"] == case.get("routed_unit")) or meter_route_at(runtime_route, case.get("routed_unit")):
         return "infrastructure.reason.group_not_read"
     if read is None or read["outcome"] in ("FAILED", "NOT_READ"):
         return "infrastructure.reason.group_not_read"

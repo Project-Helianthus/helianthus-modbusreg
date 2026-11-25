@@ -1084,6 +1084,13 @@ def test_owner_link_in_a_foreign_link_title_gets_no_exception():
             v.check_document(v.load(), page() + "\n[owner](https://example.invalid/x " + quote + "see " + OWNER_BASE + "api/v1/graph.md" + quote + ")\n")
 
 
+def test_owner_link_in_a_reference_definition_title_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for title in ('"see [b](' + approved + ')"', "'see [b](" + approved + ")'", "(see [b](" + approved + "))"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n[r]: https://example.invalid/x " + title + "\n")
+
+
 def test_owner_link_in_code_or_a_continuation_title_gets_no_exception():
     approved = OWNER_BASE + "api/v1/graph.md"
     for text in ("```\n[a](" + approved + ")\n```", "~~~\n[a](" + approved + ")\n~~~", "`[a](" + approved + ")`", "    [a](" + approved + ")", "[r]: https://example.invalid/x\n  \"" + approved + "\"", "[r]: https://example.invalid/x\n  (" + approved + ")"):

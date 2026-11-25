@@ -49,8 +49,8 @@ exposures: it is no meter exposure, it cannot be declared as a configured
 meter, and it establishes no meter identity.
 
 The plant grid exchange is a separate statement. The S-Dongle plant group at
-routed unit 100 states the grid power of the plant (Proven as an observation,
-with a Hypothesis value form). It establishes no meter exposure and no meter
+routed unit 100 is the declared route for the grid power of the plant; whether
+that group answers is Unknown, and its value form is a Hypothesis. It establishes no meter exposure and no meter
 identity, and whether it comes from the same meter as the inverter-side
 exposure is Unknown. A published plant fact names the grid connection resource
 and carries the plant route in its provenance, and no meter. The registry

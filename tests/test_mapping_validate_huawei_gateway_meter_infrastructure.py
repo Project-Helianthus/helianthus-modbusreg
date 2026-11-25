@@ -293,6 +293,25 @@ def test_a_read_exception_does_not_erase_a_runtime_route_that_differs_from_the_d
     assert output["facts"] == [] and row_reasons(output)[SMARTLOGGER_GROUP] == "infrastructure.reason.identity_mismatch"
 
 
+@parametrize("declared,identity_read", [
+    (route(SMARTLOGGER, 11), route(SMARTLOGGER, 100)),
+    (route(INVERTER_SIDE, 1), route(INVERTER_SIDE, 100)),
+])
+def test_a_runtime_meter_route_at_unit_100_is_no_plant_route_evidence(declared, identity_read):
+    document = with_plant(1500)
+    document["meter"]["declared"], document["meter"]["identity_read"] = declared, identity_read
+    document["reads"].append({"native_id": SMARTLOGGER_GROUP, "outcome": "ANSWERED"})
+    output = project(document)
+    assert output["facts"] == [] and row_reasons(output)["sdongle_plant_grid_power"] == "infrastructure.reason.group_not_read"
+    assert row_reasons(output)[SMARTLOGGER_GROUP] == "infrastructure.reason.identity_mismatch"
+
+
+def test_a_plant_read_publishes_beside_a_meter_route_read_at_another_unit():
+    document = with_plant(1500)
+    document["meter"]["declared"] = document["meter"]["identity_read"] = route(SMARTLOGGER, 11)
+    assert [fact["item_id"] for fact in project(document)["facts"]] == ["infrastructure.power.import_active"]
+
+
 def test_a_plant_read_at_unit_100_with_gateway_level_route_evidence_publishes_no_plant_fact():
     document = with_plant(1500)
     document["meter"]["identity_read"] = route(EMMA_GATEWAY, 0)
@@ -1039,6 +1058,13 @@ def test_owner_link_in_a_foreign_link_title_gets_no_exception():
     for quote in ('"', "'"):
         with Raises(ValueError, match="publication"):
             v.check_document(v.load(), page() + "\n[owner](https://example.invalid/x " + quote + "see " + OWNER_BASE + "api/v1/graph.md" + quote + ")\n")
+
+
+def test_owner_link_in_a_reference_definition_title_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for title in ('"see [b](' + approved + ')"', "'see [b](" + approved + ")'", "(see [b](" + approved + "))"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n[r]: https://example.invalid/x " + title + "\n")
 
 
 def test_owner_link_in_code_or_a_continuation_title_gets_no_exception():

@@ -553,7 +553,6 @@
       "condition": "battery_resource_of_its_own_family_exists",
       "outcome_when_absent": "unknown_not_absent",
       "evidence": [
-        "native_page:huawei/sun2000-semreg-relations-v1",
         "native_observation:battery_read_through_the_inverter_register_space"
       ],
       "validity_scope": {
@@ -570,7 +569,6 @@
       "condition": "meter_resource_of_its_own_family_exists",
       "outcome_when_absent": "unknown_not_absent",
       "evidence": [
-        "native_page:huawei/sun2000-semreg-relations-v1",
         "native_observation:meter_read_through_the_inverter_register_space"
       ],
       "validity_scope": {

@@ -1256,6 +1256,13 @@ def test_owner_link_in_a_foreign_link_title_gets_no_exception():
             v.check_document(v.load(), page() + "\n[owner](https://example.invalid/x " + quote + "see " + OWNER_LINK + quote + ")\n")
 
 
+def test_owner_link_in_a_reference_definition_title_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for title in ('"see [b](' + approved + ')"', "'see [b](" + approved + ")'", "(see [b](" + approved + "))"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n[r]: https://example.invalid/x " + title + "\n")
+
+
 def test_owner_link_in_code_or_a_continuation_title_gets_no_exception():
     approved = OWNER_BASE + "api/v1/graph.md"
     for text in ("```\n[a](" + approved + ")\n```", "~~~\n[a](" + approved + ")\n~~~", "`[a](" + approved + ")`", "    [a](" + approved + ")", "[r]: https://example.invalid/x\n  \"" + approved + "\"", "[r]: https://example.invalid/x\n  (" + approved + ")"):
@@ -1334,6 +1341,40 @@ def test_the_value_aligned_power_group_extent_validates_the_allocated_phases():
     assert not any(fact["key"]["dimensions"][0]["id"] == "pv.dimension.phase" for fact in output["facts"])
 
 
+M3_PHASES = ["resource:demo-phase-beta-%d" % n for n in range(1, 4)]
+
+
+def aligned_m3_case(replace_refusal, outcome="ANSWERED"):
+    document = phase_case([1, 2, 3], name="m3", ids=M3_PHASES)
+    aligned = {"offset": 32064, "quantity": 33, "outcome": outcome}
+    if outcome != "ANSWERED":
+        aligned["exception_code"] = 2
+    if replace_refusal:
+        document["groups"] = [aligned if (group["offset"], group["quantity"]) == (32064, 32) else group for group in document["groups"]]
+    else:
+        document["groups"].append(aligned)
+    return document
+
+
+@parametrize("replace_refusal", [True, False])
+def test_an_answered_aligned_power_group_validates_phases_for_a_profile_that_records_the_shorter_read_as_refused(replace_refusal):
+    output = project(aligned_m3_case(replace_refusal))
+    assert phase_relations(output) == [("resource:demo-inverter-beta", item) for item in M3_PHASES]
+
+
+@parametrize("replace_refusal", [True, False])
+def test_an_aligned_power_group_that_did_not_answer_publishes_no_phase_for_that_profile(replace_refusal):
+    with Raises(ValueError, match="native_evidence_invalid"):
+        project(aligned_m3_case(replace_refusal, outcome="EXCEPTION"))
+
+
+def test_the_shorter_refusal_stays_a_distinct_record_beside_an_answered_aligned_read():
+    document = aligned_m3_case(False)
+    document["groups"][2]["exception_code"] = 2
+    with Raises(ValueError, match="native_evidence_invalid"):
+        project(document)
+
+
 def test_a_reported_phase_position_without_its_identity_fails_closed():
     with Raises(ValueError, match="identity_missing_or_invalid"):
         project(phase_case([2], ids=[PHASES[0], None, PHASES[2]]))
@@ -1366,6 +1407,14 @@ def test_the_phase_allocation_is_the_drivers_and_the_gate_publishes_no_source_st
         for word in ("pull request", "pull_request", "issue ", "\"issue\"", "synthetic", "independent check", "helianthus-docs-ebus", "helianthus-modbusreg", "registry_profiles", "program_issues", "multi_endpoint_contract", "derive from the published"):
             assert word not in text, word
     assert document["evidence"] == {"grades": ["proven", "hypothesis", "unknown"]}
+
+
+def test_the_relay_declarations_keep_their_evidence_class_and_publish_no_source_location():
+    rows = contract()["conditional_relations"]
+    assert [row["to_kind"] for row in rows] == ["resource.battery", "resource.meter"]
+    for row in rows:
+        assert row["basis_class"] == "native_observation" and row["evidence"] and all(item.startswith("native_observation:") for item in row["evidence"]), row["to_kind"]
+    assert "native_page" not in json.dumps(contract()).lower() and "native_page" not in page().lower()
 
 
 if __name__ == "__main__":

@@ -35,7 +35,7 @@ HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
 # Approved immutable owner links (the exception applies only where the link is the Markdown destination): the pinned docs-semantic revision, owning path, optional non-line anchor.
 OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
 OWNER_URL_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?")
-MD_LINK_RE = re.compile(r"\[(?P<label>(?:[^\[\]]|\[[^\[\]]*\])*)\]\(\s*(?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)|^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)[ \t]*$", re.MULTILINE)
+MD_LINK_RE = re.compile(r"\[(?P<label>(?:[^\[\]]|\[[^\[\]]*\])*)\]\(\s*(?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)|^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)(?P<reftitle>[ \t]+(?:\"[^\"]*\"|\'[^\']*\'|\([^\n]*\)))?[ \t]*$", re.MULTILINE)
 # A line anchor and a private or IPv4 endpoint are never published, whether or not an owner link surrounds them.
 LINE_ANCHOR_RE = re.compile(r"#L[0-9]")
 ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")
@@ -44,7 +44,7 @@ ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-
 def _owner_destination(link):
     """The destination of a complete Markdown link when it is an approved owner URL without a title, else None."""
     destination = link.group("angle") or link.group("bare") or (link.group("refdest") or "").strip("<>")
-    if link.group("title") is None and OWNER_URL_RE.fullmatch(destination):
+    if link.group("title") is None and link.group("reftitle") is None and OWNER_URL_RE.fullmatch(destination):
         return destination
     return None
 
@@ -722,8 +722,9 @@ def check_case_groups(case, profile, errors):
     refused = {(g["offset"], g["quantity"]) for g in profile["refused_groups"]}
     for group in case.get("groups") if isinstance(case.get("groups"), list) else [None]:
         key = (group.get("offset"), group.get("quantity")) if isinstance(group, dict) else None
-        key = PHASE_GROUP if key == PHASE_GROUP_ALIGNED else key
-        if key not in plan | refused or key in groups or group.get("outcome") not in ("ANSWERED", "EXCEPTION", "FAILED", "NOT_READ"):
+        # The aligned extent answers the planned power group where the profile plans it; where the profile records that group as refused, the aligned read is its own group and the refusal stays a distinct record.
+        key = PHASE_GROUP if key == PHASE_GROUP_ALIGNED and PHASE_GROUP in plan else key
+        if key not in plan | refused | {PHASE_GROUP_ALIGNED} or key in groups or group.get("outcome") not in ("ANSWERED", "EXCEPTION", "FAILED", "NOT_READ"):
             errors.add("native_evidence_invalid")
             continue
         code = group.get("exception_code")
@@ -772,7 +773,7 @@ def check_case_phases(case, resources, groups, errors):
         return
     positions = case["phases"]
     slots = RESOURCE_ROLES["phases"]["slots"]
-    if not isinstance(positions, list) or not positions or any(type(item) is not int or not 1 <= item <= slots for item in positions) or len(set(positions)) != len(positions) or groups.get(PHASE_GROUP) != "ANSWERED":
+    if not isinstance(positions, list) or not positions or any(type(item) is not int or not 1 <= item <= slots for item in positions) or len(set(positions)) != len(positions) or "ANSWERED" not in (groups.get(PHASE_GROUP), groups.get(PHASE_GROUP_ALIGNED)):
         errors.add("native_evidence_invalid")
     elif resources is None or "phases" not in resources or any(resources["phases"][position - 1] is None for position in positions):
         errors.add("identity_missing_or_invalid")
@@ -927,7 +928,7 @@ def hold(native_rows, item_reasons, rule, index, reason):
 def fact_outcome(nid, rule, n, fact, facts, groups, catalog):
     """Return (reason, value) for one native fact: a withheld reason, or the published value."""
     if fact["availability"] != "VALUE":
-        answered = groups.get((32064, 32)) == "ANSWERED"
+        answered = "ANSWERED" in (groups.get(PHASE_GROUP), groups.get(PHASE_GROUP_ALIGNED))
         return ("pv.reason.state_code_not_observed" if nid == "device_status" and answered else "pv.reason.native_fact_unknown"), None
     if nid == "device_status":
         return None, {"kind": "symbol", "symbol": {"namespace": rule["target"], "token": rule["symbols"][fact["state"]], "known": True}}
