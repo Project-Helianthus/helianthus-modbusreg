@@ -72,7 +72,7 @@ read. The route identity is decided first, from the case, and does not depend on
 The plant group is read only from its own routed unit; from another unit it is
 `infrastructure.reason.group_not_read`. A case whose routed unit is the routed unit of its configured meter exposure runs on that meter route and is no
 evidence of the plant route, so its plant group is `infrastructure.reason.group_not_read`; a configured meter exposure at another unit
-publishes or withholds no plant fact. A case whose runtime route is the known gateway-level route is no evidence of the plant route either, and its plant group is `infrastructure.reason.group_not_read`. A case that also requests a group of a documented meter exposure, answered or not, identifies its routed unit as that exposure's route and is no evidence of the plant route, whatever is declared; its plant group is `infrastructure.reason.group_not_read`. All registry flags stay false, and
+publishes or withholds no plant fact. A case whose runtime route is the known gateway-level route is no evidence of the plant route either, and its plant group is `infrastructure.reason.group_not_read`. A request for a documented meter group also withholds plant publication, except when the meter request failed or returned an exception on a mismatched route. In that case the meter group reports `infrastructure.reason.identity_mismatch`, and the plant group is judged independently of that request. All registry flags stay false, and
 `outbound_allowed=false` grants no operation.
 
 Each remaining precondition is decided from the documents, with its grade:

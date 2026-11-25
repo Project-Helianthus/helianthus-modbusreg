@@ -38,6 +38,11 @@
             "use": "consumed"
           },
           {
+            "offset": 32064,
+            "quantity": 33,
+            "use": "optional_phase_positions"
+          },
+          {
             "offset": 32106,
             "quantity": 10,
             "use": "consumed"
@@ -135,6 +140,11 @@
             "offset": 32064,
             "quantity": 32,
             "use": "consumed"
+          },
+          {
+            "offset": 32064,
+            "quantity": 33,
+            "use": "optional_phase_positions"
           },
           {
             "offset": 32106,
@@ -697,7 +707,7 @@
     },
     "pv.reason.power_group_refused": {
       "loss_kind": "provenance",
-      "description": "the family refused the power group with an exception and the cause is Unknown; per-inverter power is Unknown, not zero",
+      "description": "the quantity-32 refusal is a recorded result with Unknown cause; the M3 profile does not publish per-inverter power, which is Unknown, not zero",
       "reversible": true
     },
     "pv.reason.period_counter_time_domain_not_represented": {
@@ -2835,7 +2845,7 @@
                   "source_items": [
                     "native.huawei.sun2000.active_power"
                   ],
-                  "description": "the family refused the power group with an exception and the cause is Unknown; per-inverter power is Unknown, not zero",
+                  "description": "the quantity-32 refusal is a recorded result with Unknown cause; the M3 profile does not publish per-inverter power, which is Unknown, not zero",
                   "reversible": true
                 }
               ]
@@ -2852,7 +2862,7 @@
                   "source_items": [
                     "native.huawei.sun2000.input_power"
                   ],
-                  "description": "the family refused the power group with an exception and the cause is Unknown; per-inverter power is Unknown, not zero",
+                  "description": "the quantity-32 refusal is a recorded result with Unknown cause; the M3 profile does not publish per-inverter power, which is Unknown, not zero",
                   "reversible": true
                 }
               ]
@@ -2947,7 +2957,7 @@
                   "source_items": [
                     "native.huawei.sun2000.device_status"
                   ],
-                  "description": "the family refused the power group with an exception and the cause is Unknown; per-inverter power is Unknown, not zero",
+                  "description": "the quantity-32 refusal is a recorded result with Unknown cause; the M3 profile does not publish per-inverter power, which is Unknown, not zero",
                   "reversible": true
                 }
               ]

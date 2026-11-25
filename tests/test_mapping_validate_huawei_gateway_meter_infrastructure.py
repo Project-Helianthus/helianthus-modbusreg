@@ -370,6 +370,36 @@ def test_a_requested_meter_group_at_unit_100_is_no_plant_route_evidence_without_
     assert output["facts"] == [] and row_reasons(output)["sdongle_plant_grid_power"] == "infrastructure.reason.group_not_read"
 
 
+INVERTER_SIDE_GROUP = "sdongle_inverter_exposed_meter_group"
+
+
+@parametrize("native_id,declared,runtime,unit,outcome,reason,publishes", [
+    (INVERTER_SIDE_GROUP, route(INVERTER_SIDE, 1), route(INVERTER_SIDE, 1), 100, "FAILED", MISMATCH, True),
+    (INVERTER_SIDE_GROUP, route(INVERTER_SIDE, 1), route(INVERTER_SIDE, 1), 100, "EXCEPTION", MISMATCH, True),
+    (INVERTER_SIDE_GROUP, route(INVERTER_SIDE, 1), route(INVERTER_SIDE, 1), 100, "ANSWERED", MISMATCH, False),
+    (SMARTLOGGER_GROUP, route(SMARTLOGGER, 11), route(SMARTLOGGER, 11), 100, "FAILED", MISMATCH, True),
+    (SMARTLOGGER_GROUP, route(INVERTER_SIDE, 1), route(INVERTER_SIDE, 1), 100, "FAILED", MISMATCH, True),
+    (INVERTER_SIDE_GROUP, route(INVERTER_SIDE, 1), route(INVERTER_SIDE, 100), 100, "FAILED", MISMATCH, False),
+    (INVERTER_SIDE_GROUP, route(INVERTER_SIDE, 100), route(INVERTER_SIDE, 1), 100, "FAILED", MISMATCH, False),
+    (INVERTER_SIDE_GROUP, route(INVERTER_SIDE, 1), route(INVERTER_SIDE, 1), 101, "FAILED", MISMATCH, False),
+    (INVERTER_SIDE_GROUP, None, None, 100, "FAILED", STATIC, False),
+    (INVERTER_SIDE_GROUP, route(INVERTER_SIDE, 1), route(INVERTER_SIDE, 1), 100, "NOT_READ", STATIC, True),
+    (INVERTER_SIDE_GROUP, route(INVERTER_SIDE, 1), route(SMARTLOGGER, 1), 100, "NOT_READ", MISMATCH, True),
+    (INVERTER_SIDE_GROUP, route(SMARTLOGGER, 1), route(SMARTLOGGER, 1), 100, "NOT_READ", STATIC, True),
+])
+def test_a_failed_wrong_route_meter_request_does_not_mask_an_independent_plant_read(native_id, declared, runtime, unit, outcome, reason, publishes):
+    document = with_plant(1500, routed_unit=unit, meter__declared=declared, meter__identity_read=runtime)
+    read = {"native_id": native_id, "outcome": outcome}
+    if outcome == "EXCEPTION":
+        read["exception_code"] = 3
+    document["reads"].append(read)
+    output = project(document)
+    assert row_reasons(output)[native_id] == reason
+    plant = next(row for row in output["native_dispositions"] if row["native_id"] == "sdongle_plant_grid_power")
+    assert plant["outcome"] == ("transformed" if publishes else "withheld")
+    assert [(fact["item_id"], watts(fact)) for fact in output["facts"]] == ([("infrastructure.power.import_active", 1500)] if publishes else [])
+
+
 def test_a_meter_group_that_was_not_read_leaves_the_plant_read_publishing():
     document = with_plant(1500)
     document["reads"].append({"native_id": SMARTLOGGER_GROUP, "outcome": "NOT_READ"})
