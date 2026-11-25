@@ -1,0 +1,24 @@
+{
+  "family_id": "tesla-legacy-fbe0-fde0",
+  "name": "Tesla legacy Wall Connector FBE0/FDE0 (RS-485)",
+  "native_owner": "Project-Helianthus/helianthus-modbusreg",
+  "semantic_pack": "helianthus.pack.evse@1.0.0",
+  "state": "candidate",
+  "composition": "not_composed",
+  "reason": "family_compatible_offline",
+  "evidence": [
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg@1d92f28",
+      "kind": "native_evidence",
+      "locator": "tesla_legacy_fbe0_fde0.go",
+      "statement": "TeslaLegacyFamilyCompatible and TeslaLegacyBuildConfirmed evidence tiers; relative/unknown state carries no absolute allocation"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-docs-semantic@30f5e5c",
+      "kind": "semantic_contract",
+      "locator": "compatibility/donor-ledger.md",
+      "statement": "Tesla FBE0/FDE0 is offline family-compatible native evidence only; allocated and actual current remain separate; no sender, control route or live authority"
+    }
+  ],
+  "composition_verified": false
+}

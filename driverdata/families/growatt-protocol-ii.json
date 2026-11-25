@@ -1,0 +1,36 @@
+{
+  "family_id": "growatt-protocol-ii",
+  "name": "Growatt Protocol II (Modbus)",
+  "native_owner": "Project-Helianthus/helianthus-modbusreg",
+  "semantic_pack": "helianthus.pack.pv@1.0.0",
+  "state": "unknown",
+  "composition": "not_composed",
+  "reason": "no_admissible_profile",
+  "evidence": [
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg@1d92f28",
+      "kind": "native_disposition",
+      "locator": "profiles/vendor/growatt/disposition.json",
+      "statement": "outcome OFFLINE_IDENTITY_ADMITTED only; unresolved: automatic_detector_uniqueness, exact_fc04_telemetry_schema, runtime_admission_contract; support_claim=false"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg@1d92f28",
+      "kind": "native_evidence",
+      "locator": "growatt_protocol_ii_fc04.go",
+      "statement": "pinned Protocol II v1.24 source establishes no admissible exact device-type/model-build/protocol tuple; no public successful FC04 applicability constructor"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-docs-modbus#143",
+      "kind": "issue",
+      "locator": "https://github.com/Project-Helianthus/helianthus-docs-modbus/issues/143",
+      "statement": "TL3-X tuple and FC04 field evidence qualification (closed, evidence still blocks admission)"
+    },
+    {
+      "owner": "Project-Helianthus/helianthus-modbusreg#196",
+      "kind": "issue",
+      "locator": "https://github.com/Project-Helianthus/helianthus-modbusreg/issues/196",
+      "statement": "admit an exact FC04 profile and complete native monitoring (open)"
+    }
+  ],
+  "composition_verified": false
+}

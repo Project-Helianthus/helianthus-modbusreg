@@ -1,0 +1,12 @@
+{
+  "id": "pv.mapping.growatt.protocol_ii",
+  "native_owner": "helianthus-docs-modbus",
+  "source_refs": [
+    "growatt_docs_modbus",
+    "growatt_modbusreg"
+  ],
+  "state": "candidate",
+  "qualification": "blocked_docs_modbus_143_modbusreg_196",
+  "applicability": "tl3_x_offsets_59_124_unresolved",
+  "loss": "unknown"
+}

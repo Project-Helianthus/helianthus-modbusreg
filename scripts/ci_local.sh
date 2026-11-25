@@ -21,6 +21,13 @@ echo "==> scope gate"
 echo "==> scope policy mutation tests"
 python3 -m unittest discover -s tests -p 'test_*.py'
 
+echo "==> mapping gates"
+for gate in huawei_sun2000_pv huawei_luna2000_storage huawei_gateway_meter_infrastructure growatt_bms_rs485_v202_storage tesla_gen3_wc3_24443_evse_current_limit; do
+  python3 scripts/mapping/validate_${gate}_mapping.py
+  python3 tests/test_mapping_validate_${gate}.py
+done
+python3 scripts/mapping/mapping_gate_graph_rules.py --self-test
+
 echo "==> gofmt"
 go_files="$(git ls-files '*.go' | LC_ALL=C sort)"
 if [[ -n "$go_files" ]]; then
