@@ -698,6 +698,8 @@ def native_page_text_cases():
     raw = original.read_text(encoding="utf-8")
     wrong = raw.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex B")
     pages.append(("charging_citation_in_link_definition", wrong + '\n\n[x]: https://example.invalid "' + mapping.CHARGING_CITATION + '"\n'))
+    pages.append(("charging_citation_in_link_title_after_text", wrong + '\n\nRetired text.\n[x]: https://example.invalid "' + mapping.CHARGING_CITATION + '"\n'))
+    pages.append(("charging_citation_in_link_title_same_paragraph", wrong + '\n\nRetired text. [x]: https://example.invalid "' + mapping.CHARGING_CITATION + '"\n'))
     pages.append(("charging_citation_in_multiline_comment", wrong + "\n<!--\n" + mapping.CHARGING_CITATION + "\n-->\n"))
     pages.append(("charging_citation_hidden_in_comment", full.replace("IEC 61851-1 Annex A", "IEC 61851-1 Annex B") + " <!-- IEC 61851-1 Annex A -->"))
     pages.append(("charging_citation_in_comment_after_text", wrong + " visible text <!--\n" + mapping.CHARGING_CITATION + "\n-->\n"))
@@ -719,6 +721,8 @@ def native_page_text_cases():
             accepted = {
                 "citation_reflowed": raw.replace(mapping.CHARGING_CITATION, "\n" + mapping.CHARGING_CITATION.replace(" follow ", "\nfollow ")),
                 "citation_after_wrapped_text": raw.replace("\n" + mapping.CHARGING_CITATION, " " + mapping.CHARGING_CITATION),
+                "citation_bold": raw.replace(mapping.CHARGING_CITATION, "**" + mapping.CHARGING_CITATION + "**"),
+                "citation_between_code_spans": raw.replace(mapping.CHARGING_CITATION, "`<!--`\n\n" + mapping.CHARGING_CITATION + "\n\n`-->`"),
                 "comment_markers_in_code": raw + "\n`<!--` `-->`\n",
             }
             for name, text in accepted.items():

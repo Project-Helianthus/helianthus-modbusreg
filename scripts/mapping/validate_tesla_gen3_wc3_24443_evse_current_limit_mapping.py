@@ -578,8 +578,12 @@ CHARGING_CITATION = "The 6 A floor and the 0 A pause follow IEC 61851-1 Annex A,
 
 
 def visible_paragraphs(source):
-    """Paragraphs of the page outside HTML comments, whitespace-normalized; the citation must open a sentence."""
-    shown = re.sub(r"<!--.*?-->", " ", source, flags=re.DOTALL)
+    """Paragraphs of the rendered page outside link definitions and HTML comments, whitespace-normalized; the citation must open a sentence."""
+    shown = re.sub(r"(?m)^ {0,3}\[[^\]\n]+\]:[^\n]*(?:\n[ \t]+[\"'(][^\n]*)?$", " ", source)
+    shown = re.sub(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)", lambda m: m.group(2).replace("<", "&lt;"), shown, flags=re.DOTALL)
+    shown = re.sub(r"<!--.*?-->", " ", shown, flags=re.DOTALL)
+    shown = shown.replace("*", "")
+    shown = re.sub(r"(?<!\w)_+|_+(?!\w)", "", shown)
     for block in re.split(r"\n\s*\n", shown):
         paragraph = " ".join(block.split())
         if paragraph:
