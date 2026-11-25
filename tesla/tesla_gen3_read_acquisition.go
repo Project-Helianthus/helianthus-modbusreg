@@ -174,6 +174,7 @@ type Gen3ReadRecord struct {
 	Endpoint               string
 	Node                   byte
 	Operation              FC100Operation
+	NativeCommand          string // Set for explicit commands outside the read and EVSE catalog.
 	Family                 uint64
 	RequestTag             uint64
 	TerminalTag            uint64
@@ -292,6 +293,7 @@ type teslaGen3ReadRetention struct {
 }
 
 type teslaGen3ReadPlan struct {
+	function modbus.PrivateFunctionCode
 	instance uint64
 	payload  []byte
 }

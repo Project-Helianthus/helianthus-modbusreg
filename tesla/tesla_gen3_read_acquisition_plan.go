@@ -22,14 +22,29 @@ func (acquisition *Gen3ReadAcquisition) exchange(
 	policy modbus.PrivateFunctionResponsePolicy,
 	attempt int,
 ) (Gen3ReadRecord, teslaGen3ReadFollowUp) {
+	return acquisition.exchangeWithCommand(ctx, endpoint, operation, request, policy, attempt, nil)
+}
+
+func (acquisition *Gen3ReadAcquisition) exchangeWithCommand(
+	ctx context.Context, endpoint Gen3ReadEndpoint, operation FC100Operation, request modbus.PrivateFunctionRequest,
+	policy modbus.PrivateFunctionResponsePolicy, attempt int, command *teslaNativeCommand,
+) (Gen3ReadRecord, teslaGen3ReadFollowUp) {
 	spec := acquisition.exchangeSpec(operation)
+	if command != nil {
+		spec = command.spec
+	}
+	function := request.FunctionCode()
+	var classifier modbus.RTUPrivateFunctionResponseClassifier
+	if function == teslaHSCFunction100 {
+		classifier = teslaGen3ReadClassifier{spec: spec, request: request.Payload()}
+	}
 	acquisition.mu.Lock()
 	epoch := acquisition.epoch
 	instance := acquisition.instance
-	acquisition.plan = &teslaGen3ReadPlan{instance: instance, payload: request.Payload()}
+	acquisition.plan = &teslaGen3ReadPlan{instance: instance, function: function, payload: request.Payload()}
 	acquisition.mu.Unlock()
 	responses, evidence, err := endpoint.ExchangePrivateFunction(
-		ctx, acquisition.config.Profile.Node(), request, policy, teslaGen3ReadClassifier{spec: spec, request: request.Payload()})
+		ctx, acquisition.config.Profile.Node(), request, policy, classifier)
 	acquisition.mu.Lock()
 	acquisition.plan = nil
 	acquisition.mu.Unlock()
@@ -49,6 +64,10 @@ func (acquisition *Gen3ReadAcquisition) exchange(
 		SentAt: evidence.SentAt, ReceivedAt: evidence.ReceivedAt, ClockEpoch: evidence.ClockEpoch,
 		TransportOutcome: evidence.TerminalOutcome, IntegrityValid: evidence.IntegrityValid,
 		requestADU: cloneTeslaGen3Bytes(evidence.RequestADU),
+	}
+	if command != nil {
+		record.NativeCommand = command.name
+		record.OperationVersion = ""
 	}
 	if evidence.ResponseADUs != nil {
 		record.responseADUs = make([][]byte, len(evidence.ResponseADUs))
@@ -87,6 +106,9 @@ func (acquisition *Gen3ReadAcquisition) exchange(
 		record.Cause = "receipt is not current for the owned endpoint epoch"
 		return record, teslaGen3ReadFollowUpNone
 	}
+	if command != nil && command.decodeHSC != nil {
+		return decodeTeslaNativeHSCTerminal(record, responses, command.decodeHSC)
+	}
 	payloads := make([][]byte, len(responses))
 	for index, response := range responses {
 		payloads[index] = response.Payload()
@@ -104,6 +126,13 @@ func (acquisition *Gen3ReadAcquisition) exchange(
 			record.State = Gen3ReadEvidenceRejected
 			record.HasApplicationStatus = true
 			record.ApplicationStatus = result.Status
+		}
+	}
+	if command != nil && record.State == Gen3ReadEvidenceAck {
+		if err := decodeTeslaChargeCommandBody(record.TerminalBody()); err != nil {
+			record.State, record.Cause = Gen3ReadEvidenceIndeterminate, err.Error()
+			record.results = nil
+			return record, teslaGen3ReadFollowUpRetire
 		}
 	}
 	return classifyTeslaCurrentLimitTerminal(record)
@@ -272,7 +301,7 @@ func (acquisition *Gen3ReadAcquisition) admit(instance uint64, candidate modbus.
 	if acquisition.closed || plan == nil ||
 		instance != acquisition.instance || plan.instance != instance ||
 		candidate.Endpoint != acquisition.config.Endpoint || candidate.UnitID != acquisition.config.Profile.Node() ||
-		candidate.Function != teslaHSCFunction100 || !bytes.Equal(candidate.Payload, plan.payload) {
+		candidate.Function != plan.function || !bytes.Equal(candidate.Payload, plan.payload) {
 		return false
 	}
 	switch acquisition.state {

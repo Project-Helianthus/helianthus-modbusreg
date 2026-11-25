@@ -249,16 +249,24 @@ func (acquisition *Gen3ReadAcquisition) mutationReadback(ctx context.Context) Ge
 }
 
 func (acquisition *Gen3ReadAcquisition) mutationExchange(ctx context.Context, operation FC100Operation, request modbus.PrivateFunctionRequest, policy modbus.PrivateFunctionResponsePolicy) Gen3ReadRecord {
+	return acquisition.mutationExchangeWithCommand(ctx, operation, request, policy, nil)
+}
+
+func (acquisition *Gen3ReadAcquisition) mutationExchangeWithCommand(ctx context.Context, operation FC100Operation, request modbus.PrivateFunctionRequest, policy modbus.PrivateFunctionResponsePolicy, command *teslaNativeCommand) Gen3ReadRecord {
+	var name string
+	if command != nil {
+		name = command.name
+	}
 	acquisition.mu.Lock()
 	endpoint, state := acquisition.endpoint, acquisition.state
 	acquisition.mu.Unlock()
 	if ctx.Err() != nil {
-		return Gen3ReadRecord{Operation: operation, State: Gen3ReadEvidenceNoSend, Cause: ctx.Err().Error()}
+		return Gen3ReadRecord{Operation: operation, NativeCommand: name, State: Gen3ReadEvidenceNoSend, Cause: ctx.Err().Error()}
 	}
 	if endpoint == nil || state != Gen3ReadLifecycleReady {
-		return Gen3ReadRecord{Operation: operation, State: Gen3ReadEvidenceNoSend, Cause: ErrTeslaGen3ReadAcquisitionUnavailable.Error()}
+		return Gen3ReadRecord{Operation: operation, NativeCommand: name, State: Gen3ReadEvidenceNoSend, Cause: ErrTeslaGen3ReadAcquisitionUnavailable.Error()}
 	}
-	record, followUp := acquisition.exchange(ctx, endpoint, operation, request, policy, 1)
+	record, followUp := acquisition.exchangeWithCommand(ctx, endpoint, operation, request, policy, 1, command)
 	record.MaxAttempts = 1
 	if err := ctx.Err(); record.State == Gen3ReadEvidenceAck && err != nil {
 		record.State, record.Cause = Gen3ReadEvidenceIndeterminate, err.Error()

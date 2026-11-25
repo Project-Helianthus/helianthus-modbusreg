@@ -71,16 +71,44 @@ request; the result reports both values and retains the native body including
 other settings members. Persistent, provisional, configured and effective
 current are distinct.
 
-The [managed lifecycle](tesla-gen3-read-acquisition.md) exposes only
+The [managed lifecycle](tesla-gen3-read-acquisition.md) exposes
 `SetProvisionalCurrentLimit` and `ConfigurePersistentCurrent` as native
 mutations. The latter accepts a current, operation identity and deadline and
 returns the original receipt with a new-execution or historical-duplicate
-disposition. The host can register it by hand; it is not the semantic
-allocated-current setter and does not accept raw function, address, or bytes.
+disposition. It is not the semantic allocated-current setter.
 
-The RS-485 Site Controller Protocol §§4.1–4.2 and 6–10 defines functions
-100–105 with firmware-specific applicability. This lifecycle does not send
-FC101–105 or expose separate enable/disable commands. Native opaque retention
-for FC101/102 does not imply opaque wire schemas, or grant admission. The
-legacy Wall Connector RS-485 profile remains separate and never acts as a
-fallback.
+## Explicit site-controller and charging mutations
+
+| Lifecycle method | Native request → reply | RS-485 firmware | Specification |
+| --- | --- | --- | --- |
+| `ExchangeControlStatus` | Function 101 `HscControlStatusRequest` → `HscControlStatusResponse` | MID 25.2.2, 26.18.0, 26.34.0 | RS-485 Site Controller Protocol §6 and Appendix A |
+| `ExchangeStateSync` | Function 102 `HscStateSyncRequest` → `HscStateSyncResponse` | MID 25.2.2, 26.18.0, 26.34.0 | RS-485 Site Controller Protocol §7 and Appendix A |
+| `EnableCharging` | Function 100, 6/39 (command 1) → 6/40 | 26.34.0, 26.42.0 | TEDAPI Specification §§6.4.17 and 7.2 |
+| `DisableCharging` | Function 100, 6/39 (command 2) → 6/40 | 26.34.0, 26.42.0 | TEDAPI Specification §§6.4.17 and 7.2 |
+
+These calls share the ready lifecycle and its single-flight reservation. They
+are not polled or retried, require no additional configuration switch, and
+accept no raw function, address or payload. They return correlated native
+evidence. A Modbus exception is not a normal reply; functions 101 and 102
+have no application status field. The charging commands preserve the TEDAPI
+application status on a correlated error (RS-485 Site Controller Protocol
+§5.4). A successful 6/40 reply does not confirm a change in charging state.
+Start and stop are charge commands, not operating-mode changes (TEDAPI
+Specification §7.5) or persistent enable/disable settings.
+
+Every decodable function-101 request replaces the stored control request,
+including the provisional status-poll form. MID 25.2.2 has only update field
+2.1 and snapshot fields 1–7. On the other two builds the mode hint is
+**Provisional**; behavior above 1 and the effect of the external-power
+recheck field are **Not specified**. Function 102 replaces the stored report
+when the report is present, including an empty report. The returned vehicle
+snapshot age is station storage age (nominally milliseconds), not sample
+time. Only 26.34.0 projects vehicle snapshot field 5. Unknown fields remain
+in the native payload, without a typed interpretation.
+
+Although functions 101 and 102 are supported on 24.28.3 and 24.44.3, the
+complete layouts are **Not specified** (RS-485 Site Controller Protocol
+§§4.2, 6.8 and 7.7). Their applicability on 26.42.0 is **Not specified**.
+The driver does not infer coverage on unlisted firmware. No function 103–105
+operation is added. The legacy Wall Connector RS-485 profile remains
+separate and never acts as a fallback.

@@ -41,6 +41,10 @@ func ValidateTeslaFC100RequestMatrix(version string, operation FC100Operation, b
 		}
 		return FC100RequestMatrix{Operation: operation}, nil
 	}
+	return validateTeslaStructuredRequestBody(operation, body)
+}
+
+func validateTeslaStructuredRequestBody(operation FC100Operation, body []byte) (FC100RequestMatrix, error) {
 	if len(body) == 0 {
 		return FC100RequestMatrix{}, fmt.Errorf("tesla FC100 structured request body is empty")
 	}
