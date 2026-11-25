@@ -1235,6 +1235,21 @@ def test_owner_link_exception_applies_only_to_the_actual_destination(destination
         v.check_document(v.load(), page() + "\n[owner](" + destination + ")\n")
 
 
+def test_owner_link_exception_leaves_labels_and_nested_foreign_destinations_checked():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    texts = [
+        "[https://example.invalid/?q=[a](" + approved + ")](https://example.invalid/?q=[a](" + approved + "))",
+        "[a](https://example.invalid/?q=[b](" + approved + "))",
+        "[a](https://example.invalid/?q=(x)[b](" + approved + "))",
+        "[" + "a1" * 20 + "](" + approved + ")",
+        "[page#L12](" + approved + ")",
+        "[tcp://host:1](" + approved + ")",
+    ]
+    for text in texts:
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
 def test_owner_link_in_a_foreign_link_title_gets_no_exception():
     for quote in ('"', "'"):
         with Raises(ValueError, match="publication"):
