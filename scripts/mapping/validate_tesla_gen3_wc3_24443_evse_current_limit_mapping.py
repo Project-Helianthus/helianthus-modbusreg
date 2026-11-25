@@ -356,8 +356,8 @@ def publish_limits(case, facts, withheld, native):
 
 
 def managed_set_valid(managed):
-    """A managed set names its t25 acknowledgement receipt and the requested duration in seconds."""
-    return isinstance(managed, dict) and receipt_text(managed.get("ack_receipt_timestamp")) is not None and non_negative_int(managed.get("duration_seconds"))
+    """A managed set names its t25 acknowledgement receipt, the requested duration in seconds, and the set and acknowledgement it belongs to."""
+    return isinstance(managed, dict) and receipt_text(managed.get("ack_receipt_timestamp")) is not None and non_negative_int(managed.get("duration_seconds")) and all(DIGEST.fullmatch(str(managed.get(key))) for key in MUTATION_REFS)
 
 
 def receipt_text(text):
@@ -369,11 +369,11 @@ def receipt_text(text):
 
 
 def allocation_expired(case):
-    """ND02 SemReg mapping, field rules: a known nonzero managed timeout ends at the set acknowledgement plus the requested duration; a readback at or after that cutoff is expired."""
+    """ND02 SemReg mapping, field rules: a known nonzero managed timeout ends at the set acknowledgement plus the requested duration; a readback that names that set and acknowledgement and is received at or after the cutoff is expired."""
     managed = case.get("managed_set")
     if managed is None or managed["duration_seconds"] == 0:
         return False
-    if not any(key in case["evidence"]["provisional"] for key in MUTATION_REFS):
+    if any(managed[key] != case["evidence"]["provisional"].get(key) for key in MUTATION_REFS):
         return False
     cutoff = receipt_text(managed["ack_receipt_timestamp"]) + timedelta(seconds=managed["duration_seconds"])
     return receipt_of(case["evidence"]["provisional"]) >= cutoff

@@ -340,7 +340,7 @@
     },
     "infrastructure.reason.identity_mismatch": {
       "loss_kind": "identity",
-      "description": "the identity read differs from the declaration from the documented listing; the mismatch is reported, never guessed, and the read meter never replaces the declared one",
+      "description": "the identity read, or the routed unit that supplied the reading, differs from the declaration from the documented listing; the mismatch is reported, never guessed, and the read meter never replaces the declared one",
       "reversible": true
     },
     "infrastructure.reason.role_not_declared": {
@@ -860,7 +860,7 @@
       "source": {
         "source_id": "source:gateway-demo-d"
       },
-      "routed_unit": 11,
+      "routed_unit": 100,
       "role": {
         "declared": "grid_connection",
         "source": "operator_configuration"
@@ -1127,7 +1127,7 @@
             "declared": "grid_connection",
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 11
+              "routed_unit": 100
             },
             "dimension_if_admitted": {
               "power": "infrastructure.dimension.grid_connection",
@@ -1299,7 +1299,7 @@
             "declared": "grid_connection",
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 11
+              "routed_unit": 100
             },
             "dimension_if_admitted": {
               "power": "infrastructure.dimension.grid_connection",
@@ -1471,7 +1471,7 @@
             "declared": "grid_connection",
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 11
+              "routed_unit": 100
             },
             "dimension_if_admitted": {
               "power": "infrastructure.dimension.grid_connection",
@@ -1639,7 +1639,7 @@
             "declared": "grid_connection",
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 11
+              "routed_unit": 100
             },
             "dimension_if_admitted": {
               "power": "infrastructure.dimension.grid_connection",
@@ -1804,7 +1804,7 @@
             "declared": "grid_connection",
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 11
+              "routed_unit": 100
             },
             "dimension_if_admitted": {
               "power": "infrastructure.dimension.grid_connection",
@@ -1972,7 +1972,7 @@
             "declared": null,
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 11
+              "routed_unit": 100
             },
             "dimension_if_admitted": "role_unknown_role_dependent_facts_not_published"
           },
@@ -2136,7 +2136,7 @@
             "declared": "feeder",
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 11
+              "routed_unit": 100
             },
             "dimension_if_admitted": {
               "power": "withheld",
@@ -2291,7 +2291,7 @@
             "declared": "grid_connection",
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 11
+              "routed_unit": 100
             },
             "dimension_if_admitted": {
               "power": "infrastructure.dimension.grid_connection",
@@ -2452,7 +2452,7 @@
             "declared": "grid_connection",
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 11
+              "routed_unit": 100
             },
             "dimension_if_admitted": {
               "power": "infrastructure.dimension.grid_connection",
@@ -2617,7 +2617,7 @@
             "declared": "grid_connection",
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 11
+              "routed_unit": 100
             },
             "dimension_if_admitted": {
               "power": "infrastructure.dimension.grid_connection",
@@ -2778,7 +2778,7 @@
             "declared": "grid_connection",
             "keyed_to": {
               "source_id": "source:gateway-demo-d",
-              "routed_unit": 11
+              "routed_unit": 100
             },
             "dimension_if_admitted": {
               "power": "infrastructure.dimension.grid_connection",

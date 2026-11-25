@@ -629,6 +629,8 @@ def gate_reason(case, declared, rule, read):
         return "infrastructure.reason.identity_not_read"
     if meter["identity_read"] != meter["declared"] or meter["declared"] != {"exposure": ADMISSION["meter_identity"]["exposure"]["path"], "routed_unit": ADMISSION["meter_identity"]["exposure"]["routed_unit"]}:
         return "infrastructure.reason.identity_mismatch"
+    if case.get("routed_unit") != meter["declared"]["routed_unit"]:
+        return "infrastructure.reason.identity_mismatch"
     if read is None or read["outcome"] in ("FAILED", "NOT_READ"):
         return "infrastructure.reason.group_not_read"
     return "infrastructure.reason.read_exception_no_negation" if read["outcome"] == "EXCEPTION" else None

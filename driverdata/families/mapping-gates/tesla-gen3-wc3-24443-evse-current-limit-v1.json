@@ -997,7 +997,9 @@
           "path": "managed_set",
           "value": {
             "ack_receipt_timestamp": "2026-09-10T00:00:00Z",
-            "duration_seconds": 60
+            "duration_seconds": 60,
+            "provisional_set": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "provisional_ack": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
           }
         },
         {

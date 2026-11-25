@@ -136,7 +136,7 @@ def test_contract_mutations_are_rejected(name, mutation, message):
 @parametrize("field,value", [("loss_kind", "native_enum"), ("description", ""), ("reversible", "yes")])
 def test_every_reason_declares_its_loss(field, value):
     document = contract()
-    document["reasons"]["storage.reason.no_energy_capacity_fact_in_pack"][field] = value
+    document["reasons"]["storage.reason.sign_not_graded"][field] = value
     with Raises(ValueError, match="reason loss"):
         v.validate_contract(document)
 
@@ -152,7 +152,7 @@ def test_every_native_item_has_exactly_one_disposition_and_only_an_active_row_pu
         assert {row["outcome"] for row in output["native_dispositions"]} <= {"withheld", "native_only", "transformed"}
         assert {row["native_id"] for row in output["native_dispositions"] if row["outcome"] == "transformed"} == {fact["provenance"]["native_id"] for fact in output["facts"]} <= v.ACTIVE
         assert output["relations"] == [] and output["operations"] == []
-        assert len(output["dispositions"]) == 5
+        assert len(output["dispositions"]) == len(v.REQUESTED)
         for item in output["dispositions"]:
             assert item["loss"] and (item["source_keys"] if item["outcome"] == "transformed" else item["reason"] and not item["source_keys"])
         assert [item["item_id"] for item in output["dispositions"] if item["outcome"] == "transformed"] == [fact["item_id"] for fact in output["facts"]] or not output["facts"]
@@ -203,7 +203,7 @@ def test_withheld_items_keep_their_reason_whatever_is_read():
     rows = {row["native_id"]: row["reason"] for row in project(document)["native_dispositions"]}
     assert rows["site_battery_soc"] == "storage.reason.battery_group_not_read"
     assert rows["site_battery_power"] == "storage.reason.sign_not_graded"
-    assert rows["site_rated_storage_capacity"] == "storage.reason.no_energy_capacity_fact_in_pack"
+    assert rows["site_rated_storage_capacity"] == "storage.reason.battery_group_not_read"
     assert rows["site_battery_energy_charged_day"] == "storage.reason.period_counter_time_domain_not_represented"
 
 
@@ -342,8 +342,47 @@ def test_capacity_is_never_converted_to_energy_units_or_published():
         with Raises(ValueError, match="unsupported_or_withheld"):
             project(document)
     output = project(case())
-    assert not [item for item in output["requested"] if "capacity" in item["item_id"]]
-    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["site_rated_storage_capacity"] == "storage.reason.no_energy_capacity_fact_in_pack"
+    assert not [item for item in output["requested"] if item["item_id"].startswith("storage.capacity.")]
+    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["site_rated_storage_capacity"] == "storage.reason.battery_group_not_read"
+
+
+@parametrize("words,joules", [([0, 10000], 36000000), ([0, 7500], 27000000), ([1, 0], 235929600)])
+def test_a_supplied_rated_storage_capacity_publishes_its_native_energy_in_joules(words, joules):
+    output = project(with_reads({"offset": 30322, "quantity": 2, "outcome": "ANSWERED", "words": words}))
+    facts = [fact for fact in output["facts"] if fact["item_id"] == "storage.energy.nominal_capacity"]
+    assert len(facts) == 1 and facts[0]["value"]["unit"] == "unit.joule" and facts[0]["provenance"]["aggregation_basis"] == "site_group"
+    number = facts[0]["value"]["number"]
+    assert int(number["coefficient"]) * 10 ** number["exponent10"] == joules
+    held = {item["item_id"]: item for item in output["dispositions"]}["storage.energy.nominal_capacity"]
+    assert held["outcome"] == "transformed" and held["source_keys"] == ["site_rated_storage_capacity"]
+
+
+def test_a_missing_or_zero_rated_storage_capacity_is_withheld_not_a_missing_catalog_element():
+    withheld = {row["native_id"]: row for row in project(with_reads({"offset": 30322, "quantity": 2, "outcome": "ANSWERED", "words": [0, 0]}))["native_dispositions"]}
+    assert withheld["site_rated_storage_capacity"]["reason"] == "storage.reason.zero_word_is_not_a_battery_value"
+    unbound = {row["native_id"]: row for row in project(with_reads({"offset": 30322, "quantity": 2, "outcome": "EXCEPTION", "exception_code": 2}))["native_dispositions"]}
+    assert unbound["site_rated_storage_capacity"]["reason"] == "storage.reason.battery_group_exception_no_negation"
+    assert "storage.reason.no_energy_capacity_fact_in_pack" not in v.load()["reasons"]
+
+
+SOC_READ = {"offset": 30368, "quantity": 1, "outcome": "ANSWERED", "words": [7550]}
+CAPACITY_READ = {"offset": 30322, "quantity": 2, "outcome": "ANSWERED", "words": [0, 10000]}
+
+
+@parametrize("packs", [["resource:demo-pack-gamma-1", "resource:demo-pack-gamma-2"], ["resource:demo-pack-gamma-2", "resource:demo-pack-gamma-1"], ["resource:demo-pack-gamma-1", "resource:demo-pack-gamma-2", "resource:demo-pack-gamma-3"]])
+def test_an_aggregate_reading_is_never_assigned_to_a_pack_by_list_position(packs):
+    document = with_reads(SOC_READ, CAPACITY_READ)
+    document["identity"]["resources"]["packs"] = packs
+    output = project(document)
+    assert output["facts"] == []
+    rows = {row["native_id"]: row["reason"] for row in output["native_dispositions"]}
+    assert rows["site_battery_soc"] == rows["site_rated_storage_capacity"] == "storage.reason.aggregate_without_pack_evidence"
+    assert {item["item_id"]: item["reason"] for item in output["dispositions"]}["storage.state.soc"] == "storage.reason.aggregate_without_pack_evidence"
+
+
+def test_the_single_pack_of_the_configured_battery_holds_the_aggregate_reading():
+    output = project(with_reads(SOC_READ))
+    assert [(fact["item_id"], fact["subject"]["resource"]) for fact in output["facts"]] == [("storage.state.soc", "resource:demo-pack-gamma-1")]
 
 
 def test_no_limit_interlock_or_operation_is_requested_or_available():
@@ -412,7 +451,7 @@ def test_a_full_scale_native_value_converts_exactly():
         if not plan or not plan.get("conversion"):
             continue
         native = plan["native"]
-        raw = {"U16": 0xFFFF, "I32": 0x7FFFFFFF, "U64": 0xFFFFFFFFFFFFFFFF}[native["type"]]
+        raw = {"U16": 0xFFFF, "U32": 0xFFFFFFFF, "I32": 0x7FFFFFFF, "U64": 0xFFFFFFFFFFFFFFFF}[native["type"]]
         value = Fraction(raw, native["gain"])
         canonical = value * fraction_of(plan["conversion"]["factor"]) + fraction_of(plan["conversion"]["offset"])
         assert support.kernel_decimal(canonical)
@@ -544,14 +583,14 @@ def page():
 
 
 @parametrize("old,new", [
-    ("| `site_rated_storage_capacity` | monitoring_contract_planned | Hypothesis | `storage.reason.no_energy_capacity_fact_in_pack` | capability |", "| `site_rated_storage_capacity` | monitoring_contract_planned | Hypothesis | `storage.reason.sign_not_graded` | provenance |"),
+    ("| `storage.energy.nominal_capacity` | `storage.dimension.pack` | `site_rated_storage_capacity` | U32, kWh, gain 1000 | `unit.joule`, factor 3600000, offset 0 | unit |", "| `storage.energy.nominal_capacity` | `storage.dimension.pack` | `site_rated_storage_capacity` | U32, kWh, gain 1000 | `unit.joule`, factor 360000, offset 0 | unit |"),
     ("| `storage.state.soc` | `storage.dimension.pack` | `site_battery_soc` | U16, %, gain 100 | `unit.ratio`, factor 0.01, offset 0 | unit | none | Hypothesis |", "| `storage.state.soc` | `storage.dimension.pack` | `site_battery_soc` | U16, %, gain 10 | `unit.ratio`, factor 0.01, offset 0 | unit | none | Hypothesis |"),
     ("| `storage.state.soc` | `storage.dimension.pack` | `site_battery_soc` | U16, %, gain 100 | `unit.ratio`, factor 0.01, offset 0 | unit | none | Hypothesis |", "| `storage.state.soc` | `storage.dimension.pack` | `site_battery_soc` | U16, %, gain 100 | `unit.percent`, factor 1, offset 0 | none | none | Hypothesis |"),
     ("| `storage.energy.charged` | `storage.dimension.pack` | `site_battery_energy_charged_total` | U64, kWh, gain 100 | `unit.joule`, factor 3600000, offset 0 | unit+policy |", "| `storage.energy.charged` | `storage.dimension.pack` | `site_battery_energy_charged_total` | U64, kWh, gain 100 | `unit.joule`, factor 360000, offset 0 | unit+policy |"),
     ("| `storage.pack.power` | `storage.dimension.pack` | `site_battery_power` | I32, kW, gain 1000 | `unit.watt`, factor 1000, offset 0 | unit+provenance | `unknown_no_value_without_a_graded_sign` | Hypothesis |", "| `storage.pack.power` | `storage.dimension.pack` | `site_battery_power` | I32, kW, gain 1000 | `unit.watt`, factor 1000, offset 0 | unit | `unknown_no_value_without_a_graded_sign` | Hypothesis |"),
     ("| `storage.pack.power` | `storage.dimension.pack` | `site_battery_power` | I32, kW, gain 1000 | `unit.watt`, factor 1000, offset 0 | unit+provenance | `unknown_no_value_without_a_graded_sign` | Hypothesis |", "| `storage.pack.power` | `storage.dimension.pack` | `site_battery_power` | I32, kW, gain 1000 | `unit.watt`, factor 1000, offset 0 | unit+provenance | `positive_while_charging_negative_while_discharging` | Hypothesis |"),
     ("| `STG-NEG-011-error-precedence` |", "| `STG-NEG-099-other` |"),
-    ("Capacity in energy units is withheld", "Capacity in energy units is published"),
+    ("rated storage capacity is mapped in joules", "rated storage capacity is withheld"),
     ("never converted", "converted"),
     ("outbound_allowed=false", "outbound allowed"),
 ])

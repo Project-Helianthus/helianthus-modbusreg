@@ -197,6 +197,7 @@ and the measurement points are a Hypothesis of this gate.
 | `plant_battery_power` | `storage.pack.power` | `resource.battery_pack` | `pack_terminals` |
 | `site_battery_energy_charged_total` | `storage.energy.charged` | `resource.battery_pack` | `pack_terminals_lifetime_counter` |
 | `site_battery_energy_discharged_total` | `storage.energy.discharged` | `resource.battery_pack` | `pack_terminals_lifetime_counter` |
+| `site_rated_storage_capacity` | `storage.energy.nominal_capacity` | `resource.battery_pack` | `pack_as_a_whole` |
 
 ## Withheld items
 
@@ -215,7 +216,6 @@ Absent optional groups are unknown, never zero.
 | `site_battery_power` | monitoring_contract_planned | Hypothesis | `storage.reason.sign_not_graded` | provenance |
 | `site_battery_energy_charged_day` | monitoring_contract_planned | Hypothesis | `storage.reason.period_counter_time_domain_not_represented` | time |
 | `site_battery_energy_discharged_day` | monitoring_contract_planned | Hypothesis | `storage.reason.period_counter_time_domain_not_represented` | time |
-| `site_rated_storage_capacity` | monitoring_contract_planned | Hypothesis | `storage.reason.no_energy_capacity_fact_in_pack` | capability |
 
 The grade is that of the native item. The battery single read at the first
 battery offset answered a zero word (Proven), and its meaning is not a value.
@@ -257,6 +257,7 @@ symbol has no unit and no conversion.
 | `storage.pack.power` | `storage.dimension.pack` | `plant_battery_power` | I32, kW, gain 1000 | `unit.watt`, factor 1000, offset 0 | unit+provenance | `positive_while_charging_negative_while_discharging` | Hypothesis | yes |
 | `storage.energy.charged` | `storage.dimension.pack` | `site_battery_energy_charged_total` | U64, kWh, gain 100 | `unit.joule`, factor 3600000, offset 0 | unit+policy | `reset_wrap_and_continuity_never_inferred` | Hypothesis | yes |
 | `storage.energy.discharged` | `storage.dimension.pack` | `site_battery_energy_discharged_total` | U64, kWh, gain 100 | `unit.joule`, factor 3600000, offset 0 | unit+policy | `reset_wrap_and_continuity_never_inferred` | Hypothesis | yes |
+| `storage.energy.nominal_capacity` | `storage.dimension.pack` | `site_rated_storage_capacity` | U32, kWh, gain 1000 | `unit.joule`, factor 3600000, offset 0 | unit | none | Hypothesis | yes |
 
 Rules for the intake, each a Hypothesis of this gate unless stated. A group is
 read at its documented offset and quantity, and a word is taken at its documented
@@ -285,15 +286,18 @@ position in that read.
 
 ## Capacity
 
-Capacity in energy units is withheld. The Storage pack carries ampere-hour
-counters only (`storage.capacity.charge` and `storage.capacity.discharge`, which
-are cumulative throughput and not a rated capacity), and the planned rated
-storage capacity is in kilowatt-hours. A rating in energy units needs a separate
-SemReg and pack revision. It is never converted from ampere-hours or voltage, and
-never derived from state of charge or from an energy counter; the vector
-`STG-NEG-008-ampere-hour-to-kilowatt-hour` pins that the conversion is refused.
-The ampere-hour counters are not mapped either, because no Huawei ampere-hour
-quantity is evidenced.
+The rated storage capacity is mapped in joules. The planned rated storage
+capacity word at offset 30322 is a U32 in kilowatt-hours with gain 1000, and the
+Storage pack carries `storage.energy.nominal_capacity` in joules on the pack, so
+the word publishes by the exact factor 3600000 with a `unit` loss; it is a
+Hypothesis and a site group value recorded as provenance. A reading that is not
+supplied or is zero stays Unknown and is never a capacity of zero. The ampere-hour
+counters (`storage.capacity.charge` and `storage.capacity.discharge`) are
+cumulative throughput and not a rated capacity. A capacity is never converted
+from ampere-hours or voltage, and never derived from state of charge or from an
+energy counter; the vector `STG-NEG-009-ampere-hour-to-kilowatt-hour` pins that
+the conversion is refused. The ampere-hour counters are not mapped either,
+because no Huawei ampere-hour quantity is evidenced.
 
 ## Control-adjacent items
 
@@ -329,6 +333,8 @@ generation-fenced.
 | `STG-POS-009-battery-read-exception` | An exception or a failed read withholds the battery item and negates nothing else. |
 | `STG-POS-010-selection-unresolved` | An unresolved registry selection withholds every mapped item whatever is read. |
 | `STG-POS-011-state-of-charge-outside-range` | A state of charge above 100 percent is withheld and never clamped. |
+| `STG-POS-012-rated-storage-capacity` | A documented rated storage capacity of 10 kWh publishes 36000000 J as the nominal capacity of the pack, with the site group as provenance. |
+| `STG-POS-013-aggregate-reading-with-several-packs` | A site state of charge of a battery with two packs belongs to no one pack and is withheld, whichever pack is listed first. |
 | `STG-NEG-001-selection-outside-the-registry-set` | A selection outside the registry set fails closed. |
 | `STG-NEG-002-read-outside-the-plan` | A group that is in no read plan cannot be supplied as evidence. |
 | `STG-NEG-003-word-count-mismatch` | A read must carry exactly its quantity of words. |

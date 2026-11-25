@@ -25,8 +25,8 @@ is unknown. `LimitCurrentMaxAmps` maps exactly, in integer amperes, to
 `evse.limit.allocated_current` when `InhibitCharging` is false and the current
 is nonzero, whatever `LimitTimeoutSeconds` is. A zero or unresolved timeout
 leaves only the expiry unknown. A managed set with a known nonzero duration ends
-at its acknowledgement plus that duration; a readback received at or after that
-cutoff withholds the nonzero allocation as `allocation_expired` and keeps the
+at its acknowledgement plus that duration; a readback that names that set and
+acknowledgement and is received at or after that cutoff withholds the nonzero allocation as `allocation_expired` and keeps the
 native timeout. The timeout is served in the modbusreg
 namespace as a native value, because no catalog element yet gives it one; it is
 never published as an EVSE fact or as an expiry. An inhibited readback maps to 0 A at the

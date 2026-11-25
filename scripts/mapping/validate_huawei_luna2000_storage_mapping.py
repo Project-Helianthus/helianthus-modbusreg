@@ -57,6 +57,7 @@ MEASUREMENT_POINTS = {
     "battery_group_37000_30": "pack_as_a_whole", "site_battery_soc": "pack_as_a_whole",
     "site_battery_power": "pack_terminals", "plant_battery_power": "pack_terminals",
     "site_battery_energy_charged_total": "pack_terminals_lifetime_counter", "site_battery_energy_discharged_total": "pack_terminals_lifetime_counter",
+    "site_rated_storage_capacity": "pack_as_a_whole",
 }
 FORBIDDEN_DERIVATIONS = ["serial_number", "esn", "vendor", "model", "firmware_or_version", "routed_unit_alone", "endpoint_address"]
 # Section 6.3: a pack class token and a profile identifier are interpretation selectors, so neither derives the home asset.
@@ -141,7 +142,9 @@ ADMISSION = {
 }
 ADMITTING, UNRESOLVED = "PROFILE_SELECTED", ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"]
 # The aggregation basis of each mapped group reading, recorded as provenance on its fact.
-AGGREGATION_BASIS = {"site_battery_soc": "site_group", "plant_battery_power": "plant_group", "site_battery_energy_charged_total": "site_group", "site_battery_energy_discharged_total": "site_group"}
+AGGREGATION_BASIS = {"site_battery_soc": "site_group", "plant_battery_power": "plant_group", "site_battery_energy_charged_total": "site_group", "site_battery_energy_discharged_total": "site_group", "site_rated_storage_capacity": "site_group"}
+# The rated storage capacity word is a native energy value with an SI target in the pack; no conversion from ampere-hours, voltage or state of charge exists.
+CAPACITY = {"energy_units": "mapped", "source": "site_rated_storage_capacity", "target": "storage.energy.nominal_capacity", "conversion": "forbidden_from_ampere_hours_voltage_or_state_of_charge"}
 GAINS = {1: 0, 10: -1, 100: -2, 1000: -3}
 WORD_COUNT = {"U16": 1, "U32": 2, "I32": 2, "U64": 4}
 # native item -> (source, read group, word index in the read). Registry items come from the LUNA2000 disposition; mapped items from the monitoring contract.
@@ -151,21 +154,21 @@ INVENTORY = [
     ("site_battery_soc", "monitoring_contract_planned", (30368, 1), 0), ("site_battery_power", "monitoring_contract_planned", (30354, 12), 6), ("plant_battery_power", "monitoring_contract_planned", (37498, 8), 6),
     ("site_battery_energy_charged_total", "monitoring_contract_planned", (30306, 46), 2), ("site_battery_energy_discharged_total", "monitoring_contract_planned", (30306, 46), 8),
     ("site_battery_energy_charged_day", "monitoring_contract_planned", (30306, 46), 0), ("site_battery_energy_discharged_day", "monitoring_contract_planned", (30306, 46), 6),
-    ("site_rated_storage_capacity", "monitoring_contract_planned", None, None),
+    ("site_rated_storage_capacity", "monitoring_contract_planned", (30322, 2), 0),
 ]
 READS = {read for _, _, read, _ in INVENTORY if read}
 # The rows that publish a fact; the others stay withheld or native-only with their reason.
-ACTIVE = {"site_battery_soc", "plant_battery_power", "site_battery_energy_charged_total", "site_battery_energy_discharged_total"}
-RUNTIME_REASONS = {"storage.reason.battery_group_not_read", "storage.reason.zero_word_is_not_a_battery_value", "storage.reason.battery_group_exception_no_negation", "storage.reason.value_outside_pack_range"}
+ACTIVE = {"site_battery_soc", "plant_battery_power", "site_battery_energy_charged_total", "site_battery_energy_discharged_total", "site_rated_storage_capacity"}
+RUNTIME_REASONS = {"storage.reason.aggregate_without_pack_evidence", "storage.reason.battery_group_not_read", "storage.reason.zero_word_is_not_a_battery_value", "storage.reason.battery_group_exception_no_negation", "storage.reason.value_outside_pack_range"}
 PRIMARY_REASON = "storage.reason.no_admitted_battery_profile"
 NATIVE_ONLY_REASON = "storage.reason.group_native_only_no_catalog_row"
 STATUS_REASON = "storage.reason.status_symbols_not_stated"
-REQUESTED = ["storage.energy.charged", "storage.energy.discharged", "storage.pack.power", "storage.state.soc", "storage.status.operating"]
+REQUESTED = ["storage.energy.charged", "storage.energy.discharged", "storage.energy.nominal_capacity", "storage.pack.power", "storage.state.soc", "storage.status.operating"]
 NEVER_REQUESTED = ["storage.limit.charge_power", "storage.limit.discharge_power", "storage.status.interlock", "storage.operation.set_charge_limit", "storage.operation.set_discharge_limit"]
-UNSUPPORTED = ["rated_capacity_in_energy_units", "state_of_health", "cell_and_module_values", "charge_and_discharge_power_limits", "interlock", "working_mode_or_schedule", "remote_dispatch", "authority", "write_operations", "acknowledgement", "readback", "retry", "control_routes"]
+UNSUPPORTED = ["state_of_health", "cell_and_module_values", "charge_and_discharge_power_limits", "interlock", "working_mode_or_schedule", "remote_dispatch", "authority", "write_operations", "acknowledgement", "readback", "retry", "control_routes"]
 SIGNS = {"unknown_no_value_without_a_graded_sign", "positive_while_charging_negative_while_discharging"}
 COUNTERS = {"reset_wrap_and_continuity_never_inferred"}
-DOC_TOKENS = ("gateway-allocated", "operator label", "no anchor key source", "unknown, not absent", "section 15", "en-1", "unknown, never zero", "no binary floating point", "capacity in energy units is withheld", "outbound_allowed=false", "one atomic cutover", "never converted")
+DOC_TOKENS = ("gateway-allocated", "operator label", "no anchor key source", "unknown, not absent", "section 15", "en-1", "unknown, never zero", "no binary floating point", "rated storage capacity is mapped in joules", "outbound_allowed=false", "one atomic cutover", "never converted")
 
 
 def fail(code):
@@ -474,7 +477,7 @@ def check_luna_policies(document, fields, operations):
         fail("lifecycle contract")
     if document.get("outcome_vocabulary") != {"exact": "exact", "transformed": "transformed", "withheld": "withheld", "native_only": "unrepresentable"}:
         fail("outcome vocabulary")
-    if document.get("capacity") != {"energy_units": "withheld", "pack_carries": "ampere_hours_only", "conversion": "forbidden", "needs": "separate_semreg_and_pack_revision"}:
+    if document.get("capacity") != CAPACITY:
         fail("capacity")
     if document.get("unsupported") != UNSUPPORTED:
         fail("unsupported")
@@ -600,12 +603,13 @@ def read_reason(read):
     return "storage.reason.zero_word_is_not_a_battery_value" if all(word == 0 for word in read["words"]) else None
 
 
-def mapped_row(rule, reads, selected, fields):
-    """(native row, fact) of one active row: withheld by selection or read, withheld out of range, or its fact in SI."""
+def mapped_row(rule, reads, selected, fields, pack_count):
+    """(native row, fact) of one active row: withheld by selection, read or pack evidence, withheld out of range, or its fact in SI.
+    A site or plant group reading belongs to the pack only when the configured battery has exactly one; with several, no pack holds the evidence."""
     nid = rule["native_id"]
     reason = None if selected else PRIMARY_REASON
     read = reads.get((rule["read"]["offset"], rule["read"]["quantity"]))
-    reason = reason or read_reason(read)
+    reason = reason or read_reason(read) or ("storage.reason.aggregate_without_pack_evidence" if pack_count != 1 else None)
     if reason:
         return {"native_id": nid, "outcome": "withheld", "reason": reason}, None
     prospective = rule["prospective"]
@@ -617,9 +621,9 @@ def mapped_row(rule, reads, selected, fields):
     return {"native_id": nid, "outcome": "transformed", "target": prospective["target"]}, {"rule": rule, "number": number}
 
 
-def native_row(rule, reads, selected, fields):
+def native_row(rule, reads, selected, fields, pack_count):
     if rule["native_id"] in ACTIVE:
-        return mapped_row(rule, reads, selected, fields)
+        return mapped_row(rule, reads, selected, fields, pack_count)
     reason = rule["disposition"]["reason"]
     if rule["source"] == "registry_disposition":
         reason = read_reason(reads.get((rule["read"]["offset"], rule["read"]["quantity"]))) or NATIVE_ONLY_REASON
@@ -647,10 +651,11 @@ def project(case, contract):
     reads = validate_case(case, contract)
     fields, _ = pack_tables()
     selected = case["luna_selection"]["outcome"] == ADMITTING
-    pack, lifecycle = case_packs(case["identity"])[0], case["lifecycle"]
+    packs, lifecycle = case_packs(case["identity"]), case["lifecycle"]
+    pack = packs[0]
     rows, facts = [], []
     for rule in contract["field_rules"]:
-        row, fact = native_row(rule, reads, selected, fields)
+        row, fact = native_row(rule, reads, selected, fields, len(packs))
         rows.append(row)
         if fact:
             facts.append(fact)

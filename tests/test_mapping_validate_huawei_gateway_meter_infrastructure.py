@@ -232,6 +232,21 @@ def test_an_identity_mismatch_is_reported_and_replaces_nothing():
     assert undeclared_path["facts"] == []
 
 
+@parametrize("unit", [None, 1, 11, 101])
+def test_a_reading_from_a_routed_unit_other_than_the_declared_one_publishes_nothing(unit):
+    document = with_plant(1500)
+    document["routed_unit"] = unit
+    output = project(document)
+    assert output["facts"] == []
+    assert {row["native_id"]: row["reason"] for row in output["native_dispositions"]}["sdongle_plant_grid_power"] == "infrastructure.reason.identity_mismatch"
+    assert all(item["reason"] == "infrastructure.reason.identity_mismatch" for item in output["dispositions"] if item["item_id"].startswith("infrastructure.power."))
+
+
+def test_a_reading_from_the_declared_routed_unit_publishes_with_that_unit_in_its_provenance():
+    output = project(with_plant(1500))
+    assert [fact["provenance"]["meter"]["routed_unit"] for fact in output["facts"]] == [100] and output["role"]["keyed_to"]["routed_unit"] == 100
+
+
 def test_an_identity_that_was_not_read_confirms_and_replaces_nothing():
     output = project(with_plant(1500, meter__identity_read=None))
     assert output["facts"] == []
@@ -327,7 +342,7 @@ def test_the_configured_role_selects_the_dimension_and_publishes_nothing(declare
     document["role"]["declared"] = declared
     output = project(document)
     assert output["role"]["dimension_if_admitted"] == expected and output["role"]["declared"] == declared
-    assert output["role"]["keyed_to"] == {"source_id": "source:gateway-demo-d", "routed_unit": 11}
+    assert output["role"]["keyed_to"] == {"source_id": "source:gateway-demo-d", "routed_unit": 100}
     assert output["facts"] == []
 
 
@@ -370,7 +385,7 @@ def test_a_meter_identity_is_never_claimed():
             project(document)
 
 
-@parametrize("source", ["", None, "source gateway", "source:serial-1", "source:ESN-1", "source:10.1.2.3", "source:host:502", "11", "source:meter-huawei", "source:emma-a"])
+@parametrize("source", ["", None, "source gateway", "source:serial-1", "source:ESN-1", "source:10.1.2.3", "source:host:502", "100", "source:meter-huawei", "source:emma-a"])
 def test_source_identifier_never_comes_from_forbidden_inputs(source):
     document = case()
     document["source"]["source_id"] = source

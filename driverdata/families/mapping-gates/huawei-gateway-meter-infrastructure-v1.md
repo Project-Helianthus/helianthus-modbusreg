@@ -46,8 +46,9 @@ asset identifier, fails closed with `gate_revision_required`: no meter class
 contract exists.
 
 The identity read at runtime is still checked. It must equal the declaration
-from the listing. A read that differs is reported with
-`infrastructure.reason.identity_mismatch`: nothing is guessed, the declared meter
+from the listing, and the reading must come from the routed unit that
+declaration names. A read that differs, or a reading from another routed unit, is
+reported with `infrastructure.reason.identity_mismatch`: nothing is guessed, the declared meter
 is not replaced by the meter that was read, and no fact is published. An
 identity that was not read is `infrastructure.reason.identity_not_read`. All
 registry flags stay false, and `outbound_allowed=false` grants no operation.
