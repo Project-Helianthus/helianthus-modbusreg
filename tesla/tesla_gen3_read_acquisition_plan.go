@@ -22,14 +22,14 @@ func (acquisition *Gen3ReadAcquisition) exchange(
 	policy modbus.PrivateFunctionResponsePolicy,
 	attempt int,
 ) (Gen3ReadRecord, teslaGen3ReadFollowUp) {
-	spec := teslaFC100OperationSpecs[operation]
+	spec := acquisition.exchangeSpec(operation)
 	acquisition.mu.Lock()
 	epoch := acquisition.epoch
 	instance := acquisition.instance
 	acquisition.plan = &teslaGen3ReadPlan{instance: instance, payload: request.Payload()}
 	acquisition.mu.Unlock()
 	responses, evidence, err := endpoint.ExchangePrivateFunction(
-		ctx, acquisition.config.Profile.Node(), request, policy, teslaGen3ReadClassifier{operation: operation, request: request.Payload()})
+		ctx, acquisition.config.Profile.Node(), request, policy, teslaGen3ReadClassifier{spec: spec, request: request.Payload()})
 	acquisition.mu.Lock()
 	acquisition.plan = nil
 	acquisition.mu.Unlock()
@@ -91,7 +91,7 @@ func (acquisition *Gen3ReadAcquisition) exchange(
 	for index, response := range responses {
 		payloads[index] = response.Payload()
 	}
-	results, decodeErr := DecodeTeslaFC100OperationSequence(HSCFC100OperationCompatibilityV1, operation, request.Payload(), payloads)
+	results, decodeErr := decodeTeslaOperationSequence(spec, request.Payload(), payloads)
 	if decodeErr != nil {
 		record.State = Gen3ReadEvidenceIndeterminate
 		record.Cause = decodeErr.Error()
@@ -122,9 +122,11 @@ func classifyTeslaCurrentLimitTerminal(record Gen3ReadRecord) (Gen3ReadRecord, t
 		}
 		record.provisionalReadback = readback
 	}
-	if operation == FC100OperationWCSetProvisional && len(record.TerminalBody()) != 0 {
-		record.State, record.Cause = Gen3ReadEvidenceIndeterminate, "t26 body is not empty"
-		return record, teslaGen3ReadFollowUpRetire
+	if operation == FC100OperationWCSetProvisional {
+		if err := validateTeslaProvisionalTerminal(record); err != nil {
+			record.State, record.Cause = Gen3ReadEvidenceIndeterminate, err.Error()
+			return record, teslaGen3ReadFollowUpRetire
+		}
 	}
 	if operation == FC100OperationWCConfigureSettings {
 		amps, present, err := decodeTeslaPersistentSettingsBody(record.TerminalBody())

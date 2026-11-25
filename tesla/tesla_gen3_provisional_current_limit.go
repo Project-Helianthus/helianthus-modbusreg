@@ -56,8 +56,8 @@ const (
 )
 
 // ProvisionalCurrentLimitResult separates caller intent, encoded values,
-// and the immutable phase receipts. Bound may refer to an earlier t28;
-// Prerequisite is populated only when this call performed that exchange.
+// and the immutable phase receipts. Bound may refer to an earlier t28.
+// On the documented path, Bound and Prerequisite hold the installation query.
 type ProvisionalCurrentLimitResult struct {
 	Requested                                                      ProvisionalCurrentLimitRequest
 	Encoded                                                        ProvisionalCurrentLimitRequest
@@ -93,9 +93,8 @@ func (result ProvisionalCurrentLimitResult) reject(reason error) (ProvisionalCur
 	return result, reason
 }
 
-// SetProvisionalCurrentLimit performs the explicitly qualified t25/t26
-// compatibility exchange and same-generation t27/t28 readback. It never
-// qualifies a firmware whose RS-485 t25 terminal has a different tag.
+// SetProvisionalCurrentLimit performs a firmware-scoped set and same-generation
+// readback. The baseline compatibility path requires explicit qualification.
 func (acquisition *Gen3ReadAcquisition) SetProvisionalCurrentLimit(parent context.Context, input ProvisionalCurrentLimitRequest) (ProvisionalCurrentLimitResult, error) {
 	result := ProvisionalCurrentLimitResult{Requested: input, Comparison: CurrentLimitUnknown}
 	if parent == nil {
@@ -110,7 +109,8 @@ func (acquisition *Gen3ReadAcquisition) SetProvisionalCurrentLimit(parent contex
 	}
 	gen3 := acquisition.config.Gen3
 	firmware, ok := teslaReadFirmware(gen3.Version())
-	if !ok || firmware != teslaReadFloor || !gen3.config.ProvisionalSetQualified {
+	documented := gen3.documentedCurrentLimitLayout()
+	if !documented && (!ok || firmware != teslaReadFloor || !gen3.config.ProvisionalSetQualified) {
 		return result.reject(fmt.Errorf("%w: t25/t26 capability not qualified for this build", modbusreg.ErrQualifiedFunctionNoSend))
 	}
 	if _, ok := acquisition.windows[FC100OperationWCGetProvisional]; !ok {
@@ -130,6 +130,9 @@ func (acquisition *Gen3ReadAcquisition) SetProvisionalCurrentLimit(parent contex
 	result.Deadline, _ = ctx.Deadline()
 	if ctx.Err() != nil {
 		return result.reject(ctx.Err())
+	}
+	if documented {
+		return acquisition.applyDocumentedProvisionalLimit(ctx, input, body, result)
 	}
 	return acquisition.applyProvisionalLimit(ctx, input, body, result)
 }
@@ -157,6 +160,10 @@ func (acquisition *Gen3ReadAcquisition) applyProvisionalLimit(ctx context.Contex
 	if !ok || !bound.HasConfiguredCurrent || bound.ConfiguredCurrentAmps == 0 || input.LimitCurrentMaxAmps > bound.ConfiguredCurrentAmps {
 		return result.reject(fmt.Errorf("%w: latest t28 lacks a usable bound for the requested current", modbusreg.ErrQualifiedFunctionNoSend))
 	}
+	return acquisition.exchangeProvisionalSet(ctx, input, body, result)
+}
+
+func (acquisition *Gen3ReadAcquisition) exchangeProvisionalSet(ctx context.Context, input ProvisionalCurrentLimitRequest, body []byte, result ProvisionalCurrentLimitResult) (ProvisionalCurrentLimitResult, error) {
 	request, err := BuildTeslaFC100OperationRequest(HSCFC100OperationCompatibilityV1, FC100OperationWCSetProvisional, body)
 	if err != nil {
 		return result.reject(err)
@@ -185,9 +192,10 @@ func (acquisition *Gen3ReadAcquisition) applyProvisionalLimit(ctx context.Contex
 		result.Outcome = Gen3ReadEvidenceIndeterminate
 		return result, nil
 	}
-	result.Comparison = compareTeslaProvisional(input, readback, false)
+	firmware, _ := teslaReadFirmware(acquisition.config.Gen3.Version())
+	result.Comparison = compareTeslaProvisional(input, readback, firmware == [3]uint64{26, 34, 0})
 	result.EffectIndeterminate = result.Comparison == CurrentLimitUnknown
-	if result.Comparison == CurrentLimitMatch {
+	if result.Comparison == CurrentLimitMatch && result.Set.TerminalTag == 26 {
 		result.Validated, err = NewGen3ProvisionalCurrentLimit(Gen3ProvisionalCurrentLimitSpec{
 			OperationVersion:    HSCFC100OperationCompatibilityV1,
 			LimitCurrentMaxAmps: input.LimitCurrentMaxAmps, LimitTimeoutSeconds: input.LimitTimeoutSeconds, InhibitCharging: input.InhibitCharging,

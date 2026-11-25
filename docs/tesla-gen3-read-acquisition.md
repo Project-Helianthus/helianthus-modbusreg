@@ -90,35 +90,46 @@ reserved read. `Retained` exposes the last good t28 and the latest attempt;
 presence. Malformed, duplicate, or wrong-type documented members cannot replace
 last-known-good evidence.
 
-`SetProvisionalCurrentLimit` requires ready state, explicit qualification of
-the exact t25/t26 compatibility path, independently admitted t27/t28 and a
-valid t28 window. The compatibility path is restricted to the baseline
-firmware: the TEDAPI Specification §§6.4.10 and 7.1.2 specifies a different
-RS-485 terminal on 26.34.0 and 26.42.0. The driver makes no t26 support claim
-for those versions. A correlated status error does not acknowledge the set.
+`SetProvisionalCurrentLimit` requires ready state, independently admitted
+readback and a valid t28 window. It selects one of two paths within the same
+single-flight reservation and deadline:
 
-One deadline covers the initial t27 if needed, the t25/t26 exchange, and the
-confirmation t27/t28. The current upper bound is taken from the latest usable
-t28 in the same generation, even after it stops being fresh, until the
-retention window expires. If that generation has seen a t28, loss of its
-reusable payload through expiry does not authorize a new prerequisite read.
-An absent or explicit-zero configured current, or a bound below the encoded
-current, denies the set. The positive path sends at least 6 A, 900 seconds,
-and inhibit false; a pause is encoded as 6 A, 900 seconds and inhibit true.
-These are product rules, not device-wide range or expiry claims. On 26.34.0,
-t28 reports remaining time, not an echo, and expiry restores the default
-(TEDAPI Specification §7.1.1).
+- **24.44.3 compatibility:** Requires explicit t25/t26 qualification. The
+  specification does not define this exchange for that firmware. The driver
+  uses the latest reusable t28 in the same generation as the bound, taking
+  an initial t27 only if that generation has never seen a t28. Expiry does
+  not authorize a new prerequisite read in a generation that already saw
+  a t28. An absent or explicit-zero configured current, or a bound below
+  the encoded current, denies the set.
+- **26.34.0 and 26.42.0:** No separate setter declaration is required for
+  these identified builds. The setter uses a reserved 6/5 → 6/6 query to
+  obtain the installation maximum; a missing, nonpositive or insufficient
+  value denies the mutation. The t28 configured-current scalar is not the
+  installation maximum. The setter sends t25 once, accepts the correlated
+  t25 reply even if it equals the request, and then reads t27 → t28. A
+  status-bearing error is not an acknowledgement. These are the only builds
+  admitted by this path (TEDAPI Specification §§6.4.3, 6.4.10–6.4.11, 7.1
+  and 7.8; RS-485 Site Controller Protocol §5.4).
 
-The setter keeps intent, the encoded triple, the bound, each correlated native
-receipt, and the returned values separately. `match`, `mismatch` and `unknown`
-compare the observed tuple with what was sent; wire absence does not become a
-zero or false observation. A t26 alone says nothing about applied current.
-Only a same-generation confirmation that yields `match` or `mismatch` makes
-the effect determinate. A failed confirmation retains the ACK. A deadline
-that expires before any request is sent is a no-send rejection. A timeout
-during the transmitted prerequisite t27 or t25, or expiry while awaiting
-confirmation after t26, is reported as `timeout` with possible transmission
-and indeterminate effect.
+The conservative product policy sends positive limits of at least 6 A for
+900 seconds with inhibit false and encodes a pause as 6 A for 900 seconds
+with inhibit true. The specification bounds the request timeout at 86399
+seconds and checks the current against stored capacity; it does not specify
+a nonzero minimum current. The station still applies its own checks. The
+product neither sends a zero-valued release nor defines renewal scheduling.
+On 26.34.0 the returned timeout is remaining time, so a smaller present
+value is not a mismatch; expiry returns to the hardware default. Current-limit
+behavior on 26.42.0 is not specified (TEDAPI Specification §7.1).
+
+The result keeps intent, encoded values, the bound and the native phase
+receipts separately. A successful set reply does not confirm applied current.
+Only correlated readback in the same generation contributes to `match`,
+`mismatch` or `unknown`; absent members are not synthesized. The legacy
+matching-only record is limited to the compatibility path. A failed
+confirmation keeps the successful set receipt. A transmitted t25 or a
+post-acknowledgement readback can time out without confirming the effect.
+If only the prerequisite query ran and the mutation was denied, `NoSend`
+refers to t25; the query receipt is retained in the result.
 
 `ConfigurePersistentCurrent` takes a `PersistentSettingsRequest` with signed
 current, a caller operation identity, and a deadline, and returns a

@@ -74,10 +74,6 @@ func TestTeslaProvisionalCurrentLimitPollTypedReadback(t *testing.T) {
 		if check.ConfiguredCurrentAmps != 32 {
 			t.Fatal("typed payload mutated")
 		}
-		denied, err := h.acquisition.SetProvisionalCurrentLimit(ctx, ProvisionalCurrentLimitRequest{16, 900, false})
-		if err == nil || !denied.NoSend || h.endpoint().exchanges() != 6 {
-			t.Fatalf("t27 admitted t25: %+v, %v", denied, err)
-		}
 		teslaPushTerminal(t, h, FC100OperationWCGetProvisional, malformed)
 		attempt, err := h.acquisition.Acquire(ctx, FC100OperationWCGetProvisional)
 		retained, _ = h.acquisition.Retained(FC100OperationWCGetProvisional)
