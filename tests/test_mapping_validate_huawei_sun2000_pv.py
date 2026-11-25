@@ -105,12 +105,8 @@ def test_no_binary_floating_point_anywhere():
     ("pack", lambda d: set_path(d, "pack.id", "helianthus.pack.storage"), "contract"),
     ("pack-version", lambda d: set_path(d, "pack.version", "1.1.0"), "contract"),
     ("status", lambda d: set_path(d, "status", "accepted"), "contract"),
-    ("evidence-pull-request", lambda d: set_path(d, "evidence.registry_profiles.pull_request", 358), "evidence"),
-    ("evidence-contract-issue", lambda d: set_path(d, "evidence.monitoring_contract.issue", 241), "evidence"),
-    ("edition-title", lambda d: set_path(d, "native_contract.edition.title", "SUN2000MC V200R023C00 Modbus Interface Definitions (draft)"), "edition"),
-    ("edition-issue", lambda d: set_path(d, "native_contract.edition.issue", "Issue 02"), "edition"),
-    ("edition-date", lambda d: set_path(d, "native_contract.edition.date", "2023-04-20"), "edition"),
-    ("edition-quoted", lambda d: set_path(d, "native_contract.edition.use", "quoted"), "edition"),
+    ("evidence-grades", lambda d: set_path(d, "evidence.grades", ["proven", "unknown"]), "evidence"),
+    ("evidence-reference-added", lambda d: set_path(d, "evidence.monitoring_contract", {"issue": 242}), "evidence"),
     ("registry-flag", lambda d: set_path(d, "native_contract.registry_flags.live_qualified", True), "native contract"),
     ("outbound", lambda d: set_path(d, "native_contract.outbound_allowed", True), "native contract"),
     ("word-order", lambda d: set_path(d, "native_contract.word_order", "least_significant_word_first"), "native contract"),
@@ -829,7 +825,7 @@ def page():
     ("| transformed | unit+policy | Proven | Hypothesis |", "| transformed | policy | Proven | Hypothesis |"),
     ("| `battery` | withheld | `pv.reason.battery_outside_pv_family` | capability | withheld |", "| `battery` | withheld | `pv.reason.battery_outside_pv_family` | capability | unrepresentable |"),
     ("| `PV-NEG-018-error-precedence` |", "| `PV-NEG-099-other` |"),
-    ("Proven only where the monitoring contract is Proven", "Proven where a document says so"),
+    ("Proven only where its native register definition is Proven", "Proven where a document says so"),
     ("outbound_allowed=false", "outbound allowed"),
     ("| `string_power` | `none` | `resource.pv_string` | `pv.dimension.string` | `unit.watt` |", "| `string_power` | `none` | `resource.dc_input` | `pv.dimension.input` | `unit.watt` |"),
     ("| `resource.pv_string` | component | `native_slot` | `native_position` | `resource.inverter` |", "| `resource.pv_string` | component | `native_slot` | `native_position` | `resource.pv_array` |"),
@@ -1226,6 +1222,311 @@ def test_string_power_is_the_product_of_the_voltage_and_current_of_the_same_read
             v.string_power(voltage, {**current, **damage})
     with Raises(ValueError, match="string_power_operands"):
         v.string_power(current, voltage)
+
+
+@parametrize("destination", [
+    "https://example.invalid/page?u=" + OWNER_LINK,
+    "https://example.invalid/" + OWNER_LINK,
+    "https://example.invalid/@" + OWNER_LINK,
+    "https://example.invalid/page#" + OWNER_LINK,
+])
+def test_owner_link_exception_applies_only_to_the_actual_destination(destination):
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n[owner](" + destination + ")\n")
+
+
+def test_owner_link_exception_leaves_labels_and_nested_foreign_destinations_checked():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    texts = [
+        "[https://example.invalid/?q=[a](" + approved + ")](https://example.invalid/?q=[a](" + approved + "))",
+        "[a](https://example.invalid/?q=[b](" + approved + "))",
+        "[a](https://example.invalid/?q=(x)[b](" + approved + "))",
+        "[" + "a1" * 20 + "](" + approved + ")",
+        "[page#L12](" + approved + ")",
+        "[tcp://host:1](" + approved + ")",
+    ]
+    for text in texts:
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
+def test_owner_link_inside_a_deeply_nested_foreign_destination_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for depth in (3, 4, 6):
+        text = "[a](https://example.invalid/?q=" + "(" * depth + "x" + ")" * depth + "[b](" + approved + "))"
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+    v.check_document(v.load(), page() + "\n[b](" + approved + ")\n")
+
+
+def test_owner_link_in_a_foreign_link_title_gets_no_exception():
+    for quote in ('"', "'"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n[owner](https://example.invalid/x " + quote + "see " + OWNER_LINK + quote + ")\n")
+
+
+def test_owner_link_in_a_reference_definition_title_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for title in ('"see [b](' + approved + ')"', "'see [b](" + approved + ")'", "(see [b](" + approved + "))"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n[r]: https://example.invalid/x " + title + "\n")
+
+
+def test_owner_link_in_code_or_a_continuation_title_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for text in ("```\n[a](" + approved + ")\n```", "~~~\n[a](" + approved + ")\n~~~", "`[a](" + approved + ")`", "    [a](" + approved + ")", "[r]: https://example.invalid/x\n  \"" + approved + "\"", "[r]: https://example.invalid/x\n  (" + approved + ")"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
+def test_owner_link_exception_needs_a_complete_approved_destination_not_a_markdown_shaped_title():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for text in ("[owner](" + approved + ";other)", "[owner](<" + approved + ";other>)", "[a](https://example.invalid/x \"[b](" + approved + ")\")", "[a]( https://example.invalid/x \"[b](" + approved + ")\")", "[a](\t<https://example.invalid/x> '[b](" + approved + ")')", "[a](https://example.invalid/x '[b](" + approved + ")')", "[owner](" + approved + " \"title\")"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
+def test_an_escaped_opening_bracket_is_literal_text_and_gets_no_owner_link_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for text in ("\\[owner](" + approved + ")", "\\\\\\[owner](" + approved + ")", "[owner\\](" + approved + ")"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+    v.check_document(v.load(), page() + "\n\\\\[owner](" + approved + ")\n")
+
+
+PHASES = ["resource:demo-phase-alpha-%d" % n for n in range(1, 4)]
+
+
+def phase_case(positions, name="m1", ids=PHASES):
+    document = case(name)
+    document["phases"] = list(positions)
+    if ids is not None:
+        document["identity"]["resources"]["phases"] = list(ids)
+    return document
+
+
+def phase_relations(output):
+    return [(item["from"], item["to"]) for item in output["relations"] if item["definition"] == "pv.relation.inverter_phase"]
+
+
+def test_an_admitted_phase_reading_publishes_driver_allocated_phases_under_the_inverter():
+    output = project(phase_case([1, 2, 3]))
+    assert phase_relations(output) == [(INVERTER, item) for item in PHASES]
+    records = {item["resource_id"]: item for item in output["resources"]}
+    for position, item in enumerate(PHASES, 1):
+        assert records[item] == {"resource_id": item, "kind": "resource.phase", "parent": INVERTER, "native_position": position}, position
+    assert v.RESOURCE_ROLES["phases"]["source"] == "driver_allocated_at_native_position" and v.RESOURCE_ROLES["phases"]["slots"] == 3
+    assert not any(fact["key"]["dimensions"][0]["id"] == "pv.dimension.phase" for fact in output["facts"])
+    assert not any(item["resource_id"] in PHASES for item in project(case())["resources"])
+
+
+def test_the_same_opaque_phase_identifier_at_another_native_position_projects_a_different_record():
+    first = project(phase_case([1], ids=[PHASES[0], None, None]))
+    second = project(phase_case([2], ids=[None, PHASES[0], None]))
+    record = lambda output: next(item for item in output["resources"] if item["resource_id"] == PHASES[0])
+    assert record(first)["native_position"] == 1 and record(second)["native_position"] == 2 and record(first) != record(second)
+
+
+@parametrize("positions", [[1], [2], [3], [3, 1]])
+def test_each_phase_position_reaches_exactly_its_own_resource_and_relation(positions):
+    output = project(phase_case(positions, ids=[PHASES[n] if n + 1 in positions else None for n in range(3)]))
+    assert sorted(phase_relations(output)) == sorted((INVERTER, PHASES[position - 1]) for position in positions)
+    assert sorted(item["resource_id"] for item in output["resources"] if item["kind"] == "resource.phase") == sorted(PHASES[position - 1] for position in positions)
+
+
+@parametrize("positions,ids", [([2], [None, PHASES[1], None]), ([1, 3], [PHASES[0], None, PHASES[2]])])
+def test_phase_identities_are_required_only_for_the_positions_reported(positions, ids):
+    output = project(phase_case(positions, ids=ids))
+    assert sorted(phase_relations(output)) == sorted((INVERTER, PHASES[position - 1]) for position in positions)
+
+
+@parametrize("positions", [[1], [2], [1, 3]])
+def test_a_phase_identifier_without_an_answered_reported_position_is_rejected(positions):
+    with Raises(ValueError, match="identity_missing_or_invalid"):
+        project(phase_case(positions))
+
+
+@parametrize("name,ids", [("m3", ["resource:demo-phase-beta-%d" % n for n in range(1, 4)]), ("m1", PHASES)])
+def test_a_case_without_phase_positions_allocates_no_phase_identifier(name, ids):
+    document = case(name)
+    document["identity"]["resources"]["phases"] = list(ids)
+    with Raises(ValueError, match="identity_missing_or_invalid"):
+        project(document)
+
+
+def test_the_statistics_time_reason_keeps_the_time_domain_unresolved_and_asserts_no_clock_domain():
+    description = v.load()["reasons"]["pv.reason.statistics_time_domain_unresolved"]["description"].lower()
+    assert "unresolved" in description and "never used as a sample time" in description
+    assert not any(word in description for word in ("local time", "utc"))
+    assert "time domain of the device statistics time is unresolved" in page()
+
+
+def test_a_case_without_phase_positions_and_without_allocation_still_projects():
+    assert not phase_relations(project(case("m3")))
+    assert not phase_relations(project(case("m1")))
+
+
+def test_the_value_aligned_power_group_extent_validates_the_allocated_phases():
+    document = phase_case([1, 2, 3])
+    for group in document["groups"]:
+        if (group["offset"], group["quantity"]) == (32064, 32):
+            group["quantity"] = 33
+    output = project(document)
+    assert phase_relations(output) == [(INVERTER, item) for item in PHASES]
+    assert not any(fact["key"]["dimensions"][0]["id"] == "pv.dimension.phase" for fact in output["facts"])
+
+
+def test_an_answered_aligned_group_beside_the_retained_shorter_refusal_validates_phases_for_a_profile_that_plans_the_shorter_read():
+    document = phase_case([1, 2, 3])
+    for group in document["groups"]:
+        if (group["offset"], group["quantity"]) == (32064, 32):
+            group["outcome"], group["exception_code"] = "EXCEPTION", 2
+    document["groups"].append({"offset": 32064, "quantity": 33, "outcome": "ANSWERED"})
+    in_group = {rule["native_id"] for rule in v.load()["field_rules"] if (rule.get("native") or {}).get("group_offset") == 32064}
+    for fact in document["facts"]:
+        if fact["key"] in in_group:
+            for member in ("value", "words", "state", "origin"):
+                fact.pop(member, None)
+            fact["availability"], fact["grade"] = "UNKNOWN", "unknown"
+    output = project(document)
+    assert phase_relations(output) == [(INVERTER, item) for item in PHASES]
+
+
+M3_PHASES = ["resource:demo-phase-beta-%d" % n for n in range(1, 4)]
+
+
+def aligned_m3_case(replace_refusal, outcome="ANSWERED"):
+    document = phase_case([1, 2, 3], name="m3", ids=M3_PHASES)
+    aligned = {"offset": 32064, "quantity": 33, "outcome": outcome}
+    if outcome != "ANSWERED":
+        aligned["exception_code"] = 2
+    if replace_refusal:
+        document["groups"] = [aligned if (group["offset"], group["quantity"]) == (32064, 32) else group for group in document["groups"]]
+    else:
+        document["groups"].append(aligned)
+    return document
+
+
+@parametrize("replace_refusal", [True, False])
+def test_an_answered_aligned_power_group_validates_phases_for_a_profile_that_records_the_shorter_read_as_refused(replace_refusal):
+    output = project(aligned_m3_case(replace_refusal))
+    assert phase_relations(output) == [("resource:demo-inverter-beta", item) for item in M3_PHASES]
+
+
+@parametrize("replace_refusal", [True, False])
+def test_an_aligned_power_group_that_did_not_answer_publishes_no_phase_for_that_profile(replace_refusal):
+    with Raises(ValueError, match="native_evidence_invalid"):
+        project(aligned_m3_case(replace_refusal, outcome="EXCEPTION"))
+
+
+def test_the_shorter_refusal_stays_a_distinct_record_beside_an_answered_aligned_read():
+    document = aligned_m3_case(False)
+    document["groups"][2]["exception_code"] = 2
+    with Raises(ValueError, match="native_evidence_invalid"):
+        project(document)
+
+POWER_RECORDS = {
+    "aligned": {"offset": 32064, "quantity": 33, "outcome": "ANSWERED"},
+    "refusal": {"offset": 32064, "quantity": 32, "outcome": "EXCEPTION", "exception_code": 3},
+    "other": {"offset": 32064, "quantity": 34, "outcome": "ANSWERED"},
+}
+
+
+def power_group_case(name, order, phases=True):
+    """The profile baseline with its power-group records replaced by the named records in the given order; facts of that group are unknown unless an aligned answer is present."""
+    document = phase_case([1, 2, 3], name=name, ids=PHASES if name == "m1" else M3_PHASES) if phases else case(name)
+    document["groups"] = [group for group in document["groups"] if group["offset"] != 32064] + [dict(POWER_RECORDS[item]) for item in order]
+    if "aligned" not in order:
+        in_group = {rule["native_id"] for rule in v.load()["field_rules"] if (rule.get("native") or {}).get("group_offset") == 32064}
+        for fact in document["facts"]:
+            if fact["key"] in in_group:
+                for member in ("value", "words", "state", "origin"):
+                    fact.pop(member, None)
+                fact["availability"], fact["grade"] = "UNKNOWN", "unknown"
+    return document
+
+
+@parametrize("name", ["m1", "m3"])
+def test_the_projection_of_the_power_group_does_not_depend_on_the_order_of_its_two_records(name):
+    first, second = project(power_group_case(name, ["refusal", "aligned"])), project(power_group_case(name, ["aligned", "refusal"]))
+    assert first == second
+    assert len(phase_relations(first)) == 3
+
+
+def test_an_m1_case_with_a_refusal_before_an_answered_aligned_read_keeps_its_valid_power_facts():
+    for order in (["refusal", "aligned"], ["aligned", "refusal"]):
+        output = project(power_group_case("m1", order, phases=False))
+        assert by_key(output) == by_key(project(case("m1")))
+
+
+@parametrize("name,order,error", [
+    ("m1", ["refusal"], "native_evidence_invalid"),
+    ("m3", ["refusal"], "native_evidence_invalid"),
+    ("m1", ["other"], "native_evidence_invalid"),
+    ("m3", ["other"], "native_evidence_invalid"),
+    ("m1", ["refusal", "other"], "native_evidence_invalid"),
+    ("m3", ["other", "refusal"], "native_evidence_invalid"),
+])
+def test_a_phase_needs_the_aligned_answer_and_a_read_of_another_extent_is_not_the_recorded_refusal(name, order, error):
+    with Raises(ValueError, match=error):
+        project(power_group_case(name, order))
+
+
+@parametrize("name", ["m1", "m3"])
+def test_a_refusal_alone_publishes_no_power_fact_and_an_aligned_answer_alone_publishes_the_phases(name):
+    assert not phase_relations(project(power_group_case(name, ["refusal"], phases=False)))
+    assert len(phase_relations(project(power_group_case(name, ["aligned"])))) == 3
+
+
+def test_a_reported_phase_position_without_its_identity_fails_closed():
+    with Raises(ValueError, match="identity_missing_or_invalid"):
+        project(phase_case([2], ids=[PHASES[0], None, PHASES[2]]))
+
+
+@parametrize("document,error", [
+    (phase_case([1, 2, 3], ids=None), "identity_missing_or_invalid"),
+    (phase_case([1], ids=[PHASES[0], PHASES[0], PHASES[2]]), "identity_missing_or_invalid"),
+    (phase_case([1], ids=[INVERTER, PHASES[1], PHASES[2]]), "identity_missing_or_invalid"),
+    (phase_case([1], ids=PHASES[:2]), "identity_missing_or_invalid"),
+    (phase_case([4]), "native_evidence_invalid"),
+    (phase_case([0]), "native_evidence_invalid"),
+    (phase_case([1, 1]), "native_evidence_invalid"),
+    (phase_case([]), "native_evidence_invalid"),
+    (phase_case(["1"]), "native_evidence_invalid"),
+    (phase_case([1], name="m3", ids=["resource:demo-phase-beta-%d" % n for n in range(1, 4)]), "native_evidence_invalid"),
+])
+def test_a_phase_without_a_valid_allocation_or_an_answered_power_group_fails_closed(document, error):
+    with Raises(ValueError, match=error):
+        project(document)
+
+
+def test_the_phase_allocation_is_the_drivers_and_the_gate_publishes_no_source_statement():
+    document = contract()
+    assert document["identity"]["resources"]["phases"] == v.RESOURCE_ROLES["phases"]
+    assert "edition" not in document["native_contract"]
+    assert not any("edition_binding" in profile for profile in document["native_contract"]["profiles"])
+    for text in (json.dumps(document).lower(), page().lower()):
+        assert "consulted" not in text and "edition" not in text and "inspection-only" not in text and "copyright" not in text
+        for word in ("pull request", "pull_request", "issue ", "\"issue\"", "synthetic", "independent check", "helianthus-docs-ebus", "helianthus-modbusreg", "registry_profiles", "program_issues", "multi_endpoint_contract", "derive from the published", "one reading", "readings per", "check anchor", "per unit;"):
+            assert word not in text, word
+    assert document["evidence"] == {"grades": ["proven", "hypothesis", "unknown"]}
+
+
+def test_the_relay_declarations_keep_their_evidence_class_and_publish_no_source_location():
+    rows = contract()["conditional_relations"]
+    assert [row["to_kind"] for row in rows] == ["resource.battery", "resource.meter"]
+    for row in rows:
+        assert row["basis_class"] == "native_observation" and row["evidence"] and all(item.startswith("native_observation:") for item in row["evidence"]), row["to_kind"]
+    assert "native_page" not in json.dumps(contract()).lower() and "native_page" not in page().lower()
+
+
+@parametrize("text,exempt", support.OWNER_LINK_CASES)
+def test_the_owner_link_table_exempts_only_a_full_approved_destination_of_a_markdown_link(text, exempt):
+    if exempt:
+        v.check_document(v.load(), page() + "\n" + text + "\n")
+        return
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n" + text + "\n")
 
 
 if __name__ == "__main__":

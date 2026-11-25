@@ -5,48 +5,29 @@ monitoring profiles admit to `helianthus.pack.pv@1.0.0`. It adds no pack and no
 vendor-specific semantic family, and it makes no stability promise before
 Helianthus 1.0. A live qualification observed on a record is a recorded level and does not reject its mapping.
 Its machine-readable companion is
-[the mapping vectors](huawei-sun2000-pv-v1.json). The vectors are synthetic and
-derive from the published native contract; they are not observations from
-hardware.
+[the mapping vectors](huawei-sun2000-pv-v1.json). The vectors use opaque identifiers and values only.
 
 The same family set has two sibling gates that map nothing today:
 [the LUNA2000 storage gate](huawei-luna2000-storage-v1.md) and
 [the gateway-meter infrastructure gate](huawei-gateway-meter-infrastructure-v1.md).
 
-## Evidence basis
+## Evidence grades
 
-| Source | Reference | Role |
-| --- | --- | --- |
-| Native monitoring contract | `helianthus-docs-modbus` issue 242, pull request 253: `protocols/huawei/monitoring-readonly-v1.md` and `protocols/huawei/read-pacing-v1.md` | Owns every register group, word form, gain, unit, sign and grade. This gate restates none of them as new protocol fact. |
-| Registry profiles | `helianthus-modbusreg` issue 348, pull request 357 | Two inert monitoring profiles, the typed facts they decode, the refusal map and the dispositions. |
-| Program | `helianthus-modbusreg` issues 199 and 201 | The Huawei read-only program this gate belongs to. |
-| Multi-endpoint contract | `helianthus-docs-ebus` issue 746, pull request 748 | Finalized source keying per endpoint instance. Its class token is provenance here, never identity. |
-
-No revision, digest or pinned link is cited: the references above are issue and
-pull request numbers. Grades are those of the monitoring contract. Proven means
-a live reading was decoded with the stated form and agreed with an independent
-check at the observed units; Hypothesis means a document states it or a reading
-was plausible without an independent check; Unknown means neither settles it.
-Grades are separate from admission, qualification and support. The grade of a
-published fact is inherited and never raised: Proven only where the monitoring
-contract is Proven. A rule of this gate that goes beyond the contract is a
-Hypothesis.
+Proven means a reading was decoded with the stated form at the observed units;
+Hypothesis means the stated form is plausible without a settling check;
+Unknown means neither settles it. A published fact is Proven only where its
+native register definition is Proven, and this gate never raises a grade. A rule of this gate that goes beyond the native register
+definitions is a Hypothesis.
+Grades are separate from admission, qualification and support.
 
 ## Admitted profiles and selection
 
-| Profile | Family and path | Edition binding | Facts |
-| --- | --- | --- | --- |
-| `huawei.sun2000.m3.monitoring-readonly@1.0.0` | SUN2000 M3 series behind the SmartLogger | The consulted edition's supported-model table names the model (Proven). | 19: eight string voltages, eight string currents and three energy counters. The power group is refused with exception 3 and the cause is Unknown. |
-| `huawei.sun2000.m1.monitoring-readonly@1.0.0` | SUN2000 M1 series behind the S-Dongle | The edition does not list the model; the contract checked its layout against the child's reading (Proven, one reading). | 22: the same 19, input power, active power and the device status code. |
+| Profile | Family and path | Facts |
+| --- | --- | --- |
+| `huawei.sun2000.m3.monitoring-readonly@1.0.0` | SUN2000 M3 series behind the SmartLogger | 19: eight string voltages, eight string currents and three energy counters. The power group is refused with exception 3 and the cause is Unknown. |
+| `huawei.sun2000.m1.monitoring-readonly@1.0.0` | SUN2000 M1 series behind the S-Dongle | 22: the same 19, input power, active power and the device status code. |
 
-Both profiles are pinned to one consulted edition of the vendor's SUN2000
-interface definition: `SUN2000MC V200R023C00 Modbus Interface Definitions`,
-Issue 01, dated 2023-03-17. The edition is cited by identity only and is
-inspection-only; nothing of it is reproduced here. Its information is attributed
-to Huawei Technologies Co., Ltd., which retains the copyright. The M3 binding is
-Proven because the edition's supported-model table names the model. The M1
-binding is a live check of the edition's layout against one reading, so the
-family-wide statement is a Hypothesis.
+The family-wide statement of the M1 profile is a Hypothesis; the M3 profile is Proven.
 
 The gate runs only on a registry selection of `PROFILE_SELECTED` for one of these
 two exact profile identifiers. `INSUFFICIENT_EVIDENCE`, `NO_ADMISSIBLE_PROFILE`
@@ -57,8 +38,8 @@ as false at the gate; a live qualification of a record is a recorded level and
 does not reject its mapping. `mapping_qualified=true` describes
 this offline projection only, and `outbound_allowed=false` grants no operation.
 
-The SUN2000 MAP0 series behind the EMMA has no consulted edition. Its
-disposition is `NO_ADMISSIBLE_PROFILE` with the reason `no_consulted_edition`.
+The SUN2000 MAP0 series behind the EMMA has no documented profile. Its
+disposition is `NO_ADMISSIBLE_PROFILE` with the reason `no_documented_profile`.
 This gate has no field for it: its monitoring groups answered, but their words
 stay native evidence and no PV fact is published from them (the layout is a
 cross-family Hypothesis). Vector `PV-NEG-001-emma-map0-not-admitted` pins that.
@@ -75,16 +56,17 @@ what never derives it.
   it.
 - The source identifier is the existing managed instance identifier, derived
   from its DriverID and configured owner identity, with exactly one source per
-  endpoint instance under the finalized multi-endpoint contract of
-  `helianthus-docs-ebus` issue 746 (merged pull request 748). Its fixed family
+  endpoint instance. Its fixed family
   namespace is configuration, not observed native identity. A binding
   identifier is derived by the gateway over the asset, the source and the
   profile only; it never selects or changes the asset or a resource.
-- Every resource dimension value and every relation endpoint is a
-  gateway-allocated resource identifier (RES-5, REL-8): one for the gateway
+- Every resource dimension value and every relation endpoint other than a phase
+  is a gateway-allocated resource identifier (RES-5, REL-8): one for the gateway
   path that relays the child, one for the PV system, one for the inverter and
-  one for each of the eight string slots. No phase identifier is allocated,
-  because no profile admits a per-phase word.
+  one for each of the eight string slots. A phase identifier is allocated by the
+  driver, not the gateway, at the native phase position one to three, and only
+  for a position read in an answered power group (Proven for the M1 profile).
+  No phase identifier exists for a refused power group.
 
 The class token of the PV pack and the registry profile identifier are native
 interpretation selectors, and the gate classifies both as provenance (section
@@ -101,8 +83,7 @@ the source or the binding. The validator permits the managed Huawei source
 namespace with an owner GUID while rejecting native identity text; this is a
 syntax lint, not proof of how an identifier was derived. The gate publishes
 nothing at endpoint or gateway level. The projection vectors use short
-synthetic opaque identifiers to isolate mapping behavior; they are not
-evidence of gateway identity construction.
+opaque identifiers to isolate mapping behavior.
 
 ## Resources
 
@@ -136,8 +117,10 @@ credential, a class token or a profile identifier is never an anchor source.
   frozen catalog states no relation from an inverter to its strings, so that
   relation stays unknown, not absent, until the catalog states it.
 - A phase is a component of its inverter at its native position. The kind is
-  stated so that its anchor is fixed, but no phase is allocated or published
-  until a profile admits a per-phase word.
+  stated so that its anchor is fixed. The driver allocates each phase at its
+  native position (one to three) when the power group is answered; a refused
+  power group allocates none. The projected phase record carries that native
+  position, so a resource identifier moved to another position is a different record.
 
 ## Relations
 
@@ -149,7 +132,7 @@ The validity scope of every row is the two admitted profiles at version 1.0.0.
 | --- | --- | --- | --- | --- |
 | `relation.relays` | `native_observation` | `resource.equipment` | `resource.inverter` | `each_admitted_child_is_read_through_the_gateway_path_its_profile_names` |
 | `pv.relation.system_inverter` | `gate_rule` | `resource.pv_system` | `resource.inverter` | `one_pv_system_per_admitted_inverter_child` |
-| `pv.relation.inverter_input` | `gate_rule` | `resource.inverter` | `resource.dc_input` | `an_input_a_native_word_names_none_in_this_edition` |
+| `pv.relation.inverter_input` | `gate_rule` | `resource.inverter` | `resource.dc_input` | `no_native_word_names_an_input` |
 | `pv.relation.inverter_phase` | `gate_rule` | `resource.inverter` | `resource.phase` | `phase_values_are_dimensions_of_the_inverter` |
 
 - Each profile names the gateway path its reads go through, so the binding that
@@ -158,12 +141,15 @@ The validity scope of every row is the two admitted profiles at version 1.0.0.
   emitted whenever the inverter is published.
 - The gate emits one system-to-inverter record when a system or inverter fact
   is published. An inverter-to-input record is published only for an input a
-  native word names, and this edition names none.
+  native word names, and none is named.
 - The gate makes no absence statement. A zero string pair does not show that a
   string or an input is absent, and a withheld child is not absent.
 - The inverter-to-phase relation is a gate rule: phase components are allocated
   under the inverter at their native position, and their values are phase
-  dimensions of the inverter. No phase is published by these profiles.
+  dimensions of the inverter. One record is emitted for each phase position that
+  is read, from the inverter to the driver-allocated phase resource. The phase
+  voltage and current values stay withheld: the type, gain and unit of each
+  phase word are not stated, so they are Unknown.
 - The inverter-to-battery and inverter-to-meter relays are conditional
   statements of the native register space (`native_observation`). Each is
   published when the battery or meter resource of its own family exists and is
@@ -331,7 +317,7 @@ inverter. The hour counter stays
 unpublished: it is not a pack yield period. The monitoring contract has no
 month or year yield word, so `pv.energy.yield_month` and `pv.energy.yield_year`
 stay prospective and unpublished. Nothing is summed across inverters into a
-plant total. The device statistics time is never used as a sample time.
+plant total. The time domain of the device statistics time is unresolved, and it is never used as a sample time.
 
 ## Withheld and native-only
 
@@ -354,12 +340,12 @@ names a reason that declares its loss.
 
 The status group is retained as bit fields whose meanings are Unknown, and one of
 its words is derived from a serial number and is never published. The words of
-the power group that are not consumed are the contract's check anchors (grid
-voltages and currents, frequency, reactive power, efficiency, temperature). The
+the power group that are not consumed carry grid voltages and currents,
+frequency, reactive power, efficiency and temperature. The
 pack has fields that could carry some of them (`pv.ac.voltage`, `pv.ac.current`,
 `pv.ac.frequency`, `pv.ac.power_factor`, `pv.temperature.inverter`), so they are
 withheld rather than native-only; they become mappable only when a profile
-admits them, and no per-phase fact is published until then.
+admits them, and no per-phase value is published until then.
 
 ## Explicit non-mappings
 
@@ -367,7 +353,7 @@ admits them, and no per-phase fact is published until then.
 | --- | --- | --- |
 | Storage | No battery fact is admitted by any profile. The battery groups answered with data on the MAP0 series only, and their meanings are Unknown. A zero word at a battery offset on the M3 and M1 series is never a state of charge, power or energy of zero. The [storage gate](huawei-luna2000-storage-v1.md) owns what the Storage family will take. | Proven (zero words); Hypothesis (zero rule); Unknown (meanings) |
 | Meters | No meter register was read on any path and no meter class contract exists, so every meter value is Unknown. The [gateway-meter gate](huawei-gateway-meter-infrastructure-v1.md) owns that boundary. | Unknown |
-| MAP0 series | No consulted edition and no profile. | Proven |
+| MAP0 series | No documented profile. | Proven |
 | Plant groups | The logger plant groups, the EMMA site groups and the S-Dongle plant groups are planned reads that were never read. They have no profile, and no plant or site PV fact is published from them or from a sum of inverters. | Hypothesis (documentary) |
 | M3 power group | The family refused the group and the cause is Unknown; the candidate extents are Unknown. The gate never requests them. | Unknown |
 | Operations | No active-power limit, export limit, enable or disable, write, acknowledgement, readback, retry or route exists. | Proven as a statement of the contract |
@@ -399,7 +385,7 @@ Withdrawal is explicit and generation-fenced.
 
 The first two vectors carry the complete expected output of each admitted
 profile; the others carry a summary derived from the same projection. The vector
-files use synthetic identifiers and values only.
+files use opaque identifiers and values only.
 
 | Vector | What it proves |
 | --- | --- |
@@ -414,7 +400,7 @@ files use synthetic identifiers and values only.
 | `PV-POS-009-all-inputs-zero` | Zero string pairs publish no input fact and create no input relation. |
 | `PV-POS-010-power-group-not-answered` | A power group that did not answer leaves the three power facts unknown and publishes the rest. |
 | `PV-POS-011-canonical-decimal` | A trailing zero moves into the exponent and a zero power has exponent zero. |
-| `PV-NEG-001-emma-map0-not-admitted` | The MAP0 series has no consulted edition and publishes nothing. |
+| `PV-NEG-001-emma-map0-not-admitted` | The MAP0 series has no documented profile and publishes nothing. |
 | `PV-NEG-002-unknown-profile` | A profile identifier that no exact pair admits selects nothing. |
 | `PV-NEG-003-ambiguous-selection` | An ambiguous selection has no winner and publishes nothing. |
 | `PV-NEG-004-gain-misapplied` | A typed value that is not the words over the gain is rejected. |
@@ -437,6 +423,14 @@ files use synthetic identifiers and values only.
 | `PV-NEG-021-retained-without-origin` | A retained reading must carry its original receipt coordinates and lineage. |
 | `PV-NEG-022-relation-endpoint-unallocated` | A relation endpoint needs an allocated resource identifier; without one the case fails closed and no record dangles. |
 | `PV-NEG-023-one-identifier-two-resources` | One resource identifier never names two resources. |
+| `PV-POS-005-m1-phase-positions` | The driver allocates a phase resource at each of the three native positions of an answered power group, and the inverter-to-phase relation names each; the phase values stay withheld. |
+| `PV-POS-006-m1-one-phase-position` | Only the phase position that is read is published, with its relation. |
+| `PV-NEG-024-phase-without-driver-allocation` | A phase position without a driver-allocated resource identifier fails closed and no record dangles. |
+| `PV-NEG-025-phase-from-refused-power-group` | A phase position is never published from a refused power group. |
+| `PV-NEG-026-phase-position-outside-native-range` | The native phase positions are one to three. |
+| `PV-NEG-027-phase-identifier-reused` | One resource identifier never names two phases. |
+| `PV-NEG-028-phase-allocated-for-refused-power-group` | A refused power group allocates no phase; a phase identifier with no answered native position fails closed. |
+| `PV-NEG-029-phase-allocated-beyond-reported-position` | A phase identifier is allocated only for a native position that is reported in the answered power group. |
 
 ## Unresolved and falsifiers
 
@@ -448,7 +442,7 @@ files use synthetic identifiers and values only.
 | Should the lifetime energy counter have the inverter as subject? | An inverter-subject energy definition in the PV pack; until then the counter stays on the one-inverter PV system. | Hypothesis |
 | Do the string slots map to the pack's input one to one? | A native word that names an input, or a ratings read that gives the string and tracker counts. | Hypothesis |
 | Is an all-zero string pair an absent string? | A second operating point or a ratings read that shows a present input reading zero. | Hypothesis |
-| Does the observed grid-connected state mean generating? | An observation where that state reads zero active power while producing nothing, or a consulted edition that states another meaning. | Hypothesis |
+| Does the observed grid-connected state mean generating? | An observation where that state reads zero active power while producing nothing, or a native statement of another meaning. | Hypothesis |
 | Why does the M3 series refuse the power group? | An operator-approved read of a value-aligned extent. | Unknown |
 | Do the energy counters reset or roll over? | An observation across a reset or the day boundary. | Unknown |
 

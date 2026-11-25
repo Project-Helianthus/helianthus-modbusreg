@@ -14,8 +14,10 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import re
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG_PATH = ROOT / ".tmp/references/docs-semantic/api/v1/element-catalog-v1.json"
@@ -54,6 +56,129 @@ ABSENCE_SIDES = frozenset({"from", "to"})
 SELECTOR_CLASSES = frozenset({"identity_evidence", "provenance", "resource_attribute"})
 # EN-5: coverage of an aggregate is a groups or contains relation of its subject.
 COVERAGE_CORE_TYPES = frozenset({"groups", "contains"})
+
+
+# ---------------------------------------------------------------------------
+# Published-text rule shared by the three Huawei validators: the one place that
+# decides whether a URL in a published page is an approved owner link.
+# A URL is exempt only when it is the destination of a Markdown link and that
+# destination is the approved owner form in full: the pinned docs-semantic
+# repository, an owning path, and an optional non-line anchor. The same URL as
+# plain text, inside link text, inside a title, inside code, or inside another
+# link's destination is never exempt, and neither is any other host,
+# repository, revision form, or a destination that only starts with or contains
+# the approved form.
+# ---------------------------------------------------------------------------
+OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
+OWNER_URL_RE = re.compile(
+    r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:"
+    + "|".join(re.escape(path) for path in OWNER_PATHS)
+    + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?"
+)
+INLINE_TAIL_RE = re.compile(r"\(\s*(?:<(?P<angle>[^<>\s]*)>|(?P<bare>(?:[^\s()<>]|\((?:[^\s()<>]|\([^\s()<>]*\))*\))*))(?P<title>\s+(?:\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'))?\s*\)")
+REFERENCE_RE = re.compile(r"^[ \t]*\[(?P<ref>[^\]]+)\]:[ \t]+(?P<refdest><[^<>\s]*>|\S+)(?P<reftitle>[ \t]+(?:\"(?:[^\"\\\n]|\\.)*\"|\'(?:[^\'\\\n]|\\.)*\'|\([^\n]*\)))?[ \t]*$", re.MULTILINE)
+CODE_RE = re.compile(r"^[ ]{0,3}(?P<fence>`{3,}|~{3,})[^\n]*\n.*?(?:^[ ]{0,3}(?P=fence)[`~]*[ \t]*$|\Z)|^(?: {4}|\t)[^\n]*$|(?P<tick>`+)(?:(?!(?P=tick))[^`]|`+(?!(?P=tick)(?!`)))*?(?<!`)(?P=tick)(?!`)", re.MULTILINE | re.DOTALL)
+SPACE_RE = re.compile(r"\s*")
+
+
+class Link(NamedTuple):
+    """One Markdown link: where it starts and ends, the text kept when its destination is exempt, the exempt-eligible destination (None when the link carries a title), and the span of its destination."""
+
+    start: int
+    end: int | None
+    keep: str
+    destination: str | None
+    span: tuple[int, int, int] | None
+
+
+def backslash_escaped(text: str, index: int) -> bool:
+    """Whether the character at index is escaped by an odd run of backslashes, so Markdown renders it as literal text."""
+    run = 0
+    while index - run > 0 and text[index - run - 1] == "\\":
+        run += 1
+    return run % 2 == 1
+
+
+def bracket_pairs(text: str, literal: list) -> list:
+    """(open, close) of every balanced pair of unescaped brackets outside code, at any nesting depth, in order of the opening bracket."""
+    code = {index for start, stop in literal for index in range(start, stop)}
+    stack, pairs = [], []
+    for index, char in enumerate(text):
+        if char not in "[]" or index in code or backslash_escaped(text, index):
+            continue
+        if char == "[":
+            stack.append(index)
+        elif stack:
+            pairs.append((stack.pop(), index))
+    return sorted(pairs)
+
+
+def destination_end(text: str, begin: int) -> int:
+    """The end of the destination that starts at begin: an angle destination to its closing bracket, a bare one to whitespace or its unbalanced closing parenthesis, with parentheses balanced to any depth."""
+    if text.startswith("<", begin):
+        end = text.find(">", begin)
+        return len(text) if end < 0 else end
+    end, depth = begin, 0
+    while end < len(text) and not text[end].isspace():
+        if text[end] == "\\":
+            end += 1
+        elif text[end] == "(":
+            depth += 1
+        elif text[end] == ")":
+            if depth == 0:
+                break
+            depth -= 1
+        end += 1
+    return end
+
+
+def inline_link(text: str, opened: int, closed: int) -> Link:
+    begin = SPACE_RE.match(text, closed + 2).end()
+    tail = INLINE_TAIL_RE.match(text, closed + 1)
+    destination = None
+    if tail is not None and tail.group("title") is None:
+        destination = tail.group("angle") or tail.group("bare") or ""
+    return Link(opened, None if tail is None else tail.end(), text[opened + 1:closed], destination, (opened, begin, destination_end(text, begin)))
+
+
+def markdown_links(text: str, literal: list) -> list:
+    """Every inline link whose label brackets balance to any depth, and every reference definition, in order of their start."""
+    inline = [inline_link(text, opened, closed) for opened, closed in bracket_pairs(text, literal) if text[closed + 1:closed + 2] == "("]
+    references, defined = [], set()
+    for found in REFERENCE_RE.finditer(text):
+        label = " ".join(found.group("ref").casefold().split())
+        # Only the first definition of a label is the destination of the links that use it; a later duplicate is never one.
+        first = label not in defined and not any(start <= found.start() < stop for start, stop in literal)
+        if first:
+            defined.add(label)
+        titled = found.group("reftitle") is not None
+        references.append(Link(found.start(), found.end(), found.group("ref"), None if titled or not first else found.group("refdest").strip("<>"), None))
+    return sorted(inline + references, key=lambda link: link.start)
+
+
+def owner_exempt(link: Link, literal: list, spans: list) -> bool:
+    """Whether the link is a complete, untitled link outside code and outside another link's destination whose destination is the approved owner URL in full."""
+    if link.destination is None or not OWNER_URL_RE.fullmatch(link.destination):
+        return False
+    in_code = any(start <= link.start < stop for start, stop in literal)
+    in_destination = any(opened != link.start and begin <= link.start < stop for opened, begin, stop in spans)
+    return not in_code and not in_destination
+
+
+def unowned_text(text: str) -> str:
+    """The published text with the destination of each Markdown link to an approved owner URL removed; its label and every other link stay visible."""
+    literal = [code.span() for code in CODE_RE.finditer(text)]
+    links = markdown_links(text, literal)
+    spans = [link.span for link in links if link.span is not None]
+    pieces, position, consumed = [], 0, 0
+    for link in links:
+        if link.start < consumed:
+            continue
+        consumed = link.end if link.end is not None else consumed
+        if link.end is not None and owner_exempt(link, literal, spans):
+            pieces += [text[position:link.start], link.keep]
+            position = link.end
+    return "".join(pieces) + text[position:]
 
 
 class Index:

@@ -59,6 +59,54 @@ class Raises:
         return True
 
 
+PINNED_REVISION = "de3a0b49535582ad51a0ec23011d3aebf9c04c76"
+OWNER_URL = "https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/" + PINNED_REVISION + "/api/v1/graph.md"
+FOREIGN_URL = "https://example.invalid/"
+OTHER_REVISION_URL = OWNER_URL.replace(PINNED_REVISION, "0123456789abcdef0123456789abcdef01234567")
+NESTED_FOREIGN = FOREIGN_URL + "?x=[d](" + OWNER_URL + ")"
+# (published text, exempt): one table for the owner-link predicate, run against each of the three Huawei validators. A URL is exempt only as the destination of a Markdown link and only in the approved owner form in full.
+OWNER_LINK_CASES = [
+    ("[graph](" + OWNER_URL + ")", True),
+    ("[graph](<" + OWNER_URL + ">)", True),
+    ("[readme](" + OWNER_URL.replace("api/v1/graph.md", "api/README.md") + "#unit-rule)", True),
+    ("[a [b]](" + OWNER_URL + ")", True),
+    ("[a [b [c]]](" + OWNER_URL + ")", True),
+    ("see " + OWNER_URL, False),
+    ("<" + OWNER_URL + ">", False),
+    ("[" + OWNER_URL + "](" + FOREIGN_URL + ")", False),
+    ("[a [b [" + OWNER_URL + "]]](" + FOREIGN_URL + ")", False),
+    ("[a](" + FOREIGN_URL + "?u=" + OWNER_URL + ")", False),
+    ("[a](" + FOREIGN_URL + OWNER_URL + ")", False),
+    ("[a](" + FOREIGN_URL + "#" + OWNER_URL + ")", False),
+    ("[a](" + OWNER_URL.replace("github.com", "example.invalid") + ")", False),
+    ("[a](" + OWNER_URL.replace("http" + "s://", "http://") + ")", False),
+    ("[a](" + OWNER_URL.replace("helianthus-docs-semantic", "helianthus-modbusreg") + ")", False),
+    ("[a](" + OTHER_REVISION_URL + ")", False),
+    ("[a](" + OWNER_URL.replace("/blob/" + PINNED_REVISION + "/", "/blob/main/") + ")", False),
+    ("[a](" + OWNER_URL.replace("/blob/", "/commit/") + ")", False),
+    ("[a](" + OWNER_URL.replace("/blob/", "/tree/") + ")", False),
+    ("[a](" + OWNER_URL + "x)", False),
+    ("[a](" + OWNER_URL + "/more)", False),
+    ("[a](" + OWNER_URL + ";other)", False),
+    ("[a](" + OWNER_URL + "#L12)", False),
+    ("[a](" + OWNER_URL + " \"title\")", False),
+    ("[a](prefix" + OWNER_URL + ")", False),
+    ("[a](" + NESTED_FOREIGN + ")", False),
+    ("[a [b]](" + NESTED_FOREIGN + ")", False),
+    ("[a [b [c]]](" + NESTED_FOREIGN + ")", False),
+    ("[a [b [c [d]]]](" + NESTED_FOREIGN + ")", False),
+    ("[a](" + FOREIGN_URL + " \"[b](" + OWNER_URL + ")\")", False),
+    ("`[a](" + OWNER_URL + ")`", False),
+    ("[a](" + FOREIGN_URL + " \"x \\\" [b](" + OWNER_URL + ")\")", False),
+    ("[a](" + FOREIGN_URL + " 'x \\' [b](" + OWNER_URL + ")')", False),
+    ("[a][r]\n\n[r]: " + FOREIGN_URL + " \"x \\\" [b](" + OWNER_URL + ")\"", False),
+    ("[a][r]\n\n[r]: " + OWNER_URL, True),
+    ("[a][r]\n\n[r]: " + FOREIGN_URL + "\n[r]: " + OWNER_URL, False),
+    ("[a][r]\n\n[r]: " + FOREIGN_URL + "\n[R]: <" + OWNER_URL + ">", False),
+    ("[a][r]\n\n[r]: " + OWNER_URL + "\n[r]: " + OWNER_URL, False),
+]
+
+
 def parametrize(names, cases):
     parameters = [name.strip() for name in names.split(",")] if isinstance(names, str) else list(names)
 

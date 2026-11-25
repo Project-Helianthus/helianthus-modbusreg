@@ -29,17 +29,10 @@ GRADES = ["unknown", "hypothesis", "proven"]
 ERROR_PRECEDENCE = ["gate_revision_required", "native_evidence_invalid", "identity_missing_or_invalid", "role_invalid", "lifecycle_missing", "mapping_unqualified", "unsupported_or_withheld"]
 OPAQUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$")
 HEX_RUN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32,}(?![0-9A-Za-z])")
-# Approved immutable owner links: the pinned docs-semantic revision, owning path, optional non-line anchor.
-OWNER_PATHS = ("api/v1/graph.md", "api/v1/element-catalog-v1.json", "api/README.md", "mappings/infrastructure/gateway-runtime.md")
-OWNER_LINK_RE = re.compile(r"https://github\.com/Project-Helianthus/helianthus-docs-semantic/blob/de3a0b49535582ad51a0ec23011d3aebf9c04c76/(?:" + "|".join(re.escape(path) for path in OWNER_PATHS) + r")(?:#(?!L[0-9])(?![0-9a-fA-F]{32,}(?![0-9A-Za-z]))[A-Za-z][A-Za-z0-9_-]*)?(?![A-Za-z0-9_./#?=&%-])")
 # A line anchor and a private or IPv4 endpoint are never published, whether or not an owner link surrounds them.
 LINE_ANCHOR_RE = re.compile(r"#L[0-9]")
 ENDPOINT_RE = re.compile(r"tcp://|(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")
-
-
-def unowned_text(text):
-    """The published text with approved owner links removed; every other revision literal stays visible."""
-    return OWNER_LINK_RE.sub("", text)
+unowned_text = graph_rules.unowned_text
 ID_FORBIDDEN_TEXT = ("serial", "esn", "sun2000", "huawei", "luna", "smartlogger", "sdongle", "s-dongle", "emma")
 ID_ADDRESS_RE = re.compile(r"(\d{1,3}\.){3}\d{1,3}|:\d{3,5}$")
 # Exact conversions of the unit rule in api/README.md: (native unit, canonical SI unit) -> factor and offset, SI = native x factor + offset.
@@ -74,26 +67,36 @@ EVIDENCE = {
     "sibling_gates": ["huawei-sun2000-pv-v1", "huawei-luna2000-storage-v1"],
     "grades": ["proven", "hypothesis", "unknown"],
 }
-# The exposure path is declared from the documented plant group; the listing establishes no meter at that route, so the meter identity stays unknown.
+# The documented meter exposures are declared apart from the plant grid exchange: each exposure is checked against its own runtime route, and the plant group at its unit establishes no meter.
 ADMISSION = {
     "meter_class_contract": False,
     "meter_identity": {"status": "unknown", "reason": "the_documented_listing_establishes_no_meter_at_the_route", "published_as": "no_meter_attribution"},
-    "exposure": {"declared_from": "documented_plant_group", "source": {"repository": "helianthus-docs-modbus", "pages": ["protocols/huawei/gateway-power-meter-v1.md", "protocols/huawei/monitoring-readonly-v1.md"]},
-                 "path": "sdongle_plant_group", "routed_unit": 100, "runtime_check": "the_route_read_equals_the_declaration",
-                 "on_mismatch": "reported_never_guessed_and_never_a_replacement"},
+    "meter_exposures": {"declared_from": "documented_meter_exposures",
+                        "paths": [{"path": "smartlogger_listed_meter", "routed_unit": "listed_meter_unit", "listed_as_child": True, "grade": "proven"},
+                                  {"path": "sdongle_inverter_side", "routed_unit": "inverter_child_unit", "listed_as_child": False, "grade": "proven"}],
+                        "runtime_check": "the_route_read_equals_the_declaration_of_its_own_exposure",
+                        "on_mismatch": "reported_never_guessed_and_never_a_replacement"},
+    "gateway_sensor_routes": {"routes": [{"path": "emma_gateway_level", "routed_unit": 0, "meter_exposure": False, "meter_identity": "not_established_by_the_route", "grade": "proven"}]},
+    "plant_grid_exchange": {"path": "sdongle_plant_group", "routed_unit": 100, "meter_identity": "not_established_by_the_plant_read", "same_meter_as_inverter_side": "unknown"},
     "selection": {"admitting": "DECLARED_FROM_LISTING", "unresolved": ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"], "refused": ["PROFILE_SELECTED"], "unresolved_outcome": "withheld_never_zero"},
     "registry_flags": REGISTRY_FLAGS,
     "decisions": [
         {"precondition": "meter_identity", "decision": "unknown_the_listing_establishes_no_meter_at_the_route", "grade": "unknown"},
-        {"precondition": "exposure_path", "decision": "the_documented_plant_group_of_the_gateway_at_its_routed_unit", "grade": "proven"},
+        {"precondition": "exposure_path", "decision": "the_documented_meter_exposures_each_checked_at_its_own_routed_unit", "grade": "proven"},
         {"precondition": "word_form", "decision": "type_word_order_gain_and_unit_stated_per_row", "grade": "hypothesis"},
         {"precondition": "sign_reference", "decision": "plant_group_states_positive_import_and_is_never_mixed_with_another_source", "grade": "hypothesis"},
         {"precondition": "role", "decision": "declared_in_configuration_never_derived", "grade": "proven"},
         {"precondition": "executable_vectors", "decision": "the_scenarios_of_this_gate", "grade": "proven"},
+        {"precondition": "plant_grid_exchange", "decision": "the_documented_plant_group_at_its_unit_is_distinct_from_any_meter_exposure", "grade": "proven"},
     ],
 }
 ADMITTING, UNRESOLVED, REFUSED = "DECLARED_FROM_LISTING", ["INSUFFICIENT_EVIDENCE", "NO_ADMISSIBLE_PROFILE", "AMBIGUOUS"], "PROFILE_SELECTED"
 # The one meter row that publishes: the documented plant group, its word position and word form.
+# The documented meter exposure each fed meter group belongs to; a group of no listed exposure is checked against none.
+METER_EXPOSURE_OF = {"smartlogger_meter_electrical_group": "smartlogger_listed_meter", "smartlogger_meter_energy_totals": "smartlogger_listed_meter", "sdongle_inverter_exposed_meter_group": "sdongle_inverter_side"}
+PLANT_UNIT = ADMISSION["plant_grid_exchange"]["routed_unit"]
+GATEWAY_LEVEL = {"exposure": "emma_gateway_level", "routed_unit": 0}
+PLANT_ROUTE = {"exposure": ADMISSION["plant_grid_exchange"]["path"], "routed_unit": ADMISSION["plant_grid_exchange"]["routed_unit"]}
 ACTIVE = {"sdongle_plant_grid_power": {"read": {"offset": 37498, "quantity": 8}, "word": 4}}
 GAINS = {1: 0, 10: -1, 100: -2, 1000: -3}
 WORD_COUNT = {"I32": 2, "U32": 2}
@@ -546,13 +549,29 @@ def read_words_valid(read, key):
 
 
 def meter_identity(value):
-    return isinstance(value, dict) and set(value) == {"exposure", "routed_unit"} and isinstance(value["exposure"], str) and type(value["routed_unit"]) is int and 1 <= value["routed_unit"] <= 247
+    """A routed meter exposure at a unit 1 to 247, or the known gateway-level route at its own unit 0; the route establishes no meter identity."""
+    if not (isinstance(value, dict) and set(value) == {"exposure", "routed_unit"} and isinstance(value["exposure"], str) and type(value["routed_unit"]) is int):
+        return False
+    return value == GATEWAY_LEVEL or (value["exposure"] != GATEWAY_LEVEL["exposure"] and 1 <= value["routed_unit"] <= 247)
+
+
+def meter_exposure_declared(value):
+    """A meter exposure is a documented routed exposure; the known gateway sensor route is none."""
+    return meter_identity(value) and value != GATEWAY_LEVEL
+
+
+def meter_route_valid(declared, identity_read, paths):
+    """No meter is configured, or a documented meter exposure is declared; the runtime read of its route is absent or a second statement of the same shape."""
+    if declared is None:
+        return identity_read is None or identity_read == GATEWAY_LEVEL
+    return meter_exposure_declared(declared) and declared["exposure"] in paths and (identity_read is None or meter_identity(identity_read))
 
 
 def check_case_meter(case, errors):
-    """The meter identity is declared from the documented listing; the identity read at runtime is absent or a second statement of the same shape."""
+    """The meter exposure is declared from the documented listing; the identity read at runtime is absent or a second statement of the same shape."""
     meter = case.get("meter")
-    if not isinstance(meter, dict) or set(meter) != {"declared", "identity_read", "resources"} or not meter_identity(meter["declared"]) or (meter["identity_read"] is not None and not meter_identity(meter["identity_read"])):
+    paths = {item["path"] for item in ADMISSION["meter_exposures"]["paths"]}
+    if not isinstance(meter, dict) or set(meter) != {"declared", "identity_read", "resources"} or not meter_route_valid(meter["declared"], meter["identity_read"], paths):
         errors.add("identity_missing_or_invalid")
         return
     grid = (meter["resources"] or {}).get("grid_connection") if isinstance(meter["resources"], dict) else None
@@ -561,11 +580,16 @@ def check_case_meter(case, errors):
         errors.add("identity_missing_or_invalid")
 
 
+def gateway_level_declared(case):
+    meter = case.get("meter")
+    return isinstance(meter, dict) and meter.get("declared") is None and meter.get("identity_read") == GATEWAY_LEVEL
+
+
 def check_case_source(case, errors):
     source = case.get("source")
     source_id = source.get("source_id") if isinstance(source, dict) else None
     unit = case.get("routed_unit")
-    if not isinstance(source_id, str) or not OPAQUE_RE.fullmatch(source_id) or any(token in source_id.lower() for token in ID_FORBIDDEN_TEXT) or ID_ADDRESS_RE.search(source_id) or (unit is not None and (type(unit) is not int or not 1 <= unit <= 247)) or source_id == str(unit):
+    if not isinstance(source_id, str) or not OPAQUE_RE.fullmatch(source_id) or any(token in source_id.lower() for token in ID_FORBIDDEN_TEXT) or ID_ADDRESS_RE.search(source_id) or (unit is not None and (type(unit) is not int or not (1 <= unit <= 247 or (unit == 0 and gateway_level_declared(case))))) or source_id == str(unit):
         errors.add("identity_missing_or_invalid")
     return source_id, unit
 
@@ -619,28 +643,61 @@ def native_power(words, native):
     return raw, GAINS[native["gain"]]
 
 
-def gate_reason(case, declared, rule, read):
-    """The reason an active row is withheld before its words are decoded, or None: unresolved selection, role, identity, then the read."""
+def meter_route_at(route, unit):
+    """True when a runtime route read identifies the given routed unit as a meter exposure: that unit is then a meter route, and the plant route is not evidenced there."""
+    return route is not None and route["exposure"] != PLANT_ROUTE["exposure"] and route["routed_unit"] == unit
+
+
+def meter_group_requested(reads):
+    """True when the case requests a documented meter exposure's group: the case's routed unit is then identified as that meter exposure's route."""
+    return any(reads[native_id]["outcome"] != "NOT_READ" for native_id in METER_EXPOSURE_OF if native_id in reads)
+
+
+def gate_reason(case, declared, rule, read, reads):
+    """The reason an active row is withheld before its words are decoded, or None: unresolved selection, role, the plant route (a case running on a configured or runtime-identified meter exposure's own route, on the route of a requested meter group, or on the known gateway-level route, is no plant read), then the read."""
     if case["selection"]["outcome"] != ADMITTING:
         return PRIMARY_REASON
     if declared != rule["prospective"][0]["role"]:
         return "infrastructure.reason.role_not_declared"
-    meter = case["meter"]
-    if meter["identity_read"] is None:
-        return "infrastructure.reason.identity_not_read"
-    if meter["identity_read"] != meter["declared"] or meter["declared"] != {"exposure": ADMISSION["exposure"]["path"], "routed_unit": ADMISSION["exposure"]["routed_unit"]}:
-        return "infrastructure.reason.identity_mismatch"
-    if case.get("routed_unit") != meter["declared"]["routed_unit"]:
-        return "infrastructure.reason.identity_mismatch"
+    declared_route, runtime_route = case["meter"]["declared"], case["meter"]["identity_read"]
+    if runtime_route == GATEWAY_LEVEL or case.get("routed_unit") != PLANT_ROUTE["routed_unit"] or (declared_route is not None and declared_route["routed_unit"] == case.get("routed_unit")) or meter_route_at(runtime_route, case.get("routed_unit")) or meter_group_requested(reads):
+        return "infrastructure.reason.group_not_read"
     if read is None or read["outcome"] in ("FAILED", "NOT_READ"):
         return "infrastructure.reason.group_not_read"
     return "infrastructure.reason.read_exception_no_negation" if read["outcome"] == "EXCEPTION" else None
 
 
+def route_identity(case, native_id, read):
+    """The route identity of a configured meter exposure's group, decided from the case first and whatever the outcome of the group (answered, failed or not read): 'mismatch' when the case contradicts the declared route (the group belongs to another exposure, the S-Dongle inverter-side exposure is declared at the plant unit, a requested group came from another routed unit, or the runtime route read differs), 'not_stated' when the runtime route was not read, 'matches' otherwise; None for a group that is no configured meter exposure."""
+    meter, exposure = case["meter"], METER_EXPOSURE_OF.get(native_id)
+    declared = meter["declared"]
+    if declared is None or exposure is None:
+        return None
+    requested = read is not None and read["outcome"] != "NOT_READ"
+    if declared["exposure"] != exposure:
+        return "mismatch" if requested else None
+    contradicted = (exposure == "sdongle_inverter_side" and declared["routed_unit"] == PLANT_UNIT) or (requested and case.get("routed_unit") != declared["routed_unit"]) or (meter["identity_read"] is not None and meter["identity_read"] != declared)
+    if contradicted:
+        return "mismatch"
+    return "not_stated" if meter["identity_read"] is None else "matches"
+
+
+def meter_group_reason(case, rule, read):
+    """The reason a meter group is withheld: a contradicted route is a mismatch in every situation and is never unread or hidden by a read exception; nothing in an answered group is decoded."""
+    route = route_identity(case, rule["native_id"], read)
+    if route == "mismatch":
+        return "infrastructure.reason.identity_mismatch"
+    if read is not None and read["outcome"] == "ANSWERED":
+        return "infrastructure.reason.identity_not_read" if route == "not_stated" else "infrastructure.reason.answered_not_decoded"
+    if read is not None and read["outcome"] == "EXCEPTION":
+        return "infrastructure.reason.read_exception_no_negation"
+    return rule["disposition"]["reason"]
+
+
 def active_facts(case, rule, reads, fields):
     """(reason, facts) of the plant grid power row: one fact of the stated direction; the other direction is Unknown, never zero."""
     read = reads.get(rule["native_id"])
-    reason = gate_reason(case, case["role"]["declared"], rule, read)
+    reason = gate_reason(case, case["role"]["declared"], rule, read, reads)
     if reason:
         return reason, []
     start = rule["word"]
@@ -654,7 +711,7 @@ def active_facts(case, rule, reads, fields):
         return "infrastructure.reason.value_outside_pack_range", []
     resource = case["meter"]["resources"]["grid_connection"]
     return None, [{"item_id": direction, "subject": {"dimension": row["dimension"], "resource": resource}, "value": {"number": number, "unit": row["unit"]}, "grade": rule["grade"],
-                   "provenance": {"native_id": rule["native_id"], "sign_reference": row["sign_reference"], "exposure": copy.deepcopy(case["meter"]["declared"])},
+                   "provenance": {"native_id": rule["native_id"], "sign_reference": row["sign_reference"], "plant_route": copy.deepcopy(PLANT_ROUTE)},
                    "observation_id": case["lifecycle"]["observation_id"], "observation_revision": case["lifecycle"]["observation_revision"]}]
 
 
@@ -667,12 +724,7 @@ def native_rows(case, contract, reads, fields):
             rows.append({"native_id": rule["native_id"], "outcome": "transformed", "target": made[0]["item_id"]} if made else {"native_id": rule["native_id"], "outcome": "withheld", "reason": reason})
             held[rule["native_id"]] = reason
             continue
-        reason = rule["disposition"]["reason"]
-        read = reads.get(rule["native_id"])
-        if read is not None and read["outcome"] == "ANSWERED":
-            reason = "infrastructure.reason.answered_not_decoded"
-        elif read is not None and read["outcome"] == "EXCEPTION":
-            reason = "infrastructure.reason.read_exception_no_negation"
+        reason = meter_group_reason(case, rule, reads.get(rule["native_id"]))
         rows.append({"native_id": rule["native_id"], "outcome": "withheld", "reason": reason})
     return rows, facts, held
 

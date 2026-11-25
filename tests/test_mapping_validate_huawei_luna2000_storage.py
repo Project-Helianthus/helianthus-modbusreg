@@ -1052,5 +1052,84 @@ def test_publication_rejects_digest_shaped_fragment_on_an_approved_owner_link():
         v.check_document(v.load(), page() + "\n[owner](" + OWNER_BASE + "api/v1/graph.md#" + "a" * 40 + ")\n")
 
 
+@parametrize("destination", [
+    "https://example.invalid/page?u=" + OWNER_BASE + "api/v1/graph.md",
+    "https://example.invalid/" + OWNER_BASE + "api/v1/graph.md",
+    "https://example.invalid/@" + OWNER_BASE + "api/v1/graph.md",
+    "https://example.invalid/page#" + OWNER_BASE + "api/v1/graph.md",
+])
+def test_owner_link_exception_applies_only_to_the_actual_destination(destination):
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n[owner](" + destination + ")\n")
+
+
+def test_owner_link_exception_leaves_labels_and_nested_foreign_destinations_checked():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    texts = [
+        "[https://example.invalid/?q=[a](" + approved + ")](https://example.invalid/?q=[a](" + approved + "))",
+        "[a](https://example.invalid/?q=[b](" + approved + "))",
+        "[a](https://example.invalid/?q=(x)[b](" + approved + "))",
+        "[" + "a1" * 20 + "](" + approved + ")",
+        "[page#L12](" + approved + ")",
+        "[tcp://host:1](" + approved + ")",
+    ]
+    for text in texts:
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
+def test_owner_link_inside_a_deeply_nested_foreign_destination_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for depth in (3, 4, 6):
+        text = "[a](https://example.invalid/?q=" + "(" * depth + "x" + ")" * depth + "[b](" + approved + "))"
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+    v.check_document(v.load(), page() + "\n[b](" + approved + ")\n")
+
+
+def test_owner_link_in_a_foreign_link_title_gets_no_exception():
+    for quote in ('"', "'"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n[owner](https://example.invalid/x " + quote + "see " + OWNER_BASE + "api/v1/graph.md" + quote + ")\n")
+
+
+def test_owner_link_in_a_reference_definition_title_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for title in ('"see [b](' + approved + ')"', "'see [b](" + approved + ")'", "(see [b](" + approved + "))"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n[r]: https://example.invalid/x " + title + "\n")
+
+
+def test_owner_link_in_code_or_a_continuation_title_gets_no_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for text in ("```\n[a](" + approved + ")\n```", "~~~\n[a](" + approved + ")\n~~~", "`[a](" + approved + ")`", "    [a](" + approved + ")", "[r]: https://example.invalid/x\n  \"" + approved + "\"", "[r]: https://example.invalid/x\n  (" + approved + ")"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
+def test_owner_link_exception_needs_a_complete_approved_destination_not_a_markdown_shaped_title():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for text in ("[owner](" + approved + ";other)", "[owner](<" + approved + ";other>)", "[a](https://example.invalid/x \"[b](" + approved + ")\")", "[a]( https://example.invalid/x \"[b](" + approved + ")\")", "[a](\t<https://example.invalid/x> '[b](" + approved + ")')", "[a](https://example.invalid/x '[b](" + approved + ")')", "[owner](" + approved + " \"title\")"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
+def test_an_escaped_opening_bracket_is_literal_text_and_gets_no_owner_link_exception():
+    approved = OWNER_BASE + "api/v1/graph.md"
+    for text in ("\\[owner](" + approved + ")", "\\\\\\[owner](" + approved + ")", "[owner\\](" + approved + ")"):
+        with Raises(ValueError, match="publication"):
+            v.check_document(v.load(), page() + "\n" + text + "\n")
+    v.check_document(v.load(), page() + "\n\\\\[owner](" + approved + ")\n")
+
+
+@parametrize("text,exempt", support.OWNER_LINK_CASES)
+def test_the_owner_link_table_exempts_only_a_full_approved_destination_of_a_markdown_link(text, exempt):
+    if exempt:
+        v.check_document(v.load(), page() + "\n" + text + "\n")
+        return
+    with Raises(ValueError, match="publication"):
+        v.check_document(v.load(), page() + "\n" + text + "\n")
+
+
 if __name__ == "__main__":
     raise SystemExit(support.run(globals()))
