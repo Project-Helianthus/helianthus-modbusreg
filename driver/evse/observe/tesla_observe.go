@@ -292,6 +292,9 @@ func checkTeslaObserveAppendTarget(path string) error {
 // teslaObservePublishFile allows tests to fail publication after staging.
 var teslaObservePublishFile = publishTeslaObserveFile
 
+// teslaObserveRestoreFile allows tests to fail the restore of the prior evidence.
+var teslaObserveRestoreFile = os.Rename
+
 func publishTeslaObserveFile(staged, path string, replace bool) error {
 	if replace {
 		return os.Rename(staged, path)
@@ -351,7 +354,7 @@ func writeTeslaObservePair(out string, data []byte, worksheet string, markdown, 
 	if err := teslaObservePublishFile(stagedWorksheet, worksheet, replace); err != nil {
 		var rollbackErr error
 		if replace {
-			rollbackErr = os.Rename(backup, out)
+			rollbackErr = teslaObserveRestoreFile(backup, out)
 			// Retain the recovery copy if the filesystem also refuses rollback.
 			backup = ""
 		} else {

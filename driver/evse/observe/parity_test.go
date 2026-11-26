@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -97,9 +99,9 @@ func recordFixedCase(t *testing.T, c fixedCase) fixedResult {
 		stderr.Reset()
 		result = fixedResult{}
 	}
-	write, publish, syncDir := teslaObserveWriteData, teslaObservePublishFile, teslaObserveSyncDirectory
+	write, publish, syncDir, restore := teslaObserveWriteData, teslaObservePublishFile, teslaObserveSyncDirectory, teslaObserveRestoreFile
 	defer func() {
-		teslaObserveWriteData, teslaObservePublishFile, teslaObserveSyncDirectory = write, publish, syncDir
+		teslaObserveWriteData, teslaObservePublishFile, teslaObserveSyncDirectory, teslaObserveRestoreFile = write, publish, syncDir, restore
 	}()
 	switch c.Name {
 	case "WorksheetStage":
@@ -122,6 +124,16 @@ func recordFixedCase(t *testing.T, c fixedCase) fixedResult {
 		}
 	case "DirectorySync":
 		teslaObserveSyncDirectory = func(string) error { return syscall.EIO }
+	case "FailedRestore":
+		teslaObservePublishFile = func(staged, path string, replace bool) error {
+			if filepath.Base(path) == "worksheet.md" {
+				return &os.LinkError{Op: "link", Old: "staged-worksheet", New: "worksheet.md", Err: syscall.EIO}
+			}
+			return publish(staged, path, replace)
+		}
+		teslaObserveRestoreFile = func(string, string) error {
+			return &os.LinkError{Op: "rename", Old: recoveryCopyName, New: "evidence.json", Err: syscall.EIO}
+		}
 	}
 	result.Status, result.Stderr = Run(c.Argv[2:], ports), stderr.Bytes()
 	entries, err := os.ReadDir(".")
@@ -137,9 +149,42 @@ func recordFixedCase(t *testing.T, c fixedCase) fixedResult {
 		if err != nil {
 			t.Fatal(err)
 		}
-		result.Files = append(result.Files, fixedFile{entry.Name(), data, info.Mode()})
+		name := entry.Name()
+		if strings.HasPrefix(name, ".tesla-observe-") {
+			name = recoveryCopyName
+		}
+		result.Files = append(result.Files, fixedFile{name, data, info.Mode()})
 	}
+	sort.Slice(result.Files, func(i, j int) bool { return result.Files[i].Name < result.Files[j].Name })
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertNoFilesystemPath(t, c, result, dir, resolved)
 	return result
+}
+
+// recoveryCopyName stands for the randomly named recovery copy of the prior
+// evidence, so that the donor's recording and the runner's result compare by
+// the copy's bytes and mode.
+const recoveryCopyName = ".tesla-observe-backup"
+
+// assertNoFilesystemPath fails when the serial path or a directory of the run
+// appears in the status text or in any file a case leaves behind.
+func assertNoFilesystemPath(t *testing.T, c fixedCase, result fixedResult, dirs ...string) {
+	t.Helper()
+	paths := append([]string{c.Argv[3]}, dirs...)
+	outputs := map[string][]byte{"stderr": result.Stderr}
+	for _, file := range result.Files {
+		outputs[file.Name] = file.Data
+	}
+	for name, data := range outputs {
+		for _, path := range paths {
+			if path != "" && bytes.Contains(data, []byte(path)) {
+				t.Errorf("%s: compared output %s carries a filesystem path", c.Name, name)
+			}
+		}
+	}
 }
 
 func TestTeslaObserveFixedClockDonorParity(t *testing.T) {
@@ -147,8 +192,8 @@ func TestTeslaObserveFixedClockDonorParity(t *testing.T) {
 	indexPath := os.Getenv("TESLA_OBSERVE_DONOR_INDEX")
 	if indexPath == "" {
 		readFixedJSON(t, "testdata/fixed-clock.json", &recordings)
-		if len(recordings) != 9 {
-			t.Fatalf("fixed replay has %d cases, want 9", len(recordings))
+		if len(recordings) != 10 {
+			t.Fatalf("fixed replay has %d cases, want 10", len(recordings))
 		}
 	} else {
 		var index struct {
@@ -173,6 +218,7 @@ func TestTeslaObserveFixedClockDonorParity(t *testing.T) {
 	}
 	for _, recording := range recordings {
 		t.Run(recording.Case.Name, func(t *testing.T) {
+			assertNoFilesystemPath(t, recording.Case, recording.Expected)
 			actual := recordFixedCase(t, recording.Case)
 			if !reflect.DeepEqual(actual, recording.Expected) {
 				t.Errorf("runner result: status %d, stderr %q, opens %v, reads %d, closes %d, contexts %d", actual.Status, actual.Stderr, actual.Opened, actual.Reads, actual.Closes, actual.Contexts)
