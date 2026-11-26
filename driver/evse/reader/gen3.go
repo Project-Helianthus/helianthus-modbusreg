@@ -36,6 +36,8 @@ type ChargerReader struct {
 	feed   *Feed
 	vitals *VitalsFeed
 	now    func() time.Time
+	plan   GraphPlan
+	graph  graphRecords
 
 	fenced atomic.Bool
 
@@ -73,6 +75,30 @@ func NewChargerReader(cfg ChargerConfig, pub ChargerPublication, deps ChargerDep
 			return nil, &ConfigError{field, "missing or invalid"}
 		}
 	}
+	var plan GraphPlan
+	var graph graphRecords
+	if pub.Graph.IsZero() {
+		pub.Graph = GraphConfig{}
+	} else {
+		if err := pub.Graph.Validate(); err != nil {
+			return nil, &ConfigError{"publication.graph", err.Error()}
+		}
+		if err := pub.Graph.contains(pub.EVSE, pub.Connector); err != nil {
+			return nil, &ConfigError{"publication.graph", err.Error()}
+		}
+		plan = pub.Graph.Plan()
+		graph = pub.graphRecords(plan)
+		for _, resource := range graph.resources {
+			if err := resource.Validate(); err != nil {
+				return nil, &ConfigError{"publication.graph", err.Error()}
+			}
+		}
+		for _, relation := range graph.relations {
+			if err := relation.Validate(); err != nil {
+				return nil, &ConfigError{"publication.graph", err.Error()}
+			}
+		}
+	}
 	acqConfig, err := cfg.acquisitionConfig(deps)
 	if err != nil {
 		return nil, err
@@ -85,13 +111,26 @@ func NewChargerReader(cfg ChargerConfig, pub ChargerPublication, deps ChargerDep
 	if now == nil {
 		now = time.Now
 	}
-	return &ChargerReader{cfg: cfg, pub: pub, acq: acq, feed: NewFeed(), vitals: NewVitalsFeed(), now: now,
+	return &ChargerReader{cfg: cfg, pub: pub, acq: acq, feed: NewFeed(), vitals: NewVitalsFeed(), now: now, plan: plan, graph: graph,
 		published: map[semreg.CandidateID]publishedFact{}, revisions: map[semreg.CandidateID]uint64{}}, nil
 }
 
 // Acquisition is the running native lifecycle: the one endpoint, reservation
 // and generation that the reads and the native setter share.
 func (r *ChargerReader) Acquisition() *tesla.Gen3ReadAcquisition { return r.acq }
+
+// Graph is the configured graph the reader publishes with its first batch:
+// resources and relations in the order the configuration gives, connectors by
+// the numeric value of their slot. It is empty when no graph was configured.
+func (r *ChargerReader) Graph() GraphPlan { return r.plan }
+
+// UnknownRelations lists, with the reason, the relations of the graph that the
+// device does not support. The kernel records an unknown relation as the
+// absence of both an instance and an absence statement, so none is staged for
+// them; the reason is stated here.
+func (r *ChargerReader) UnknownRelations() []UnknownRelation {
+	return append([]UnknownRelation(nil), r.plan.Unknown...)
+}
 
 // Feed is the readback state the reader publishes from.
 func (r *ChargerReader) Feed() *Feed { return r.feed }

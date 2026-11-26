@@ -1,7 +1,9 @@
 package reader
 
 import (
+	"fmt"
 	"sort"
+	"strconv"
 
 	"github.com/Project-Helianthus/helianthus-modbusreg/tesla"
 )
@@ -50,11 +52,13 @@ type PlannedResource struct {
 	Slot  string
 }
 
-// PlannedRelation is one relation stated from configuration.
+// PlannedRelation is one relation stated from configuration. From and To are
+// the labels of its ends, each within the kind its definition names.
 type PlannedRelation struct {
-	Definition string
-	From, To   string
-	Basis      string
+	Definition       string
+	From, To         string
+	Basis            string
+	FromKind, ToKind string
 }
 
 // UnknownRelation is a relation the specification does not state; it stays
@@ -71,28 +75,97 @@ type GraphPlan struct {
 	Unknown   []UnknownRelation
 }
 
-// Plan derives the graph. Connectors are ordered by their configured slot, so
-// a host ordering them by slot keeps its output order; no dimension value is
-// taken from an identifier, an index, a role string or an address.
+// IsZero reports a graph with nothing configured.
+func (g GraphConfig) IsZero() bool {
+	return g.Station == "" && g.EVSE == "" && g.Meter == "" && len(g.Connectors) == 0
+}
+
+// contains checks that the graph names the EVSE and the connector the reader
+// publishes facts for.
+func (g GraphConfig) contains(evse, connector string) error {
+	if g.EVSE != evse {
+		return fmt.Errorf("graph evse %q differs from the publication evse", g.EVSE)
+	}
+	for _, c := range g.Connectors {
+		if c.Label == connector {
+			return nil
+		}
+	}
+	return fmt.Errorf("graph has no connector %q", connector)
+}
+
+// slotLess orders configured slots by their numeric value, so slot 10 follows
+// slot 9. A slot that is not a number follows every number and orders as text.
+func slotLess(a, b string) bool {
+	na, errA := strconv.ParseUint(a, 10, 64)
+	nb, errB := strconv.ParseUint(b, 10, 64)
+	switch {
+	case errA == nil && errB == nil && na != nb:
+		return na < nb
+	case errA == nil && errB != nil:
+		return true
+	case errA != nil && errB == nil:
+		return false
+	}
+	return a < b
+}
+
+// Validate reports the first configured value that cannot state a graph: an
+// empty label, a slot that is not a number, or a repeated label or slot.
+func (g GraphConfig) Validate() error {
+	if g.Station == "" || g.EVSE == "" {
+		return fmt.Errorf("graph station and evse labels are required")
+	}
+	if len(g.Connectors) == 0 {
+		return fmt.Errorf("graph needs at least one connector")
+	}
+	labels, slots := map[string]bool{}, map[uint64]bool{}
+	for _, c := range g.Connectors {
+		n, err := strconv.ParseUint(c.Slot, 10, 64)
+		switch {
+		case c.Label == "":
+			return fmt.Errorf("graph connector label is required")
+		case err != nil:
+			return fmt.Errorf("graph connector slot %q is not a number", c.Slot)
+		case labels[c.Label]:
+			return fmt.Errorf("graph connector label %q is repeated", c.Label)
+		case slots[n]:
+			return fmt.Errorf("graph connector slot %q is repeated", c.Slot)
+		}
+		labels[c.Label], slots[n] = true, true
+	}
+	return nil
+}
+
+// Plan derives the graph. Connectors are ordered by the numeric value of their
+// configured slot, so a host ordering them by slot keeps its output order; no
+// dimension value is taken from an identifier, an index, a role string or an
+// address.
 func (g GraphConfig) Plan() GraphPlan {
 	plan := GraphPlan{Resources: []PlannedResource{{Kind: KindStation, Label: g.Station}, {Kind: KindEVSE, Label: g.EVSE}}}
-	plan.Relations = append(plan.Relations, PlannedRelation{RelationAssetEVSE, g.Station, g.EVSE, BasisConfiguration})
+	plan.Relations = append(plan.Relations, PlannedRelation{RelationAssetEVSE, g.Station, g.EVSE, BasisConfiguration, KindStation, KindEVSE})
 	connectors := append([]GraphConnector(nil), g.Connectors...)
-	sort.SliceStable(connectors, func(i, j int) bool { return connectors[i].Slot < connectors[j].Slot })
+	sort.SliceStable(connectors, func(i, j int) bool { return slotLess(connectors[i].Slot, connectors[j].Slot) })
 	for _, c := range connectors {
 		plan.Resources = append(plan.Resources, PlannedResource{Kind: KindConn, Label: c.Label, Slot: c.Slot})
-		plan.Relations = append(plan.Relations, PlannedRelation{RelationEVSEConnector, g.EVSE, c.Label, BasisConfiguration})
+		plan.Relations = append(plan.Relations, PlannedRelation{RelationEVSEConnector, g.EVSE, c.Label, BasisConfiguration, KindEVSE, KindConn})
 	}
 	if g.Meter != "" {
 		plan.Resources = append(plan.Resources, PlannedResource{Kind: KindMeter, Label: g.Meter})
-		plan.Relations = append(plan.Relations, PlannedRelation{RelationEVSEMeter, g.EVSE, g.Meter, BasisConfiguration})
+		plan.Relations = append(plan.Relations, PlannedRelation{RelationEVSEMeter, g.EVSE, g.Meter, BasisConfiguration, KindEVSE, KindMeter})
 	}
 	plan.Unknown = []UnknownRelation{
-		{RelationConnectorPhase, "the specification states no phase component of the connector"},
-		{RelationConnectorSession, "the specification states no start or end of a charging session"},
+		{RelationConnectorPhase, UnknownReasonPhase},
+		{RelationConnectorSession, UnknownReasonSession},
 	}
 	return plan
 }
+
+// The reasons a relation stays unknown: the specification does not state it.
+const (
+	UnknownReasonPhase   = "the specification states no phase component of the connector"
+	UnknownReasonSession = "the specification states no start or end of a charging session"
+)
 
 // NativeOnly names an observation field that is served only as the native
 // record: the specification gives no field layout, unit, phase or episode

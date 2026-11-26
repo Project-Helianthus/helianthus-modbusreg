@@ -9,7 +9,7 @@ import (
 
 func batchEmpty(b semreg.PublicationBatch) bool {
 	return len(b.BindingUpserts) == 0 && len(b.IdentityLinkUpserts) == 0 && len(b.FactUpserts) == 0 && len(b.FactWithdrawals) == 0 &&
-		len(b.ServiceUpserts) == 0 && len(b.CapabilityUpserts) == 0
+		len(b.ServiceUpserts) == 0 && len(b.CapabilityUpserts) == 0 && len(b.ResourceUpserts) == 0 && len(b.RelationUpserts) == 0
 }
 
 // batch stages the difference between the view and what is published: the
@@ -30,6 +30,10 @@ func (r *ChargerReader) batch(view View, at At) (semreg.PublicationBatch, map[se
 	}
 	if r.seq == 0 {
 		b.BindingUpserts = append(b.BindingUpserts, p.binding(r.cfg.Version, r.cfg.Node, r.cfg.Endpoint))
+		if !r.graph.empty() {
+			b.ResourceUpserts = append(b.ResourceUpserts, r.graph.resources...)
+			b.RelationUpserts = append(b.RelationUpserts, r.graph.relations...)
+		}
 		services := map[semreg.DefinitionID]semreg.ServiceInstanceID{}
 		for _, c := range Capabilities(r.cfg.CurrentLimitWritable(), false) {
 			service, ok := services[c.Service]
