@@ -162,6 +162,35 @@ func TestFeedLaterReadbackIsGatedByItsOwnTimeout(t *testing.T) {
 	}
 }
 
+// An allocation whose own lifetime has passed is never published as available
+// again because a later readback carrying only a limit and a timeout replaced
+// the held expiry: that readback carries no allocation, so it neither lifts
+// nor replaces the lifetime of the earlier one. Pause, expiry, then the
+// ordinary limit-and-timeout reply.
+func TestFeedExpiredAllocationStaysWithheldAfterALaterTimeoutOnlyReadback(t *testing.T) {
+	for name, first := range map[string]scalars{
+		"pause":       {limit: u(16), timeout: u(60), inhibit: b(true)},
+		"nonzero cap": {limit: u(32), timeout: u(60), inhibit: b(false)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := NewFeed()
+			f.Provisional(standalone(1, 0, first))
+			wantNone(t, f.View(at(70*time.Second)), ElementAllocatedCurrent)
+			f.Provisional(standalone(2, 100*time.Second, scalars{limit: u(16), timeout: u(60)}))
+			for _, when := range []time.Duration{110 * time.Second, 3600 * time.Second} {
+				v := f.View(at(when))
+				wantNone(t, v, ElementAllocatedCurrent)
+				if v.Reason(ElementAllocatedCurrent) != ReasonProvisionalExpired {
+					t.Fatalf("at %s: view %+v", when, v)
+				}
+				if _, ok := v.Fact(ElementAllocatedExpiry); !ok {
+					t.Fatalf("at %s: the expiry fact is not published: %+v", when, v)
+				}
+			}
+		})
+	}
+}
+
 func wantFact(t *testing.T, v View, element string) uint32 {
 	t.Helper()
 	f, ok := v.Fact(element)

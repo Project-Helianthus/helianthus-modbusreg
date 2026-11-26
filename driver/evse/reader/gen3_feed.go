@@ -66,11 +66,6 @@ func (r Receipt) After(other Receipt) bool {
 	return r.Wall.After(other.Wall)
 }
 
-// readback is the identity of the acknowledged record a receipt belongs to.
-func (r Receipt) readback() [4]uint64 {
-	return [4]uint64{r.Lifecycle, r.Instance, r.Generation, r.RequestID}
-}
-
 func (r Receipt) obsolete(newest Receipt) bool {
 	if r.Lifecycle != newest.Lifecycle {
 		return r.Lifecycle < newest.Lifecycle
@@ -172,6 +167,10 @@ type allocation struct {
 	source   Receipt
 	inhibit  bool
 	observed bool
+	// life is the lifetime the readback that carried the allocation itself
+	// reported. It is kept with the allocation, so a later readback that
+	// replaces the held expiry cannot lift it.
+	life expiry
 }
 
 // expiry is the lifetime one readback carried. source is the receipt of that
@@ -276,14 +275,18 @@ func (f *Feed) Provisional(o ProvisionalObservation) bool {
 		f.readbackConfigured = &amps{rb.ConfiguredCurrentAmps, o.Receipt}
 	}
 	if rb.HasInhibit && later(o.Receipt, f.inhibitSource) {
+		var life expiry
+		if rb.HasLimitTimeout && rb.LimitTimeoutSeconds != 0 {
+			life = expiry{anchor: o.Anchor, source: o.Receipt, timeout: rb.LimitTimeoutSeconds, set: true}
+		}
 		source := o.Receipt
 		f.inhibitSource = &source
 		f.supply, f.supplyRec = rb.InhibitCharging, o.Anchor
 		switch {
 		case rb.InhibitCharging:
-			f.alloc = allocation{value: 0, known: true, receipt: o.Anchor, source: o.Receipt, inhibit: true, observed: true}
+			f.alloc = allocation{value: 0, known: true, receipt: o.Anchor, source: o.Receipt, inhibit: true, observed: true, life: life}
 		case rb.HasLimitCurrent:
-			f.alloc = allocation{value: rb.LimitCurrentMaxAmps, known: rb.LimitCurrentMaxAmps != 0, receipt: o.Anchor, source: o.Receipt, observed: true}
+			f.alloc = allocation{value: rb.LimitCurrentMaxAmps, known: rb.LimitCurrentMaxAmps != 0, receipt: o.Anchor, source: o.Receipt, observed: true, life: life}
 		}
 	}
 	if rb.HasLimitTimeout && later(o.Receipt, f.timeoutSource) {
@@ -340,8 +343,8 @@ func (f *Feed) View(at At) View {
 		switch {
 		case !f.alloc.known:
 			v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonZeroCurrent, RoleConnector, f.alloc.receipt})
-		case f.exp.set && f.exp.source.readback() == f.alloc.source.readback() &&
-			at.elapsedSince(f.exp.anchor) >= time.Duration(f.exp.timeout)*time.Second:
+		case f.alloc.life.set &&
+			at.elapsedSince(f.alloc.life.anchor) >= time.Duration(f.alloc.life.timeout)*time.Second:
 			v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonProvisionalExpired, RoleConnector, f.alloc.receipt})
 		default:
 			v.Facts = append(v.Facts, Fact{Element: ElementAllocatedCurrent, Role: RoleConnector, Amps: f.alloc.value, Receipt: f.alloc.receipt})
