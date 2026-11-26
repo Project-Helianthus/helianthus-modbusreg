@@ -1,5 +1,9 @@
 package sunspec
 
+// Written points (see sunspec_controls_write.go): WMaxLimPct, WMaxLimPct_WinTms,
+// WMaxLimPct_RvrtTms, WMaxLimPct_RmpTms and WMaxLim_Ena as one contiguous
+// request; WMaxLim_Ena alone for the release. The other writable points are
+// written one at a time through PointWrites.
 func immediateControlsSunSpecPoints() []sunSpecPointDefinition {
 	return []sunSpecPointDefinition{
 		extendedSunSpecPoint("ID", "", TypeUint16, 1, "", "", true),
