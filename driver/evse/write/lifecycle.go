@@ -40,7 +40,7 @@ func (w *Writer) route(node driver.NodeRef) driver.SettingRoute {
 // reader, then registers the executor. It starts after the reader. Where the
 // bound setter is not qualified for the build, nothing is declared and no
 // executor is registered; the reads of the reader are unchanged.
-func (w *Writer) Start(ctx context.Context, session driver.Session) error {
+func (w *Writer) Start(ctx context.Context, session driver.Session) (err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	switch {
@@ -50,9 +50,24 @@ func (w *Writer) Start(ctx context.Context, session driver.Session) error {
 		return errors.New("charger writer already started or stopped")
 	}
 	w.session, w.running = session, true
+	defer func() {
+		// A writer whose start failed has no declared route or registered
+		// executor to command through and sends nothing.
+		if err != nil {
+			w.running, w.session = false, nil
+		}
+	}()
 	if !w.cfg.Reader.CurrentLimitWritable() {
 		return nil
 	}
+	// The session stamps its own asset, source, epoch and generation on the
+	// route and on what the reader published; the writer compares guards and
+	// finds its candidate against them.
+	stamp, err := session.Prepare(nil)
+	if err != nil {
+		return fmt.Errorf("charger writer session: %w", err)
+	}
+	w.id = identity{asset: stamp.AssetID, source: stamp.SourceID, epoch: stamp.SourceEpochID, generation: stamp.DriverGeneration}
 	route := w.route(session.Native().Root())
 	tx, err := session.Publisher().Begin(ctx)
 	if err != nil {

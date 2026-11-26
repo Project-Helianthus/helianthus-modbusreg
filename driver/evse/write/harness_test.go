@@ -300,6 +300,17 @@ type fakeSession struct {
 	executors  []*registered
 	captureErr error
 	routeErr   error
+	// host, when set, makes the session stamp like the SemReg host session.
+	host *hostStamp
+}
+
+// Prepare answers the ownership the session stamps, as the host session does.
+func (s *fakeSession) Prepare(func(*semreg.PublicationBatch)) (semreg.PublicationBatch, error) {
+	if s.host != nil {
+		return semreg.PublicationBatch{AssetID: s.pub.Asset, SourceID: s.host.source, SourceEpochID: s.host.epoch, DriverGeneration: s.host.generation}, nil
+	}
+	return semreg.PublicationBatch{AssetID: s.pub.Asset, SourceID: s.pub.Source, SourceEpochID: s.pub.Epoch,
+		DriverGeneration: semreg.Uint64(strconv.FormatUint(s.pub.Generation, 10))}, nil
 }
 
 func (s *fakeSession) Native() driver.NativeRegistry       { return recordingRegistry{} }
@@ -309,6 +320,9 @@ func (s *fakeSession) SemanticInput() driver.SemanticInput { return captureInput
 func (s *fakeSession) RegisterExecutor(route driver.SettingRoute, exec driver.Executor) (func(), error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.host != nil {
+		route = s.host.route(route)
+	}
 	entry := &registered{route: route, exec: exec}
 	s.executors = append(s.executors, entry)
 	return func() { s.mu.Lock(); entry.removed = true; s.mu.Unlock() }, nil
@@ -373,6 +387,9 @@ func (tx *fakeTx) DeclareSource(s driver.Source) error {
 	return nil
 }
 func (tx *fakeTx) DeclareSettingRoute(r driver.SettingRoute) error {
+	if tx.s.host != nil {
+		r = tx.s.host.route(r)
+	}
 	tx.routes = append(tx.routes, r)
 	return r.Validate()
 }
@@ -382,13 +399,24 @@ func (tx *fakeTx) Commit(context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, batch := range tx.staged {
+		if s.host != nil {
+			stamped, err := s.host.stamp(batch)
+			if err != nil {
+				return err
+			}
+			batch = stamped
+		}
 		if s.kernel == nil {
 			kernel, err := semreg.NewPublicationKernel(s.pub.Asset, evse.New())
 			if err != nil {
 				return err
 			}
 			s.kernel = kernel
-			batch.SourceUpserts = []semreg.SourceDescriptor{sourceDescriptor(s.pub)}
+			descriptor := sourceDescriptor(s.pub)
+			if s.host != nil {
+				descriptor.SourceID, descriptor.SourceEpochID = s.host.source, s.host.epoch
+			}
+			batch.SourceUpserts = []semreg.SourceDescriptor{descriptor}
 			digest, err := batch.ComputedDigest()
 			if err != nil {
 				return err
@@ -424,7 +452,7 @@ func (s *fakeSession) candidate(element string) (semreg.FactCandidate, bool) {
 	id := s.pub.ConnectorCandidateIdentifier(element)
 	for _, envelope := range s.snapshot.Facts {
 		for _, c := range envelope.Candidates {
-			if c.CandidateID == id {
+			if scopedAs(id, c.CandidateID) {
 				return c, true
 			}
 		}

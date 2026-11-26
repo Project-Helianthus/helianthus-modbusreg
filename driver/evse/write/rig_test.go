@@ -32,6 +32,13 @@ type rig struct {
 
 func newRig(t *testing.T, mutate ...func(*reader.ChargerConfig)) *rig {
 	t.Helper()
+	return newRigOn(t, nil, mutate...)
+}
+
+// newRigOn is a rig whose session stamps like the SemReg host session when host
+// is set.
+func newRigOn(t *testing.T, host *hostStamp, mutate ...func(*reader.ChargerConfig)) *rig {
+	t.Helper()
 	r := &rig{t: t, clk: &fakeClock{at: time.Unix(5, 0)}, pub: syntheticPublication()}
 	cfg := syntheticConfig()
 	for _, m := range mutate {
@@ -48,7 +55,7 @@ func newRig(t *testing.T, mutate ...func(*reader.ChargerConfig)) *rig {
 		t.Fatalf("reader %v err %v", rd, err)
 	}
 	r.reader = rd
-	r.session = &fakeSession{t: t, pub: r.pub}
+	r.session = &fakeSession{t: t, pub: r.pub, host: host}
 	if err := rd.Start(context.Background(), r.session); err != nil {
 		t.Fatal(err)
 	}

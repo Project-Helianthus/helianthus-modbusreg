@@ -1,4 +1,4 @@
-// Package write is the executor of the allocated-current operation of a
+// Package write is the executor of the allocated current operation of a
 // configured Gen3 Wall Connector. It calls the native provisional setter of the
 // tesla package once per dispatch, feeds the returned t28 to the reader and
 // answers the dispatch with delivery, acknowledgement and readback evidence.

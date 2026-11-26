@@ -29,7 +29,7 @@ type Config struct {
 	Clock Clock
 }
 
-// Writer is the executor of the allocated-current operation of one charger.
+// Writer is the executor of the allocated current operation of one charger.
 type Writer struct {
 	cfg    Config
 	acq    *tesla.Gen3ReadAcquisition
@@ -49,6 +49,9 @@ type Writer struct {
 	unregister func()
 	attempts   uint64
 	renewal    *renewal
+	// id is the ownership of the session; before Start it is the one the reader
+	// was configured with.
+	id identity
 }
 
 var _ driver.Instance = (*Writer)(nil)
@@ -69,20 +72,27 @@ func NewWriter(cfg Config) (*Writer, error) {
 		clock = systemClock{}
 	}
 	runCtx, runCancel := context.WithCancel(context.Background())
-	return &Writer{cfg: cfg, acq: cfg.Reader.Acquisition(), clock: clock, origin: clock.Now(), runCtx: runCtx, runCancel: runCancel}, nil
+	p := cfg.Publication
+	id := identity{asset: p.Asset, source: p.Source, epoch: p.Epoch, generation: semreg.Uint64(strconv.FormatUint(p.Generation, 10))}
+	return &Writer{cfg: cfg, acq: cfg.Reader.Acquisition(), clock: clock, origin: clock.Now(), runCtx: runCtx, runCancel: runCancel, id: id}, nil
 }
 
 func (w *Writer) capability() reader.Capability { return reader.SetAllocated }
 
+// generation is the generation the reader was configured with; the session
+// stamps its own on the route.
 func (w *Writer) generation() semreg.Uint64 {
 	return semreg.Uint64(strconv.FormatUint(w.cfg.Publication.Generation, 10))
 }
 
+// guardMatches compares the guard with the route of the provider as the session
+// names it: the session's own ownership and the identifiers it scoped. The
+// caller holds the lifecycle lock.
 func (w *Writer) guardMatches(g operation.GuardClaims) bool {
-	p := w.cfg.Publication
-	return g.AssetID == p.Asset && g.BindingID == p.BindingIdentifier() && g.SourceID == p.Source && g.SourceEpochID == p.Epoch &&
-		g.DriverGeneration == w.generation() && g.ServiceInstance == p.ServiceInstanceIdentifier(w.capability()) &&
-		g.CapabilityInstance == p.CapabilityInstanceIdentifier(w.capability())
+	p, id := w.cfg.Publication, w.id
+	return g.AssetID == id.asset && scopedAs(p.BindingIdentifier(), g.BindingID) && g.SourceID == id.source && g.SourceEpochID == id.epoch &&
+		g.DriverGeneration == id.generation && scopedAs(p.ServiceInstanceIdentifier(w.capability()), g.ServiceInstance) &&
+		scopedAs(p.CapabilityInstanceIdentifier(w.capability()), g.CapabilityInstance)
 }
 
 // admit answers, before any send, whether the writer may send for the guard. The
@@ -245,7 +255,7 @@ func (w *Writer) later(ctx context.Context, set tesla.Gen3ReadRecord) (semreg.Sn
 	if input == nil {
 		return semreg.Snapshot{}, semreg.FactCandidate{}, false
 	}
-	cut, err := input.Capture(ctx, driver.Filter{Assets: []semreg.AssetID{w.cfg.Publication.Asset}})
+	cut, err := input.Capture(ctx, driver.Filter{Assets: []semreg.AssetID{w.id.asset}})
 	if err != nil || len(cut.Snapshots) == 0 {
 		return semreg.Snapshot{}, semreg.FactCandidate{}, false
 	}
@@ -254,7 +264,7 @@ func (w *Writer) later(ctx context.Context, set tesla.Gen3ReadRecord) (semreg.Sn
 	for _, snapshot := range cut.Snapshots {
 		for _, envelope := range snapshot.Facts {
 			for _, candidate := range envelope.Candidates {
-				if candidate.CandidateID == id && candidate.Times.ReceivedAt.UnixNanoseconds == want {
+				if scopedAs(id, candidate.CandidateID) && candidate.Times.ReceivedAt.UnixNanoseconds == want {
 					return snapshot, candidate, true
 				}
 			}

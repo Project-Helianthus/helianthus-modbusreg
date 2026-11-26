@@ -26,12 +26,11 @@ func (w *Writer) Execute(ctx context.Context, d driver.Dispatch) (driver.Complet
 }
 
 func (w *Writer) decode(d driver.Dispatch) (amps semreg.Quantity, release bool, reason string) {
-	p := w.cfg.Publication
-	capability := p.CapabilityInstanceIdentifier(w.capability())
+	capability := w.cfg.Publication.CapabilityInstanceIdentifier(w.capability())
 	switch {
 	case d.Request.Operation != definition(OperationID):
 		return amps, false, ReasonForeignRoute
-	case d.Request.CapabilityInstanceID != capability || d.Route.CapabilityInstance != capability:
+	case !scopedAs(capability, d.Request.CapabilityInstanceID) || !scopedAs(capability, d.Route.CapabilityInstance):
 		return amps, false, ReasonForeignRoute
 	case !w.connectorMatches(d.ExpectedEffect.Fact):
 		return amps, false, ReasonForeignRoute
