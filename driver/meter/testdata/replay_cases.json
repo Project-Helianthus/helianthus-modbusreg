@@ -1,0 +1,566 @@
+{
+ "contract": "helianthus.modbus.meter-replay/v1",
+ "note": "Synthetic register images and expected facts computed by hand from the documented gains, scale factors and units; no device was used.",
+ "cases": [
+  {
+   "name": "integer-meter-with-scale-factors",
+   "kind": "sunspec",
+   "unit": 7,
+   "model": 203,
+   "role": "grid_connection",
+   "points": {
+    "meter.ac.current.total": [
+     330
+    ],
+    "meter.ac.current.phase_a": [
+     100
+    ],
+    "meter.ac.current.phase_b": [
+     110
+    ],
+    "meter.ac.current.phase_c": [
+     120
+    ],
+    "meter.scale.current": [
+     -1
+    ],
+    "meter.ac.voltage.line_neutral.average": [
+     2310
+    ],
+    "meter.ac.voltage.line_neutral.phase_a": [
+     2300
+    ],
+    "meter.ac.voltage.line_neutral.phase_b": [
+     2310
+    ],
+    "meter.ac.voltage.line_neutral.phase_c": [
+     2320
+    ],
+    "meter.ac.voltage.line_line.average": [
+     3990
+    ],
+    "meter.ac.voltage.line_line.ab": [
+     3980
+    ],
+    "meter.ac.voltage.line_line.bc": [
+     3990
+    ],
+    "meter.ac.voltage.line_line.ca": [
+     4000
+    ],
+    "meter.scale.voltage": [
+     -1
+    ],
+    "meter.ac.frequency": [
+     5002
+    ],
+    "meter.scale.frequency": [
+     -2
+    ],
+    "meter.ac.power.active.total": [
+     150
+    ],
+    "meter.scale.active_power": [
+     1
+    ],
+    "meter.ac.power_factor.total": [
+     -90
+    ],
+    "meter.scale.power_factor": [
+     0
+    ],
+    "meter.energy.export.total": [
+     0,
+     1000
+    ],
+    "meter.energy.import.total": [
+     0,
+     2000
+    ],
+    "meter.energy.import.phase_a": [
+     0,
+     300
+    ],
+    "meter.scale.active_energy": [
+     1
+    ],
+    "meter.energy.apparent_import.total": [
+     0,
+     7000
+    ],
+    "meter.scale.apparent_energy": [
+     -1
+    ],
+    "meter.events": [
+     0,
+     0
+    ]
+   },
+   "expect": [
+    {
+     "element": "infrastructure.ac.current",
+     "node": "meter",
+     "scope": "phase_a",
+     "unit": "unit.ampere",
+     "value": "10"
+    },
+    {
+     "element": "infrastructure.ac.voltage",
+     "node": "meter",
+     "scope": "phase_b",
+     "unit": "unit.volt",
+     "value": "231"
+    },
+    {
+     "element": "infrastructure.ac.voltage_line_line",
+     "node": "meter",
+     "scope": "line_ab",
+     "unit": "unit.volt",
+     "value": "398"
+    },
+    {
+     "element": "infrastructure.ac.frequency",
+     "node": "grid",
+     "scope": "",
+     "unit": "unit.hertz",
+     "value": "50.02"
+    },
+    {
+     "element": "infrastructure.ac.power_factor",
+     "node": "grid",
+     "scope": "",
+     "unit": "unit.ratio",
+     "value": "-0.9"
+    },
+    {
+     "element": "infrastructure.power.pcc",
+     "node": "grid",
+     "scope": "",
+     "unit": "unit.watt",
+     "value": "1500"
+    },
+    {
+     "element": "infrastructure.power.import_active",
+     "node": "grid",
+     "scope": "",
+     "unit": "unit.watt",
+     "value": "1500"
+    },
+    {
+     "element": "infrastructure.power.export_active",
+     "node": "grid",
+     "scope": "",
+     "unit": "unit.watt",
+     "value": "0"
+    },
+    {
+     "element": "infrastructure.energy.export",
+     "node": "meter",
+     "scope": "",
+     "unit": "unit.joule",
+     "value": "36000000"
+    },
+    {
+     "element": "infrastructure.energy.import",
+     "node": "meter",
+     "scope": "",
+     "unit": "unit.joule",
+     "value": "72000000"
+    },
+    {
+     "element": "infrastructure.energy.phase_import",
+     "node": "meter",
+     "scope": "phase_a",
+     "unit": "unit.joule",
+     "value": "10800000"
+    },
+    {
+     "element": "infrastructure.energy.apparent_import",
+     "node": "meter",
+     "scope": "",
+     "unit": "unit.volt_ampere_second",
+     "value": "2520000"
+    }
+   ]
+  },
+  {
+   "name": "float-meter-without-scale-factors",
+   "kind": "sunspec",
+   "unit": 8,
+   "model": 213,
+   "role": "grid_connection",
+   "points": {
+    "meter.ac.current.total": [
+     16906,
+     0
+    ],
+    "meter.ac.current.phase_a": [
+     16680,
+     0
+    ],
+    "meter.ac.voltage.line_neutral.average": [
+     17255,
+     32768
+    ],
+    "meter.ac.voltage.line_neutral.phase_c": [
+     17256,
+     32768
+    ],
+    "meter.ac.voltage.line_line.average": [
+     17352,
+     16384
+    ],
+    "meter.ac.voltage.line_line.ca": [
+     17352,
+     49152
+    ],
+    "meter.ac.frequency": [
+     16969,
+     0
+    ],
+    "meter.ac.power.active.total": [
+     50330,
+     20480
+    ],
+    "meter.ac.power_factor.total": [
+     16128,
+     0
+    ],
+    "meter.energy.export.total": [
+     17979,
+     32768
+    ],
+    "meter.energy.import.total": [
+     18107,
+     32768
+    ],
+    "meter.energy.import.phase_c": [
+     17723,
+     32768
+    ],
+    "meter.energy.apparent_import.total": [
+     17402,
+     0
+    ],
+    "meter.events": [
+     0,
+     0
+    ],
+    "meter.ac.current.phase_b": [
+     16696,
+     0
+    ],
+    "meter.ac.current.phase_c": [
+     16712,
+     0
+    ],
+    "meter.ac.voltage.line_neutral.phase_a": [
+     17254,
+     32768
+    ],
+    "meter.ac.voltage.line_neutral.phase_b": [
+     17255,
+     32768
+    ],
+    "meter.ac.voltage.line_line.ab": [
+     17351,
+     49152
+    ],
+    "meter.ac.voltage.line_line.bc": [
+     17352,
+     16384
+    ]
+   },
+   "expect": [
+    {
+     "element": "infrastructure.ac.current",
+     "node": "meter",
+     "scope": "phase_a",
+     "unit": "unit.ampere",
+     "value": "10.5"
+    },
+    {
+     "element": "infrastructure.ac.voltage",
+     "node": "meter",
+     "scope": "phase_c",
+     "unit": "unit.volt",
+     "value": "232.5"
+    },
+    {
+     "element": "infrastructure.ac.voltage_line_line",
+     "node": "meter",
+     "scope": "line_ca",
+     "unit": "unit.volt",
+     "value": "401.5"
+    },
+    {
+     "element": "infrastructure.ac.frequency",
+     "node": "grid",
+     "scope": "",
+     "unit": "unit.hertz",
+     "value": "50.25"
+    },
+    {
+     "element": "infrastructure.ac.power_factor",
+     "node": "grid",
+     "scope": "",
+     "unit": "unit.ratio",
+     "value": "0.5"
+    },
+    {
+     "element": "infrastructure.power.pcc",
+     "node": "grid",
+     "scope": "",
+     "unit": "unit.watt",
+     "value": "-1234.5"
+    },
+    {
+     "element": "infrastructure.power.export_active",
+     "node": "grid",
+     "scope": "",
+     "unit": "unit.watt",
+     "value": "1234.5"
+    },
+    {
+     "element": "infrastructure.energy.export",
+     "node": "meter",
+     "scope": "",
+     "unit": "unit.joule",
+     "value": "43200000"
+    },
+    {
+     "element": "infrastructure.energy.import",
+     "node": "meter",
+     "scope": "",
+     "unit": "unit.joule",
+     "value": "86400000"
+    },
+    {
+     "element": "infrastructure.energy.phase_import",
+     "node": "meter",
+     "scope": "phase_c",
+     "unit": "unit.joule",
+     "value": "10800000"
+    },
+    {
+     "element": "infrastructure.energy.apparent_import",
+     "node": "meter",
+     "scope": "",
+     "unit": "unit.volt_ampere_second",
+     "value": "1800000"
+    }
+   ]
+  },
+  {
+   "name": "energy-manager-site-and-built-in-sensor",
+   "kind": "emma",
+   "role": "grid_connection",
+   "registers": [
+    {
+     "unit": 0,
+     "offset": 30306,
+     "words": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1234,
+      0,
+      0,
+      15,
+      4614,
+      0,
+      56,
+      0,
+      0,
+      0,
+      4500,
+      0,
+      78,
+      0,
+      0,
+      0,
+      6000,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    {
+     "unit": 0,
+     "offset": 30354,
+     "words": [
+      0,
+      5000,
+      0,
+      2345,
+      65535,
+      65036,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    {
+     "unit": 0,
+     "offset": 31639,
+     "words": [
+      0,
+      23010,
+      0,
+      23120,
+      0,
+      23230,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      125,
+      0,
+      130,
+      0,
+      135,
+      65535,
+      64786
+     ]
+    },
+    {
+     "unit": 0,
+     "offset": 31661,
+     "words": [
+      0,
+      980,
+      0,
+      0,
+      0,
+      100,
+      0,
+      200,
+      0,
+      300
+     ]
+    },
+    {
+     "unit": 0,
+     "offset": 31671,
+     "words": [
+      0,
+      0,
+      0,
+      5000
+     ]
+    },
+    {
+     "unit": 0,
+     "offset": 31679,
+     "words": [
+      0,
+      0,
+      0,
+      1000
+     ]
+    },
+    {
+     "unit": 0,
+     "offset": 31687,
+     "words": [
+      0,
+      0,
+      0,
+      4000
+     ]
+    }
+   ],
+   "expect": [
+    {
+     "element": "infrastructure.load.active_power",
+     "node": "load",
+     "scope": "",
+     "unit": "unit.watt",
+     "value": "2345"
+    },
+    {
+     "element": "infrastructure.load.energy_consumed",
+     "node": "load",
+     "scope": "",
+     "unit": "unit.joule",
+     "value": "35555544000"
+    },
+    {
+     "element": "infrastructure.energy.export",
+     "node": "site-meter",
+     "scope": "",
+     "unit": "unit.joule",
+     "value": "162000000"
+    },
+    {
+     "element": "infrastructure.energy.import",
+     "node": "site-meter",
+     "scope": "",
+     "unit": "unit.joule",
+     "value": "216000000"
+    },
+    {
+     "element": "infrastructure.power.pcc",
+     "node": "grid",
+     "scope": "",
+     "unit": "unit.watt",
+     "value": "-750"
+    },
+    {
+     "element": "infrastructure.ac.power_factor",
+     "node": "grid",
+     "scope": "",
+     "unit": "unit.ratio",
+     "value": "0.98"
+    },
+    {
+     "element": "infrastructure.ac.voltage",
+     "node": "meter",
+     "scope": "phase_a",
+     "unit": "unit.volt",
+     "value": "230.1"
+    },
+    {
+     "element": "infrastructure.ac.active_power",
+     "node": "meter",
+     "scope": "phase_b",
+     "unit": "unit.watt",
+     "value": "200"
+    }
+   ],
+   "unknown": [
+    "infrastructure.power.import_active",
+    "infrastructure.power.export_active"
+   ]
+  }
+ ]
+}
