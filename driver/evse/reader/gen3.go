@@ -30,11 +30,12 @@ type publishedFact struct {
 // t8, the prerequisite t28 and the mutation t28 from the callers that hold the
 // native results, and publishes every accepted observation through the session.
 type ChargerReader struct {
-	cfg  ChargerConfig
-	pub  ChargerPublication
-	acq  *tesla.Gen3ReadAcquisition
-	feed *Feed
-	now  func() time.Time
+	cfg    ChargerConfig
+	pub    ChargerPublication
+	acq    *tesla.Gen3ReadAcquisition
+	feed   *Feed
+	vitals *VitalsFeed
+	now    func() time.Time
 
 	fenced atomic.Bool
 
@@ -84,7 +85,7 @@ func NewChargerReader(cfg ChargerConfig, pub ChargerPublication, deps ChargerDep
 	if now == nil {
 		now = time.Now
 	}
-	return &ChargerReader{cfg: cfg, pub: pub, acq: acq, feed: NewFeed(), now: now,
+	return &ChargerReader{cfg: cfg, pub: pub, acq: acq, feed: NewFeed(), vitals: NewVitalsFeed(), now: now,
 		published: map[semreg.CandidateID]publishedFact{}, revisions: map[semreg.CandidateID]uint64{}}, nil
 }
 
@@ -102,7 +103,7 @@ func (r *ChargerReader) Setter() SetterAvailability { return r.cfg.Setter() }
 func (r *ChargerReader) CurrentLimitWritable() bool { return r.cfg.CurrentLimitWritable() }
 
 // View evaluates the readback state now.
-func (r *ChargerReader) View() View { return r.feed.View(At{Wall: r.now()}) }
+func (r *ChargerReader) View() View { return r.view(At{Wall: r.now()}) }
 
 // Start activates the lifecycle once and runs its polls on the instance
 // lifetime; it returns when the lifecycle is ready or has failed.
@@ -240,7 +241,7 @@ func (r *ChargerReader) IngestPolled(ctx context.Context, record tesla.Gen3ReadR
 	if err := r.ready(ctx); err != nil {
 		return err
 	}
-	if !r.provisional(record, nil) {
+	if !r.provisional(record, nil) && !r.ingestVitals(record) {
 		return nil
 	}
 	return r.publish(ctx)
@@ -323,7 +324,7 @@ func (r *ChargerReader) publish(ctx context.Context) error {
 		return ErrChargerFenced
 	}
 	at := At{Wall: r.now()}
-	view := r.feed.View(at)
+	view := r.view(at)
 	tx, err := r.session.Publisher().Begin(ctx)
 	if err != nil {
 		return err
