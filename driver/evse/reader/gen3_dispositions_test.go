@@ -32,11 +32,32 @@ func candidateOf(t *testing.T, batches []semreg.PublicationBatch, element string
 	return *found
 }
 
-func wantWithheld(t *testing.T, f semreg.FactCandidate, reason string) {
+// wantNoCandidate requires that no committed batch carries a candidate for the
+// element: an element without a value is never published as a candidate.
+func wantNoCandidate(t *testing.T, batches []semreg.PublicationBatch, element string) {
 	t.Helper()
-	if f.Value != nil || f.Quality.Availability != semreg.AvailabilityWithdrawn || len(f.Quality.Reasons) != 1 || string(f.Quality.Reasons[0]) != reason {
-		t.Fatalf("candidate %s: value %v availability %s reasons %v, want %s", f.Key.FactID, f.Value, f.Quality.Availability, f.Quality.Reasons, reason)
+	for _, b := range batches {
+		for _, f := range b.FactUpserts {
+			if string(f.Key.FactID) == element {
+				t.Fatalf("a candidate %+v was published for %s, an element without a value", f, element)
+			}
+		}
 	}
+}
+
+// wantDisposition requires the reader's published disposition of the element.
+func wantDisposition(t *testing.T, reader *ChargerReader, element, reason string) Disposition {
+	t.Helper()
+	for _, d := range reader.Dispositions() {
+		if d.Element == element {
+			if d.Reason != reason {
+				t.Fatalf("disposition of %s is %q, want %q", element, d.Reason, reason)
+			}
+			return d
+		}
+	}
+	t.Fatalf("no disposition for %s in %+v", element, reader.Dispositions())
+	return Disposition{}
 }
 
 func TestCommittedBatchCarriesTheExpiryDisposition(t *testing.T) {
@@ -49,7 +70,14 @@ func TestCommittedBatchCarriesTheExpiryDisposition(t *testing.T) {
 		t.Fatal(err)
 	}
 	batches := session.committed()
-	wantWithheld(t, candidateOf(t, batches, ElementAllocatedCurrent), ReasonProvisionalExpired)
+	wantNoCandidate(t, batches, ElementAllocatedCurrent)
+	for i, b := range batches {
+		// Only a candidate the reader published is withdrawn; this one never was.
+		if len(b.FactWithdrawals) != 0 {
+			t.Fatalf("batch %d withdraws %v", i+1, b.FactWithdrawals)
+		}
+	}
+	wantDisposition(t, reader, ElementAllocatedCurrent, ReasonProvisionalExpired)
 	if f := candidateOf(t, batches, ElementAllocatedExpiry); f.Value == nil || f.Quality.Availability != semreg.AvailabilityAvailable {
 		t.Fatalf("the expiry fact does not remain: %+v", f)
 	}
@@ -59,14 +87,15 @@ func TestCommittedBatchCarriesTheUnresolvedZeroDispositions(t *testing.T) {
 	cfg := syntheticConfig(fiveOperations...)
 	cfg.Operations = append(append([]tesla.FC100Operation(nil), fiveOperations...), tesla.FC100OperationWCGetProvisional)
 	cfg.ProvisionalReadbackQualified = true
-	_, session, _ := run(t, cfg, func(e *scriptedEndpoint) {
+	reader, session, _ := run(t, cfg, func(e *scriptedEndpoint) {
 		pushPolls(e, cfg.Operations, scalars{limit: u(0), timeout: u(0), inhibit: b(false), configured: u(0)})
 	})
-	waitFor(t, "a batch", func() bool { return len(session.committed()) >= 1 })
+	waitFor(t, "the dispositions", func() bool { return len(reader.Dispositions()) == 3 })
 	batches := session.committed()
-	wantWithheld(t, candidateOf(t, batches, ElementAllocatedCurrent), ReasonZeroCurrent)
-	wantWithheld(t, candidateOf(t, batches, ElementConfiguredCurrent), ReasonZeroCurrent)
-	wantWithheld(t, candidateOf(t, batches, ElementAllocatedExpiry), ReasonZeroTimeout)
+	for element, reason := range map[string]string{ElementAllocatedCurrent: ReasonZeroCurrent, ElementConfiguredCurrent: ReasonZeroCurrent, ElementAllocatedExpiry: ReasonZeroTimeout} {
+		wantNoCandidate(t, batches, element)
+		wantDisposition(t, reader, element, reason)
+	}
 }
 
 func TestSetterCapabilityAgreesWithTheNativeQualificationOfTheBuild(t *testing.T) {
@@ -93,7 +122,7 @@ func TestSetterCapabilityAgreesWithTheNativeQualificationOfTheBuild(t *testing.T
 			if err != nil {
 				t.Fatal(err)
 			}
-			first, _, _ := reader.batch(View{}, At{Wall: time.Unix(5, 0)})
+			first, _, _, _ := reader.batch(View{}, At{Wall: time.Unix(5, 0)})
 			if digest, err := first.ComputedDigest(); err != nil {
 				t.Fatal(err)
 			} else {
@@ -102,14 +131,21 @@ func TestSetterCapabilityAgreesWithTheNativeQualificationOfTheBuild(t *testing.T
 			if err := first.Validate(); err != nil {
 				t.Fatal(err)
 			}
-			published := false
+			// The qualified operation is not a published capability: the setter
+			// capability is never in the batch and is reported as not published,
+			// with the build's own reason where the operation is not qualified
+			// and the open pack rule where it is.
 			for _, cp := range first.CapabilityUpserts {
 				if cp.Definition.ID == "evse.capability.set_allocated_current" {
-					published = true
+					t.Fatalf("the setter capability is published: %+v", cp)
 				}
 			}
-			if published != tc.want {
-				t.Fatalf("published %v, want %v", published, tc.want)
+			unpublished := reader.UnpublishedCapabilities()
+			if len(unpublished) != 1 || unpublished[0].Capability != SetAllocated.Capability || unpublished[0].Reason == "" {
+				t.Fatalf("unpublished capabilities %+v", unpublished)
+			}
+			if got, want := unpublished[0].Reason == ReasonSetterConstraintOpen, tc.want; got != want {
+				t.Fatalf("reason %q names the open pack rule %v, want %v", unpublished[0].Reason, got, want)
 			}
 			if documented := tc.version == "wc3_26_34_0" || tc.version == "26.42.0"; documented {
 				return

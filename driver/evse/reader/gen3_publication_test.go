@@ -231,18 +231,17 @@ func TestPersistentEntryFeedsTheReturnedSettingsAndTakesTheLaterReceipt(t *testi
 	if err := last.Validate(); err != nil {
 		t.Fatal(err)
 	}
+	// The allocation is not republished or retimed: its candidate is withdrawn,
+	// no candidate without a value is published, and the disposition states why.
 	for _, fact := range last.FactUpserts {
 		if fact.Key.FactID == ElementAllocatedCurrent {
-			// The allocation is not republished or retimed: the candidate carries
-			// no value and states why it is withheld.
-			if fact.Value != nil || fact.Quality.Availability != semreg.AvailabilityWithdrawn ||
-				len(fact.Quality.Reasons) != 1 || fact.Quality.Reasons[0] != ReasonProvisionalMissing {
-				t.Fatalf("the allocation candidate %+v", fact)
-			}
-			return
+			t.Fatalf("the allocation is published again: %+v", fact)
 		}
 	}
-	t.Fatal("the allocation withdrawal carries no reason")
+	if len(last.FactWithdrawals) != 1 {
+		t.Fatalf("the allocation withdrawal: %v", last.FactWithdrawals)
+	}
+	wantDisposition(t, reader, ElementAllocatedCurrent, ReasonProvisionalMissing)
 }
 
 func TestIngestRefusesOutsideTheLifetime(t *testing.T) {
@@ -283,9 +282,6 @@ func TestPublishedBatchIsValidAmpereAndCarriesCapabilities(t *testing.T) {
 		}
 		want := map[semreg.DefinitionID]semreg.DefinitionID{
 			"evse.capability.read.evse": "evse.service.evse", "evse.capability.read.connector": "evse.service.connector"}
-		if writable {
-			want["evse.capability.set_allocated_current"] = "evse.service.connector"
-		}
 		if len(got) != len(want) {
 			t.Fatalf("writable=%v capabilities %v", writable, got)
 		}

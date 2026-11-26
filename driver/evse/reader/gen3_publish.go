@@ -34,6 +34,13 @@ type ChargerPublication struct {
 	// Graph is the configured station, EVSE, connectors and meter. A zero
 	// Graph states no resource or relation.
 	Graph GraphConfig
+	// FirstIncarnation selects the identifiers the gateway minted for the first
+	// admission of an asset and source: the binding from the asset and the
+	// source, the service and the capability from the asset and their
+	// definition, the candidate from the asset, the binding and the element, and
+	// the origin from the candidate. A successor incarnation leaves it unset and
+	// scopes every identifier by its epoch and generation.
+	FirstIncarnation bool
 }
 
 // Capability binds one read or setter capability to the service the pack names.
@@ -54,15 +61,14 @@ var (
 	SetAllocated  = Capability{"evse.capability.set_allocated_current", "evse.service.connector"}
 )
 
-// Capabilities lists the capabilities published for a charger. The connector
-// carries the setter capability only while the t25 operation is qualified.
-func Capabilities(writable, meter bool) []Capability {
+// Capabilities lists the read capabilities published for a charger. The setter
+// capability is not published: the EVSE pack requires it to carry the typed
+// evse.limit.allocated_current constraint, no source states a value for that
+// constraint, and the pack's rule is open (see UnpublishedCapabilities).
+func Capabilities(meter bool) []Capability {
 	out := []Capability{ReadEVSE, ReadConnector}
 	if meter {
 		out = append(out, ReadMeter)
-	}
-	if writable {
-		out = append(out, SetAllocated)
 	}
 	return out
 }
@@ -82,7 +88,19 @@ func (p ChargerPublication) scope() []string {
 }
 
 func (p ChargerPublication) bindingID() semreg.NativeBindingID {
+	if p.FirstIncarnation {
+		return semreg.NativeBindingID(opaque("binding:tesla-wc3", string(p.Asset), string(p.Source)))
+	}
 	return semreg.NativeBindingID(opaque("binding:tesla-wc3", p.scope()...))
+}
+
+// scoped is the identifier material of a service or a capability: the first
+// incarnation keeps the asset and the definition only.
+func (p ChargerPublication) scoped(definition semreg.DefinitionID) []string {
+	if p.FirstIncarnation {
+		return []string{string(p.Asset), string(definition)}
+	}
+	return append(p.scope(), string(definition))
 }
 
 func (p ChargerPublication) uint64(n uint64) semreg.Uint64 {
@@ -121,8 +139,18 @@ func (p ChargerPublication) factKey(element string, role Role) semreg.FactKey {
 }
 
 func (p ChargerPublication) candidateID(element string, role Role) semreg.CandidateID {
+	if p.FirstIncarnation {
+		return semreg.CandidateID(opaque("candidate:tesla-wc3", string(p.Asset), string(p.bindingID()), element))
+	}
 	_, label := p.subject(role)
 	return semreg.CandidateID(opaque("candidate:tesla-wc3", append(p.scope(), element, label)...))
+}
+
+func (p ChargerPublication) originID(candidate semreg.CandidateID, revision uint64) semreg.OriginID {
+	if p.FirstIncarnation {
+		return semreg.OriginID("origin:tesla-wc3:" + strings.TrimPrefix(string(candidate), "candidate:tesla-wc3:"))
+	}
+	return semreg.OriginID(opaque("origin:tesla-wc3", string(candidate), strconv.FormatUint(revision, 10)))
 }
 
 func (p ChargerPublication) evidence(kind semreg.DefinitionID, parts ...string) semreg.EvidenceRef {
@@ -149,36 +177,32 @@ func (p ChargerPublication) value(f Fact) semreg.Value {
 		i := strings.LastIndex(f.Symbol, ".")
 		return semreg.Value{Kind: semreg.ValueSymbol, Symbol: &semreg.Symbol{Namespace: semreg.DefinitionID(f.Symbol[:i]), Token: f.Symbol[i+1:], Known: true}}
 	}
-	return semreg.Value{Kind: semreg.ValueQuantity, Quantity: &semreg.Quantity{Number: semreg.Decimal{Coefficient: strconv.FormatUint(uint64(f.Amps), 10)}, Unit: "unit.ampere"}}
+	// A nonzero coefficient has no trailing zero: each power of ten moves to the
+	// exponent without rounding, and zero stays at exponent zero.
+	number := semreg.Decimal{Coefficient: strconv.FormatUint(uint64(f.Amps), 10)}
+	for number.Coefficient != "0" && strings.HasSuffix(number.Coefficient, "0") {
+		number.Coefficient = strings.TrimSuffix(number.Coefficient, "0")
+		number.Exponent10++
+	}
+	return semreg.Value{Kind: semreg.ValueQuantity, Quantity: &semreg.Quantity{Number: number, Unit: "unit.ampere"}}
 }
 
 func (p ChargerPublication) candidate(f Fact, evaluated At, revision uint64) semreg.FactCandidate {
 	binding, epoch, generation := p.bindingID(), p.Epoch, p.uint64(p.Generation)
 	source := p.Source
-	ev := p.evidence(evidenceKind(f), string(p.Asset), f.Element, f.Reason, strconv.FormatUint(f.Receipt.Lifecycle, 10), strconv.FormatUint(f.Receipt.Generation, 10), strconv.FormatUint(f.Receipt.RequestID, 10))
+	ev := p.evidence(evidenceKind(f), string(p.Asset), f.Element, strconv.FormatUint(f.Receipt.Lifecycle, 10), strconv.FormatUint(f.Receipt.Generation, 10), strconv.FormatUint(f.Receipt.RequestID, 10))
 	key := p.factKey(f.Element, f.Role)
 	id := p.candidateID(f.Element, f.Role)
 	quality := semreg.Quality{Assertion: semreg.AssertionObserved, Qualification: semreg.QualificationQualified, Promotion: semreg.PromotionPromoted,
 		Validity: semreg.ValidityGood, Availability: semreg.AvailabilityAvailable, Freshness: semreg.FreshnessFresh, Reasons: []semreg.DefinitionID{}}
-	var value *semreg.Value
-	if f.Reason == "" {
-		v := p.value(f)
-		value = &v
-	} else {
-		quality.Availability, quality.Reasons = semreg.AvailabilityWithdrawn, []semreg.DefinitionID{semreg.DefinitionID(f.Reason)}
-		switch f.Reason {
-		case ReasonProvisionalExpired:
-			quality.Freshness = semreg.FreshnessExpired
-		case ReasonZeroCurrent, ReasonZeroTimeout:
-			quality.Validity, quality.Freshness = semreg.ValidityUnknown, semreg.FreshnessUnknown
-		}
-	}
+	v := p.value(f)
+	value := &v
 	return semreg.FactCandidate{
 		CandidateID: id, Key: key, Value: value, Quality: quality,
 		Times: semreg.Times{ReceivedAt: wall(f.Receipt.Wall), ReceiptMonotonic: p.mono(p.receiptEpoch(f.Receipt), f.Receipt.Mono),
 			EvaluatedAt: wall(evaluated.Wall), EvaluateMonotonic: p.mono(p.ClockEpoch, evaluated.Mono)},
 		FreshnessPolicy: p.Policy, BindingID: &binding, SourceEpochID: &epoch, DriverGeneration: &generation,
-		Origin: semreg.OriginRef{OriginID: semreg.OriginID(opaque("origin:tesla-wc3", string(id), strconv.FormatUint(revision, 10))), Kind: semreg.OriginNativeObservation,
+		Origin: semreg.OriginRef{OriginID: p.originID(id, revision), Kind: semreg.OriginNativeObservation,
 			SourceID: &source, SourceEpochID: &epoch, BindingID: &binding, Evidence: []semreg.EvidenceRef{ev}},
 		Evidence: []semreg.EvidenceRef{ev}, Revision: p.uint64(revision),
 	}
@@ -208,7 +232,7 @@ func (p ChargerPublication) binding(version string, node byte, endpoint string) 
 
 func (p ChargerPublication) service(c Capability) semreg.ServiceInstance {
 	return semreg.ServiceInstance{
-		InstanceID: semreg.ServiceInstanceID(opaque("service:tesla-wc3", append(p.scope(), string(c.Service))...)),
+		InstanceID: semreg.ServiceInstanceID(opaque("service:tesla-wc3", p.scoped(c.Service)...)),
 		AssetID:    p.Asset, Definition: defRef(c.Service), BindingID: p.bindingID(), SourceEpochID: p.Epoch,
 		DriverGeneration: p.uint64(p.Generation), Qualification: semreg.QualificationQualified, Availability: semreg.AvailabilityAvailable, Revision: "1",
 	}
@@ -216,7 +240,7 @@ func (p ChargerPublication) service(c Capability) semreg.ServiceInstance {
 
 func (p ChargerPublication) capability(c Capability, service semreg.ServiceInstanceID) semreg.CapabilityInstance {
 	return semreg.CapabilityInstance{
-		InstanceID: semreg.CapabilityInstanceID(opaque("capability:tesla-wc3", append(p.scope(), string(c.Capability))...)),
+		InstanceID: semreg.CapabilityInstanceID(opaque("capability:tesla-wc3", p.scoped(c.Capability)...)),
 		AssetID:    p.Asset, ServiceInstance: service, Definition: defRef(c.Capability), BindingID: p.bindingID(), SourceEpochID: p.Epoch,
 		DriverGeneration: p.uint64(p.Generation), Qualification: semreg.QualificationQualified, Availability: semreg.AvailabilityAvailable,
 		Constraints:        []semreg.TypedField{},

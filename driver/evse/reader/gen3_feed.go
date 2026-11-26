@@ -113,9 +113,6 @@ type Fact struct {
 	Time    time.Time
 	Symbol  string
 	Receipt Receipt
-	// Reason is set on a fact that carries no value: the element is withheld
-	// or unresolved and the reason is what the publication states.
-	Reason string
 }
 
 // Disposition names why an element has no value in the view.

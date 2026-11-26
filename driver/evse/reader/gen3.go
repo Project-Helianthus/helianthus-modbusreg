@@ -55,10 +55,13 @@ type ChargerReader struct {
 	semantic  uint64
 	published map[semreg.CandidateID]publishedFact
 	revisions map[semreg.CandidateID]uint64
-	linked    bool
-	pubErr    error
-	cancel    context.CancelFunc
-	done      chan struct{}
+	// dispositions are the elements without a value as of the last publication
+	// step, with the reason and receipt each states.
+	dispositions []Disposition
+	linked       bool
+	pubErr       error
+	cancel       context.CancelFunc
+	done         chan struct{}
 }
 
 var _ driver.Instance = (*ChargerReader)(nil)
@@ -145,6 +148,21 @@ func (r *ChargerReader) Feed() *Feed { return r.feed }
 
 // Setter reports whether the bound setter can run and, when it cannot, why.
 func (r *ChargerReader) Setter() SetterAvailability { return r.cfg.Setter() }
+
+// Dispositions are the elements without a value as of the last publication
+// step: the element, its role, the reason and the receipt it rests on. They are
+// published beside the batches, never as candidates.
+func (r *ChargerReader) Dispositions() []Disposition {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]Disposition(nil), r.dispositions...)
+}
+
+// UnpublishedCapabilities lists the capabilities this reader does not publish,
+// each with its reason.
+func (r *ChargerReader) UnpublishedCapabilities() []UnpublishedCapability {
+	return r.cfg.UnpublishedCapabilities()
+}
 
 // CurrentLimitWritable is true only while the qualified t25 operation is.
 func (r *ChargerReader) CurrentLimitWritable() bool { return r.cfg.CurrentLimitWritable() }
@@ -410,10 +428,11 @@ func (r *ChargerReader) publish(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	batch, revisions, items := r.batch(view, at)
+	batch, revisions, items, dispositions := r.batch(view, at)
 	pending := tx.OperatorLinks(batch.BindingUpserts)
 	batch.IdentityLinkUpserts = carryLinks(batch.IdentityLinkUpserts, r.ownLinks(pending))
 	if batchEmpty(batch) {
+		r.dispositions = dispositions
 		return tx.Abort(ctx)
 	}
 	digest, err := batch.ComputedDigest()
@@ -437,6 +456,7 @@ func (r *ChargerReader) publish(ctx context.Context) error {
 		next[id] = publishedFact{fact: f, rev: revisions[id]}
 	}
 	r.published = next
+	r.dispositions = dispositions
 	r.feed.Published()
 	return nil
 }
