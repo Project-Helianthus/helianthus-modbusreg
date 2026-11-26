@@ -124,6 +124,7 @@ func TestSunSpecIntegerAndFloatMetersPublishEveryElement(t *testing.T) {
 			{"infrastructure.ac.reactive_power", "phase_a", unitVar, "5"}, {"infrastructure.ac.reactive_power", "phase_b", unitVar, "-6"}, {"infrastructure.ac.reactive_power", "phase_c", unitVar, "-19"},
 			{"infrastructure.energy.phase_import", "phase_a", unitJoule, "10800000"}, {"infrastructure.energy.phase_import", "phase_b", unitJoule, "14400000"}, {"infrastructure.energy.phase_import", "phase_c", unitJoule, "18000000"},
 			{"infrastructure.energy.phase_export", "phase_a", unitJoule, "360000"}, {"infrastructure.energy.phase_export", "phase_b", unitJoule, "720000"}, {"infrastructure.energy.phase_export", "phase_c", unitJoule, "1080000"},
+			{"infrastructure.ac.phase_power_factor", "phase_a", unitRatio, "-0.95"}, {"infrastructure.ac.phase_power_factor", "phase_b", unitRatio, "0.8"}, {"infrastructure.ac.phase_power_factor", "phase_c", unitRatio, "-0.7"},
 			{"infrastructure.ac.frequency", "grid", unitHertz, "50.02"}, {"infrastructure.ac.power_factor", "grid", unitRatio, "-0.9"},
 			{"infrastructure.power.pcc", "grid", unitWatt, "1500"}, {"infrastructure.power.import_active", "grid", unitWatt, "1500"}, {"infrastructure.power.export_active", "grid", unitWatt, "0"},
 			{"infrastructure.power.apparent", "grid", unitVA, "1600"}, {"infrastructure.power.import_reactive", "grid", unitVar, "0"}, {"infrastructure.power.export_reactive", "grid", unitVar, "20"},
@@ -136,6 +137,7 @@ func TestSunSpecIntegerAndFloatMetersPublishEveryElement(t *testing.T) {
 			{"infrastructure.ac.active_power", "phase_c", unitWatt, "-423.5"}, {"infrastructure.ac.apparent_power", "phase_a", unitVA, "430.5"}, {"infrastructure.ac.reactive_power", "phase_b", unitVar, "-20.5"},
 			{"infrastructure.energy.phase_import", "phase_a", unitJoule, "3600000"}, {"infrastructure.energy.phase_import", "phase_c", unitJoule, "10800000"},
 			{"infrastructure.energy.phase_export", "phase_b", unitJoule, "720000"}, {"infrastructure.energy.phase_export", "phase_c", unitJoule, "1080000"},
+			{"infrastructure.ac.phase_power_factor", "phase_a", unitRatio, "-0.75"}, {"infrastructure.ac.phase_power_factor", "phase_b", unitRatio, "0.25"}, {"infrastructure.ac.phase_power_factor", "phase_c", unitRatio, "-0.625"},
 			{"infrastructure.ac.frequency", "grid", unitHertz, "50.25"}, {"infrastructure.ac.power_factor", "grid", unitRatio, "0.5"},
 			{"infrastructure.power.pcc", "grid", unitWatt, "-1234.5"}, {"infrastructure.power.import_active", "grid", unitWatt, "0"}, {"infrastructure.power.export_active", "grid", unitWatt, "1234.5"},
 			{"infrastructure.power.apparent", "grid", unitVA, "1300.5"}, {"infrastructure.power.import_reactive", "grid", unitVar, "40.5"}, {"infrastructure.power.export_reactive", "grid", unitVar, "0"},
@@ -164,7 +166,7 @@ func TestSunSpecIntegerAndFloatMetersPublishEveryElement(t *testing.T) {
 		}
 	}
 	for _, f := range pub.Facts {
-		if f.Candidate.Key.FactID == "infrastructure.ac.phase_power_factor" || f.Candidate.Key.FactID == "infrastructure.energy.reactive_quadrant" {
+		if f.Candidate.Key.FactID == "infrastructure.energy.reactive_quadrant" {
 			t.Fatalf("%s was published although the pack declares no usable element", f.Candidate.Key.FactID)
 		}
 	}
