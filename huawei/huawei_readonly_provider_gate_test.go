@@ -493,7 +493,7 @@ func TestHuaweiEnablementAdmitsDeclaredIdentity(t *testing.T) {
 	}
 }
 
-func h531RunSDongleCycle(t *testing.T, unit uint8) ProviderCycle {
+func runSDongleProviderCycle(t *testing.T, unit uint8) ProviderCycle {
 	t.Helper()
 	fixture, _ := h06Load(t, "sdongle_provider_cycles.json")
 	first := fixture.Cycles[0]
@@ -522,7 +522,7 @@ func h531RunSDongleCycle(t *testing.T, unit uint8) ProviderCycle {
 
 func TestSDongleProviderServesTheConfiguredChildUnit(t *testing.T) {
 	for _, unit := range []uint8{1, 7} {
-		out := h531RunSDongleCycle(t, unit)
+		out := runSDongleProviderCycle(t, unit)
 		if out.Outcome != ProviderCycleComplete || len(out.Children) != 1 || out.Children[0].UnitID != unit {
 			t.Fatalf("unit %d: %s %s %+v", unit, out.Outcome, out.Reason, h06ChildSummary(out))
 		}
