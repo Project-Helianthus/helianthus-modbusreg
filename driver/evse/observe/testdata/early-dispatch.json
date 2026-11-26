@@ -1,0 +1,7 @@
+[
+  {"argv":["gateway"],"handled":false,"opens":0},
+  {"argv":["gateway","-scan"],"handled":false,"opens":0},
+  {"argv":["gateway","tesla-observe-x"],"handled":false,"opens":0},
+  {"argv":["gateway","-tesla-observe"],"handled":false,"opens":0},
+  {"argv":["gateway","tesla-observe"],"handled":true,"status":2,"opens":0}
+]
