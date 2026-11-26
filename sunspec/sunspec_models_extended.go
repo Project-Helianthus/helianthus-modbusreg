@@ -102,6 +102,10 @@ func statusSunSpecPoints() []sunSpecPointDefinition {
 	}
 }
 
+// Written points (see sunspec_controls_write_storage.go): InWRte or OutWRte,
+// InOutWRte_RvrtTms when a duration is requested, then StorCtl_Mod last, each
+// as its own request. The other writable points are written one at a time
+// through PointWrites.
 func storageSunSpecPoints() []sunSpecPointDefinition {
 	return []sunSpecPointDefinition{
 		extendedSunSpecPoint("ID", "", TypeUint16, 1, "", "", true), extendedSunSpecPoint("L", "", TypeUint16, 1, "", "", true),
