@@ -705,7 +705,7 @@ type ProviderConfig struct {
 	Source string
 	// AllowedUnits is the operator allowlist of routed units. The SmartLogger
 	// provider reads only units in its intersection with the validated
-	// listing; the S-Dongle provider requires it to name the observed child.
+	// listing; the S-Dongle provider requires it to name exactly one configured child unit.
 	AllowedUnits []uint8
 	// Clock is monotonic and nonblocking; nil uses time.Now.
 	Clock func() time.Time
