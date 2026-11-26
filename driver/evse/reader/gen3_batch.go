@@ -53,11 +53,6 @@ func (r *ChargerReader) batch(view View, at At) (semreg.PublicationBatch, map[se
 	for _, d := range view.Dispositions {
 		items = append(items, Fact{Element: d.Element, Role: d.Role, Receipt: d.Receipt, Reason: d.Reason})
 	}
-	for _, f := range items {
-		if f.Receipt.Mono > at.Mono {
-			at.Mono = f.Receipt.Mono
-		}
-	}
 	revisions := map[semreg.CandidateID]uint64{}
 	for id, rev := range r.revisions {
 		revisions[id] = rev

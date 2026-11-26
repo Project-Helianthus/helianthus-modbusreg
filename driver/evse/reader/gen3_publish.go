@@ -24,6 +24,9 @@ type ChargerPublication struct {
 	Source     semreg.SourceID
 	Epoch      semreg.SourceEpochID
 	Generation uint64
+	// ClockEpoch identifies the reader's own clock: an evaluation is stamped
+	// with it and with the reader's clock at that instant. It must not be the
+	// epoch of the endpoint's receipts, which each record carries itself.
 	ClockEpoch semreg.ClockEpochID
 	EVSE       string
 	Connector  string
@@ -90,8 +93,17 @@ func wall(t time.Time) semreg.TimePoint {
 	return semreg.TimePoint{UnixNanoseconds: semreg.Int64(strconv.FormatInt(t.UTC().UnixNano(), 10)), ClockID: "wall.utc", UncertaintyNS: "0"}
 }
 
-func (p ChargerPublication) mono(d time.Duration) semreg.MonotonicPoint {
-	return semreg.MonotonicPoint{ClockEpochID: p.ClockEpoch, Nanoseconds: semreg.Uint64(strconv.FormatInt(d.Nanoseconds(), 10))}
+func (p ChargerPublication) mono(epoch semreg.ClockEpochID, d time.Duration) semreg.MonotonicPoint {
+	return semreg.MonotonicPoint{ClockEpochID: epoch, Nanoseconds: semreg.Uint64(strconv.FormatInt(d.Nanoseconds(), 10))}
+}
+
+// receiptEpoch is the clock epoch of a record's own receipt; a receipt that
+// names none is stamped with the reader's own epoch.
+func (p ChargerPublication) receiptEpoch(r Receipt) semreg.ClockEpochID {
+	if r.ClockEpoch == "" {
+		return p.ClockEpoch
+	}
+	return semreg.ClockEpochID(r.ClockEpoch)
 }
 
 func (p ChargerPublication) subject(role Role) (semreg.DefinitionID, string) {
@@ -163,8 +175,8 @@ func (p ChargerPublication) candidate(f Fact, evaluated At, revision uint64) sem
 	}
 	return semreg.FactCandidate{
 		CandidateID: id, Key: key, Value: value, Quality: quality,
-		Times: semreg.Times{ReceivedAt: wall(f.Receipt.Wall), ReceiptMonotonic: p.mono(f.Receipt.Mono),
-			EvaluatedAt: wall(evaluated.Wall), EvaluateMonotonic: p.mono(evaluated.Mono)},
+		Times: semreg.Times{ReceivedAt: wall(f.Receipt.Wall), ReceiptMonotonic: p.mono(p.receiptEpoch(f.Receipt), f.Receipt.Mono),
+			EvaluatedAt: wall(evaluated.Wall), EvaluateMonotonic: p.mono(p.ClockEpoch, evaluated.Mono)},
 		FreshnessPolicy: p.Policy, BindingID: &binding, SourceEpochID: &epoch, DriverGeneration: &generation,
 		Origin: semreg.OriginRef{OriginID: semreg.OriginID(opaque("origin:tesla-wc3", string(id), strconv.FormatUint(revision, 10))), Kind: semreg.OriginNativeObservation,
 			SourceID: &source, SourceEpochID: &epoch, BindingID: &binding, Evidence: []semreg.EvidenceRef{ev}},

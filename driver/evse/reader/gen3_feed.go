@@ -66,6 +66,11 @@ func (r Receipt) After(other Receipt) bool {
 	return r.Wall.After(other.Wall)
 }
 
+// readback is the identity of the acknowledged record a receipt belongs to.
+func (r Receipt) readback() [4]uint64 {
+	return [4]uint64{r.Lifecycle, r.Instance, r.Generation, r.RequestID}
+}
+
 func (r Receipt) obsolete(newest Receipt) bool {
 	if r.Lifecycle != newest.Lifecycle {
 		return r.Lifecycle < newest.Lifecycle
@@ -158,16 +163,22 @@ type amps struct {
 	receipt Receipt
 }
 
+// allocation is the current of one readback. receipt is the anchor the
+// published fact carries; source is the receipt of the readback itself.
 type allocation struct {
 	value    uint32
 	known    bool
 	receipt  Receipt
+	source   Receipt
 	inhibit  bool
 	observed bool
 }
 
+// expiry is the lifetime one readback carried. source is the receipt of that
+// readback: the expiry gates only the allocation the same readback carried.
 type expiry struct {
 	anchor  Receipt
+	source  Receipt
 	timeout uint32
 	set     bool
 }
@@ -192,8 +203,11 @@ type Feed struct {
 	zeroTORec          Receipt
 	supply             bool
 	supplyRec          Receipt
+	inhibitSource      *Receipt
+	timeoutSource      *Receipt
 	published          bool
 	withdrawn          bool
+	withdrawnBy        Receipt
 	lastProv           *ProvisionalObservation
 }
 
@@ -216,23 +230,34 @@ func (f *Feed) accept(persistent bool, r Receipt) bool {
 	return true
 }
 
-// Persistent feeds a t8 returned current. A duplicate or an obsolete
-// generation changes nothing and reports false.
+// later reports whether a readback with receipt r takes a scalar last set by
+// the readback with receipt held; a scalar nothing has set yet is taken.
+func later(r Receipt, held *Receipt) bool { return held == nil || r.After(*held) }
+
+// Persistent feeds a t8 returned current. A duplicate, an obsolete generation
+// and a readback whose receipt is not later than the one held change nothing
+// and report false, whatever the order they arrive in.
 func (f *Feed) Persistent(o PersistentObservation) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.persistent != nil && !o.Receipt.After(f.persistent.receipt) {
+		return false
+	}
 	if !f.accept(true, o.Receipt) {
 		return false
 	}
 	f.persistent = &amps{o.MaxOutputCurrentAmps, o.Receipt}
 	if f.published {
-		f.withdrawn = true
+		f.withdrawn, f.withdrawnBy = true, o.Receipt
 	}
 	return true
 }
 
 // Provisional feeds one t28. Every scalar is fed from its own presence: an
 // absent scalar leaves its element as it was and nothing is made up from it.
+// Inside one generation a scalar is taken only from a readback whose receipt
+// is later than the readback that set it, so an older readback arriving late
+// does not overwrite a newer one.
 func (f *Feed) Provisional(o ProvisionalObservation) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -240,27 +265,35 @@ func (f *Feed) Provisional(o ProvisionalObservation) bool {
 		return false
 	}
 	rb := o.Readback
-	f.withdrawn = false
-	retained := o
-	f.lastProv = &retained
-	if rb.HasConfiguredCurrent {
+	if f.withdrawn && o.Receipt.After(f.withdrawnBy) {
+		f.withdrawn = false
+	}
+	if f.lastProv == nil || o.Receipt.After(f.lastProv.Receipt) {
+		retained := o
+		f.lastProv = &retained
+	}
+	if rb.HasConfiguredCurrent && (f.readbackConfigured == nil || o.Receipt.After(f.readbackConfigured.receipt)) {
 		f.readbackConfigured = &amps{rb.ConfiguredCurrentAmps, o.Receipt}
 	}
-	if rb.HasInhibit {
+	if rb.HasInhibit && later(o.Receipt, f.inhibitSource) {
+		source := o.Receipt
+		f.inhibitSource = &source
 		f.supply, f.supplyRec = rb.InhibitCharging, o.Anchor
 		switch {
 		case rb.InhibitCharging:
-			f.alloc = allocation{value: 0, known: true, receipt: o.Anchor, inhibit: true, observed: true}
+			f.alloc = allocation{value: 0, known: true, receipt: o.Anchor, source: o.Receipt, inhibit: true, observed: true}
 		case rb.HasLimitCurrent:
-			f.alloc = allocation{value: rb.LimitCurrentMaxAmps, known: rb.LimitCurrentMaxAmps != 0, receipt: o.Anchor, observed: true}
+			f.alloc = allocation{value: rb.LimitCurrentMaxAmps, known: rb.LimitCurrentMaxAmps != 0, receipt: o.Anchor, source: o.Receipt, observed: true}
 		}
 	}
-	if rb.HasLimitTimeout {
+	if rb.HasLimitTimeout && later(o.Receipt, f.timeoutSource) {
+		source := o.Receipt
+		f.timeoutSource = &source
 		f.zeroTO, f.zeroTORec = rb.LimitTimeoutSeconds == 0, o.Receipt
 		if f.zeroTO {
 			f.exp = expiry{}
 		} else {
-			f.exp = expiry{anchor: o.Anchor, timeout: rb.LimitTimeoutSeconds, set: true}
+			f.exp = expiry{anchor: o.Anchor, source: o.Receipt, timeout: rb.LimitTimeoutSeconds, set: true}
 		}
 	}
 	return true
@@ -307,7 +340,8 @@ func (f *Feed) View(at At) View {
 		switch {
 		case !f.alloc.known:
 			v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonZeroCurrent, RoleConnector, f.alloc.receipt})
-		case f.exp.set && at.elapsedSince(f.exp.anchor) >= time.Duration(f.exp.timeout)*time.Second:
+		case f.exp.set && f.exp.source.readback() == f.alloc.source.readback() &&
+			at.elapsedSince(f.exp.anchor) >= time.Duration(f.exp.timeout)*time.Second:
 			v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonProvisionalExpired, RoleConnector, f.alloc.receipt})
 		default:
 			v.Facts = append(v.Facts, Fact{Element: ElementAllocatedCurrent, Role: RoleConnector, Amps: f.alloc.value, Receipt: f.alloc.receipt})

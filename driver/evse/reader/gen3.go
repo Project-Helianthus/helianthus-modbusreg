@@ -30,14 +30,16 @@ type publishedFact struct {
 // t8, the prerequisite t28 and the mutation t28 from the callers that hold the
 // native results, and publishes every accepted observation through the session.
 type ChargerReader struct {
-	cfg    ChargerConfig
-	pub    ChargerPublication
-	acq    *tesla.Gen3ReadAcquisition
-	feed   *Feed
-	vitals *VitalsFeed
-	now    func() time.Time
-	plan   GraphPlan
-	graph  graphRecords
+	cfg      ChargerConfig
+	pub      ChargerPublication
+	acq      *tesla.Gen3ReadAcquisition
+	feed     *Feed
+	vitals   *VitalsFeed
+	now      func() time.Time
+	origin   time.Time
+	plan     GraphPlan
+	graph    graphRecords
+	payloads *payloads
 
 	fenced atomic.Bool
 
@@ -111,7 +113,8 @@ func NewChargerReader(cfg ChargerConfig, pub ChargerPublication, deps ChargerDep
 	if now == nil {
 		now = time.Now
 	}
-	return &ChargerReader{cfg: cfg, pub: pub, acq: acq, feed: NewFeed(), vitals: NewVitalsFeed(), now: now, plan: plan, graph: graph,
+	return &ChargerReader{cfg: cfg, pub: pub, acq: acq, feed: NewFeed(), vitals: NewVitalsFeed(), now: now, origin: now(), plan: plan, graph: graph,
+		payloads:  newPayloads(),
 		published: map[semreg.CandidateID]publishedFact{}, revisions: map[semreg.CandidateID]uint64{}}, nil
 }
 
@@ -142,7 +145,19 @@ func (r *ChargerReader) Setter() SetterAvailability { return r.cfg.Setter() }
 func (r *ChargerReader) CurrentLimitWritable() bool { return r.cfg.CurrentLimitWritable() }
 
 // View evaluates the readback state now.
-func (r *ChargerReader) View() View { return r.view(At{Wall: r.now()}) }
+func (r *ChargerReader) View() View { return r.view(r.evaluation()) }
+
+// evaluation is the instant of an evaluation: the reader's clock now, on the
+// wall axis and on the reader's own monotonic axis, which starts when the
+// reader is built.
+func (r *ChargerReader) evaluation() At {
+	wall := r.now()
+	mono := wall.Sub(r.origin)
+	if mono < 0 {
+		mono = 0
+	}
+	return At{ClockEpoch: string(r.pub.ClockEpoch), Wall: wall, Mono: mono}
+}
 
 // Start activates the lifecycle once and runs its polls on the instance
 // lifetime; it returns when the lifecycle is ready or has failed.
@@ -159,6 +174,11 @@ func (r *ChargerReader) Start(ctx context.Context, session driver.Session) error
 		_ = r.acq.Close()
 		r.fenced.Store(true)
 		return fmt.Errorf("charger lifecycle: %w", redactSerial(err))
+	}
+	if err := r.Register(session.Native()); err != nil {
+		_ = r.acq.Close()
+		r.fenced.Store(true)
+		return fmt.Errorf("charger namespace: %w", err)
 	}
 	run, cancel := context.WithCancel(context.Background())
 	r.session, r.started, r.cancel, r.done = session, true, cancel, make(chan struct{})
@@ -268,6 +288,7 @@ func (r *ChargerReader) provisional(record tesla.Gen3ReadRecord, anchor *tesla.G
 	if !ok {
 		return false
 	}
+	r.retainReadback(record)
 	observation := ProvisionalObservation{Readback: readback, Receipt: receiptOf(record), Anchor: receiptOf(record)}
 	if anchor != nil {
 		observation.Anchor = receiptOf(*anchor)
@@ -280,6 +301,7 @@ func (r *ChargerReader) IngestPolled(ctx context.Context, record tesla.Gen3ReadR
 	if err := r.ready(ctx); err != nil {
 		return err
 	}
+	r.retainObservation(record)
 	if !r.provisional(record, nil) && !r.ingestVitals(record) {
 		return nil
 	}
@@ -298,6 +320,7 @@ func (r *ChargerReader) IngestPersistent(ctx context.Context, result tesla.Persi
 		result.Outcome != tesla.Gen3ReadEvidenceAck || !r.correlated(receipt, tesla.FC100OperationWCConfigureSettings) {
 		return nil
 	}
+	r.retainPersistent(receipt)
 	if !r.feed.Persistent(PersistentObservation{MaxOutputCurrentAmps: uint32(result.ReturnedMaxOutputCurrentAmps), Receipt: receiptOf(receipt)}) {
 		return nil
 	}
@@ -313,6 +336,7 @@ func (r *ChargerReader) IngestSetResult(ctx context.Context, result tesla.Provis
 		return err
 	}
 	changed := r.provisional(result.Prerequisite, nil)
+	r.retainSet(result.Set)
 	var anchor *tesla.Gen3ReadRecord
 	if result.Acknowledged && r.correlated(result.Set, tesla.FC100OperationWCSetProvisional) &&
 		result.Set.Generation != 0 && result.Set.Generation == result.Readback.Generation &&
@@ -362,7 +386,7 @@ func (r *ChargerReader) publish(ctx context.Context) error {
 	if r.fenced.Load() {
 		return ErrChargerFenced
 	}
-	at := At{Wall: r.now()}
+	at := r.evaluation()
 	view := r.view(at)
 	tx, err := r.session.Publisher().Begin(ctx)
 	if err != nil {
