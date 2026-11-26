@@ -247,3 +247,37 @@ func TestSunSpecExpandedCatalogMatchesEveryPinnedPoint(t *testing.T) {
 		}
 	}
 }
+
+func TestFixedPointLayoutUsesExactModelKey(t *testing.T) {
+	r, err := NewStandardSunSpecDecoderRegistry(ModelsRevisionV1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k := DecoderKey{SchemaRevision: ModelsRevisionV1, ModelID: 103, ModelLength: 50}
+	for _, tt := range []struct {
+		field        string
+		point, scale FixedPoint
+	}{
+		{"inverter.ac.power.active", FixedPoint{"W", "inverter.ac.power.active", TypeInt16, "W", 14, 1}, FixedPoint{"W_SF", "inverter.scale.active_power", TypeScaleFactor, "", 15, 1}},
+		{"inverter.ac.frequency", FixedPoint{"Hz", "inverter.ac.frequency", TypeUint16, "Hz", 16, 1}, FixedPoint{"Hz_SF", "inverter.scale.frequency", TypeScaleFactor, "", 17, 1}},
+	} {
+		p, sf, ok := r.FixedPointLayout(k, tt.field)
+		if !ok || p != tt.point || sf != tt.scale {
+			t.Fatalf("%s: point=%+v scale=%+v present=%t", tt.field, p, sf, ok)
+		}
+		p.WordOffset = 0
+		sf.WordOffset = 0
+		scale, _, ok := r.FixedPointLayout(k, tt.scale.FieldID)
+		if !ok || scale != tt.scale {
+			t.Fatalf("scale lookup: %+v, %t", scale, ok)
+		}
+	}
+	for _, bad := range []DecoderKey{{103, 50, ModelsRevisionV2}, {999, 50, ModelsRevisionV1}, {103, 49, ModelsRevisionV1}} {
+		if _, _, ok := r.FixedPointLayout(bad, "inverter.ac.power.active"); ok {
+			t.Fatalf("unexpected layout for %+v", bad)
+		}
+	}
+	if _, _, ok := r.FixedPointLayout(k, "absent"); ok {
+		t.Fatal("unexpected missing field layout")
+	}
+}

@@ -15,6 +15,9 @@ if git grep -nIwiE 'm[a]ster|s[l]ave'; then
   exit 1
 fi
 
+echo "==> module cache"
+go mod download
+
 echo "==> scope gate"
 ./scripts/scope_gate.sh
 
