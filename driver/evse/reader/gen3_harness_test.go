@@ -312,6 +312,8 @@ func (tx *fakeTx) Stage(b semreg.PublicationBatch) error {
 }
 func (tx *fakeTx) DeclareSource(driver.Source) error             { return nil }
 func (tx *fakeTx) DeclareSettingRoute(driver.SettingRoute) error { return nil }
+func (tx *fakeTx) StageLink(driver.LinkClaim) error              { return nil }
+func (tx *fakeTx) StageSample(driver.Sample) error               { return nil }
 func (tx *fakeTx) Commit(context.Context) error {
 	tx.s.mu.Lock()
 	if tx.s.commitErr != nil {
