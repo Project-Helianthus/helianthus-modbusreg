@@ -293,9 +293,7 @@ func (f *Feed) View(at At) View {
 	}
 	if f.withdrawn {
 		v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonProvisionalMissing})
-		return v
-	}
-	if f.alloc.observed {
+	} else if f.alloc.observed {
 		switch {
 		case !f.alloc.known:
 			v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonZeroCurrent})

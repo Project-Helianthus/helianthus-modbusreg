@@ -244,6 +244,29 @@ func TestFeedPersistentOnlyPublicationWithdrawsTheProvisionalAllocation(t *testi
 	}
 }
 
+func TestFeedPersistentOnlyPublicationKeepsInhibitSupplyAndExpiry(t *testing.T) {
+	f := NewFeed()
+	f.Provisional(standalone(1, time.Second, scalars{limit: u(16), timeout: u(600), inhibit: b(true)}))
+	v := f.View(at(2 * time.Second))
+	if _, ok := v.Fact(ElementSupply); !ok {
+		t.Fatalf("supply before the t8: %+v", v)
+	}
+	f.Published()
+	f.Persistent(PersistentObservation{MaxOutputCurrentAmps: 18, Receipt: rcpt(2, 3*time.Second)})
+	v = f.View(at(4 * time.Second))
+	wantAmps(t, v, ElementConfiguredCurrent, 18)
+	wantNone(t, v, ElementAllocatedCurrent)
+	if v.Reason(ElementAllocatedCurrent) != ReasonProvisionalMissing {
+		t.Fatalf("view %+v", v)
+	}
+	if s, ok := v.Fact(ElementSupply); !ok || s.Symbol != SymbolSupplyDisabled {
+		t.Fatalf("a persistent t8 carries no inhibit flag and must not clear the disabled supply: %+v", v)
+	}
+	if e, ok := v.Fact(ElementAllocatedExpiry); !ok || !e.Time.Equal(feedBase.Add(time.Second+600*time.Second)) {
+		t.Fatalf("a persistent t8 must keep the expiry fact on its original anchor: %+v", v)
+	}
+}
+
 func TestFeedProvisionalBeforeFirstPublicationIsKept(t *testing.T) {
 	f := NewFeed()
 	f.Provisional(standalone(1, time.Second, scalars{limit: u(12), timeout: u(600), inhibit: b(false)}))

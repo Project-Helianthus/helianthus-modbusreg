@@ -204,7 +204,6 @@ func (a *activation) DriveTeslaHSCActivation(ctx context.Context, request tesla.
 type charger struct {
 	t        *testing.T
 	opens    int
-	paths    []string
 	endpoint *scriptedEndpoint
 	act      *activation
 	deps     Gen3Deps
@@ -282,8 +281,6 @@ func waitFor(t *testing.T, what string, ok func() bool) {
 type fakeTx struct {
 	s      *fakeSession
 	staged []semreg.PublicationBatch
-	links  func([]semreg.NativeBinding) []semreg.IdentityLink
-	seen   [][]semreg.NativeBinding
 }
 
 func (tx *fakeTx) OperatorLinks(upserts []semreg.NativeBinding) []semreg.IdentityLink {
@@ -336,4 +333,10 @@ func (s *fakeSession) committed() []semreg.PublicationBatch {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]semreg.PublicationBatch(nil), s.batches...)
+}
+
+func (s *fakeSession) operatorLinkCalls() [][]semreg.NativeBinding {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([][]semreg.NativeBinding(nil), s.linkCalls...)
 }

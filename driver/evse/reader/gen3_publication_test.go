@@ -252,19 +252,6 @@ func TestIngestRefusesOutsideTheLifetime(t *testing.T) {
 	}
 }
 
-func decodeBatch(t *testing.T, b semreg.PublicationBatch) map[string]any {
-	t.Helper()
-	raw, err := json.Marshal(b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var out map[string]any
-	if err := json.Unmarshal(raw, &out); err != nil {
-		t.Fatal(err)
-	}
-	return out
-}
-
 func TestPublishedBatchIsValidAmpereAndCarriesCapabilities(t *testing.T) {
 	for _, writable := range []bool{true, false} {
 		cfg := syntheticConfig(fiveOperations...)

@@ -76,8 +76,9 @@ func TestOperatorLinkIsAppliedToTheBindingOfTheBatchAndNothingElse(t *testing.T)
 		batch.IdentityLinkUpserts[0].State != semreg.LinkQualified {
 		t.Fatalf("links %+v", batch.IdentityLinkUpserts)
 	}
-	if len(with.linkCalls[0]) != 1 || with.linkCalls[0][0].BindingID != pub.bindingID() {
-		t.Fatalf("OperatorLinks was handed %+v", with.linkCalls[0])
+	calls := with.operatorLinkCalls()
+	if len(calls[0]) != 1 || calls[0][0].BindingID != pub.bindingID() {
+		t.Fatalf("OperatorLinks was handed %+v", calls[0])
 	}
 	if err := batch.Validate(); err != nil {
 		t.Fatal(err)
@@ -132,7 +133,8 @@ func TestFinalDeclarationWithdrawalOnAnAlreadyCurrentBinding(t *testing.T) {
 		batch.IdentityLinkUpserts[0].Revision != "4" || len(batch.FactUpserts) != 0 || len(batch.FactWithdrawals) != 0 {
 		t.Fatalf("batch %+v", batch)
 	}
-	if last := session.linkCalls[len(session.linkCalls)-1]; len(last) != 0 {
+	calls := session.operatorLinkCalls()
+	if last := calls[len(calls)-1]; len(last) != 0 {
 		t.Fatalf("OperatorLinks was not called with the empty binding set: %+v", last)
 	}
 	if err := batch.Validate(); err != nil {
