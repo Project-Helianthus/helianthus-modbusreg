@@ -10,6 +10,7 @@ import (
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
 	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
 	"github.com/Project-Helianthus/helianthus-modbusreg/tesla"
+	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 
 // ChargerBaud is the serial rate of the Gen3 charger; its format is 8N1 and none
@@ -197,8 +198,38 @@ func (c ChargerConfig) Setter() SetterAvailability {
 	return SetterAvailability{Available: true}
 }
 
-// CurrentLimitWritable is the capability flag of the connector: true only from
-// the qualified t25 operation, never from configuration alone.
+// ReasonSetterConstraintOpen is why the connector setter capability is not
+// published even where the t25 operation is qualified: the EVSE pack requires
+// exactly one evse.limit.allocated_current constraint on
+// evse.capability.set_allocated_current, no source gives that constraint a
+// value, and the pack rule is open. No value is invented for it.
+const ReasonSetterConstraintOpen = "the EVSE pack requires the evse.limit.allocated_current constraint on evse.capability.set_allocated_current and no source states its value; the pack rule is open"
+
+// UnpublishedCapability is a capability the reader does not publish, with the
+// reason.
+type UnpublishedCapability struct {
+	Capability semreg.DefinitionID
+	// Field names the configuration that withholds it; empty when the reason is
+	// not a configuration value.
+	Field  string
+	Reason string
+}
+
+// UnpublishedCapabilities lists the capabilities that are not published. The
+// connector setter capability is never published while the pack rule for its
+// constraint is open; where the t25 operation is not qualified for the build
+// its reason is the one of the setter, otherwise the open pack rule.
+func (c ChargerConfig) UnpublishedCapabilities() []UnpublishedCapability {
+	if s := c.Setter(); !s.Available {
+		return []UnpublishedCapability{{Capability: SetAllocated.Capability, Field: s.Field, Reason: s.Reason}}
+	}
+	return []UnpublishedCapability{{Capability: SetAllocated.Capability, Reason: ReasonSetterConstraintOpen}}
+}
+
+// CurrentLimitWritable is true only from the qualified t25 operation, never
+// from configuration alone. It states the operation, not a published
+// capability: the setter capability is not published (see
+// UnpublishedCapabilities).
 func (c ChargerConfig) CurrentLimitWritable() bool { return c.Setter().Available }
 
 // PeriodicProvisionalRead reports whether t27 is polled: it is selected in

@@ -61,15 +61,14 @@ var (
 	SetAllocated  = Capability{"evse.capability.set_allocated_current", "evse.service.connector"}
 )
 
-// Capabilities lists the capabilities published for a charger. The connector
-// carries the setter capability only while the t25 operation is qualified.
-func Capabilities(writable, meter bool) []Capability {
+// Capabilities lists the read capabilities published for a charger. The setter
+// capability is not published: the EVSE pack requires it to carry the typed
+// evse.limit.allocated_current constraint, no source states a value for that
+// constraint, and the pack's rule is open (see UnpublishedCapabilities).
+func Capabilities(meter bool) []Capability {
 	out := []Capability{ReadEVSE, ReadConnector}
 	if meter {
 		out = append(out, ReadMeter)
-	}
-	if writable {
-		out = append(out, SetAllocated)
 	}
 	return out
 }
@@ -191,24 +190,13 @@ func (p ChargerPublication) value(f Fact) semreg.Value {
 func (p ChargerPublication) candidate(f Fact, evaluated At, revision uint64) semreg.FactCandidate {
 	binding, epoch, generation := p.bindingID(), p.Epoch, p.uint64(p.Generation)
 	source := p.Source
-	ev := p.evidence(evidenceKind(f), string(p.Asset), f.Element, f.Reason, strconv.FormatUint(f.Receipt.Lifecycle, 10), strconv.FormatUint(f.Receipt.Generation, 10), strconv.FormatUint(f.Receipt.RequestID, 10))
+	ev := p.evidence(evidenceKind(f), string(p.Asset), f.Element, strconv.FormatUint(f.Receipt.Lifecycle, 10), strconv.FormatUint(f.Receipt.Generation, 10), strconv.FormatUint(f.Receipt.RequestID, 10))
 	key := p.factKey(f.Element, f.Role)
 	id := p.candidateID(f.Element, f.Role)
 	quality := semreg.Quality{Assertion: semreg.AssertionObserved, Qualification: semreg.QualificationQualified, Promotion: semreg.PromotionPromoted,
 		Validity: semreg.ValidityGood, Availability: semreg.AvailabilityAvailable, Freshness: semreg.FreshnessFresh, Reasons: []semreg.DefinitionID{}}
-	var value *semreg.Value
-	if f.Reason == "" {
-		v := p.value(f)
-		value = &v
-	} else {
-		quality.Availability, quality.Reasons = semreg.AvailabilityWithdrawn, []semreg.DefinitionID{semreg.DefinitionID(f.Reason)}
-		switch f.Reason {
-		case ReasonProvisionalExpired:
-			quality.Freshness = semreg.FreshnessExpired
-		case ReasonZeroCurrent, ReasonZeroTimeout:
-			quality.Validity, quality.Freshness = semreg.ValidityUnknown, semreg.FreshnessUnknown
-		}
-	}
+	v := p.value(f)
+	value := &v
 	return semreg.FactCandidate{
 		CandidateID: id, Key: key, Value: value, Quality: quality,
 		Times: semreg.Times{ReceivedAt: wall(f.Receipt.Wall), ReceiptMonotonic: p.mono(p.receiptEpoch(f.Receipt), f.Receipt.Mono),

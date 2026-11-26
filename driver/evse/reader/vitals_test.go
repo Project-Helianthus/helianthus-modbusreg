@@ -181,7 +181,7 @@ func TestVitalsProjectNothingButTheConnectionWhateverTheOtherMembersHold(t *test
 		t.Fatalf("view %+v", view)
 	}
 	fact := view.Facts[0]
-	if fact.Element != ElementConnection || fact.Role != RoleConnector || fact.Amps != 0 || !fact.Time.IsZero() || fact.Reason != "" {
+	if fact.Element != ElementConnection || fact.Role != RoleConnector || fact.Amps != 0 || !fact.Time.IsZero() {
 		t.Fatalf("fact %+v", fact)
 	}
 }

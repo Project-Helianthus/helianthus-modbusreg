@@ -65,7 +65,7 @@ func TestSetAnchoredExpiryPublishedToTheKernelBeforeAtAndAfterExpiry(t *testing.
 				if err := reader.IngestSetResult(context.Background(), result); err != nil {
 					t.Fatal(err)
 				}
-				cut := applyToKernel(t, syntheticPublication().Asset, syntheticSources(t, syntheticPublication()), session)
+				cut := applyToKernel(t, syntheticPublication().Asset, syntheticSources(t, syntheticPublication()), session, reader)
 				expiry, ok := expiryIn(t, cut)
 				if want := time.Unix(setWall+int64(timeout), 0).UTC(); !ok || !expiry.Equal(want) {
 					t.Fatalf("expiry %v (published %v), want the set acknowledgement plus %d s = %v", expiry, ok, timeout, want)
@@ -98,7 +98,7 @@ func TestReadbackSeventySecondsAfterTheSetIsAlreadyWithheld(t *testing.T) {
 	if err := reader.IngestSetResult(context.Background(), result); err != nil {
 		t.Fatal(err)
 	}
-	cut := applyToKernel(t, syntheticPublication().Asset, syntheticSources(t, syntheticPublication()), session)
+	cut := applyToKernel(t, syntheticPublication().Asset, syntheticSources(t, syntheticPublication()), session, reader)
 	if expiry, ok := expiryIn(t, cut); !ok || !expiry.Equal(time.Unix(setWall+60, 0).UTC()) {
 		t.Fatalf("expiry %v (published %v)", expiry, ok)
 	}
@@ -119,7 +119,7 @@ func TestStandaloneReadbackExpiryIsAnchoredOnItsOwnReceiptInTheKernel(t *testing
 				clk.set(time.Unix(receiptWall, 0).Add(time.Duration(timeout)*time.Second + offset))
 				ingestReadback(t, reader, c, step{echo: true, wall: receiptWall, epoch: "endpoint-clock", mono: 2 * time.Second,
 					terminal: terminal(6, 28, readbackBody(scalars{limit: u(12), timeout: u(timeout), inhibit: b(false)}))})
-				cut := applyToKernel(t, syntheticPublication().Asset, syntheticSources(t, syntheticPublication()), session)
+				cut := applyToKernel(t, syntheticPublication().Asset, syntheticSources(t, syntheticPublication()), session, reader)
 				if expiry, ok := expiryIn(t, cut); !ok || !expiry.Equal(time.Unix(receiptWall+int64(timeout), 0).UTC()) {
 					t.Fatalf("expiry %v (published %v), want its own receipt plus %d s", expiry, ok, timeout)
 				}
@@ -141,7 +141,7 @@ func TestAmpereFactsOfEveryWholeValueAreAcceptedByTheKernel(t *testing.T) {
 			reader, session, c, _ := startAfterFirstPoll(t)
 			ingestReadback(t, reader, c, step{echo: true, wall: 2000, epoch: "endpoint-clock", mono: 2 * time.Second,
 				terminal: terminal(6, 28, readbackBody(scalars{limit: u(amps), timeout: u(600), inhibit: b(amps == 0), configured: u(amps + 10)}))})
-			cut := applyToKernel(t, syntheticPublication().Asset, syntheticSources(t, syntheticPublication()), session)
+			cut := applyToKernel(t, syntheticPublication().Asset, syntheticSources(t, syntheticPublication()), session, reader)
 			for element, want := range map[string]uint32{ElementAllocatedCurrent: amps, ElementConfiguredCurrent: amps + 10} {
 				var got *semreg.Quantity
 				for _, c := range candidateByID(cut.snapshot) {

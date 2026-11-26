@@ -14,8 +14,12 @@ func batchEmpty(b semreg.PublicationBatch) bool {
 
 // batch stages the difference between the view and what is published: the
 // binding, services and capabilities on the first batch, a candidate for every
-// fact that is new or changed, and a withdrawal for every fact that is gone.
-func (r *ChargerReader) batch(view View, at At) (semreg.PublicationBatch, map[semreg.CandidateID]uint64, []Fact) {
+// fact that has a value and is new or changed, and a withdrawal for every
+// published candidate whose fact is gone, whether the element is now unknown or
+// has a disposition. An element without a value is never a candidate: its
+// disposition (element, role, reason, receipt) is the separate output, which
+// states why the element has no value.
+func (r *ChargerReader) batch(view View, at At) (semreg.PublicationBatch, map[semreg.CandidateID]uint64, []Fact, []Disposition) {
 	p := r.pub
 	b := semreg.PublicationBatch{
 		Contract: semreg.ContractKernelV1,
@@ -35,7 +39,7 @@ func (r *ChargerReader) batch(view View, at At) (semreg.PublicationBatch, map[se
 			b.RelationUpserts = append(b.RelationUpserts, r.graph.relations...)
 		}
 		services := map[semreg.DefinitionID]semreg.ServiceInstanceID{}
-		for _, c := range Capabilities(r.cfg.CurrentLimitWritable(), false) {
+		for _, c := range Capabilities(false) {
 			service, ok := services[c.Service]
 			if !ok {
 				s := p.service(c)
@@ -46,13 +50,7 @@ func (r *ChargerReader) batch(view View, at At) (semreg.PublicationBatch, map[se
 			b.CapabilityUpserts = append(b.CapabilityUpserts, p.capability(c, service))
 		}
 	}
-	// A withheld or unresolved element is published as a candidate without a
-	// value that states its reason, so the cut can tell expiry, a persistent-
-	// only withdrawal and an explicit zero apart.
 	items := append([]Fact(nil), view.Facts...)
-	for _, d := range view.Dispositions {
-		items = append(items, Fact{Element: d.Element, Role: d.Role, Receipt: d.Receipt, Reason: d.Reason})
-	}
 	revisions := map[semreg.CandidateID]uint64{}
 	for id, rev := range r.revisions {
 		revisions[id] = rev
@@ -76,7 +74,7 @@ func (r *ChargerReader) batch(view View, at At) (semreg.PublicationBatch, map[se
 	sort.Slice(b.FactUpserts, func(i, j int) bool { return b.FactUpserts[i].CandidateID < b.FactUpserts[j].CandidateID })
 	sort.Slice(b.ServiceUpserts, func(i, j int) bool { return b.ServiceUpserts[i].InstanceID < b.ServiceUpserts[j].InstanceID })
 	sort.Slice(b.CapabilityUpserts, func(i, j int) bool { return b.CapabilityUpserts[i].InstanceID < b.CapabilityUpserts[j].InstanceID })
-	return b, revisions, items
+	return b, revisions, items, append([]Disposition(nil), view.Dispositions...)
 }
 
 func sortWithdrawals(ids []semreg.CandidateID) {

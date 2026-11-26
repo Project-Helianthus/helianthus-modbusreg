@@ -32,6 +32,15 @@ func startAfterFirstPoll(t *testing.T) (*ChargerReader, *fakeSession, *charger, 
 	return reader, session, c, clk
 }
 
+func wallNanos(t *testing.T, v semreg.Int64) int64 {
+	t.Helper()
+	n, err := strconv.ParseInt(string(v), 10, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
 func nanos(t *testing.T, v semreg.Uint64) int64 {
 	t.Helper()
 	n, err := strconv.ParseInt(string(v), 10, 64)
@@ -67,13 +76,19 @@ func TestEvaluationInstantFollowsTheReadersClockOnTheReadersEpoch(t *testing.T) 
 	if err := reader.refresh(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	second := candidateOf(t, session.committed(), ElementAllocatedCurrent)
-	wantWithheld(t, second, ReasonProvisionalExpired)
-	if got := nanos(t, second.Times.EvaluateMonotonic.Nanoseconds) - nanos(t, first.Times.EvaluateMonotonic.Nanoseconds); got != 55*int64(time.Second) {
+	// The expired allocation is no candidate: its candidate is withdrawn in a
+	// batch observed 55 s later, and the disposition keeps the receipt it rests on.
+	expired := wantDisposition(t, reader, ElementAllocatedCurrent, ReasonProvisionalExpired)
+	committed := session.committed()
+	last := committed[len(committed)-1]
+	if len(last.FactWithdrawals) != 1 || last.FactWithdrawals[0] != first.CandidateID || len(last.FactUpserts) != 0 {
+		t.Fatalf("the expiry batch withdraws %v and upserts %d, want only %s", last.FactWithdrawals, len(last.FactUpserts), first.CandidateID)
+	}
+	if got := wallNanos(t, last.ObservedAt.UnixNanoseconds) - wallNanos(t, first.Times.EvaluatedAt.UnixNanoseconds); got != 55*int64(time.Second) {
 		t.Fatalf("the evaluation instant moved by %d ns, the clock by 55 s", got)
 	}
-	if second.Times.ReceiptMonotonic.ClockEpochID != "endpoint-clock" {
-		t.Fatalf("receipt epoch %q", second.Times.ReceiptMonotonic.ClockEpochID)
+	if expired.Receipt.ClockEpoch != "endpoint-clock" {
+		t.Fatalf("receipt epoch %q", expired.Receipt.ClockEpoch)
 	}
 }
 
@@ -144,12 +159,16 @@ func TestRecordFromAnotherClockEpochIsPublishedWithItsOwnEpochAndAgesOnTheWall(t
 	if err := reader.refresh(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	second := candidateOf(t, session.committed(), ElementAllocatedCurrent)
-	wantWithheld(t, second, ReasonProvisionalExpired)
-	if got := nanos(t, second.Times.EvaluateMonotonic.Nanoseconds) - nanos(t, first.Times.EvaluateMonotonic.Nanoseconds); got != 55*int64(time.Second) {
+	expired := wantDisposition(t, reader, ElementAllocatedCurrent, ReasonProvisionalExpired)
+	committed := session.committed()
+	last := committed[len(committed)-1]
+	if len(last.FactWithdrawals) != 1 || last.FactWithdrawals[0] != first.CandidateID || len(last.FactUpserts) != 0 {
+		t.Fatalf("the expiry batch withdraws %v and upserts %d, want only %s", last.FactWithdrawals, len(last.FactUpserts), first.CandidateID)
+	}
+	if got := wallNanos(t, last.ObservedAt.UnixNanoseconds) - wallNanos(t, first.Times.EvaluatedAt.UnixNanoseconds); got != 55*int64(time.Second) {
 		t.Fatalf("the evaluation instant moved by %d ns, the clock by 55 s", got)
 	}
-	if second.Times.ReceiptMonotonic != first.Times.ReceiptMonotonic {
-		t.Fatalf("the receipt changed: %+v", second.Times.ReceiptMonotonic)
+	if expired.Receipt.ClockEpoch != "another-epoch" || expired.Receipt.Mono != 170*time.Second || !expired.Receipt.Wall.Equal(time.Unix(100, 0)) {
+		t.Fatalf("the receipt changed: %+v", expired.Receipt)
 	}
 }

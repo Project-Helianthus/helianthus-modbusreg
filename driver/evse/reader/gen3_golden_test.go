@@ -188,12 +188,9 @@ func (d donorSequence) payloads(t *testing.T) replayInput {
 type replayCut struct {
 	snapshot semreg.Snapshot
 	batches  []semreg.PublicationBatch
-	// dispositions holds, per element, the reason of the latest value-less
-	// candidate the reader published for it; an element with a value has none.
+	// dispositions holds, per element, the reason of the reader's published
+	// disposition; an element with a value has none.
 	dispositions map[string]string
-	// priorRevisions counts, per candidate, the value-less publications that
-	// precede its latest value in the reader's revision counter.
-	priorRevisions map[semreg.CandidateID]uint64
 }
 
 // replay runs the donor's three owner steps through the running reader on the
@@ -234,7 +231,7 @@ func (d donorSequence) replay(t *testing.T, in replayInput) (sequence2, sequence
 	if err := reader.IngestSetResult(context.Background(), result); err != nil {
 		t.Fatal(err)
 	}
-	sequence2 = cutOf(t, d, session)
+	sequence2 = cutOf(t, d, session, reader)
 	original, held := reader.Feed().LastProvisional()
 	if !held {
 		t.Fatal("the mutation's t28 is not retained")
@@ -249,7 +246,7 @@ func (d donorSequence) replay(t *testing.T, in replayInput) (sequence2, sequence
 	if retained, held := reader.Feed().LastProvisional(); !held || retained != original {
 		t.Fatalf("the persistent-only successor changed the retained t28 or its timing: %+v", retained)
 	}
-	return sequence2, cutOf(t, d, session)
+	return sequence2, cutOf(t, d, session, reader)
 }
 
 func persistentResult(t *testing.T, reader *ChargerReader, identity string, frame donorFrame, request int32) tesla.PersistentSettingsResult {
@@ -267,70 +264,56 @@ func persistentResult(t *testing.T, reader *ChargerReader, identity string, fram
 // cutOf applies every batch the session committed so far to a fresh kernel and
 // returns the resulting snapshot. The source descriptor is the one the host
 // declares; it is taken from the golden cut.
-func cutOf(t *testing.T, d donorSequence, session *fakeSession) replayCut {
+func cutOf(t *testing.T, d donorSequence, session *fakeSession, reader *ChargerReader) replayCut {
 	t.Helper()
 	var golden semreg.Snapshot
 	if err := json.Unmarshal(readGolden(t, "sequence2.canonical.json"), &golden); err != nil {
 		t.Fatal(err)
 	}
-	return applyToKernel(t, semreg.AssetID(d.cfg.Input.Config.AssetID), golden.Sources, session)
+	return applyToKernel(t, semreg.AssetID(d.cfg.Input.Config.AssetID), golden.Sources, session, reader)
 }
 
-func applyToKernel(t *testing.T, asset semreg.AssetID, sources []semreg.SourceDescriptor, session *fakeSession) replayCut {
+// applyToKernel hands every batch the reader committed to a kernel carrying the
+// EVSE pack, unchanged: the only addition is the source descriptor, which the
+// host declares and the reader's batches do not carry, so the first batch gets
+// it and its digest is computed again. A batch the kernel refuses fails the
+// test. The dispositions are the reader's own separate output.
+func applyToKernel(t *testing.T, asset semreg.AssetID, sources []semreg.SourceDescriptor, session *fakeSession, reader *ChargerReader) replayCut {
 	t.Helper()
-	kernel, err := semreg.NewPublicationKernel(asset, evse.New())
+	snapshot, batches, err := tryApplyToKernel(asset, sources, session)
 	if err != nil {
 		t.Fatal(err)
 	}
+	dispositions := map[string]string{}
+	for _, d := range reader.Dispositions() {
+		dispositions[d.Element] = d.Reason
+	}
+	return replayCut{snapshot: snapshot, batches: batches, dispositions: dispositions}
+}
+
+func tryApplyToKernel(asset semreg.AssetID, sources []semreg.SourceDescriptor, session *fakeSession) (semreg.Snapshot, []semreg.PublicationBatch, error) {
+	kernel, err := semreg.NewPublicationKernel(asset, evse.New())
+	if err != nil {
+		return semreg.Snapshot{}, nil, err
+	}
 	var snapshot semreg.Snapshot
 	batches := session.committed()
-	dispositions, prior := map[string]string{}, map[semreg.CandidateID]uint64{}
 	for i, batch := range batches {
 		if i == 0 {
 			batch.SourceUpserts = append([]semreg.SourceDescriptor{}, sources...)
-		}
-		// The EVSE pack validator refuses a candidate without a value and the
-		// setter capability without its typed constraint, so the cut is applied
-		// with a value-less candidate as the withdrawal of the candidate it
-		// replaces (the gateway's own form) and without the setter capability;
-		// every other record is validated by the kernel.
-		kept := batch.CapabilityUpserts[:0:0]
-		for _, capability := range batch.CapabilityUpserts {
-			if capability.Definition.ID != SetAllocated.Capability {
-				kept = append(kept, capability)
+			digest, err := batch.ComputedDigest()
+			if err != nil {
+				return snapshot, batches, err
 			}
+			batch.BatchDigest = digest
 		}
-		batch.CapabilityUpserts = kept
-		upserts := batch.FactUpserts[:0:0]
-		withdrawals := append([]semreg.CandidateID{}, batch.FactWithdrawals...)
-		present := candidateByID(snapshot)
-		for _, f := range batch.FactUpserts {
-			if f.Value != nil {
-				upserts = append(upserts, f)
-				delete(dispositions, string(f.Key.FactID))
-				continue
-			}
-			prior[f.CandidateID]++
-			dispositions[string(f.Key.FactID)] = string(f.Quality.Reasons[0])
-			if _, ok := present[f.CandidateID]; ok {
-				withdrawals = append(withdrawals, f.CandidateID)
-			}
-		}
-		batch.FactUpserts, batch.FactWithdrawals = upserts, withdrawals
-		sort.Slice(batch.FactWithdrawals, func(a, b int) bool { return batch.FactWithdrawals[a] < batch.FactWithdrawals[b] })
-		digest, err := batch.ComputedDigest()
-		if err != nil {
-			t.Fatal(err)
-		}
-		batch.BatchDigest = digest
 		wallNS, _ := strconv.ParseInt(string(batch.ObservedAt.UnixNanoseconds), 10, 64)
 		mono := semreg.MonotonicPoint{ClockEpochID: "clock:charger-reader", Nanoseconds: semreg.Uint64(strconv.FormatInt(wallNS, 10))}
-		snapshot, _, err = kernel.Apply(batch, mono)
-		if err != nil {
-			t.Fatalf("batch %d is refused by the kernel: %v", i+1, err)
+		if snapshot, _, err = kernel.Apply(batch, mono); err != nil {
+			return snapshot, batches, fmt.Errorf("batch %d is refused by the kernel: %w", i+1, err)
 		}
 	}
-	return replayCut{snapshot: snapshot, batches: batches, dispositions: dispositions, priorRevisions: prior}
+	return snapshot, batches, nil
 }
 
 func identitySummary(snapshot semreg.Snapshot) map[string][]string {
@@ -408,8 +391,8 @@ func compareCut(t *testing.T, got replayCut, want cutExpectation) []string {
 
 	have := candidateByID(got.snapshot)
 	goldenCandidates := candidateByID(golden)
-	// Candidates the reader publishes beyond the golden are destination-only
-	// or value-less withheld dispositions; nothing else may be extra.
+	// Candidates the reader publishes beyond the golden are destination-only;
+	// nothing else may be extra.
 	extra := map[semreg.CandidateID]semreg.FactCandidate{}
 	for id, c := range have {
 		if _, ok := goldenCandidates[id]; !ok {
@@ -418,7 +401,7 @@ func compareCut(t *testing.T, got replayCut, want cutExpectation) []string {
 	}
 	for id, c := range extra {
 		element := string(c.Key.FactID)
-		if !destinationOnly[element] && c.Value != nil {
+		if !destinationOnly[element] {
 			report("candidate %s (%s) is not in the golden cut", id, element)
 		}
 	}
@@ -478,10 +461,6 @@ func compareCut(t *testing.T, got replayCut, want cutExpectation) []string {
 			"generation": {g.DriverGeneration, c.DriverGeneration}, "origin": {g.Origin.OriginID, c.Origin.OriginID},
 			"revision": {g.Revision, c.Revision},
 		} {
-			if name == "revision" {
-				n, _ := strconv.ParseUint(string(g.Revision), 10, 64)
-				pair[0] = semreg.Uint64(strconv.FormatUint(n+got.priorRevisions[id], 10))
-			}
 			if asJSON(pair[0]) != asJSON(pair[1]) {
 				report("%s of %s: got %s, golden %s", name, element, asJSON(pair[1]), asJSON(pair[0]))
 			}
