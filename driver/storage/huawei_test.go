@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+	"math/big"
+	"strconv"
 	"testing"
 
 	"github.com/Project-Helianthus/helianthus-modbusreg/huawei"
@@ -352,13 +354,12 @@ func TestHuaweiWordsWithoutAnElementStayInTheNamespaceAndAForeignUnitIsNotMapped
 	p := newPublisher(t, huaweiConfig(), s, nil)
 	child := childOf(t, "LB-C00", 1, withWords(map[uint16]uint16{37758: 0, 37759: 10000, 37760: 800}))
 	publishHuawei(t, p, HuaweiObservation{Children: []HuaweiChild{child}, Receipt: receipt(1)})
-	var capacity, system bool
+	var system bool
 	for _, m := range p.Members() {
-		capacity = capacity || (string(m.Key.Local) == "storage_37758" && m.Native.Unit == "Wh")
 		system = system || string(m.Key.Local) == "storage_37760"
 	}
-	if !capacity || !system {
-		t.Fatalf("the system group is not in the namespace: rated capacity %v, state of charge %v", capacity, system)
+	if !system {
+		t.Fatal("the system group state of charge is not in the namespace")
 	}
 	// A fact whose unit is not the row's unit is not mapped.
 	wrong := child
@@ -373,5 +374,45 @@ func TestHuaweiWordsWithoutAnElementStayInTheNamespaceAndAForeignUnitIsNotMapped
 	publishHuawei(t, q, HuaweiObservation{Children: []HuaweiChild{wrong}, Receipt: receipt(1)})
 	if len(factsOf(other.k, "storage.pack.voltage")) != 0 {
 		t.Fatal("a voltage in another unit was published")
+	}
+}
+
+// The rated capacity of the storage unit is published in joule on the pack
+// dimension, with the native watt hours in the evidence; a zero word is no
+// capacity.
+func TestHuaweiRatedCapacityIsPublishedInJouleAndAZeroWordIsNot(t *testing.T) {
+	s := newSession("asset:inverter-a", "source-a", "epoch-1", 1)
+	p := newPublisher(t, huaweiConfig(), s, nil)
+	child := childOf(t, "LB-C00", 1, withWords(map[uint16]uint16{37758: 0, 37759: 10000}))
+	publishHuawei(t, p, HuaweiObservation{Children: []HuaweiChild{child}, Receipt: receipt(1)})
+	facts := factsOf(s.k, "storage.energy.nominal_capacity")
+	if len(facts) != 1 {
+		t.Fatalf("%d nominal capacity facts", len(facts))
+	}
+	if co, e, u := quantityOf(t, facts[0]); co != "36" || e != 6 || u != unitJoule {
+		t.Fatalf("nominal capacity %se%d %s", co, e, u)
+	}
+	if got := s.k.resources[semreg.ResourceID(*facts[0].Key.Dimensions[0].Value.Text)].Kind; got != kindPack {
+		t.Fatalf("nominal capacity subject kind %s", got)
+	}
+	wh := decimalOf(big.NewRat(10000, 1), 6)
+	var native bool
+	for _, ref := range facts[0].Evidence {
+		native = native || ref.Digest == evidence("evidence.native", "unit_1_rated_capacity", "Wh", wh.Coefficient, strconv.Itoa(int(wh.Exponent10)), "37758").Digest
+	}
+	if !native {
+		t.Error("the native watt hours are not in the evidence")
+	}
+	for _, m := range p.Members() {
+		if string(m.Key.Local) == "storage_37758" {
+			t.Error("the published capacity is also in the namespace")
+		}
+	}
+
+	zero := newSession("asset:inverter-a", "source-a", "epoch-1", 1)
+	q := newPublisher(t, huaweiConfig(), zero, nil)
+	publishHuawei(t, q, HuaweiObservation{Children: []HuaweiChild{childOf(t, "LB-C00", 1, withWords(map[uint16]uint16{37758: 0, 37759: 0}))}, Receipt: receipt(1)})
+	if len(factsOf(zero.k, "storage.energy.nominal_capacity")) != 0 {
+		t.Fatal("a zero placeholder word was published as a capacity")
 	}
 }

@@ -72,6 +72,7 @@ var (
 	rowTemp    = Row{NativeUnit: "℃", Element: "storage.temperature.pack", Dimension: dimPack, Unit: unitKelvin, Conv: toKelvin}
 	rowCharged = Row{NativeUnit: "kWh", Element: "storage.energy.charged", Dimension: dimPack, Unit: unitJoule, Conv: kwhToJoule, Loss: lossCounter}
 	rowDischrg = Row{NativeUnit: "kWh", Element: "storage.energy.discharged", Dimension: dimPack, Unit: unitJoule, Conv: kwhToJoule, Loss: lossCounter}
+	rowRated   = Row{NativeUnit: "Wh", Element: "storage.energy.nominal_capacity", Dimension: dimPack, Unit: unitJoule, Conv: whToJoule, ZeroAbsent: true}
 	rowChgRate = Row{NativeUnit: "W", Element: "storage.limit.charge_power", Dimension: dimInterface, Unit: unitWatt, Conv: identity}
 	rowDisRate = Row{NativeUnit: "W", Element: "storage.limit.discharge_power", Dimension: dimInterface, Unit: unitWatt, Conv: identity}
 )
@@ -79,7 +80,8 @@ var (
 func named(r Row, native string) Row { r.Native = native; return r }
 
 // huaweiUnitRows are the rows of the storage-unit groups: unit 1 at offsets
-// 37000 through 37068 and unit 2 at 37741 through 37755.
+// 37000 through 37068 and its rated capacity at 37758, and unit 2 at 37741
+// through 37755.
 func huaweiUnitRows(unit int) []huaweiRow {
 	if unit == 2 {
 		return []huaweiRow{{37750, named(rowVoltage, "unit_2_bus_voltage")}, {37751, named(rowCurrent, "unit_2_bus_current")},
@@ -87,7 +89,8 @@ func huaweiUnitRows(unit int) []huaweiRow {
 	}
 	return []huaweiRow{{37003, named(rowVoltage, "unit_1_bus_voltage")}, {37004, named(rowSOC, "unit_1_state_of_charge")}, {37021, named(rowCurrent, "unit_1_bus_current")},
 		{37022, named(rowTemp, "unit_1_pack_temperature")}, {37066, named(rowCharged, "unit_1_charge_energy_total")}, {37068, named(rowDischrg, "unit_1_discharge_energy_total")},
-		{37007, named(rowChgRate, "unit_1_charge_rating")}, {37009, named(rowDisRate, "unit_1_discharge_rating")}}
+		{37007, named(rowChgRate, "unit_1_charge_rating")}, {37009, named(rowDisRate, "unit_1_discharge_rating")},
+		{37758, named(rowRated, "unit_1_rated_capacity")}}
 }
 
 // huaweiPackRows are the measured words of pack n of unit u, counted from the
@@ -290,7 +293,7 @@ func (p *Publisher) signOpen(pl *plan, node int, facts huaweiFacts, offset uint1
 func (p *Publisher) huaweiRows(pl *plan, facts huaweiFacts, node int, rows []huaweiRow) error {
 	for _, row := range rows {
 		r, f, ok := facts.value(row.Offset)
-		if !ok || f.Unit != row.NativeUnit {
+		if !ok || f.Unit != row.NativeUnit || (row.ZeroAbsent && r.Sign() == 0) {
 			continue
 		}
 		target := node

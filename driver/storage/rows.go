@@ -19,6 +19,9 @@ type Row struct {
 	Unit       semreg.DefinitionID
 	Conv       Conversion
 	Loss       string
+	// ZeroAbsent marks a point whose zero word is a placeholder, not a value
+	// (rule 14).
+	ZeroAbsent bool
 }
 
 // Convert applies the row to an exact native value.
