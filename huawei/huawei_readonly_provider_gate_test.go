@@ -532,7 +532,7 @@ func TestSDongleProviderServesTheConfiguredChildUnit(t *testing.T) {
 func TestSDongleProviderRejectsAnUnconfiguredChildUnit(t *testing.T) {
 	clock := newH06Clock()
 	waits := newH06Waits(clock)
-	for _, allowed := range [][]uint8{nil, {1, 2}, {0}, {248}, {7, 7}} {
+	for _, allowed := range [][]uint8{nil, {1, 2}, {0}, {248}, {7, 7}, {100}} {
 		if _, err := NewSDongleReadOnlyProvider(h06Config(clock, waits, allowed)); !errors.Is(err, ErrHuaweiProviderConfig) {
 			t.Fatalf("allowlist %v: %v", allowed, err)
 		}

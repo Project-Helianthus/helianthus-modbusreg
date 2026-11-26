@@ -39,7 +39,7 @@ func NewSDongleReadOnlyProvider(config ProviderConfig) (*SDongleReadOnlyProvider
 }
 
 func newHuaweiSDongleReadOnlyProvider(config ProviderConfig, disposition ProviderDisposition) (*SDongleReadOnlyProvider, error) {
-	if len(config.AllowedUnits) != 1 {
+	if len(config.AllowedUnits) != 1 || config.AllowedUnits[0] == huaweiSDongleObservedGatewayUnit {
 		if !EvaluateHuaweiProviderEnablement(disposition.clone()).Admitted {
 			return nil, ErrHuaweiProviderNotAdmitted
 		}
