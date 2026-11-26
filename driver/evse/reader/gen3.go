@@ -46,6 +46,7 @@ type Gen3Reader struct {
 	published map[semreg.CandidateID]publishedFact
 	revisions map[semreg.CandidateID]uint64
 	linked    bool
+	pubErr    error
 	cancel    context.CancelFunc
 	done      chan struct{}
 }
@@ -140,7 +141,9 @@ func (r *Gen3Reader) poll(ctx context.Context, done chan struct{}) {
 	for {
 		records, err := r.acq.PollOnce(ctx)
 		for _, record := range records {
-			_ = r.IngestPolled(ctx, record)
+			if err := r.IngestPolled(ctx, record); err != nil {
+				r.notePublication(err)
+			}
 		}
 		switch {
 		case errors.Is(err, tesla.ErrTeslaGen3ReadAcquisitionClosed):
@@ -148,13 +151,33 @@ func (r *Gen3Reader) poll(ctx context.Context, done chan struct{}) {
 		case errors.Is(err, tesla.ErrTeslaGen3ReadAcquisitionUnavailable):
 			_ = r.acq.Restart(ctx)
 		}
-		_ = r.refresh(ctx)
+		r.notePublication(r.refresh(ctx))
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 		}
 	}
+}
+
+// notePublication keeps the latest publication failure of the poll loop, and a
+// refresh that publishes cleanly clears it. A stop or a fence is not a failure.
+func (r *Gen3Reader) notePublication(err error) {
+	if errors.Is(err, ErrGen3Fenced) || errors.Is(err, context.Canceled) {
+		return
+	}
+	r.mu.Lock()
+	r.pubErr = err
+	r.mu.Unlock()
+}
+
+// PublicationError is the latest failure to begin, stage or commit a
+// publication from the running polls, nil when the last one went through. It
+// is distinct from the native outcome of any read.
+func (r *Gen3Reader) PublicationError() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.pubErr
 }
 
 // FenceWithdrawal stops every later publication without blocking.
@@ -305,7 +328,7 @@ func (r *Gen3Reader) publish(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	batch, revisions := r.batch(view, at)
+	batch, revisions, items := r.batch(view, at)
 	pending := tx.OperatorLinks(batch.BindingUpserts)
 	batch.IdentityLinkUpserts = carryLinks(batch.IdentityLinkUpserts, r.ownLinks(pending))
 	if batchEmpty(batch) {
@@ -327,7 +350,7 @@ func (r *Gen3Reader) publish(ctx context.Context) error {
 	r.linked = true
 	r.revisions = revisions
 	next := map[semreg.CandidateID]publishedFact{}
-	for _, f := range view.Facts {
+	for _, f := range items {
 		id := r.pub.candidateID(f.Element, f.Role)
 		next[id] = publishedFact{fact: f, rev: revisions[id]}
 	}

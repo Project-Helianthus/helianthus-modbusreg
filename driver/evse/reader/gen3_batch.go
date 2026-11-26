@@ -15,7 +15,7 @@ func batchEmpty(b semreg.PublicationBatch) bool {
 // batch stages the difference between the view and what is published: the
 // binding, services and capabilities on the first batch, a candidate for every
 // fact that is new or changed, and a withdrawal for every fact that is gone.
-func (r *Gen3Reader) batch(view View, at At) (semreg.PublicationBatch, map[semreg.CandidateID]uint64) {
+func (r *Gen3Reader) batch(view View, at At) (semreg.PublicationBatch, map[semreg.CandidateID]uint64, []Fact) {
 	p := r.pub
 	b := semreg.PublicationBatch{
 		Contract: semreg.ContractKernelV1,
@@ -42,7 +42,14 @@ func (r *Gen3Reader) batch(view View, at At) (semreg.PublicationBatch, map[semre
 			b.CapabilityUpserts = append(b.CapabilityUpserts, p.capability(c, service))
 		}
 	}
-	for _, f := range view.Facts {
+	// A withheld or unresolved element is published as a candidate without a
+	// value that states its reason, so the cut can tell expiry, a persistent-
+	// only withdrawal and an explicit zero apart.
+	items := append([]Fact(nil), view.Facts...)
+	for _, d := range view.Dispositions {
+		items = append(items, Fact{Element: d.Element, Role: d.Role, Receipt: d.Receipt, Reason: d.Reason})
+	}
+	for _, f := range items {
 		if f.Receipt.Mono > at.Mono {
 			at.Mono = f.Receipt.Mono
 		}
@@ -52,7 +59,7 @@ func (r *Gen3Reader) batch(view View, at At) (semreg.PublicationBatch, map[semre
 		revisions[id] = rev
 	}
 	present := map[semreg.CandidateID]bool{}
-	for _, f := range view.Facts {
+	for _, f := range items {
 		id := p.candidateID(f.Element, f.Role)
 		present[id] = true
 		if prior, ok := r.published[id]; ok && prior.fact == f {
@@ -70,7 +77,7 @@ func (r *Gen3Reader) batch(view View, at At) (semreg.PublicationBatch, map[semre
 	sort.Slice(b.FactUpserts, func(i, j int) bool { return b.FactUpserts[i].CandidateID < b.FactUpserts[j].CandidateID })
 	sort.Slice(b.ServiceUpserts, func(i, j int) bool { return b.ServiceUpserts[i].InstanceID < b.ServiceUpserts[j].InstanceID })
 	sort.Slice(b.CapabilityUpserts, func(i, j int) bool { return b.CapabilityUpserts[i].InstanceID < b.CapabilityUpserts[j].InstanceID })
-	return b, revisions
+	return b, revisions, items
 }
 
 func sortWithdrawals(ids []semreg.CandidateID) {

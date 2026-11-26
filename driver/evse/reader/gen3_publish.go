@@ -137,14 +137,26 @@ func (p Gen3Publication) value(f Fact) semreg.Value {
 func (p Gen3Publication) candidate(f Fact, evaluated At, revision uint64) semreg.FactCandidate {
 	binding, epoch, generation := p.bindingID(), p.Epoch, p.uint64(p.Generation)
 	source := p.Source
-	ev := p.evidence(evidenceKind(f), string(p.Asset), f.Element, strconv.FormatUint(f.Receipt.Lifecycle, 10), strconv.FormatUint(f.Receipt.Generation, 10), strconv.FormatUint(f.Receipt.RequestID, 10))
-	value := p.value(f)
+	ev := p.evidence(evidenceKind(f), string(p.Asset), f.Element, f.Reason, strconv.FormatUint(f.Receipt.Lifecycle, 10), strconv.FormatUint(f.Receipt.Generation, 10), strconv.FormatUint(f.Receipt.RequestID, 10))
 	key := p.factKey(f.Element, f.Role)
 	id := p.candidateID(f.Element, f.Role)
+	quality := semreg.Quality{Assertion: semreg.AssertionObserved, Qualification: semreg.QualificationQualified, Promotion: semreg.PromotionPromoted,
+		Validity: semreg.ValidityGood, Availability: semreg.AvailabilityAvailable, Freshness: semreg.FreshnessFresh, Reasons: []semreg.DefinitionID{}}
+	var value *semreg.Value
+	if f.Reason == "" {
+		v := p.value(f)
+		value = &v
+	} else {
+		quality.Availability, quality.Reasons = semreg.AvailabilityWithdrawn, []semreg.DefinitionID{semreg.DefinitionID(f.Reason)}
+		switch f.Reason {
+		case ReasonProvisionalExpired:
+			quality.Freshness = semreg.FreshnessExpired
+		case ReasonZeroCurrent, ReasonZeroTimeout:
+			quality.Validity, quality.Freshness = semreg.ValidityUnknown, semreg.FreshnessUnknown
+		}
+	}
 	return semreg.FactCandidate{
-		CandidateID: id, Key: key, Value: &value,
-		Quality: semreg.Quality{Assertion: semreg.AssertionObserved, Qualification: semreg.QualificationQualified, Promotion: semreg.PromotionPromoted,
-			Validity: semreg.ValidityGood, Availability: semreg.AvailabilityAvailable, Freshness: semreg.FreshnessFresh, Reasons: []semreg.DefinitionID{}},
+		CandidateID: id, Key: key, Value: value, Quality: quality,
 		Times: semreg.Times{ReceivedAt: wall(f.Receipt.Wall), ReceiptMonotonic: p.mono(f.Receipt.Mono),
 			EvaluatedAt: wall(evaluated.Wall), EvaluateMonotonic: p.mono(evaluated.Mono)},
 		FreshnessPolicy: p.Policy, BindingID: &binding, SourceEpochID: &epoch, DriverGeneration: &generation,
@@ -154,10 +166,25 @@ func (p Gen3Publication) candidate(f Fact, evaluated At, revision uint64) semreg
 	}
 }
 
+// versionToken turns a build label into the lower-case token a definition
+// identifier allows: every run of other characters becomes one underscore.
+func versionToken(label string) string {
+	var out []byte
+	for _, c := range []byte(strings.ToLower(strings.TrimSpace(label))) {
+		switch {
+		case c >= 'a' && c <= 'z' || c >= '0' && c <= '9':
+			out = append(out, c)
+		case len(out) > 0 && out[len(out)-1] != '_':
+			out = append(out, '_')
+		}
+	}
+	return strings.TrimSuffix(string(out), "_")
+}
+
 func (p Gen3Publication) binding(version string, node byte, endpoint string) semreg.NativeBinding {
 	return semreg.NativeBinding{BindingID: p.bindingID(), AssetID: p.Asset, SourceID: p.Source, SourceEpochID: p.Epoch,
 		DriverGeneration: p.uint64(p.Generation),
-		NativeResource:   p.evidence(semreg.DefinitionID("registry.tesla.wc3_"+strings.ReplaceAll(version, ".", "_")), endpoint, version, strconv.Itoa(int(node))),
+		NativeResource:   p.evidence(semreg.DefinitionID("registry.tesla.wc3_"+versionToken(version)), endpoint, version, strconv.Itoa(int(node))),
 		State:            semreg.BindingCurrent, Revision: "1"}
 }
 

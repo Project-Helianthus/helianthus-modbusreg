@@ -3,6 +3,8 @@ package reader
 import (
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	modbus "github.com/Project-Helianthus/helianthus-modbus"
@@ -140,16 +142,54 @@ type SetterAvailability struct {
 	Reason    string
 }
 
-// Setter derives the setter's availability: the independently qualified t25
-// operation, the qualified t27/t28 read, and the actual off-poll t28 window.
-// A missing or invalid window makes the setter unavailable only; the five
-// reads are unaffected.
+// firmware reads the build label the way the native read lifecycle does: three
+// dot-separated numbers, or three underscore-separated numbers after "wc3_".
+func firmware(label string) ([3]uint64, bool) {
+	var version [3]uint64
+	label = strings.TrimSpace(label)
+	sep := "."
+	if strings.HasPrefix(label, "wc3_") {
+		label, sep = strings.TrimPrefix(label, "wc3_"), "_"
+	}
+	parts := strings.Split(label, sep)
+	if len(parts) != len(version) {
+		return version, false
+	}
+	for i, part := range parts {
+		v, err := strconv.ParseUint(part, 10, 64)
+		if err != nil {
+			return version, false
+		}
+		version[i] = v
+	}
+	return version, true
+}
+
+// documentedLayout reports the builds whose t25/t26 and t27/t28 layout the
+// public pages document; the native operation qualifies them on their own.
+// The tesla package exposes no predicate for it, so it is restated here.
+func (c Gen3Config) documentedLayout() bool {
+	v, ok := firmware(c.Version)
+	return ok && (v == [3]uint64{26, 34, 0} || v == [3]uint64{26, 42, 0})
+}
+
+// Setter derives the setter's availability from the same rule the native t25
+// operation applies to the configured build: a documented layout qualifies on
+// its own; any other build qualifies only at the 24.44.3 floor with the
+// explicit t25/t26 declaration and the t27/t28 read declaration. The actual
+// off-poll t28 window must also be valid. A missing or invalid window makes the
+// setter unavailable only; the five reads are unaffected.
 func (c Gen3Config) Setter() SetterAvailability {
-	switch {
-	case !c.ProvisionalSetQualified:
-		return SetterAvailability{Field: "provisional_set_qualified", Reason: "t25/t26 is not qualified for this build"}
-	case !c.ProvisionalReadbackQualified:
-		return SetterAvailability{Field: "provisional_readback_qualified", Reason: "t27/t28 is not qualified for this build"}
+	if !c.documentedLayout() {
+		if v, ok := firmware(c.Version); !ok || v != [3]uint64{24, 44, 3} {
+			return SetterAvailability{Field: "version", Reason: "t25/t26 is not qualified for this build"}
+		}
+		switch {
+		case !c.ProvisionalSetQualified:
+			return SetterAvailability{Field: "provisional_set_qualified", Reason: "t25/t26 is not qualified for this build"}
+		case !c.ProvisionalReadbackQualified:
+			return SetterAvailability{Field: "provisional_readback_qualified", Reason: "t27/t28 is not qualified for this build"}
+		}
 	}
 	if reason := windowReason(c.Windows[tesla.FC100OperationWCGetProvisional]); reason != "" {
 		return SetterAvailability{Field: windowField(tesla.FC100OperationWCGetProvisional), Reason: reason}
@@ -166,7 +206,7 @@ func (c Gen3Config) CurrentLimitWritable() bool { return c.Setter().Available }
 func (c Gen3Config) PeriodicProvisionalRead() bool {
 	for _, op := range c.Operations {
 		if op == tesla.FC100OperationWCGetProvisional {
-			return c.ProvisionalReadbackQualified
+			return c.ProvisionalReadbackQualified || c.documentedLayout()
 		}
 	}
 	return false

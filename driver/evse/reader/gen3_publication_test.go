@@ -228,14 +228,21 @@ func TestPersistentEntryFeedsTheReturnedT8AndTakesTheLaterReceipt(t *testing.T) 
 		t.Fatalf("view %+v", view)
 	}
 	last := session.committed()[len(session.committed())-1]
+	if err := last.Validate(); err != nil {
+		t.Fatal(err)
+	}
 	for _, fact := range last.FactUpserts {
 		if fact.Key.FactID == ElementAllocatedCurrent {
-			t.Fatal("the allocation was republished with the persistent-only batch")
+			// The allocation is not republished or retimed: the candidate carries
+			// no value and states why it is withheld.
+			if fact.Value != nil || fact.Quality.Availability != semreg.AvailabilityWithdrawn ||
+				len(fact.Quality.Reasons) != 1 || fact.Quality.Reasons[0] != ReasonProvisionalMissing {
+				t.Fatalf("the allocation candidate %+v", fact)
+			}
+			return
 		}
 	}
-	if len(last.FactWithdrawals) == 0 {
-		t.Fatal("the allocation candidate was not withdrawn")
-	}
+	t.Fatal("the allocation withdrawal carries no reason")
 }
 
 func TestIngestRefusesOutsideTheLifetime(t *testing.T) {

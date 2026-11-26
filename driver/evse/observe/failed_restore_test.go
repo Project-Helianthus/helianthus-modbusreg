@@ -46,17 +46,28 @@ func TestTeslaObserveFailedRestoreKeepsRecoveryCopy(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, ports.stderr.String())
 	}
 	stderr := ports.stderr.String()
-	lines := strings.Split(strings.TrimSuffix(stderr, "\n"), "\n")
-	if len(lines) != 2 || !strings.HasPrefix(lines[0], "tesla-observe: writing evidence failed: "+publishCause.Error()) ||
-		!strings.HasPrefix(lines[1], "rename ") || !strings.Contains(lines[1], " evidence.json") && !strings.Contains(lines[1], out) {
-		t.Fatalf("stderr %q", stderr)
-	}
-	if strings.Contains(stderr, teslaObserveTestPath) {
-		t.Fatalf("stderr carries the serial path: %q", stderr)
-	}
 	recovery, err := filepath.Glob(filepath.Join(dir, ".tesla-observe-*"))
 	if err != nil || len(recovery) != 1 {
 		t.Fatalf("recovery copies %v: %v", recovery, err)
+	}
+	// The restore the command attempted is the rename of the recovery copy onto
+	// the evidence path, now an occupied directory; repeating it fails with the
+	// same cause and leaves everything as it is. No further cause is joined: the
+	// directory sync succeeds.
+	// The command resolves its directories, so the probe resolves them too.
+	resolvedDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restoreErr := os.Rename(filepath.Join(resolvedDir, filepath.Base(recovery[0])), filepath.Join(resolvedDir, filepath.Base(out)))
+	if restoreErr == nil {
+		t.Fatal("the restore was expected to fail")
+	}
+	if want := "tesla-observe: writing evidence failed: " + publishCause.Error() + "\n" + restoreErr.Error() + "\n"; stderr != want {
+		t.Fatalf("stderr %q, want %q", stderr, want)
+	}
+	if strings.Contains(stderr, teslaObserveTestPath) {
+		t.Fatalf("stderr carries the serial path: %q", stderr)
 	}
 	data, err := os.ReadFile(recovery[0])
 	if err != nil || !bytes.Equal(data, prior) {

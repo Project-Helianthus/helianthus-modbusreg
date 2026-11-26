@@ -301,6 +301,10 @@ func (tx *fakeTx) DeclareSource(driver.Source) error             { return nil }
 func (tx *fakeTx) DeclareSettingRoute(driver.SettingRoute) error { return nil }
 func (tx *fakeTx) Commit(context.Context) error {
 	tx.s.mu.Lock()
+	if tx.s.commitErr != nil {
+		defer tx.s.mu.Unlock()
+		return tx.s.commitErr
+	}
 	tx.s.batches = append(tx.s.batches, tx.staged...)
 	tx.s.mu.Unlock()
 	return nil
@@ -318,6 +322,7 @@ type fakeSession struct {
 	batches   []semreg.PublicationBatch
 	linkCalls [][]semreg.NativeBinding
 	aborts    int
+	commitErr error
 	links     func([]semreg.NativeBinding) []semreg.IdentityLink
 }
 

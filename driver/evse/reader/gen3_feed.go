@@ -113,12 +113,17 @@ type Fact struct {
 	Time    time.Time
 	Symbol  string
 	Receipt Receipt
+	// Reason is set on a fact that carries no value: the element is withheld
+	// or unresolved and the reason is what the publication states.
+	Reason string
 }
 
 // Disposition names why an element has no value in the view.
 type Disposition struct {
 	Element string
 	Reason  string
+	Role    Role
+	Receipt Receipt
 }
 
 // View is the publishable state at one instant; an element missing from Facts
@@ -184,6 +189,7 @@ type Feed struct {
 	alloc     allocation
 	exp       expiry
 	zeroTO    bool
+	zeroTORec Receipt
 	supply    bool
 	supplyRec Receipt
 	published bool
@@ -250,7 +256,7 @@ func (f *Feed) Provisional(o ProvisionalObservation) bool {
 		}
 	}
 	if rb.HasLimitTimeout {
-		f.zeroTO = rb.LimitTimeoutSeconds == 0
+		f.zeroTO, f.zeroTORec = rb.LimitTimeoutSeconds == 0, o.Receipt
 		if f.zeroTO {
 			f.exp = expiry{}
 		} else {
@@ -287,18 +293,22 @@ func (f *Feed) View(at At) View {
 	cfg, zero := f.configured()
 	switch {
 	case zero:
-		v.Dispositions = append(v.Dispositions, Disposition{ElementConfiguredCurrent, ReasonZeroCurrent})
+		v.Dispositions = append(v.Dispositions, Disposition{ElementConfiguredCurrent, ReasonZeroCurrent, RoleEVSE, f.t28cfg.receipt})
 	case cfg != nil:
 		v.Facts = append(v.Facts, Fact{Element: ElementConfiguredCurrent, Role: RoleEVSE, Amps: cfg.value, Receipt: cfg.receipt})
 	}
 	if f.withdrawn {
-		v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonProvisionalMissing})
+		receipt := f.alloc.receipt
+		if !f.alloc.observed && f.t8 != nil {
+			receipt = f.t8.receipt
+		}
+		v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonProvisionalMissing, RoleConnector, receipt})
 	} else if f.alloc.observed {
 		switch {
 		case !f.alloc.known:
-			v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonZeroCurrent})
+			v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonZeroCurrent, RoleConnector, f.alloc.receipt})
 		case f.exp.set && at.elapsedSince(f.exp.anchor) >= time.Duration(f.exp.timeout)*time.Second:
-			v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonProvisionalExpired})
+			v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonProvisionalExpired, RoleConnector, f.alloc.receipt})
 		default:
 			v.Facts = append(v.Facts, Fact{Element: ElementAllocatedCurrent, Role: RoleConnector, Amps: f.alloc.value, Receipt: f.alloc.receipt})
 		}
@@ -307,7 +317,7 @@ func (f *Feed) View(at At) View {
 		v.Facts = append(v.Facts, Fact{Element: ElementAllocatedExpiry, Role: RoleConnector,
 			Time: f.exp.anchor.Wall.Add(time.Duration(f.exp.timeout) * time.Second).UTC(), Receipt: f.exp.anchor})
 	} else if f.zeroTO {
-		v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedExpiry, ReasonZeroTimeout})
+		v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedExpiry, ReasonZeroTimeout, RoleConnector, f.zeroTORec})
 	}
 	if f.supply {
 		v.Facts = append(v.Facts, Fact{Element: ElementSupply, Role: RoleEVSE, Symbol: SymbolSupplyDisabled, Receipt: f.supplyRec})
