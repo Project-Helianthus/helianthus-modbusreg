@@ -108,7 +108,7 @@ func outcomeOf(level Level) operation.Outcome {
 // and the t28 that was returned are separate evidence. A release carries no
 // snapshot and no readback.
 func (w *Writer) completion(d driver.Dispatch, r Result) driver.Completion {
-	sent := r.Native.PossiblyTransmitted
+	sent := r.T25Sent()
 	now := w.clock.Now()
 	started := r.Started
 	if started.IsZero() {

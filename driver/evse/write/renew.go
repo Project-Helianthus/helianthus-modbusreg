@@ -14,7 +14,7 @@ type renewal struct{ stop chan struct{} }
 // lock.
 func (w *Writer) held(guard operation.GuardClaims, request tesla.ProvisionalCurrentLimitRequest, r Result) Result {
 	switch {
-	case !r.Native.PossiblyTransmitted:
+	case !r.T25Sent():
 	case r.Matches:
 		w.disarm()
 		w.renewal = &renewal{stop: make(chan struct{})}
@@ -50,20 +50,30 @@ func (w *Writer) renew(r *renewal, guard operation.GuardClaims, request tesla.Pr
 }
 
 // renewOnce sends the request of the limit again. The exchange is the one of a
-// command and is never repeated: a renewal that is not acknowledged and read
-// back as the request ends the renewal and keeps its result.
+// command and is never repeated: a renewal whose t25 was possibly transmitted
+// and is not acknowledged and read back as the request ends the renewal and
+// keeps its result. A tick that sent no t25 leaves the renewal armed.
 func (w *Writer) renewOnce(r *renewal, guard operation.GuardClaims, request tesla.ProvisionalCurrentLimitRequest) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.renewal != r {
 		return false
 	}
-	if w.admit(w.runCtx, guard) != "" {
+	switch w.admit(w.runCtx, guard) {
+	case "":
+	case ReasonNotReady, ReasonNotWritable:
+		return true
+	default:
 		w.disarm()
 		return false
 	}
 	result := w.send(w.runCtx, guard, request, 0, Result{}, false)
-	if !result.Matches {
+	switch {
+	case !result.T25Sent():
+		// Nothing was handed to the peer, for example a read held the
+		// reservation: the limit is as it was and the next tick sends again.
+		return true
+	case !result.Matches:
 		w.disarm()
 		return false
 	}

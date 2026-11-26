@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Project-Helianthus/helianthus-modbusreg/driver/evse/reader"
+	"github.com/Project-Helianthus/helianthus-modbusreg/tesla"
 )
 
 // setAndHold performs a 16 A set that the device returns as requested.
@@ -113,6 +114,33 @@ func TestARenewalThatIsNotConfirmedEndsTheRenewalWithoutRetry(t *testing.T) {
 	r.clk.advance(time.Hour)
 	time.Sleep(20 * time.Millisecond)
 	r.wantLog("t27", "t25(16,900,false)", "t27", "t25(16,900,false)", "t27")
+}
+
+// A tick that meets a read holding the reservation sends no t25; the limit is
+// still in force and the next tick sends it again.
+func TestATickThatSendsNothingLeavesTheRenewalArmed(t *testing.T) {
+	r := newRig(t)
+	setAndHold(t, r, 32)
+	waitFor(t, "the renewal to wait", func() bool { return r.clk.waiting() == 1 })
+	hold, release := make(chan struct{}), make(chan struct{})
+	r.ep.push(step{echo: true, terminal: terminal(4, 3, okBody), hold: hold, release: release})
+	done := make(chan error, 1)
+	go func() {
+		_, err := r.reader.Acquisition().Acquire(ctxb(), tesla.FC100OperationCommonSystemInfo)
+		done <- err
+	}()
+	<-hold
+	r.clk.advance(RenewPeriod)
+	waitFor(t, "the renewal to wait again", func() bool { return r.clk.waiting() == 1 })
+	r.wantLog("t27", "t25(16,900,false)", "t27", "poll")
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	r.exchange(device(16, 900, false), 1300, 1302)
+	r.clk.advance(RenewPeriod)
+	r.wantRequests(6)
+	r.wantLog("t27", "t25(16,900,false)", "t27", "poll", "t25(16,900,false)", "t27")
 }
 
 func TestStoppingTheWriterEndsTheRenewal(t *testing.T) {

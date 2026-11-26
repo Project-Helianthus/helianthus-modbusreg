@@ -187,6 +187,12 @@ func (w *Writer) send(ctx context.Context, guard operation.GuardClaims, request 
 	r.PublicationErr = errors.Join(r.PublicationErr, w.cfg.Reader.IngestSetResult(ctx, native))
 	r.Sent, r.HasSent = native.Encoded, native.HasEncoded
 	switch {
+	case native.PossiblyTransmitted && !native.HasEncoded:
+		r.Level, r.Reason = LevelFailedNoContact, ReasonPrerequisite
+		if native.Reason != "" {
+			r.Reason += ": " + native.Reason
+		}
+		return r
 	case !native.PossiblyTransmitted:
 		r.Level, r.Reason = LevelFailedNoContact, ReasonSetRefused
 		if err != nil {

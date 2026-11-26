@@ -101,6 +101,26 @@ func TestExecutorOutcomesOfAMismatchAndOfMissingEvidence(t *testing.T) {
 	})
 }
 
+// A pause whose prerequisite t27 times out encoded no t25: the completion
+// carries no t25 request evidence and no t25 delivery state.
+func TestAPauseWhoseConfiguredCurrentReadTimesOutEncodedNoT25(t *testing.T) {
+	r := newRig(t)
+	r.ep.push(step{timeout: true})
+	c := r.execute(quantityArg(amperes("0", 0)))
+	if c.Outcome != operation.OutcomeFailedNoContact {
+		t.Fatalf("outcome %s", c.Outcome)
+	}
+	if c.Dispatch.Delivery != operation.DeliveryNotSent || c.Dispatch.PossibleSideEffect {
+		t.Fatalf("a t25 is stated: %+v", c.Dispatch)
+	}
+	for _, ref := range c.OutcomeEvidence {
+		if ref.Kind == KindRequest {
+			t.Fatal("request evidence for a t25 that was never encoded")
+		}
+	}
+	r.wantLog("t27")
+}
+
 // Every command the row does not admit is answered before anything is sent.
 func TestExecutorRefusesBeforeAnySend(t *testing.T) {
 	other := "connector-b"

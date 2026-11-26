@@ -31,7 +31,7 @@ func (w *Writer) release(ctx context.Context, guard operation.GuardClaims) Resul
 	}
 	r := w.send(ctx, guard, tesla.ProvisionalCurrentLimitRequest{LimitCurrentMaxAmps: configured, LimitTimeoutSeconds: LimitTimeoutSeconds}, configured, pre, false)
 	r.Release = true
-	if r.Native.PossiblyTransmitted {
+	if r.T25Sent() {
 		w.disarm()
 	}
 	return r

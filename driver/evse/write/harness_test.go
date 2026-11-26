@@ -68,6 +68,10 @@ type step struct {
 	terminal []byte
 	timeout  bool
 	wall     int64
+	// hold, when set, is closed by the endpoint when it holds the request and
+	// the request waits until release is closed.
+	hold    chan struct{}
+	release chan struct{}
 }
 
 // scriptedEndpoint answers each private-function request with the next step and
@@ -116,6 +120,10 @@ func (e *scriptedEndpoint) ExchangePrivateFunction(ctx context.Context, unit byt
 	candidate := modbus.RTUPrivateFunctionAdmissionRequest{Endpoint: e.config.Endpoint, Generation: e.generation, UnitID: unit, Function: request.FunctionCode(), Payload: request.Payload()}
 	admission := e.config.PrivateFunction.Admission
 	e.mu.Unlock()
+	if s.hold != nil {
+		close(s.hold)
+		<-s.release
+	}
 	if !admission.AdmitRTUPrivateFunction(candidate) {
 		return nil, modbus.RTUPrivateFunctionEvidence{}, errors.New("not admitted")
 	}
