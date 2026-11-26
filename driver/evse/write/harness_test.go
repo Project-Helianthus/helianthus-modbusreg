@@ -300,6 +300,9 @@ type fakeSession struct {
 	executors  []*registered
 	captureErr error
 	routeErr   error
+	// routeBatches counts the batches staged by each committed transaction
+	// that declared a route.
+	routeBatches []int
 	// host, when set, makes the session stamp like the SemReg host session.
 	host *hostStamp
 }
@@ -398,7 +401,14 @@ func (tx *fakeTx) Commit(context.Context) error {
 	s := tx.s
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// The SemReg host commits a transaction only with a staged batch.
+	if len(tx.staged) == 0 {
+		return errors.New("runtime: no batch is staged")
+	}
 	for _, batch := range tx.staged {
+		if noRecords(batch) {
+			continue
+		}
 		if s.host != nil {
 			stamped, err := s.host.stamp(batch)
 			if err != nil {
@@ -433,7 +443,18 @@ func (tx *fakeTx) Commit(context.Context) error {
 	}
 	s.sources = append(s.sources, tx.sources...)
 	s.routes = append(s.routes, tx.routes...)
+	if len(tx.routes) > 0 {
+		s.routeBatches = append(s.routeBatches, len(tx.staged))
+	}
 	return nil
+}
+
+// noRecords is a batch that upserts and withdraws nothing, as the one a
+// transaction stages to declare a source and a route.
+func noRecords(b semreg.PublicationBatch) bool {
+	return len(b.SourceUpserts) == 0 && len(b.BindingUpserts) == 0 && len(b.IdentityLinkUpserts) == 0 && len(b.FactUpserts) == 0 &&
+		len(b.FactWithdrawals) == 0 && len(b.ServiceUpserts) == 0 && len(b.ServiceWithdrawals) == 0 && len(b.CapabilityUpserts) == 0 &&
+		len(b.CapabilityWithdrawals) == 0 && len(b.ResourceUpserts) == 0 && len(b.RelationUpserts) == 0
 }
 
 func evidenceRef(material string) semreg.EvidenceRef {

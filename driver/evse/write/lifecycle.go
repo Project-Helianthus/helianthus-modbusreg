@@ -51,8 +51,8 @@ func (w *Writer) Start(ctx context.Context, session driver.Session) (err error) 
 	}
 	w.session, w.running = session, true
 	defer func() {
-		// A writer whose start failed has no declared route or registered
-		// executor to command through and sends nothing.
+		// A writer whose start failed has no registered executor to command
+		// through and sends nothing.
 		if err != nil {
 			w.running, w.session = false, nil
 		}
@@ -73,7 +73,10 @@ func (w *Writer) Start(ctx context.Context, session driver.Session) (err error) 
 	if err != nil {
 		return fmt.Errorf("charger writer route: %w", err)
 	}
-	for _, stage := range []error{tx.DeclareSource(driver.Source{For: route.For, Producer: route.Owner.Producer, PathKey: PathKey}), tx.DeclareSettingRoute(route)} {
+	// The session commits a transaction only with a staged batch, so the
+	// transaction stages the session's own batch, which carries no record: the
+	// source and the route are what it declares.
+	for _, stage := range []error{tx.Stage(stamp), tx.DeclareSource(driver.Source{For: route.For, Producer: route.Owner.Producer, PathKey: PathKey}), tx.DeclareSettingRoute(route)} {
 		if stage != nil {
 			return fmt.Errorf("charger writer route: %w", errors.Join(stage, tx.Abort(ctx)))
 		}

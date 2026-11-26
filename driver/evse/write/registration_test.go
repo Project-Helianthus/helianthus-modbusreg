@@ -41,6 +41,26 @@ func TestTheExecutorExistsWhileTheWriterRunsAndIsGoneAfterStop(t *testing.T) {
 	r.wantLog()
 }
 
+// The session commits a transaction only with a staged batch. The transaction
+// of the start stages one, and the double refuses a commit without it as the
+// host does.
+func TestTheStartTransactionStagesTheBatchTheSessionRequires(t *testing.T) {
+	r := newRig(t)
+	if len(r.session.routeBatches) != 1 || r.session.routeBatches[0] != 1 {
+		t.Fatalf("batches staged with the route: %v", r.session.routeBatches)
+	}
+	tx, err := r.session.Publisher().Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.DeclareSource(r.session.sources[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(context.Background()); err == nil {
+		t.Fatal("a commit with no staged batch was accepted")
+	}
+}
+
 // A build admitted for reads with no qualified t25 setter keeps its reads, has
 // no route and no executor, and sends nothing.
 func TestABuildWithoutAQualifiedSetterRegistersNoExecutor(t *testing.T) {
