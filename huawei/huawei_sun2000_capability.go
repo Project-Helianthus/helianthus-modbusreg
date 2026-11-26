@@ -315,7 +315,7 @@ func evaluateHuaweiSUN2000Profile(profile SUN2000MonitoringProfile, input SUN200
 		if input.SDongle == nil {
 			return insufficient(SUN2000ReasonNoGatewayIdentity)
 		}
-		card := NewSDongleObservedQualificationCard()
+		card := NewSDongleObservedQualificationCard().ForChildUnit(input.SDongle.Child.UnitID)
 		gateway := card.Evaluate(*input.SDongle)
 		if !gateway.IdentityMatched() || !gateway.QualificationTestReady() {
 			return insufficient(SUN2000ReasonGatewayIdentityRejected)

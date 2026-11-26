@@ -32,15 +32,14 @@ type SDongleReadOnlyProvider struct {
 
 // NewSDongleReadOnlyProvider constructs the provider behind the
 // enablement gate of the recorded S-Dongle disposition. The allowlist must
-// name exactly the observed child unit.
+// name exactly the one configured child unit.
 func NewSDongleReadOnlyProvider(config ProviderConfig) (*SDongleReadOnlyProvider, error) {
 	disposition, _ := RecordedProviderDisposition(ProviderPathSDongle)
 	return newHuaweiSDongleReadOnlyProvider(config, disposition)
 }
 
 func newHuaweiSDongleReadOnlyProvider(config ProviderConfig, disposition ProviderDisposition) (*SDongleReadOnlyProvider, error) {
-	card := NewSDongleObservedQualificationCard()
-	if len(config.AllowedUnits) != 1 || config.AllowedUnits[0] != card.ChildUnit() {
+	if len(config.AllowedUnits) != 1 {
 		if !EvaluateHuaweiProviderEnablement(disposition.clone()).Admitted {
 			return nil, ErrHuaweiProviderNotAdmitted
 		}
@@ -54,6 +53,9 @@ func newHuaweiSDongleReadOnlyProvider(config ProviderConfig, disposition Provide
 	}
 	return &SDongleReadOnlyProvider{core: core}, nil
 }
+
+// sdongleChildUnit is the configured child unit the provider reads.
+func (r *huaweiCycleRun) sdongleChildUnit() uint8 { return r.core.allowed[0] }
 
 // Start binds the first connection generation.
 func (p *SDongleReadOnlyProvider) Start(session ProviderSession) error {
@@ -172,7 +174,7 @@ func runHuaweiSDongleCycle(r *huaweiCycleRun) {
 // the bracket.
 func (r *huaweiCycleRun) identifySDongle(before []uint16) {
 	s := r.state
-	card := NewSDongleObservedQualificationCard()
+	card := NewSDongleObservedQualificationCard().ForChildUnit(r.sdongleChildUnit())
 	gateway, childUnit := card.UnitID(), card.ChildUnit()
 	failed := false
 	stop := func(result huaweiReadResult) bool {
@@ -323,8 +325,7 @@ func (r *huaweiCycleRun) sdongleIdentityFailed(failed bool) {
 // identification event; an admission that a failed read left incomplete runs
 // again, after the child back-off.
 func (r *huaweiCycleRun) readSDongleChild() {
-	card := NewSDongleObservedQualificationCard()
-	child := r.state.child(card.ChildUnit())
+	child := r.state.child(r.sdongleChildUnit())
 	switch {
 	case child.definitive != "":
 		r.out.Children = append(r.out.Children, r.childObservation(child, ProviderEvidenceWithheld, child.definitive, nil))

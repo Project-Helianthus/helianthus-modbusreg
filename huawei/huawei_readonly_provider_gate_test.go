@@ -1,10 +1,12 @@
 package huawei
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -109,8 +111,8 @@ func TestH06ANonAdmissibleDispositionMakesConstructionRefuse(t *testing.T) {
 			t.Fatalf("field %s is not varied", kind.Field(index).Name)
 		}
 	}
-	// The S-Dongle allowlist must name exactly the observed child unit.
-	for _, allowed := range [][]uint8{nil, {2}, {1, 2}, {100}} {
+	// The S-Dongle allowlist must name exactly one configured child unit.
+	for _, allowed := range [][]uint8{nil, {1, 2}, {0}, {248}} {
 		if _, err := NewSDongleReadOnlyProvider(h06Config(clock, waits, allowed)); !errors.Is(err, ErrHuaweiProviderConfig) {
 			t.Fatalf("allowlist %v: %v", allowed, err)
 		}
@@ -487,6 +489,52 @@ func TestHuaweiEnablementAdmitsDeclaredIdentity(t *testing.T) {
 	for index := 0; index < kind.NumField(); index++ {
 		if !varied[kind.Field(index).Name] {
 			t.Fatalf("child field %s is not varied", kind.Field(index).Name)
+		}
+	}
+}
+
+func h531RunSDongleCycle(t *testing.T, unit uint8) ProviderCycle {
+	t.Helper()
+	fixture, _ := h06Load(t, "sdongle_provider_cycles.json")
+	first := fixture.Cycles[0]
+	rig := newH06Rig(t, fixture.Path, []uint8{unit})
+	script := h06Script(t, rig.sources, fixture.Path, first)
+	for index := range script {
+		if script[index].unit == 1 {
+			script[index].unit = unit
+		}
+		if page := script[index].answer.page; page != nil && unit != 1 {
+			routed := page.clone()
+			for object := range routed.Objects {
+				routed.Objects[object].Value = bytes.ReplaceAll(routed.Objects[object].Value, []byte(";5=1;"), []byte(";5="+strconv.Itoa(int(unit))+";"))
+			}
+			script[index].answer.page = &routed
+		}
+	}
+	out := rig.refresh(t, script...)
+	want := first.Expect
+	for index := range want.Children {
+		want.Children[index].Unit = unit
+	}
+	h06RequireExpect(t, fixture.Path+"/"+first.Name, out, want, rig.sources.allowed)
+	return out
+}
+
+func TestSDongleProviderServesTheConfiguredChildUnit(t *testing.T) {
+	for _, unit := range []uint8{1, 7} {
+		out := h531RunSDongleCycle(t, unit)
+		if out.Outcome != ProviderCycleComplete || len(out.Children) != 1 || out.Children[0].UnitID != unit {
+			t.Fatalf("unit %d: %s %s %+v", unit, out.Outcome, out.Reason, h06ChildSummary(out))
+		}
+	}
+}
+
+func TestSDongleProviderRejectsAnUnconfiguredChildUnit(t *testing.T) {
+	clock := newH06Clock()
+	waits := newH06Waits(clock)
+	for _, allowed := range [][]uint8{nil, {1, 2}, {0}, {248}, {7, 7}} {
+		if _, err := NewSDongleReadOnlyProvider(h06Config(clock, waits, allowed)); !errors.Is(err, ErrHuaweiProviderConfig) {
+			t.Fatalf("allowlist %v: %v", allowed, err)
 		}
 	}
 }
