@@ -7,4 +7,7 @@ require (
 	github.com/Project-Helianthus/helianthus-semreg v0.0.0-20261125230007-606d0e7d9e47
 )
 
-require golang.org/x/text v0.22.0 // indirect
+require (
+	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
+)
