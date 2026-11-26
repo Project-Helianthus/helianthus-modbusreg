@@ -28,6 +28,9 @@ type ChargerPublication struct {
 	EVSE       string
 	Connector  string
 	Policy     semreg.FreshnessPolicy
+	// Graph is the configured station, EVSE, connectors and meter. A zero
+	// Graph states no resource or relation.
+	Graph GraphConfig
 }
 
 // Capability binds one read or setter capability to the service the pack names.
