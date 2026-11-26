@@ -16,8 +16,8 @@ import (
 
 // Errors of the Gen3 reader.
 var (
-	ErrGen3NotStarted = errors.New("charger reader is not started")
-	ErrGen3Fenced     = errors.New("charger reader is stopped or fenced")
+	ErrChargerNotStarted = errors.New("charger reader is not started")
+	ErrChargerFenced     = errors.New("charger reader is stopped or fenced")
 )
 
 type publishedFact struct {
@@ -25,13 +25,13 @@ type publishedFact struct {
 	rev  uint64
 }
 
-// Gen3Reader is the running instance of one configured Gen3 charger. It owns
+// ChargerReader is the running instance of one configured Gen3 charger. It owns
 // one native read lifecycle, takes the polled t28 from it and the persistent
 // t8, the prerequisite t28 and the mutation t28 from the callers that hold the
 // native results, and publishes every accepted observation through the session.
-type Gen3Reader struct {
-	cfg  Gen3Config
-	pub  Gen3Publication
+type ChargerReader struct {
+	cfg  ChargerConfig
+	pub  ChargerPublication
 	acq  *tesla.Gen3ReadAcquisition
 	feed *Feed
 	now  func() time.Time
@@ -51,11 +51,11 @@ type Gen3Reader struct {
 	done      chan struct{}
 }
 
-var _ driver.Instance = (*Gen3Reader)(nil)
+var _ driver.Instance = (*ChargerReader)(nil)
 
-// NewGen3Reader admits a configured block. An empty block starts nothing and
+// NewChargerReader admits a configured block. An empty block starts nothing and
 // returns no reader; a block missing a value reports it by name.
-func NewGen3Reader(cfg Gen3Config, pub Gen3Publication, deps Gen3Deps) (*Gen3Reader, error) {
+func NewChargerReader(cfg ChargerConfig, pub ChargerPublication, deps ChargerDeps) (*ChargerReader, error) {
 	if cfg.IsEmpty() {
 		return nil, nil
 	}
@@ -84,29 +84,29 @@ func NewGen3Reader(cfg Gen3Config, pub Gen3Publication, deps Gen3Deps) (*Gen3Rea
 	if now == nil {
 		now = time.Now
 	}
-	return &Gen3Reader{cfg: cfg, pub: pub, acq: acq, feed: NewFeed(), now: now,
+	return &ChargerReader{cfg: cfg, pub: pub, acq: acq, feed: NewFeed(), now: now,
 		published: map[semreg.CandidateID]publishedFact{}, revisions: map[semreg.CandidateID]uint64{}}, nil
 }
 
 // Acquisition is the running native lifecycle: the one endpoint, reservation
 // and generation that the reads and the native setter share.
-func (r *Gen3Reader) Acquisition() *tesla.Gen3ReadAcquisition { return r.acq }
+func (r *ChargerReader) Acquisition() *tesla.Gen3ReadAcquisition { return r.acq }
 
 // Feed is the readback state the reader publishes from.
-func (r *Gen3Reader) Feed() *Feed { return r.feed }
+func (r *ChargerReader) Feed() *Feed { return r.feed }
 
 // Setter reports whether the bound setter can run and, when it cannot, why.
-func (r *Gen3Reader) Setter() SetterAvailability { return r.cfg.Setter() }
+func (r *ChargerReader) Setter() SetterAvailability { return r.cfg.Setter() }
 
 // CurrentLimitWritable is true only while the qualified t25 operation is.
-func (r *Gen3Reader) CurrentLimitWritable() bool { return r.cfg.CurrentLimitWritable() }
+func (r *ChargerReader) CurrentLimitWritable() bool { return r.cfg.CurrentLimitWritable() }
 
 // View evaluates the readback state now.
-func (r *Gen3Reader) View() View { return r.feed.View(At{Wall: r.now()}) }
+func (r *ChargerReader) View() View { return r.feed.View(At{Wall: r.now()}) }
 
 // Start activates the lifecycle once and runs its polls on the instance
 // lifetime; it returns when the lifecycle is ready or has failed.
-func (r *Gen3Reader) Start(ctx context.Context, session driver.Session) error {
+func (r *ChargerReader) Start(ctx context.Context, session driver.Session) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.started || r.fenced.Load() {
@@ -134,7 +134,7 @@ func redactSerial(err error) error {
 	return err
 }
 
-func (r *Gen3Reader) poll(ctx context.Context, done chan struct{}) {
+func (r *ChargerReader) poll(ctx context.Context, done chan struct{}) {
 	defer close(done)
 	ticker := time.NewTicker(r.cfg.PollInterval)
 	defer ticker.Stop()
@@ -162,8 +162,8 @@ func (r *Gen3Reader) poll(ctx context.Context, done chan struct{}) {
 
 // notePublication keeps the latest publication failure of the poll loop, and a
 // refresh that publishes cleanly clears it. A stop or a fence is not a failure.
-func (r *Gen3Reader) notePublication(err error) {
-	if errors.Is(err, ErrGen3Fenced) || errors.Is(err, context.Canceled) {
+func (r *ChargerReader) notePublication(err error) {
+	if errors.Is(err, ErrChargerFenced) || errors.Is(err, context.Canceled) {
 		return
 	}
 	r.mu.Lock()
@@ -174,14 +174,14 @@ func (r *Gen3Reader) notePublication(err error) {
 // PublicationError is the latest failure to begin, stage or commit a
 // publication from the running polls, nil when the last one went through. It
 // is distinct from the native outcome of any read.
-func (r *Gen3Reader) PublicationError() error {
+func (r *ChargerReader) PublicationError() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.pubErr
 }
 
 // FenceWithdrawal stops every later publication without blocking.
-func (r *Gen3Reader) FenceWithdrawal() {
+func (r *ChargerReader) FenceWithdrawal() {
 	r.fenced.Store(true)
 	r.mu.Lock()
 	cancel := r.cancel
@@ -192,7 +192,7 @@ func (r *Gen3Reader) FenceWithdrawal() {
 }
 
 // Stop ends the polls and closes the lifecycle's endpoint.
-func (r *Gen3Reader) Stop(ctx context.Context) driver.CloseReport {
+func (r *ChargerReader) Stop(ctx context.Context) driver.CloseReport {
 	r.FenceWithdrawal()
 	r.mu.Lock()
 	done := r.done
@@ -215,12 +215,12 @@ func receiptOf(record tesla.Gen3ReadRecord) Receipt {
 		Lifecycle: record.LifecycleEpoch, Instance: record.EndpointInstance, Generation: record.Generation, RequestID: record.RequestID}
 }
 
-func (r *Gen3Reader) correlated(record tesla.Gen3ReadRecord, operation tesla.FC100Operation) bool {
+func (r *ChargerReader) correlated(record tesla.Gen3ReadRecord, operation tesla.FC100Operation) bool {
 	return record.State == tesla.Gen3ReadEvidenceAck && record.Operation == operation &&
 		record.Endpoint == r.cfg.Endpoint && record.Node == r.cfg.Node && record.RequestID != 0
 }
 
-func (r *Gen3Reader) provisional(record tesla.Gen3ReadRecord, anchor *tesla.Gen3ReadRecord) bool {
+func (r *ChargerReader) provisional(record tesla.Gen3ReadRecord, anchor *tesla.Gen3ReadRecord) bool {
 	if !r.correlated(record, tesla.FC100OperationWCGetProvisional) {
 		return false
 	}
@@ -236,7 +236,7 @@ func (r *Gen3Reader) provisional(record tesla.Gen3ReadRecord, anchor *tesla.Gen3
 }
 
 // IngestPolled feeds one polled t28; its timeout runs from its own receipt.
-func (r *Gen3Reader) IngestPolled(ctx context.Context, record tesla.Gen3ReadRecord) error {
+func (r *ChargerReader) IngestPolled(ctx context.Context, record tesla.Gen3ReadRecord) error {
 	if err := r.ready(ctx); err != nil {
 		return err
 	}
@@ -249,7 +249,7 @@ func (r *Gen3Reader) IngestPolled(ctx context.Context, record tesla.Gen3ReadReco
 // IngestPersistent feeds the t8 of the native persistent-settings result. A
 // duplicate, an obsolete generation, an uncorrelated or an unqualified result
 // has no effect; the error is only a publication error.
-func (r *Gen3Reader) IngestPersistent(ctx context.Context, result tesla.PersistentSettingsResult) error {
+func (r *ChargerReader) IngestPersistent(ctx context.Context, result tesla.PersistentSettingsResult) error {
 	if err := r.ready(ctx); err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func (r *Gen3Reader) IngestPersistent(ctx context.Context, result tesla.Persiste
 // prerequisite read, which anchors on its own receipt, and the mutation
 // readback, which anchors on the correlated set acknowledgement. The returned
 // values are fed even when they differ from the request.
-func (r *Gen3Reader) IngestSetResult(ctx context.Context, result tesla.ProvisionalCurrentLimitResult) error {
+func (r *ChargerReader) IngestSetResult(ctx context.Context, result tesla.ProvisionalCurrentLimitResult) error {
 	if err := r.ready(ctx); err != nil {
 		return err
 	}
@@ -288,7 +288,7 @@ func (r *Gen3Reader) IngestSetResult(ctx context.Context, result tesla.Provision
 	return r.publish(ctx)
 }
 
-func (r *Gen3Reader) ready(ctx context.Context) error {
+func (r *ChargerReader) ready(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("charger reader requires a context")
 	}
@@ -296,18 +296,18 @@ func (r *Gen3Reader) ready(ctx context.Context) error {
 		return err
 	}
 	if r.fenced.Load() {
-		return ErrGen3Fenced
+		return ErrChargerFenced
 	}
 	r.mu.Lock()
 	started := r.started
 	r.mu.Unlock()
 	if !started {
-		return ErrGen3NotStarted
+		return ErrChargerNotStarted
 	}
 	return nil
 }
 
-func (r *Gen3Reader) refresh(ctx context.Context) error {
+func (r *ChargerReader) refresh(ctx context.Context) error {
 	if err := r.ready(ctx); err != nil {
 		return err
 	}
@@ -316,11 +316,11 @@ func (r *Gen3Reader) refresh(ctx context.Context) error {
 
 // publish stages the difference between the view now and what was published,
 // applying the session's operator links on every transaction, and commits it.
-func (r *Gen3Reader) publish(ctx context.Context) error {
+func (r *ChargerReader) publish(ctx context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.fenced.Load() {
-		return ErrGen3Fenced
+		return ErrChargerFenced
 	}
 	at := At{Wall: r.now()}
 	view := r.feed.View(at)
@@ -359,7 +359,7 @@ func (r *Gen3Reader) publish(ctx context.Context) error {
 	return nil
 }
 
-func (r *Gen3Reader) ownLinks(pending []semreg.IdentityLink) []semreg.IdentityLink {
+func (r *ChargerReader) ownLinks(pending []semreg.IdentityLink) []semreg.IdentityLink {
 	var own []semreg.IdentityLink
 	for _, link := range pending {
 		if link.BindingID == r.pub.bindingID() {

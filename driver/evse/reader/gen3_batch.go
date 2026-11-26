@@ -15,7 +15,7 @@ func batchEmpty(b semreg.PublicationBatch) bool {
 // batch stages the difference between the view and what is published: the
 // binding, services and capabilities on the first batch, a candidate for every
 // fact that is new or changed, and a withdrawal for every fact that is gone.
-func (r *Gen3Reader) batch(view View, at At) (semreg.PublicationBatch, map[semreg.CandidateID]uint64, []Fact) {
+func (r *ChargerReader) batch(view View, at At) (semreg.PublicationBatch, map[semreg.CandidateID]uint64, []Fact) {
 	p := r.pub
 	b := semreg.PublicationBatch{
 		Contract: semreg.ContractKernelV1,

@@ -23,7 +23,7 @@ func expectedRequest(t *testing.T, op tesla.FC100Operation) []byte {
 
 // run constructs, scripts and starts a reader. The script is queued while the
 // lifecycle opens its endpoint.
-func run(t *testing.T, cfg Gen3Config, script func(*scriptedEndpoint)) (*Gen3Reader, *fakeSession, *charger) {
+func run(t *testing.T, cfg ChargerConfig, script func(*scriptedEndpoint)) (*ChargerReader, *fakeSession, *charger) {
 	t.Helper()
 	c := newCharger(t)
 	c.deps.Now = func() time.Time { return time.Unix(61, 0) }
@@ -35,7 +35,7 @@ func run(t *testing.T, cfg Gen3Config, script func(*scriptedEndpoint)) (*Gen3Rea
 		}
 		return endpoint, err
 	}
-	reader, err := NewGen3Reader(cfg, syntheticPublication(), c.deps)
+	reader, err := NewChargerReader(cfg, syntheticPublication(), c.deps)
 	if err != nil || reader == nil {
 		t.Fatalf("reader %v err %v", reader, err)
 	}
@@ -49,8 +49,8 @@ func run(t *testing.T, cfg Gen3Config, script func(*scriptedEndpoint)) (*Gen3Rea
 
 func TestEmptyBlockOpensNothing(t *testing.T) {
 	c := newCharger(t)
-	for name, cfg := range map[string]Gen3Config{"zero": {}, "empty collections": {Operations: []tesla.FC100Operation{}, Windows: map[tesla.FC100Operation]tesla.Gen3ReadWindow{}}} {
-		reader, err := NewGen3Reader(cfg, syntheticPublication(), c.deps)
+	for name, cfg := range map[string]ChargerConfig{"zero": {}, "empty collections": {Operations: []tesla.FC100Operation{}, Windows: map[tesla.FC100Operation]tesla.Gen3ReadWindow{}}} {
+		reader, err := NewChargerReader(cfg, syntheticPublication(), c.deps)
 		if reader != nil || err != nil || c.opens != 0 {
 			t.Fatalf("%s: reader=%v err=%v opens=%d", name, reader, err, c.opens)
 		}
@@ -58,20 +58,20 @@ func TestEmptyBlockOpensNothing(t *testing.T) {
 }
 
 func TestMissingValueIsReportedByNameAndOpensNothing(t *testing.T) {
-	for field, mutate := range map[string]func(*Gen3Config){
-		"serial_path":          func(c *Gen3Config) { c.SerialPath = "" },
-		"endpoint":             func(c *Gen3Config) { c.Endpoint = "" },
-		"node":                 func(c *Gen3Config) { c.Node = 0 },
-		"version":              func(c *Gen3Config) { c.Version = "" },
-		"response_timeout":     func(c *Gen3Config) { c.ResponseTimeout = 0 },
-		"max_response_delay":   func(c *Gen3Config) { c.MaxResponseDelay = 0 },
-		"max_quiescence":       func(c *Gen3Config) { c.MaxQuiescence = 0 },
-		"poll_interval":        func(c *Gen3Config) { c.PollInterval = 0 },
-		"acquisition_deadline": func(c *Gen3Config) { c.AcquisitionDeadline = 0 },
-		"activation_timeout":   func(c *Gen3Config) { c.ActivationTimeout = 0 },
-		"max_attempts":         func(c *Gen3Config) { c.MaxAttempts = 0 },
-		"operations":           func(c *Gen3Config) { c.Operations = nil },
-		"windows[wc.get_vitals]": func(c *Gen3Config) {
+	for field, mutate := range map[string]func(*ChargerConfig){
+		"serial_path":          func(c *ChargerConfig) { c.SerialPath = "" },
+		"endpoint":             func(c *ChargerConfig) { c.Endpoint = "" },
+		"node":                 func(c *ChargerConfig) { c.Node = 0 },
+		"version":              func(c *ChargerConfig) { c.Version = "" },
+		"response_timeout":     func(c *ChargerConfig) { c.ResponseTimeout = 0 },
+		"max_response_delay":   func(c *ChargerConfig) { c.MaxResponseDelay = 0 },
+		"max_quiescence":       func(c *ChargerConfig) { c.MaxQuiescence = 0 },
+		"poll_interval":        func(c *ChargerConfig) { c.PollInterval = 0 },
+		"acquisition_deadline": func(c *ChargerConfig) { c.AcquisitionDeadline = 0 },
+		"activation_timeout":   func(c *ChargerConfig) { c.ActivationTimeout = 0 },
+		"max_attempts":         func(c *ChargerConfig) { c.MaxAttempts = 0 },
+		"operations":           func(c *ChargerConfig) { c.Operations = nil },
+		"windows[wc.get_vitals]": func(c *ChargerConfig) {
 			delete(c.Windows, tesla.FC100OperationWCGetVitals)
 		},
 	} {
@@ -79,7 +79,7 @@ func TestMissingValueIsReportedByNameAndOpensNothing(t *testing.T) {
 			c := newCharger(t)
 			cfg := syntheticConfig(fiveOperations...)
 			mutate(&cfg)
-			reader, err := NewGen3Reader(cfg, syntheticPublication(), c.deps)
+			reader, err := NewChargerReader(cfg, syntheticPublication(), c.deps)
 			var named *ConfigError
 			if reader != nil || !errors.As(err, &named) || named.Field != field || c.opens != 0 {
 				t.Fatalf("reader=%v err=%v opens=%d", reader, err, c.opens)
@@ -120,7 +120,7 @@ func TestSixPollBlockSendsOnlyTheActivationAndSixReads(t *testing.T) {
 	}
 }
 
-func TestFiveReadsWithoutSetterSendNoT27AndConsumeNoT28Window(t *testing.T) {
+func TestFiveReadsWithoutSetterSendNoLimitReadAndConsumeNoReadbackWindow(t *testing.T) {
 	cfg := syntheticConfig(fiveOperations...)
 	reader, _, c := run(t, cfg, func(e *scriptedEndpoint) { pushPolls(e, cfg.Operations, scalars{}) })
 	waitFor(t, "five reads", func() bool { return len(c.endpoint.sent()) == 5 })
@@ -188,12 +188,12 @@ func TestSetterUnqualifiedNamesTheQualification(t *testing.T) {
 	}
 }
 
-func TestFiveReadsWithSetterRetainT28WindowAndFeedThePrerequisite(t *testing.T) {
+func TestFiveReadsWithSetterRetainReadbackWindowAndFeedThePrerequisite(t *testing.T) {
 	cfg := syntheticConfig(fiveOperations...)
 	cfg.ProvisionalReadbackQualified, cfg.ProvisionalSetQualified = true, true
 	reader, session, c := run(t, cfg, func(e *scriptedEndpoint) { pushPolls(e, cfg.Operations, scalars{}) })
 	waitFor(t, "five reads", func() bool { return len(c.endpoint.sent()) == 5 })
-	c.endpoint.push(step{echo: true, terminal: terminal(6, 28, t28Body(scalars{limit: u(6), timeout: u(900), inhibit: b(false), configured: u(16)}))})
+	c.endpoint.push(step{echo: true, terminal: terminal(6, 28, readbackBody(scalars{limit: u(6), timeout: u(900), inhibit: b(false), configured: u(16)}))})
 	var result tesla.ProvisionalCurrentLimitResult
 	waitFor(t, "the setter to run", func() bool {
 		var err error

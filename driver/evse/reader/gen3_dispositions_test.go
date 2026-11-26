@@ -89,7 +89,7 @@ func TestSetterCapabilityAgreesWithTheNativeQualificationOfTheBuild(t *testing.T
 			if got := cfg.CurrentLimitWritable(); got != tc.want {
 				t.Fatalf("writable %v, want %v (%+v)", got, tc.want, cfg.Setter())
 			}
-			reader, err := NewGen3Reader(cfg, syntheticPublication(), newCharger(t).deps)
+			reader, err := NewChargerReader(cfg, syntheticPublication(), newCharger(t).deps)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -144,7 +144,7 @@ func TestPollLoopSurfacesPublicationFailures(t *testing.T) {
 		pushPolls(c.endpoint, cfg.Operations, scalars{})
 		return endpoint, err
 	}
-	reader, err := NewGen3Reader(cfg, syntheticPublication(), c.deps)
+	reader, err := NewChargerReader(cfg, syntheticPublication(), c.deps)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -34,9 +34,9 @@ func terminal(family, tag uint64, body []byte) []byte {
 	return append([]byte{byte(len(message))}, message...)
 }
 
-// t28Body encodes the readback body: field 1 holds limit (1), timeout (2) and
+// readbackBody encodes the readback body: field 1 holds limit (1), timeout (2) and
 // inhibit (3); field 2 holds the configured current.
-func t28Body(s scalars) []byte {
+func readbackBody(s scalars) []byte {
 	var inner []byte
 	if s.limit != nil {
 		inner = append(append(inner, 0x08), varint(uint64(*s.limit))...)
@@ -206,12 +206,12 @@ type charger struct {
 	opens    int
 	endpoint *scriptedEndpoint
 	act      *activation
-	deps     Gen3Deps
+	deps     ChargerDeps
 }
 
 func newCharger(t *testing.T) *charger {
 	c := &charger{t: t, act: &activation{}}
-	c.deps = Gen3Deps{Activation: c.act, Open: func(config modbus.RTUProductionConfig) (tesla.Gen3ReadEndpoint, error) {
+	c.deps = ChargerDeps{Activation: c.act, Open: func(config modbus.RTUProductionConfig) (tesla.Gen3ReadEndpoint, error) {
 		c.opens++
 		c.endpoint = &scriptedEndpoint{config: config, generation: 1}
 		return c.endpoint, nil
@@ -224,7 +224,7 @@ var fiveOperations = []tesla.FC100Operation{
 	tesla.FC100OperationWCGetSystemInfo, tesla.FC100OperationWCGetLoadSharingState,
 }
 
-func syntheticConfig(operations ...tesla.FC100Operation) Gen3Config {
+func syntheticConfig(operations ...tesla.FC100Operation) ChargerConfig {
 	windows := map[tesla.FC100Operation]tesla.Gen3ReadWindow{}
 	for _, op := range []tesla.FC100Operation{tesla.FC100OperationWCGetProvisional, tesla.FC100OperationWCConfigureSettings} {
 		windows[op] = tesla.Gen3ReadWindow{Freshness: time.Second, Retention: 2 * time.Second}
@@ -232,7 +232,7 @@ func syntheticConfig(operations ...tesla.FC100Operation) Gen3Config {
 	for _, op := range operations {
 		windows[op] = tesla.Gen3ReadWindow{Freshness: 30 * time.Second, Retention: 10 * time.Minute}
 	}
-	return Gen3Config{
+	return ChargerConfig{
 		Endpoint: "synthetic-charger", SerialPath: syntheticSerialPath, Node: 0x10, Version: "wc3_24_44_3",
 		ResponseTimeout: time.Second, MaxResponseDelay: 500 * time.Millisecond, MaxQuiescence: 900 * time.Millisecond,
 		PollInterval: time.Hour, AcquisitionDeadline: 10 * time.Second, ActivationTimeout: time.Second, MaxAttempts: 2,
@@ -240,8 +240,8 @@ func syntheticConfig(operations ...tesla.FC100Operation) Gen3Config {
 	}
 }
 
-func syntheticPublication() Gen3Publication {
-	return Gen3Publication{
+func syntheticPublication() ChargerPublication {
+	return ChargerPublication{
 		Asset: "asset:synthetic-charger", Source: "source:synthetic-charger", Epoch: "epoch:synthetic-charger", Generation: 7,
 		ClockEpoch: "clock:synthetic", EVSE: "evse-a", Connector: "connector-a",
 		Policy: semreg.FreshnessPolicy{PolicyID: "policy:synthetic", Version: "1.0.0", FreshForNS: "30000000000", RetainForNS: "600000000000", MaxWallUncertaintyNS: "1"},
@@ -254,7 +254,7 @@ var okBody = []byte{0x08, 0x01, 0x7a, 0x02, 0xaa, 0xbb}
 func pushPolls(e *scriptedEndpoint, operations []tesla.FC100Operation, readback scalars) {
 	for _, op := range operations {
 		if op == tesla.FC100OperationWCGetProvisional {
-			e.push(step{echo: true, terminal: terminal(6, 28, t28Body(readback))})
+			e.push(step{echo: true, terminal: terminal(6, 28, readbackBody(readback))})
 			continue
 		}
 		family, tag := uint64(6), map[tesla.FC100Operation]uint64{

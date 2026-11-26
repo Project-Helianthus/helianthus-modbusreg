@@ -16,10 +16,10 @@ func defRef(id semreg.DefinitionID) semreg.DefinitionRef {
 	return semreg.DefinitionRef{Pack: evseRefPack, ID: id, Version: "1.0.0"}
 }
 
-// Gen3Publication is the identity a host supplies for one configured charger.
+// ChargerPublication is the identity a host supplies for one configured charger.
 // The dimension values are the configured subject labels; none is taken from
 // an asset identifier, an index, a role string or an address.
-type Gen3Publication struct {
+type ChargerPublication struct {
 	Asset      semreg.AssetID
 	Source     semreg.SourceID
 	Epoch      semreg.SourceEpochID
@@ -71,15 +71,15 @@ func opaque(prefix string, parts ...string) string {
 	return prefix + ":" + hex.EncodeToString(sum[:16])
 }
 
-func (p Gen3Publication) scope() []string {
+func (p ChargerPublication) scope() []string {
 	return []string{string(p.Asset), string(p.Source), string(p.Epoch), strconv.FormatUint(p.Generation, 10)}
 }
 
-func (p Gen3Publication) bindingID() semreg.NativeBindingID {
+func (p ChargerPublication) bindingID() semreg.NativeBindingID {
 	return semreg.NativeBindingID(opaque("binding:tesla-wc3", p.scope()...))
 }
 
-func (p Gen3Publication) uint64(n uint64) semreg.Uint64 {
+func (p ChargerPublication) uint64(n uint64) semreg.Uint64 {
 	return semreg.Uint64(strconv.FormatUint(n, 10))
 }
 
@@ -87,30 +87,30 @@ func wall(t time.Time) semreg.TimePoint {
 	return semreg.TimePoint{UnixNanoseconds: semreg.Int64(strconv.FormatInt(t.UTC().UnixNano(), 10)), ClockID: "wall.utc", UncertaintyNS: "0"}
 }
 
-func (p Gen3Publication) mono(d time.Duration) semreg.MonotonicPoint {
+func (p ChargerPublication) mono(d time.Duration) semreg.MonotonicPoint {
 	return semreg.MonotonicPoint{ClockEpochID: p.ClockEpoch, Nanoseconds: semreg.Uint64(strconv.FormatInt(d.Nanoseconds(), 10))}
 }
 
-func (p Gen3Publication) subject(role Role) (semreg.DefinitionID, string) {
+func (p ChargerPublication) subject(role Role) (semreg.DefinitionID, string) {
 	if role == RoleConnector {
 		return "evse.dimension.connector", p.Connector
 	}
 	return "evse.dimension.evse", p.EVSE
 }
 
-func (p Gen3Publication) factKey(element string, role Role) semreg.FactKey {
+func (p ChargerPublication) factKey(element string, role Role) semreg.FactKey {
 	dim, label := p.subject(role)
 	text := label
 	return semreg.FactKey{PackID: evseRefPack.ID, PackVersion: evseRefPack.Version, FactID: semreg.DefinitionID(element),
 		Dimensions: []semreg.Dimension{{ID: dim, Value: semreg.Value{Kind: semreg.ValueText, Text: &text}}}}
 }
 
-func (p Gen3Publication) candidateID(element string, role Role) semreg.CandidateID {
+func (p ChargerPublication) candidateID(element string, role Role) semreg.CandidateID {
 	_, label := p.subject(role)
 	return semreg.CandidateID(opaque("candidate:tesla-wc3", append(p.scope(), element, label)...))
 }
 
-func (p Gen3Publication) evidence(kind semreg.DefinitionID, parts ...string) semreg.EvidenceRef {
+func (p ChargerPublication) evidence(kind semreg.DefinitionID, parts ...string) semreg.EvidenceRef {
 	return semreg.EvidenceRef{Owner: evseRefPack.ID, Kind: kind, Digest: digestOf(parts...), Contract: semreg.ContractKernelV1,
 		Access: semreg.EvidenceAccessAuthorized, Redaction: semreg.RedactionMetadataOnly}
 }
@@ -122,7 +122,7 @@ func evidenceKind(f Fact) semreg.DefinitionID {
 	return "native.tesla.wc3.current_limit.provisional"
 }
 
-func (p Gen3Publication) value(f Fact) semreg.Value {
+func (p ChargerPublication) value(f Fact) semreg.Value {
 	switch {
 	case f.Element == ElementAllocatedExpiry:
 		tp := wall(f.Time)
@@ -134,7 +134,7 @@ func (p Gen3Publication) value(f Fact) semreg.Value {
 	return semreg.Value{Kind: semreg.ValueQuantity, Quantity: &semreg.Quantity{Number: semreg.Decimal{Coefficient: strconv.FormatUint(uint64(f.Amps), 10)}, Unit: "unit.ampere"}}
 }
 
-func (p Gen3Publication) candidate(f Fact, evaluated At, revision uint64) semreg.FactCandidate {
+func (p ChargerPublication) candidate(f Fact, evaluated At, revision uint64) semreg.FactCandidate {
 	binding, epoch, generation := p.bindingID(), p.Epoch, p.uint64(p.Generation)
 	source := p.Source
 	ev := p.evidence(evidenceKind(f), string(p.Asset), f.Element, f.Reason, strconv.FormatUint(f.Receipt.Lifecycle, 10), strconv.FormatUint(f.Receipt.Generation, 10), strconv.FormatUint(f.Receipt.RequestID, 10))
@@ -181,14 +181,14 @@ func versionToken(label string) string {
 	return strings.TrimSuffix(string(out), "_")
 }
 
-func (p Gen3Publication) binding(version string, node byte, endpoint string) semreg.NativeBinding {
+func (p ChargerPublication) binding(version string, node byte, endpoint string) semreg.NativeBinding {
 	return semreg.NativeBinding{BindingID: p.bindingID(), AssetID: p.Asset, SourceID: p.Source, SourceEpochID: p.Epoch,
 		DriverGeneration: p.uint64(p.Generation),
 		NativeResource:   p.evidence(semreg.DefinitionID("registry.tesla.wc3_"+versionToken(version)), endpoint, version, strconv.Itoa(int(node))),
 		State:            semreg.BindingCurrent, Revision: "1"}
 }
 
-func (p Gen3Publication) service(c Capability) semreg.ServiceInstance {
+func (p ChargerPublication) service(c Capability) semreg.ServiceInstance {
 	return semreg.ServiceInstance{
 		InstanceID: semreg.ServiceInstanceID(opaque("service:tesla-wc3", append(p.scope(), string(c.Service))...)),
 		AssetID:    p.Asset, Definition: defRef(c.Service), BindingID: p.bindingID(), SourceEpochID: p.Epoch,
@@ -196,7 +196,7 @@ func (p Gen3Publication) service(c Capability) semreg.ServiceInstance {
 	}
 }
 
-func (p Gen3Publication) capability(c Capability, service semreg.ServiceInstanceID) semreg.CapabilityInstance {
+func (p ChargerPublication) capability(c Capability, service semreg.ServiceInstanceID) semreg.CapabilityInstance {
 	return semreg.CapabilityInstance{
 		InstanceID: semreg.CapabilityInstanceID(opaque("capability:tesla-wc3", append(p.scope(), string(c.Capability))...)),
 		AssetID:    p.Asset, ServiceInstance: service, Definition: defRef(c.Capability), BindingID: p.bindingID(), SourceEpochID: p.Epoch,

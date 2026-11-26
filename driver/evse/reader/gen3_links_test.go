@@ -13,13 +13,13 @@ import (
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 
-func sixPollConfig() Gen3Config {
+func sixPollConfig() ChargerConfig {
 	cfg := syntheticConfig(append(append([]tesla.FC100Operation(nil), fiveOperations...), tesla.FC100OperationWCGetProvisional)...)
 	cfg.ProvisionalReadbackQualified = true
 	return cfg
 }
 
-func firstBatch(t *testing.T, cfg Gen3Config, pub Gen3Publication, links func([]semreg.NativeBinding) []semreg.IdentityLink) (*Gen3Reader, *fakeSession) {
+func firstBatch(t *testing.T, cfg ChargerConfig, pub ChargerPublication, links func([]semreg.NativeBinding) []semreg.IdentityLink) (*ChargerReader, *fakeSession) {
 	t.Helper()
 	c := newCharger(t)
 	c.deps.Now = func() time.Time { return time.Unix(61, 0) }
@@ -29,7 +29,7 @@ func firstBatch(t *testing.T, cfg Gen3Config, pub Gen3Publication, links func([]
 		pushPolls(c.endpoint, cfg.Operations, scalars{limit: u(16), timeout: u(600), inhibit: b(false), configured: u(32)})
 		return endpoint, err
 	}
-	reader, err := NewGen3Reader(cfg, pub, c.deps)
+	reader, err := NewChargerReader(cfg, pub, c.deps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func firstBatch(t *testing.T, cfg Gen3Config, pub Gen3Publication, links func([]
 	return reader, session
 }
 
-func operatorLink(pub Gen3Publication, state semreg.LinkState, revision semreg.Uint64) semreg.IdentityLink {
+func operatorLink(pub ChargerPublication, state semreg.LinkState, revision semreg.Uint64) semreg.IdentityLink {
 	resource := semreg.ResourceID("resource:operator-declared")
 	return semreg.IdentityLink{AssetID: pub.Asset, BindingID: pub.bindingID(), State: state, Revision: revision, Resource: &resource,
 		Basis: []semreg.EvidenceRef{pub.evidence("operator.declaration", "one")}}
@@ -169,7 +169,7 @@ func idsOf(t *testing.T, batch semreg.PublicationBatch) []string {
 func TestIdentifiersAreStableAcrossRestartAndDiscoveryOrder(t *testing.T) {
 	a, b := syntheticPublication(), syntheticPublication()
 	b.Asset, b.Source, b.Epoch, b.EVSE, b.Connector = "asset:second-charger", "source:second-charger", "epoch:second-charger", "evse-b", "connector-b"
-	one := func(pub Gen3Publication) []string {
+	one := func(pub ChargerPublication) []string {
 		_, s := firstBatch(t, sixPollConfig(), pub, nil)
 		return idsOf(t, s.committed()[0])
 	}

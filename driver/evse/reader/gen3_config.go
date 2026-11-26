@@ -12,20 +12,20 @@ import (
 	"github.com/Project-Helianthus/helianthus-modbusreg/tesla"
 )
 
-// Gen3Baud is the serial rate of the Gen3 charger; its format is 8N1 and none
+// ChargerBaud is the serial rate of the Gen3 charger; its format is 8N1 and none
 // of baud, parity or stop bits is configurable.
-const Gen3Baud = 115200
+const ChargerBaud = 115200
 
 // The attempt bound of one read acquisition.
 const (
-	minGen3Attempts = 1
-	maxGen3Attempts = 3
+	minAttempts = 1
+	maxAttempts = 3
 )
 
-// Gen3Config is one configured charger. Every duration and count the native
+// ChargerConfig is one configured charger. Every duration and count the native
 // lifecycle requires from its caller is supplied here and none has a default.
 // The serial path is configuration: it reaches only the opener.
-type Gen3Config struct {
+type ChargerConfig struct {
 	Endpoint                     string
 	SerialPath                   string
 	Node                         byte
@@ -56,9 +56,9 @@ func (e *ConfigError) Error() string {
 }
 
 // IsEmpty reports a block with nothing configured; it starts nothing.
-func (c Gen3Config) IsEmpty() bool { return isZeroBlock(c) }
+func (c ChargerConfig) IsEmpty() bool { return isZeroBlock(c) }
 
-func isZeroBlock(c Gen3Config) bool {
+func isZeroBlock(c ChargerConfig) bool {
 	d := c
 	if len(d.Operations) == 0 {
 		d.Operations = nil
@@ -66,7 +66,7 @@ func isZeroBlock(c Gen3Config) bool {
 	if len(d.Windows) == 0 {
 		d.Windows = nil
 	}
-	return reflect.DeepEqual(d, Gen3Config{})
+	return reflect.DeepEqual(d, ChargerConfig{})
 }
 
 var gen3Observations = map[tesla.FC100Operation]bool{
@@ -94,7 +94,7 @@ func windowReason(w tesla.Gen3ReadWindow) string {
 
 // Admit validates the block for the five ordinary reads and reports the first
 // missing or invalid value by name. It opens nothing.
-func (c Gen3Config) Admit() error {
+func (c ChargerConfig) Admit() error {
 	need := func(field string, bad bool, reason string) error {
 		if bad {
 			return &ConfigError{field, reason}
@@ -112,7 +112,7 @@ func (c Gen3Config) Admit() error {
 		need("poll_interval", c.PollInterval <= 0, "missing"),
 		need("acquisition_deadline", c.AcquisitionDeadline <= 0, "missing"),
 		need("activation_timeout", c.ActivationTimeout <= 0, "missing"),
-		need("max_attempts", c.MaxAttempts < minGen3Attempts || c.MaxAttempts > maxGen3Attempts, "must be 1 through 3"),
+		need("max_attempts", c.MaxAttempts < minAttempts || c.MaxAttempts > maxAttempts, "must be 1 through 3"),
 		need("persistent_identity_capacity", c.PersistentIdentityCapacity < 0, "must not be negative"),
 		need("operations", len(c.Operations) == 0, "missing"),
 	}
@@ -168,7 +168,7 @@ func firmware(label string) ([3]uint64, bool) {
 // documentedLayout reports the builds whose t25/t26 and t27/t28 layout the
 // public pages document; the native operation qualifies them on their own.
 // The tesla package exposes no predicate for it, so it is restated here.
-func (c Gen3Config) documentedLayout() bool {
+func (c ChargerConfig) documentedLayout() bool {
 	v, ok := firmware(c.Version)
 	return ok && (v == [3]uint64{26, 34, 0} || v == [3]uint64{26, 42, 0})
 }
@@ -179,7 +179,7 @@ func (c Gen3Config) documentedLayout() bool {
 // explicit t25/t26 declaration and the t27/t28 read declaration. The actual
 // off-poll t28 window must also be valid. A missing or invalid window makes the
 // setter unavailable only; the five reads are unaffected.
-func (c Gen3Config) Setter() SetterAvailability {
+func (c ChargerConfig) Setter() SetterAvailability {
 	if !c.documentedLayout() {
 		if v, ok := firmware(c.Version); !ok || v != [3]uint64{24, 44, 3} {
 			return SetterAvailability{Field: "version", Reason: "t25/t26 is not qualified for this build"}
@@ -199,11 +199,11 @@ func (c Gen3Config) Setter() SetterAvailability {
 
 // CurrentLimitWritable is the capability flag of the connector: true only from
 // the qualified t25 operation, never from configuration alone.
-func (c Gen3Config) CurrentLimitWritable() bool { return c.Setter().Available }
+func (c ChargerConfig) CurrentLimitWritable() bool { return c.Setter().Available }
 
 // PeriodicProvisionalRead reports whether t27 is polled: it is selected in
 // Operations and its read is qualified for the build.
-func (c Gen3Config) PeriodicProvisionalRead() bool {
+func (c ChargerConfig) PeriodicProvisionalRead() bool {
 	for _, op := range c.Operations {
 		if op == tesla.FC100OperationWCGetProvisional {
 			return c.ProvisionalReadbackQualified || c.documentedLayout()
@@ -212,9 +212,9 @@ func (c Gen3Config) PeriodicProvisionalRead() bool {
 	return false
 }
 
-func (c Gen3Config) acquisitionConfig(deps Gen3Deps) (tesla.Gen3ReadAcquisitionConfig, error) {
+func (c ChargerConfig) acquisitionConfig(deps ChargerDeps) (tesla.Gen3ReadAcquisitionConfig, error) {
 	timing, err := modbus.NewRTUTiming(modbus.RTUTimingConfig{
-		Baud: Gen3Baud, DataBits: 8, Parity: modbus.RTUParityNone, StopBits: 1,
+		Baud: ChargerBaud, DataBits: 8, Parity: modbus.RTUParityNone, StopBits: 1,
 		MaxResponseLatency: c.MaxResponseDelay, MaxQuiescence: c.MaxQuiescence,
 	})
 	if err != nil {
@@ -261,9 +261,9 @@ func (c Gen3Config) acquisitionConfig(deps Gen3Deps) (tesla.Gen3ReadAcquisitionC
 	}, nil
 }
 
-// Gen3Deps are the collaborators the host supplies: the activation driver, the
+// ChargerDeps are the collaborators the host supplies: the activation driver, the
 // endpoint opener (nil opens the production endpoint) and the clock.
-type Gen3Deps struct {
+type ChargerDeps struct {
 	Activation tesla.HSCActivationDriver
 	Open       tesla.Gen3ReadEndpointOpener
 	Now        func() time.Time

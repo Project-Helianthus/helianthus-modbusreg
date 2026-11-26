@@ -26,7 +26,7 @@ func (c *clock) set(at time.Time) {
 }
 
 // runWith starts a reader with an injected clock and no scripted polls.
-func runWith(t *testing.T, cfg Gen3Config, pub Gen3Publication, links func([]semreg.NativeBinding) []semreg.IdentityLink) (*Gen3Reader, *fakeSession, *charger, *clock) {
+func runWith(t *testing.T, cfg ChargerConfig, pub ChargerPublication, links func([]semreg.NativeBinding) []semreg.IdentityLink) (*ChargerReader, *fakeSession, *charger, *clock) {
 	t.Helper()
 	c := newCharger(t)
 	clk := &clock{at: time.Unix(5, 0)}
@@ -39,7 +39,7 @@ func runWith(t *testing.T, cfg Gen3Config, pub Gen3Publication, links func([]sem
 		}
 		return endpoint, err
 	}
-	reader, err := NewGen3Reader(cfg, pub, c.deps)
+	reader, err := NewChargerReader(cfg, pub, c.deps)
 	if err != nil || reader == nil {
 		t.Fatalf("reader %v err %v", reader, err)
 	}
@@ -51,7 +51,7 @@ func runWith(t *testing.T, cfg Gen3Config, pub Gen3Publication, links func([]sem
 	return reader, session, c, clk
 }
 
-func mutationConfig() Gen3Config {
+func mutationConfig() ChargerConfig {
 	cfg := syntheticConfig()
 	cfg.Operations = []tesla.FC100Operation{tesla.FC100OperationCommonSystemInfo}
 	cfg.Windows[tesla.FC100OperationCommonSystemInfo] = tesla.Gen3ReadWindow{Freshness: time.Hour, Retention: 2 * time.Hour}
@@ -60,7 +60,7 @@ func mutationConfig() Gen3Config {
 	return cfg
 }
 
-func startMutation(t *testing.T) (*Gen3Reader, *fakeSession, *charger, *clock) {
+func startMutation(t *testing.T) (*ChargerReader, *fakeSession, *charger, *clock) {
 	t.Helper()
 	reader, session, c, clk := runWith(t, mutationConfig(), syntheticPublication(), nil)
 	waitFor(t, "the first poll", func() bool { return len(c.endpoint.sent()) == 1 })
@@ -69,13 +69,13 @@ func startMutation(t *testing.T) (*Gen3Reader, *fakeSession, *charger, *clock) {
 
 func pushMutation(c *charger, prereq, readback scalars, setWall, readbackWall int64) {
 	c.endpoint.push(
-		step{echo: true, terminal: terminal(6, 28, t28Body(prereq))},
+		step{echo: true, terminal: terminal(6, 28, readbackBody(prereq))},
 		step{terminal: terminal(6, 26, nil), wall: setWall},
-		step{echo: true, terminal: terminal(6, 28, t28Body(readback)), wall: readbackWall},
+		step{echo: true, terminal: terminal(6, 28, readbackBody(readback)), wall: readbackWall},
 	)
 }
 
-func settle(t *testing.T, reader *Gen3Reader, request tesla.ProvisionalCurrentLimitRequest) tesla.ProvisionalCurrentLimitResult {
+func settle(t *testing.T, reader *ChargerReader, request tesla.ProvisionalCurrentLimitRequest) tesla.ProvisionalCurrentLimitResult {
 	t.Helper()
 	var result tesla.ProvisionalCurrentLimitResult
 	waitFor(t, "the setter to be free", func() bool {
@@ -146,7 +146,7 @@ func TestSetAnchoredExpiryAtSixtyAndSeventySeconds(t *testing.T) {
 	}
 }
 
-func TestStandaloneT28ExpiryUsesItsOwnReceipt(t *testing.T) {
+func TestStandaloneReadbackExpiryUsesItsOwnReceipt(t *testing.T) {
 	reader, _, c, clk := startMutation(t)
 	pushMutation(c, scalars{limit: u(6), timeout: u(60), inhibit: b(false), configured: u(32)},
 		scalars{limit: u(12), timeout: u(900), inhibit: b(false), configured: u(32)}, 1000, 1070)
@@ -180,12 +180,12 @@ func mustReadback(t *testing.T, record tesla.Gen3ReadRecord) tesla.ProvisionalCu
 	return readback
 }
 
-func TestPersistentEntryFeedsTheReturnedT8AndTakesTheLaterReceipt(t *testing.T) {
+func TestPersistentEntryFeedsTheReturnedSettingsAndTakesTheLaterReceipt(t *testing.T) {
 	cfg := mutationConfig()
 	cfg.Version, cfg.PersistentSettingsQualified = "26.34.0", true
 	reader, session, c, _ := runWith(t, cfg, syntheticPublication(), nil)
 	// An older t28 is retained first: configured 32 A.
-	c.endpoint.push(step{echo: true, terminal: terminal(6, 28, t28Body(scalars{limit: u(12), timeout: u(600), inhibit: b(false), configured: u(32)}))})
+	c.endpoint.push(step{echo: true, terminal: terminal(6, 28, readbackBody(scalars{limit: u(12), timeout: u(600), inhibit: b(false), configured: u(32)}))})
 	waitFor(t, "the polled t28", func() bool {
 		record, err := reader.Acquisition().Acquire(context.Background(), tesla.FC100OperationWCGetProvisional)
 		if err != nil {
@@ -246,15 +246,15 @@ func TestPersistentEntryFeedsTheReturnedT8AndTakesTheLaterReceipt(t *testing.T) 
 }
 
 func TestIngestRefusesOutsideTheLifetime(t *testing.T) {
-	reader, err := NewGen3Reader(syntheticConfig(fiveOperations...), syntheticPublication(), newCharger(t).deps)
+	reader, err := NewChargerReader(syntheticConfig(fiveOperations...), syntheticPublication(), newCharger(t).deps)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := reader.IngestPersistent(context.Background(), tesla.PersistentSettingsResult{}); err != ErrGen3NotStarted {
+	if err := reader.IngestPersistent(context.Background(), tesla.PersistentSettingsResult{}); err != ErrChargerNotStarted {
 		t.Fatalf("before start: %v", err)
 	}
 	reader.FenceWithdrawal()
-	if err := reader.IngestPolled(context.Background(), tesla.Gen3ReadRecord{}); err != ErrGen3Fenced {
+	if err := reader.IngestPolled(context.Background(), tesla.Gen3ReadRecord{}); err != ErrChargerFenced {
 		t.Fatalf("after fence: %v", err)
 	}
 }

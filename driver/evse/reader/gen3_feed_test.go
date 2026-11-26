@@ -201,7 +201,7 @@ func TestFeedMutationExpiryIsAnchoredOnTheSetAcknowledgement(t *testing.T) {
 
 func readback0(s scalars) tesla.ProvisionalCurrentLimitReadback { return readback(s) }
 
-func TestFeedStandaloneT28UsesItsOwnReceiptNotTheSetAcknowledgement(t *testing.T) {
+func TestFeedStandaloneReadbackUsesItsOwnReceiptNotTheSetAcknowledgement(t *testing.T) {
 	f := NewFeed()
 	f.Provisional(standalone(2, 80*time.Second, scalars{limit: u(12), timeout: u(60), inhibit: b(false)}))
 	v := f.View(at(100 * time.Second))

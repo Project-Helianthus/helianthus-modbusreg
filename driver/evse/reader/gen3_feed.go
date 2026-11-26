@@ -180,21 +180,21 @@ type obsKey struct {
 // Feed turns acknowledged readback records into the elements of the table in
 // the package documentation. It is safe for concurrent use.
 type Feed struct {
-	mu        sync.Mutex
-	seen      map[obsKey]struct{}
-	newest    Receipt
-	haveNew   bool
-	t8        *amps
-	t28cfg    *amps
-	alloc     allocation
-	exp       expiry
-	zeroTO    bool
-	zeroTORec Receipt
-	supply    bool
-	supplyRec Receipt
-	published bool
-	withdrawn bool
-	lastProv  *ProvisionalObservation
+	mu                 sync.Mutex
+	seen               map[obsKey]struct{}
+	newest             Receipt
+	haveNew            bool
+	persistent         *amps
+	readbackConfigured *amps
+	alloc              allocation
+	exp                expiry
+	zeroTO             bool
+	zeroTORec          Receipt
+	supply             bool
+	supplyRec          Receipt
+	published          bool
+	withdrawn          bool
+	lastProv           *ProvisionalObservation
 }
 
 // NewFeed returns an empty feed.
@@ -224,7 +224,7 @@ func (f *Feed) Persistent(o PersistentObservation) bool {
 	if !f.accept(true, o.Receipt) {
 		return false
 	}
-	f.t8 = &amps{o.MaxOutputCurrentAmps, o.Receipt}
+	f.persistent = &amps{o.MaxOutputCurrentAmps, o.Receipt}
 	if f.published {
 		f.withdrawn = true
 	}
@@ -244,7 +244,7 @@ func (f *Feed) Provisional(o ProvisionalObservation) bool {
 	retained := o
 	f.lastProv = &retained
 	if rb.HasConfiguredCurrent {
-		f.t28cfg = &amps{rb.ConfiguredCurrentAmps, o.Receipt}
+		f.readbackConfigured = &amps{rb.ConfiguredCurrentAmps, o.Receipt}
 	}
 	if rb.HasInhibit {
 		f.supply, f.supplyRec = rb.InhibitCharging, o.Anchor
@@ -293,14 +293,14 @@ func (f *Feed) View(at At) View {
 	cfg, zero := f.configured()
 	switch {
 	case zero:
-		v.Dispositions = append(v.Dispositions, Disposition{ElementConfiguredCurrent, ReasonZeroCurrent, RoleEVSE, f.t28cfg.receipt})
+		v.Dispositions = append(v.Dispositions, Disposition{ElementConfiguredCurrent, ReasonZeroCurrent, RoleEVSE, f.readbackConfigured.receipt})
 	case cfg != nil:
 		v.Facts = append(v.Facts, Fact{Element: ElementConfiguredCurrent, Role: RoleEVSE, Amps: cfg.value, Receipt: cfg.receipt})
 	}
 	if f.withdrawn {
 		receipt := f.alloc.receipt
-		if !f.alloc.observed && f.t8 != nil {
-			receipt = f.t8.receipt
+		if !f.alloc.observed && f.persistent != nil {
+			receipt = f.persistent.receipt
 		}
 		v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonProvisionalMissing, RoleConnector, receipt})
 	} else if f.alloc.observed {
@@ -329,12 +329,12 @@ func (f *Feed) View(at At) View {
 // configured current; an explicit zero is unresolved, never a number.
 func (f *Feed) configured() (candidate *amps, zero bool) {
 	switch {
-	case f.t8 == nil && f.t28cfg == nil:
+	case f.persistent == nil && f.readbackConfigured == nil:
 		return nil, false
-	case f.t28cfg == nil:
-		return f.t8, false
-	case f.t8 == nil || f.t28cfg.receipt.After(f.t8.receipt):
-		return f.t28cfg, f.t28cfg.value == 0
+	case f.readbackConfigured == nil:
+		return f.persistent, false
+	case f.persistent == nil || f.readbackConfigured.receipt.After(f.persistent.receipt):
+		return f.readbackConfigured, f.readbackConfigured.value == 0
 	}
-	return f.t8, false
+	return f.persistent, false
 }
