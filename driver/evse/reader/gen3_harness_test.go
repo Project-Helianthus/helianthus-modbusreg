@@ -60,6 +60,9 @@ type step struct {
 	timeout  bool
 	// wall, when set, is the receipt's wall second; otherwise it follows the request number.
 	wall int64
+	// epoch and mono, when set, are the receipt's clock epoch and monotonic offset.
+	epoch string
+	mono  time.Duration
 }
 
 type scriptedEndpoint struct {
@@ -115,6 +118,12 @@ func (e *scriptedEndpoint) ExchangePrivateFunction(ctx context.Context, unit byt
 		ReceiptWall: time.Unix(int64(e.nextID)*10, 0), ClockEpoch: "scripted"}
 	if s.wall != 0 {
 		evidence.ReceiptWall = time.Unix(s.wall, 0)
+	}
+	if s.epoch != "" {
+		evidence.ClockEpoch = s.epoch
+	}
+	if s.mono != 0 {
+		evidence.ReceivedAt = s.mono
 	}
 	e.mu.Unlock()
 	if s.timeout {
@@ -251,19 +260,23 @@ func syntheticPublication() ChargerPublication {
 // okBody is an opaque body the five observation reads accept.
 var okBody = []byte{0x08, 0x01, 0x7a, 0x02, 0xaa, 0xbb}
 
+// pollTerminal is the terminal frame payload a scripted poll of op answers with.
+func pollTerminal(op tesla.FC100Operation, readback scalars) []byte {
+	if op == tesla.FC100OperationWCGetProvisional {
+		return terminal(6, 28, readbackBody(readback))
+	}
+	family, tag := uint64(6), map[tesla.FC100Operation]uint64{
+		tesla.FC100OperationCommonSystemInfo: 3, tesla.FC100OperationWCGetVitals: 2, tesla.FC100OperationWCGetLifetimeStats: 4,
+		tesla.FC100OperationWCGetSystemInfo: 10, tesla.FC100OperationWCGetLoadSharingState: 12}[op]
+	if op == tesla.FC100OperationCommonSystemInfo {
+		family = 4
+	}
+	return terminal(family, tag, okBody)
+}
+
 func pushPolls(e *scriptedEndpoint, operations []tesla.FC100Operation, readback scalars) {
 	for _, op := range operations {
-		if op == tesla.FC100OperationWCGetProvisional {
-			e.push(step{echo: true, terminal: terminal(6, 28, readbackBody(readback))})
-			continue
-		}
-		family, tag := uint64(6), map[tesla.FC100Operation]uint64{
-			tesla.FC100OperationCommonSystemInfo: 3, tesla.FC100OperationWCGetVitals: 2, tesla.FC100OperationWCGetLifetimeStats: 4,
-			tesla.FC100OperationWCGetSystemInfo: 10, tesla.FC100OperationWCGetLoadSharingState: 12}[op]
-		if op == tesla.FC100OperationCommonSystemInfo {
-			family = 4
-		}
-		e.push(step{echo: true, terminal: terminal(family, tag, okBody)})
+		e.push(step{echo: true, terminal: pollTerminal(op, readback)})
 	}
 }
 
@@ -318,6 +331,7 @@ func (tx *fakeTx) Abort(context.Context) error {
 
 type fakeSession struct {
 	driver.Session
+	native    recordingRegistry
 	mu        sync.Mutex
 	batches   []semreg.PublicationBatch
 	linkCalls [][]semreg.NativeBinding
@@ -327,6 +341,8 @@ type fakeSession struct {
 }
 
 func (s *fakeSession) Publisher() driver.Publisher { return fakePublisher{s} }
+
+func (s *fakeSession) Native() driver.NativeRegistry { return &s.native }
 
 type fakePublisher struct{ s *fakeSession }
 
