@@ -30,10 +30,30 @@ type readVector struct {
 	Name, Revision, NativeDisposition, NativeState, Value, Reason string
 	Resource, Received, Clock, State                              string
 	Qualified, Derived                                            bool
+	Frozen                                                        *frozenRecord
+	Repair                                                        *repairRecord
 	Function                                                      wire.FunctionCode
 	Model, Offset, Count                                          uint16
 	Occurrence                                                    uint32
 	Block                                                         []string
+}
+
+// frozenRecord restates the indexed native recorder output for one case. The
+// record holds no producer outcome or receipt context, so nothing is asserted
+// about the producer. The current catalog emits more facts than the record
+// lists for an admitted case, so only the recorded count is a lower bound.
+type frozenRecord struct {
+	Case, Reason, Number, State string
+	Model, Length               uint16
+	W, SF                       *uint16
+	Facts                       int
+}
+
+// repairRecord restates the separate source-backed operand of the native
+// omission: the signed operands and the unknown expectation.
+type repairRecord struct {
+	Case, Value string
+	W, SF       int16
 }
 
 type inverseVector struct {
@@ -172,6 +192,9 @@ func checkReadVector(t *testing.T, r sunspec.DecoderRegistry, rows sunSpecRows, 
 	block := words(t, vec.Block)
 	snap, _ := acquire(t, r, vec.Revision, words(t, common), block)
 	occ := snap.Occurrences()[1]
+	if vec.Frozen != nil {
+		checkFrozen(t, r, snap, vec, block)
+	}
 	checkReadResult(t, r, rows, snap, occ, vec, block)
 }
 
@@ -227,6 +250,9 @@ func checkReadResult(t *testing.T, r sunspec.DecoderRegistry, rows sunSpecRows, 
 		if string(got.Reason) != vec.Reason || got.Candidate != nil || got.Subject != nil || got.Native != nil && got.Native.Value != nil {
 			t.Fatalf("no value expected: %+v", got)
 		}
+		if vec.Repair != nil {
+			checkRepair(t, got, vec, block)
+		}
 		return
 	}
 	want, ok := new(big.Rat).SetString(vec.Value)
@@ -242,6 +268,56 @@ func checkReadResult(t *testing.T, r sunspec.DecoderRegistry, rows sunSpecRows, 
 		t.Fatalf("unscaled evidence not retained: %+v", got.Native)
 	}
 	assertNumber(t, got.Native.Value, "W", want)
+}
+
+func checkFrozen(t *testing.T, r sunspec.DecoderRegistry, snap sunspec.ChainSnapshot, vec readVector, block []uint16) {
+	t.Helper()
+	f := vec.Frozen
+	if block[0] != f.Model || f.Length != 0 && block[1] != f.Length || f.W != nil && block[14] != *f.W || f.SF != nil && block[15] != *f.SF {
+		t.Fatalf("block %04x does not replay the indexed operands of %s", block[:2], f.Case)
+	}
+	d := r.EvaluateThreePhaseMonitoring(snap)
+	if string(d.Reason()) != f.Reason || d.Reason() != sunspec.CapabilityReason(vec.NativeDisposition) || len(d.Facts()) < f.Facts || f.Facts == 0 && len(d.Facts()) != 0 || d.Admitted() != (f.Reason == "ADMITTED") {
+		t.Fatalf("native disposition %v with %d facts; indexed %s has %s with at least %d", d.Reason(), len(d.Facts()), f.Case, f.Reason, f.Facts)
+	}
+	if f.Number == "" {
+		return
+	}
+	want, ok := new(big.Rat).SetString(f.Number)
+	if !ok || f.Number != vec.Value {
+		t.Fatalf("indexed number %q differs from the binding expectation %q", f.Number, vec.Value)
+	}
+	seen := 0
+	for _, fact := range d.Facts() {
+		switch fact.FieldID() {
+		case "inverter.ac.power.active":
+			n, has := fact.Value().Number()
+			got, parsed := new(big.Rat).SetString(n)
+			if !has || !parsed || got.Cmp(want) != 0 {
+				t.Fatalf("recorded W %q, indexed %s", n, f.Number)
+			}
+			seen++
+		case "inverter.operating_state":
+			if _, state, ok := fact.Value().Enum(); !ok || state != f.State {
+				t.Fatalf("recorded state %s, indexed %s", state, f.State)
+			}
+			seen++
+		}
+	}
+	if seen != 2 {
+		t.Fatalf("recorded W and state facts missing from %d facts", len(d.Facts()))
+	}
+}
+
+func checkRepair(t *testing.T, got roweval.Evaluation, vec readVector, block []uint16) {
+	t.Helper()
+	rp := vec.Repair
+	if int16(block[14]) != rp.W || int16(block[15]) != rp.SF || rp.Value != "unknown" {
+		t.Fatalf("block %04x does not replay the signed repair operands of %s", block[14:16], rp.Case)
+	}
+	if got.Candidate != nil || got.Native == nil || got.Native.Value != nil || got.Native.Raw != uint64(block[14]) {
+		t.Fatalf("repair %s must be unknown with its raw word retained: %+v", rp.Case, got)
+	}
 }
 
 func checkNative(t *testing.T, r sunspec.DecoderRegistry, snap sunspec.ChainSnapshot, occ sunspec.Occurrence, vec readVector, block []uint16) {
@@ -347,7 +423,7 @@ func walkChain(plan sunspec.ChainPlan, read func(sunspec.ReadRequest) reg.Logica
 func checkInconsistentLength(t *testing.T, r sunspec.DecoderRegistry, rows sunSpecRows, common []uint16, vec readVector) {
 	t.Helper()
 	block := words(t, vec.Block)
-	cells := chainWords([][]uint16{common, block})
+	cells := append(chainWords([][]uint16{common, block}), 0, 0)
 	s := openSimulation(t, cells)
 	view, raw := s.read(t, uint16(2+len(common)), uint16(len(block)))
 	if !slices.Equal(view.Words(), block) || len(raw) == 0 {
@@ -361,6 +437,7 @@ func checkInconsistentLength(t *testing.T, r sunspec.DecoderRegistry, rows sunSp
 		t.Fatalf("chain error: %v", err)
 	}
 	checkNative(t, r, snap, sunspec.Occurrence{}, vec, block)
+	checkFrozen(t, r, snap, vec, block)
 	got, err := rows.evaluate(r, sunspec.Occurrence{}, roweval.Acquired[SunSpecSelector]{Selector: SunSpecSelector{3, 103, 2, 14, 1}})
 	if err != nil || got.Reason != roweval.ReasonNoMatch || got.Native != nil || got.Candidate != nil || got.Subject != nil {
 		t.Fatalf("invalid chain reached a row: %+v (%v)", got, err)
