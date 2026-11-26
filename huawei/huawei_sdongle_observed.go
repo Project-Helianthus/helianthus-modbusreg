@@ -143,7 +143,9 @@ type SDongleObservedQualificationInput struct {
 //
 // Every other tuple is insufficient evidence. The card sends nothing and grants
 // no authority.
-type SDongleObservedQualificationCard struct{}
+type SDongleObservedQualificationCard struct {
+	configuredChild uint8
+}
 
 // NewSDongleObservedQualificationCard returns the stateless card. The
 // observation contract is
@@ -165,9 +167,21 @@ func (SDongleObservedQualificationCard) CandidateClass() string {
 // UnitID returns the gateway unit identifier the gateway reads must carry.
 func (SDongleObservedQualificationCard) UnitID() uint8 { return huaweiSDongleObservedGatewayUnit }
 
-// ChildUnit returns the one child unit identifier the card reads.
-func (SDongleObservedQualificationCard) ChildUnit() uint8 {
+// ChildUnit returns the child unit identifier the card reads: the qualified
+// unit of the stateless card, or the configured unit of a card bound with
+// ForChildUnit.
+func (card SDongleObservedQualificationCard) ChildUnit() uint8 {
+	if card.configuredChild != 0 {
+		return card.configuredChild
+	}
 	return huaweiSDongleObservedChildUnit
+}
+
+// ForChildUnit returns the card bound to the configured child unit. The
+// qualified unit stays what the stateless card records.
+func (card SDongleObservedQualificationCard) ForChildUnit(unit uint8) SDongleObservedQualificationCard {
+	card.configuredChild = unit
+	return card
 }
 
 // ChildModel returns the model text the child's model read must carry before

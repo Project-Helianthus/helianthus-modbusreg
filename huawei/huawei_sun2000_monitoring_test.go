@@ -1219,6 +1219,13 @@ func TestH05NegativeOverlapWithTheGatewayClasses(t *testing.T) {
 			t.Fatalf("%s: %s %s", name, selection.Outcome(), selection.Reason())
 		}
 	}
+	// Evidence that names the gateway unit as the child never selects either.
+	gatewayChild := h05M1Input(t)
+	gatewayChild.SDongle.Child.UnitID = huaweiSDongleObservedGatewayUnit
+	gatewayChild.UnitID = huaweiSDongleObservedGatewayUnit
+	if selection := SelectHuaweiSUN2000MonitoringProfile(gatewayChild); selection.Outcome() != SUN2000InsufficientEvidence || selection.Reason() != SUN2000ReasonUnitNotRouted {
+		t.Fatalf("child evidence at the gateway unit: %s %s", selection.Outcome(), selection.Reason())
+	}
 	// The gateway cards never match inverter evidence.
 	smartLogger := h03ValidInput(t)
 	smartLogger.UnitID = 1
