@@ -1,0 +1,230 @@
+package reader
+
+import (
+	"fmt"
+	"reflect"
+	"time"
+
+	modbus "github.com/Project-Helianthus/helianthus-modbus"
+	modbusreg "github.com/Project-Helianthus/helianthus-modbusreg"
+	"github.com/Project-Helianthus/helianthus-modbusreg/tesla"
+)
+
+// Gen3Baud is the serial rate of the Gen3 charger; its format is 8N1 and none
+// of baud, parity or stop bits is configurable.
+const Gen3Baud = 115200
+
+// The attempt bound of one read acquisition.
+const (
+	minGen3Attempts = 1
+	maxGen3Attempts = 3
+)
+
+// Gen3Config is one configured charger. Every duration and count the native
+// lifecycle requires from its caller is supplied here and none has a default.
+// The serial path is configuration: it reaches only the opener.
+type Gen3Config struct {
+	Endpoint                     string
+	SerialPath                   string
+	Node                         byte
+	Version                      string
+	ResponseTimeout              time.Duration
+	MaxResponseDelay             time.Duration
+	MaxQuiescence                time.Duration
+	PollInterval                 time.Duration
+	AcquisitionDeadline          time.Duration
+	ActivationTimeout            time.Duration
+	MaxAttempts                  int
+	PersistentIdentityCapacity   int
+	Operations                   []tesla.FC100Operation
+	Windows                      map[tesla.FC100Operation]tesla.Gen3ReadWindow
+	ProvisionalReadbackQualified bool
+	ProvisionalSetQualified      bool
+	PersistentSettingsQualified  bool
+}
+
+// ConfigError names the field that stops a block from opening.
+type ConfigError struct {
+	Field  string
+	Reason string
+}
+
+func (e *ConfigError) Error() string {
+	return fmt.Sprintf("charger configuration: %s: %s", e.Field, e.Reason)
+}
+
+// IsEmpty reports a block with nothing configured; it starts nothing.
+func (c Gen3Config) IsEmpty() bool { return isZeroBlock(c) }
+
+func isZeroBlock(c Gen3Config) bool {
+	d := c
+	if len(d.Operations) == 0 {
+		d.Operations = nil
+	}
+	if len(d.Windows) == 0 {
+		d.Windows = nil
+	}
+	return reflect.DeepEqual(d, Gen3Config{})
+}
+
+var gen3Observations = map[tesla.FC100Operation]bool{
+	tesla.FC100OperationCommonSystemInfo:      true,
+	tesla.FC100OperationWCGetVitals:           true,
+	tesla.FC100OperationWCGetLifetimeStats:    true,
+	tesla.FC100OperationWCGetSystemInfo:       true,
+	tesla.FC100OperationWCGetLoadSharingState: true,
+	tesla.FC100OperationWCGetProvisional:      true,
+}
+
+func windowField(op tesla.FC100Operation) string { return "windows[" + string(op) + "]" }
+
+func windowReason(w tesla.Gen3ReadWindow) string {
+	switch {
+	case w == (tesla.Gen3ReadWindow{}):
+		return "missing"
+	case w.Freshness <= 0:
+		return "freshness must be positive"
+	case w.Retention < w.Freshness:
+		return "retention must be at least the freshness"
+	}
+	return ""
+}
+
+// Admit validates the block for the five ordinary reads and reports the first
+// missing or invalid value by name. It opens nothing.
+func (c Gen3Config) Admit() error {
+	need := func(field string, bad bool, reason string) error {
+		if bad {
+			return &ConfigError{field, reason}
+		}
+		return nil
+	}
+	checks := []error{
+		need("serial_path", c.SerialPath == "", "missing"),
+		need("endpoint", !modbusreg.ValidIdentity(c.Endpoint), "missing or invalid"),
+		need("node", c.Node == 0 || c.Node > 247, "must be 1 through 247"),
+		need("version", c.Version == "", "missing"),
+		need("response_timeout", c.ResponseTimeout <= 0, "missing"),
+		need("max_response_delay", c.MaxResponseDelay <= 0, "missing"),
+		need("max_quiescence", c.MaxQuiescence <= 0, "missing"),
+		need("poll_interval", c.PollInterval <= 0, "missing"),
+		need("acquisition_deadline", c.AcquisitionDeadline <= 0, "missing"),
+		need("activation_timeout", c.ActivationTimeout <= 0, "missing"),
+		need("max_attempts", c.MaxAttempts < minGen3Attempts || c.MaxAttempts > maxGen3Attempts, "must be 1 through 3"),
+		need("persistent_identity_capacity", c.PersistentIdentityCapacity < 0, "must not be negative"),
+		need("operations", len(c.Operations) == 0, "missing"),
+	}
+	for _, err := range checks {
+		if err != nil {
+			return err
+		}
+	}
+	seen := map[tesla.FC100Operation]bool{}
+	for _, op := range c.Operations {
+		if !gen3Observations[op] || seen[op] {
+			return &ConfigError{"operations", "contains an operation that is not an admitted observation or repeats one: " + string(op)}
+		}
+		seen[op] = true
+		if reason := windowReason(c.Windows[op]); reason != "" {
+			return &ConfigError{windowField(op), reason}
+		}
+	}
+	return nil
+}
+
+// SetterAvailability says whether the bound connector setter can run, and when
+// it cannot, which value is the reason.
+type SetterAvailability struct {
+	Available bool
+	Field     string
+	Reason    string
+}
+
+// Setter derives the setter's availability: the independently qualified t25
+// operation, the qualified t27/t28 read, and the actual off-poll t28 window.
+// A missing or invalid window makes the setter unavailable only; the five
+// reads are unaffected.
+func (c Gen3Config) Setter() SetterAvailability {
+	switch {
+	case !c.ProvisionalSetQualified:
+		return SetterAvailability{Field: "provisional_set_qualified", Reason: "t25/t26 is not qualified for this build"}
+	case !c.ProvisionalReadbackQualified:
+		return SetterAvailability{Field: "provisional_readback_qualified", Reason: "t27/t28 is not qualified for this build"}
+	}
+	if reason := windowReason(c.Windows[tesla.FC100OperationWCGetProvisional]); reason != "" {
+		return SetterAvailability{Field: windowField(tesla.FC100OperationWCGetProvisional), Reason: reason}
+	}
+	return SetterAvailability{Available: true}
+}
+
+// CurrentLimitWritable is the capability flag of the connector: true only from
+// the qualified t25 operation, never from configuration alone.
+func (c Gen3Config) CurrentLimitWritable() bool { return c.Setter().Available }
+
+// PeriodicProvisionalRead reports whether t27 is polled: it is selected in
+// Operations and its read is qualified for the build.
+func (c Gen3Config) PeriodicProvisionalRead() bool {
+	for _, op := range c.Operations {
+		if op == tesla.FC100OperationWCGetProvisional {
+			return c.ProvisionalReadbackQualified
+		}
+	}
+	return false
+}
+
+func (c Gen3Config) acquisitionConfig(deps Gen3Deps) (tesla.Gen3ReadAcquisitionConfig, error) {
+	timing, err := modbus.NewRTUTiming(modbus.RTUTimingConfig{
+		Baud: Gen3Baud, DataBits: 8, Parity: modbus.RTUParityNone, StopBits: 1,
+		MaxResponseLatency: c.MaxResponseDelay, MaxQuiescence: c.MaxQuiescence,
+	})
+	if err != nil {
+		return tesla.Gen3ReadAcquisitionConfig{}, &ConfigError{"timing", err.Error()}
+	}
+	profile := tesla.HSCProfileConfig{
+		Enabled: true, Node: c.Node, PassiveCompatible: true, CompatibilityVersion: tesla.HSCCompatibilityV1,
+		WCVitalsOperationVersion:           tesla.HSCWCVitalsCompatibilityV1,
+		SystemInfoOperationVersion:         tesla.HSCSystemInfoCompatibilityV1,
+		WCLifetimeOperationVersion:         tesla.HSCWCLifetimeCompatibilityV1,
+		WCSystemInfoOperationVersion:       tesla.HSCWCSystemInfoCompatibilityV1,
+		WCLoadSharingStateOperationVersion: tesla.HSCWCLoadSharingStateCompatibilityV1,
+	}
+	if c.ProvisionalReadbackQualified {
+		profile.WCProvisionalReadbackOperationVersion = tesla.HSCFC100OperationCompatibilityV1
+		profile.WCProvisionalReadbackQualified = true
+	}
+	hsc, err := tesla.NewHSCProfile(profile)
+	if err != nil {
+		return tesla.Gen3ReadAcquisitionConfig{}, &ConfigError{"node", err.Error()}
+	}
+	gen3Config := tesla.Gen3HSCProfileConfig{
+		Enabled: true, Version: c.Version, ActivationCapable: true, PrivateFunctionCapable: true, OperationCapable: true,
+		ProvisionalSetQualified: c.ProvisionalSetQualified,
+	}
+	if c.PersistentSettingsQualified {
+		gen3Config.PersistentSettingsOperationVersion = tesla.HSCFC100OperationCompatibilityV1
+		gen3Config.PersistentCurrentOnlyQualified = true
+	}
+	gen3, err := tesla.NewGen3HSCProfile(gen3Config)
+	if err != nil {
+		return tesla.Gen3ReadAcquisitionConfig{}, &ConfigError{"version", err.Error()}
+	}
+	windows := make(map[tesla.FC100Operation]tesla.Gen3ReadWindow, len(c.Windows))
+	for op, w := range c.Windows {
+		windows[op] = w
+	}
+	return tesla.Gen3ReadAcquisitionConfig{
+		PersistentIdentityCapacity: c.PersistentIdentityCapacity,
+		Endpoint:                   c.Endpoint, LocalPath: c.SerialPath, Timing: timing, ResponseTimeout: c.ResponseTimeout,
+		Profile: hsc, Gen3: gen3, Operations: append([]tesla.FC100Operation(nil), c.Operations...), Windows: windows,
+		MaxAttempts: c.MaxAttempts, AcquisitionDeadline: c.AcquisitionDeadline, ActivationTimeout: c.ActivationTimeout,
+		PollInterval: c.PollInterval, Activation: deps.Activation, Open: deps.Open, Now: deps.Now,
+	}, nil
+}
+
+// Gen3Deps are the collaborators the host supplies: the activation driver, the
+// endpoint opener (nil opens the production endpoint) and the clock.
+type Gen3Deps struct {
+	Activation tesla.HSCActivationDriver
+	Open       tesla.Gen3ReadEndpointOpener
+	Now        func() time.Time
+}

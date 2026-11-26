@@ -363,7 +363,7 @@ const maxCauseBytes = 160
 
 // boundedCause is never empty, so a recorded failure always carries a cause.
 func boundedCause(err error) string {
-	text := err.Error()
+	text := redactTeslaSerialError(err).Error()
 	if text == "" {
 		return "error without a message"
 	}
