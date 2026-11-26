@@ -43,6 +43,7 @@ func buildRows() map[string]row {
 		t["power.active.phase."+p] = row{element{"infrastructure.ac.active_power", dimPhase, unitWatt}, onPhase, p, toWatt}
 		t["power.apparent.phase."+p] = row{element{"infrastructure.ac.apparent_power", dimPhase, unitVA}, onPhase, p, map[string]factor{"VA": one}}
 		t["power.reactive.phase."+p] = row{element{"infrastructure.ac.reactive_power", dimPhase, unitVar}, onPhase, p, map[string]factor{"var": one}}
+		t["power_factor.phase."+p] = row{element{"infrastructure.ac.phase_power_factor", dimPhase, unitRatio}, onPhase, p, toRatio}
 		t["energy.import.phase."+p] = row{element{"infrastructure.energy.phase_import", dimPhase, unitJoule}, onPhase, p, toJoule}
 		t["energy.export.phase."+p] = row{element{"infrastructure.energy.phase_export", dimPhase, unitJoule}, onPhase, p, toJoule}
 	}
