@@ -14,6 +14,10 @@ type recordingRegistry struct {
 	readers map[driver.MemberID]driver.NativeReader
 }
 
+func (r *recordingRegistry) Root() driver.NodeRef {
+	return driver.NodeRef{Bridge: "bridge.synthetic", ID: semreg.ResourceID("node.root")}
+}
+
 func (r *recordingRegistry) Node(s driver.NodeSpec) (driver.NodeRef, error) {
 	r.nodes = append(r.nodes, s)
 	return driver.NodeRef{Bridge: "bridge.synthetic", ID: semreg.ResourceID("node." + string(s.Local))}, nil
@@ -26,6 +30,8 @@ func (r *recordingRegistry) ReadMember(_ driver.NodeRef, s driver.MemberSpec, re
 	r.readers[s.Local] = read
 	return nil
 }
+
+func (r *recordingRegistry) View(driver.ViewSpec) error { return nil }
 
 func (r *recordingRegistry) Method(driver.NodeRef, driver.MethodSpec, driver.NativeMethod) error {
 	return nil
