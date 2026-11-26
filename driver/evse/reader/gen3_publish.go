@@ -116,6 +116,9 @@ func (p ChargerPublication) evidence(kind semreg.DefinitionID, parts ...string) 
 }
 
 func evidenceKind(f Fact) semreg.DefinitionID {
+	if f.Element == ElementConnection {
+		return "native.tesla.wc3.vitals"
+	}
 	if f.Element == ElementConfiguredCurrent {
 		return "native.tesla.wc3.current_limit.persistent"
 	}

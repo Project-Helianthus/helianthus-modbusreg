@@ -107,9 +107,10 @@ type NativeOnly struct {
 // and field.
 func NativeOnlyObservations() []NativeOnly {
 	const reason = "the specification states no field layout, unit, phase or episode boundary"
+	const vitalsReason = "typed vitals are served in the native record; the members without an admitted mapping stay native"
 	return []NativeOnly{
 		{tesla.FC100OperationCommonSystemInfo, "terminal body", reason},
-		{tesla.FC100OperationWCGetVitals, "terminal body", reason},
+		{tesla.FC100OperationWCGetVitals, "terminal body", vitalsReason},
 		{tesla.FC100OperationWCGetLifetimeStats, "terminal body", reason},
 		{tesla.FC100OperationWCGetSystemInfo, "terminal body", reason},
 		{tesla.FC100OperationWCGetLoadSharingState, "terminal body", reason},
