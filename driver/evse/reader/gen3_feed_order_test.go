@@ -199,3 +199,29 @@ func wantFact(t *testing.T, v View, element string) uint32 {
 	}
 	return f.Amps
 }
+
+// An allocation whose own readback carried no timeout is bounded by the
+// timeout a later readback reports: the expiry fact the feed publishes is the
+// lifetime of the allocation in force, so the allocation is not published as
+// available beside an expiry that has passed. A readback that carries the
+// allocation again without a timeout is not bounded by the earlier expiry.
+func TestFeedAllocationWithoutATimeoutIsBoundedByALaterReadbackTimeout(t *testing.T) {
+	f := NewFeed()
+	f.Provisional(standalone(1, time.Second, scalars{limit: u(32), inhibit: b(false)}))
+	f.Provisional(standalone(2, 10*time.Second, scalars{limit: u(16), timeout: u(60)}))
+	before := f.View(at(50 * time.Second))
+	wantAmps(t, before, ElementAllocatedCurrent, 32)
+	for _, when := range []time.Duration{70 * time.Second, 100 * time.Second} {
+		v := f.View(at(when))
+		expiry, ok := v.Fact(ElementAllocatedExpiry)
+		if !ok || !expiry.Time.Equal(feedBase.Add(70*time.Second)) {
+			t.Fatalf("at %s: expiry fact %+v ok=%v", when, expiry, ok)
+		}
+		wantNone(t, v, ElementAllocatedCurrent)
+		if v.Reason(ElementAllocatedCurrent) != ReasonProvisionalExpired {
+			t.Fatalf("at %s: view %+v", when, v)
+		}
+	}
+	f.Provisional(standalone(3, 120*time.Second, scalars{limit: u(8), inhibit: b(false)}))
+	wantAmps(t, f.View(at(130*time.Second)), ElementAllocatedCurrent, 8)
+}

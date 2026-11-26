@@ -2,6 +2,7 @@ package reader
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -42,17 +43,17 @@ func nanos(t *testing.T, v semreg.Uint64) int64 {
 
 // The evaluation instant on the monotonic axis is the reader's clock at the
 // evaluation. The clock is advanced and the reader evaluates again: the
-// instant moves by exactly what the clock moved, whatever the receipts hold,
-// and the elapsed time of a record on the reader's own clock epoch is read on
-// the monotonic axis, not on the wall axis.
-func TestEvaluationInstantFollowsTheReadersClockOnItsOwnEpoch(t *testing.T) {
+// instant moves by exactly what the clock moved, whatever the receipts hold.
+// The receipt is on the endpoint's own epoch, which differs from the reader's,
+// so its lifetime runs on the wall axis and the two monotonic origins are
+// never compared.
+func TestEvaluationInstantFollowsTheReadersClockOnTheReadersEpoch(t *testing.T) {
 	reader, session, c, clk := startAfterFirstPoll(t)
 	// The reader's monotonic axis starts at 5 s on its clock, so 105 s is 100 s on it.
 	clk.set(time.Unix(105, 0))
-	// The receipt is 70 s on the reader's own epoch, and 100 s on the wall: 30 s elapsed on
-	// the monotonic axis now, 5 s on the wall axis.
+	// The receipt is 70 s on the endpoint's epoch and 100 s on the wall.
 	ingestReadback(t, reader, c, step{echo: true, terminal: terminal(6, 28, readbackBody(scalars{limit: u(12), timeout: u(60), inhibit: b(false)})),
-		wall: 100, epoch: "clock:synthetic", mono: 70 * time.Second})
+		wall: 100, epoch: "endpoint-clock", mono: 70 * time.Second})
 	first := candidateOf(t, session.committed(), ElementAllocatedCurrent)
 	if first.Value == nil || first.Quality.Availability != semreg.AvailabilityAvailable {
 		t.Fatalf("the allocation is not published before the lifetime ends: %+v", first)
@@ -61,22 +62,51 @@ func TestEvaluationInstantFollowsTheReadersClockOnItsOwnEpoch(t *testing.T) {
 		t.Fatalf("evaluation instant %+v, want the reader's clock at 100 s (a receipt gives 70 s)", first.Times.EvaluateMonotonic)
 	}
 
-	// 40 s later on the clock the monotonic elapsed time is 70 s, the wall elapsed time 45 s.
-	clk.set(time.Unix(145, 0))
+	// 55 s later the wall elapsed time is 60 s: the lifetime has ended.
+	clk.set(time.Unix(160, 0))
 	if err := reader.refresh(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	second := candidateOf(t, session.committed(), ElementAllocatedCurrent)
 	wantWithheld(t, second, ReasonProvisionalExpired)
-	if got := nanos(t, second.Times.EvaluateMonotonic.Nanoseconds) - nanos(t, first.Times.EvaluateMonotonic.Nanoseconds); got != 40*int64(time.Second) {
-		t.Fatalf("the evaluation instant moved by %d ns, the clock by 40 s", got)
+	if got := nanos(t, second.Times.EvaluateMonotonic.Nanoseconds) - nanos(t, first.Times.EvaluateMonotonic.Nanoseconds); got != 55*int64(time.Second) {
+		t.Fatalf("the evaluation instant moved by %d ns, the clock by 55 s", got)
 	}
-	elapsed, err := second.Times.ElapsedMonotonicNS()
-	if err != nil || elapsed != "70000000000" {
-		t.Fatalf("elapsed %q err %v", elapsed, err)
-	}
-	if second.Times.ReceiptMonotonic.ClockEpochID != "clock:synthetic" {
+	if second.Times.ReceiptMonotonic.ClockEpochID != "endpoint-clock" {
 		t.Fatalf("receipt epoch %q", second.Times.ReceiptMonotonic.ClockEpochID)
+	}
+}
+
+// The reader's clock epoch label means the reader's own monotonic origin. A
+// record that carries the same label would make two origins comparable, so it
+// is not taken: it has no effect on the published state or the retained
+// payloads, and the entry reports it.
+func TestRecordOnTheReadersOwnClockEpochIsRefused(t *testing.T) {
+	reader, session, c, clk := startAfterFirstPoll(t)
+	clk.set(time.Unix(105, 0))
+	c.endpoint.push(step{echo: true, terminal: terminal(6, 28, readbackBody(scalars{limit: u(12), timeout: u(60), inhibit: b(false)})),
+		wall: 100, epoch: "clock:synthetic", mono: 70 * time.Second})
+	var record tesla.Gen3ReadRecord
+	waitFor(t, "the readback", func() bool {
+		var err error
+		record, err = reader.Acquisition().Acquire(context.Background(), tesla.FC100OperationWCGetProvisional)
+		return err == nil && record.State == tesla.Gen3ReadEvidenceAck
+	})
+	if err := reader.IngestPolled(context.Background(), record); !errors.Is(err, ErrSharedClockEpoch) {
+		t.Fatalf("polled record on the reader's epoch: %v", err)
+	}
+	if p, _ := reader.Payload(SlotProvisionalReadback); p.Present {
+		t.Fatalf("a refused record was retained: %+v", p)
+	}
+	if _, ok := reader.View().Fact(ElementAllocatedCurrent); ok {
+		t.Fatal("a refused record changed the published state")
+	}
+	for _, batch := range session.committed() {
+		for _, f := range batch.FactUpserts {
+			if string(f.Key.FactID) == ElementAllocatedCurrent {
+				t.Fatalf("a refused record published %s", f.Key.FactID)
+			}
+		}
 	}
 }
 

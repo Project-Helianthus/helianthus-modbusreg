@@ -18,6 +18,11 @@ import (
 var (
 	ErrChargerNotStarted = errors.New("charger reader is not started")
 	ErrChargerFenced     = errors.New("charger reader is stopped or fenced")
+	// ErrSharedClockEpoch reports a record whose receipt carries the reader's
+	// own clock epoch. The reader's monotonic axis starts when it is built and
+	// an endpoint's receipts start at its own origin, so one label for both
+	// would make two origins comparable; the record is not taken.
+	ErrSharedClockEpoch = errors.New("charger reader clock epoch is also the epoch of a receipt")
 )
 
 type publishedFact struct {
@@ -275,6 +280,10 @@ func receiptOf(record tesla.Gen3ReadRecord) Receipt {
 		Lifecycle: record.LifecycleEpoch, Instance: record.EndpointInstance, Generation: record.Generation, RequestID: record.RequestID}
 }
 
+func (r *ChargerReader) sharesClockEpoch(record tesla.Gen3ReadRecord) bool {
+	return record.ClockEpoch != "" && record.ClockEpoch == string(r.pub.ClockEpoch)
+}
+
 func (r *ChargerReader) correlated(record tesla.Gen3ReadRecord, operation tesla.FC100Operation) bool {
 	return record.State == tesla.Gen3ReadEvidenceAck && record.Operation == operation &&
 		record.Endpoint == r.cfg.Endpoint && record.Node == r.cfg.Node && record.RequestID != 0
@@ -301,6 +310,9 @@ func (r *ChargerReader) IngestPolled(ctx context.Context, record tesla.Gen3ReadR
 	if err := r.ready(ctx); err != nil {
 		return err
 	}
+	if r.sharesClockEpoch(record) {
+		return ErrSharedClockEpoch
+	}
 	r.retainObservation(record)
 	if !r.provisional(record, nil) && !r.ingestVitals(record) {
 		return nil
@@ -316,6 +328,9 @@ func (r *ChargerReader) IngestPersistent(ctx context.Context, result tesla.Persi
 		return err
 	}
 	receipt := result.Receipt
+	if r.sharesClockEpoch(receipt) {
+		return ErrSharedClockEpoch
+	}
 	if result.Duplicate || result.NoSend || !result.Current || !result.HasReturnedCurrent || result.ReturnedMaxOutputCurrentAmps < 0 ||
 		result.Outcome != tesla.Gen3ReadEvidenceAck || !r.correlated(receipt, tesla.FC100OperationWCConfigureSettings) {
 		return nil
@@ -334,6 +349,9 @@ func (r *ChargerReader) IngestPersistent(ctx context.Context, result tesla.Persi
 func (r *ChargerReader) IngestSetResult(ctx context.Context, result tesla.ProvisionalCurrentLimitResult) error {
 	if err := r.ready(ctx); err != nil {
 		return err
+	}
+	if r.sharesClockEpoch(result.Prerequisite) || r.sharesClockEpoch(result.Set) || r.sharesClockEpoch(result.Readback) {
+		return ErrSharedClockEpoch
 	}
 	changed := r.provisional(result.Prerequisite, nil)
 	r.retainSet(result.Set)

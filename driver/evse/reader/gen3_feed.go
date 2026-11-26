@@ -343,8 +343,7 @@ func (f *Feed) View(at At) View {
 		switch {
 		case !f.alloc.known:
 			v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonZeroCurrent, RoleConnector, f.alloc.receipt})
-		case f.alloc.life.set &&
-			at.elapsedSince(f.alloc.life.anchor) >= time.Duration(f.alloc.life.timeout)*time.Second:
+		case f.allocationExpired(at):
 			v.Dispositions = append(v.Dispositions, Disposition{ElementAllocatedCurrent, ReasonProvisionalExpired, RoleConnector, f.alloc.receipt})
 		default:
 			v.Facts = append(v.Facts, Fact{Element: ElementAllocatedCurrent, Role: RoleConnector, Amps: f.alloc.value, Receipt: f.alloc.receipt})
@@ -360,6 +359,21 @@ func (f *Feed) View(at At) View {
 		v.Facts = append(v.Facts, Fact{Element: ElementSupply, Role: RoleEVSE, Symbol: SymbolSupplyDisabled, Receipt: f.supplyRec})
 	}
 	return v
+}
+
+// allocationExpired reports whether the lifetime bounding the held allocation
+// has ended at the instant. The allocation is bounded by the lifetime its own
+// readback carried and by the lifetime of a later readback, which bounds the
+// allocation in force; the lifetime of an earlier readback bounds nothing, so
+// the expiry fact published beside an available allocation is never past.
+func (f *Feed) allocationExpired(at At) bool {
+	ended := func(e expiry) bool {
+		return e.set && at.elapsedSince(e.anchor) >= time.Duration(e.timeout)*time.Second
+	}
+	if ended(f.alloc.life) {
+		return true
+	}
+	return f.exp.set && f.exp.source.After(f.alloc.source) && ended(f.exp)
 }
 
 // configured picks the later receipt between t8 and a t28 that carries the
