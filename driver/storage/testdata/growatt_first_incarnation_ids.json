@@ -1,0 +1,70 @@
+{
+ "synthetic": true,
+ "note": "identifiers of the first incarnation recorded for one configured asset, source and profile",
+ "asset": "asset:growatt-bms-a",
+ "source": "growatt-bms-a",
+ "epoch": "source-epoch-1",
+ "generation": 1,
+ "binding": "binding:semantic-storage:04a8bb2b4c91c682072f865033c62669",
+ "service": "service:semantic-storage:a26997ed2bbdde6a4285189518c4440d",
+ "pack_dimension_text": "asset:growatt-bms-a",
+ "candidates": {
+  "storage.capacity.charge": "candidate:semantic-storage:85fbd5827f90be01056e2eb51565f877",
+  "storage.capacity.discharge": "candidate:semantic-storage:7b67658f100cfe4ae5a40123d25d850e",
+  "storage.pack.current": "candidate:semantic-storage:77b1720113ad333d63dbae036d6172b9",
+  "storage.pack.voltage": "candidate:semantic-storage:b3ce27f740bbff93b542287a929968b5",
+  "storage.state.soc": "candidate:semantic-storage:e0560792eb3bacd5fbe01031cc0f30bf",
+  "storage.status.operating": "candidate:semantic-storage:c90fc08a0da238c11b3c47a30e60d2b5",
+  "storage.temperature.pack": "candidate:semantic-storage:986339947bd2088bf9922e0b8c0c6ce7"
+ },
+ "recorded_values": {
+  "storage.capacity.charge": {
+   "coefficient": "5",
+   "exponent10": -1,
+   "unit": "unit.ampere_hour"
+  },
+  "storage.capacity.discharge": {
+   "coefficient": "6",
+   "exponent10": -1,
+   "unit": "unit.ampere_hour"
+  },
+  "storage.pack.current": {
+   "coefficient": "-1",
+   "exponent10": 0,
+   "unit": "unit.ampere"
+  },
+  "storage.pack.voltage": {
+   "coefficient": "52",
+   "exponent10": 0,
+   "unit": "unit.volt"
+  },
+  "storage.state.soc": {
+   "coefficient": "75",
+   "exponent10": 0,
+   "unit": "unit.percent"
+  },
+  "storage.temperature.pack": {
+   "coefficient": "25",
+   "exponent10": 0,
+   "unit": "unit.celsius"
+  }
+ },
+ "repaired_values": {
+  "storage.state.soc": {
+   "coefficient": "75",
+   "exponent10": -2,
+   "unit": "unit.ratio"
+  },
+  "storage.temperature.pack": {
+   "coefficient": "29815",
+   "exponent10": -2,
+   "unit": "unit.kelvin"
+  }
+ },
+ "freshness_policy": {
+  "policy_id": "policy:gateway-storage-native-receipt",
+  "version": "1.0.0",
+  "fresh_for_ns": "60000000000",
+  "retain_for_ns": "300000000000"
+ }
+}
