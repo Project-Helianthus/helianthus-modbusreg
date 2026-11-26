@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Project-Helianthus/helianthus-modbusreg/huawei"
 	semreg "github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1/driver"
 )
@@ -35,8 +34,9 @@ func (r *recordingRegistry) Method(driver.NodeRef, driver.MethodSpec, driver.Nat
 func TestNamespaceServesRetainedObservationsWithoutARequest(t *testing.T) {
 	cfg := dongleConfig(7)
 	p := testPublisher(t, cfg)
-	cycle := func(w int64) []HuaweiCycle {
-		return []HuaweiCycle{{Path: PathSDongle, Cycle: huawei.ProviderCycle{Meter: []huawei.ProviderMeterGroup{dongleMeter(7, w, 980)}}}}
+	g := newSDongleRig(t, 7)
+	cycle := func(w int32) []HuaweiCycle {
+		return []HuaweiCycle{{Path: PathSDongle, Cycle: sdongleCycle(t, g, w, 0)}}
 	}
 	first, err := p.Publish(Input{Template: template(), Huawei: cycle(500)})
 	if err != nil {
@@ -47,7 +47,15 @@ func TestNamespaceServesRetainedObservationsWithoutARequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	read := reg.readers["active_power"]
-	if read == nil || len(reg.nodes) != 1 || reg.nodes[0].Local != "dongle-meter" {
+	// The provider's own cycle also carries the plant groups of the gateway unit, so the
+	// grid point's node is registered beside the meter.
+	var meterNodes int
+	for _, n := range reg.nodes {
+		if n.Local == "dongle-meter" {
+			meterNodes++
+		}
+	}
+	if read == nil || len(reg.nodes) != 2 || meterNodes != 1 {
 		t.Fatalf("registered %+v %v", reg.nodes, reg.readers)
 	}
 	var n Native

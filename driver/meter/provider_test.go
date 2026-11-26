@@ -22,10 +22,11 @@ type image struct {
 	clock   *time.Time
 	closes  int
 	exclude map[string]bool
+	idRefs  map[string]uint8
 }
 
 func newImage() *image {
-	return &image{words: map[string][]uint16{}, pages: map[string]*huawei.IdentificationPage{}}
+	return &image{words: map[string][]uint16{}, pages: map[string]*huawei.IdentificationPage{}, exclude: map[string]bool{}}
 }
 
 func addr(unit uint8, offset, quantity uint16) string {
@@ -55,7 +56,10 @@ func (m *image) ReadDeviceIdentification(_ context.Context, unit byte, r huawei.
 	key := fmt.Sprintf("%d/2b/%d/%d", unit, r.ReadDeviceIDCode, r.ObjectID)
 	m.asked = append(m.asked, key)
 	*m.clock = m.clock.Add(20 * time.Millisecond)
-	if p, ok := m.pages[key]; ok {
+	if code, ok := m.idRefs[key]; ok {
+		return huawei.IdentificationPage{}, &modbus.ProtocolError{Kind: modbus.ErrorExceptionResponse, RequestedFunction: 0x2b, ReceivedFunction: 0xab, ExceptionCode: code, Offset: -1}
+	}
+	if p, ok := m.pages[key]; ok && !m.exclude[key] {
 		return *p, nil
 	}
 	return huawei.IdentificationPage{}, errors.New("no page")
