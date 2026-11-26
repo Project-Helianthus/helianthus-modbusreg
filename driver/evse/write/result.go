@@ -66,9 +66,9 @@ type Result struct {
 	PublicationErr error
 }
 
-// T25Sent reports that a t25 request was encoded and possibly transmitted. A
+// LimitRequestSent reports that a t25 request was encoded and possibly transmitted. A
 // native exchange that failed in its prerequisite t27 read encoded no t25.
-func (r Result) T25Sent() bool { return r.HasSent && r.Native.PossiblyTransmitted }
+func (r Result) LimitRequestSent() bool { return r.HasSent && r.Native.PossiblyTransmitted }
 
 func refused(reason string) Result { return Result{Level: LevelFailedNoContact, Reason: reason} }
 

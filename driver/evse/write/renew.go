@@ -14,7 +14,7 @@ type renewal struct{ stop chan struct{} }
 // lock.
 func (w *Writer) held(guard operation.GuardClaims, request tesla.ProvisionalCurrentLimitRequest, r Result) Result {
 	switch {
-	case !r.T25Sent():
+	case !r.LimitRequestSent():
 	case r.Matches:
 		w.disarm()
 		w.renewal = &renewal{stop: make(chan struct{})}
@@ -69,7 +69,7 @@ func (w *Writer) renewOnce(r *renewal, guard operation.GuardClaims, request tesl
 	}
 	result := w.send(w.runCtx, guard, request, 0, Result{}, false)
 	switch {
-	case !result.T25Sent():
+	case !result.LimitRequestSent():
 		// Nothing was handed to the peer, for example a read held the
 		// reservation: the limit is as it was and the next tick sends again.
 		return true

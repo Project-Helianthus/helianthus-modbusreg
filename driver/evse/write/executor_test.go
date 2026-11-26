@@ -103,7 +103,7 @@ func TestExecutorOutcomesOfAMismatchAndOfMissingEvidence(t *testing.T) {
 
 // A pause whose prerequisite t27 times out encoded no t25: the completion
 // carries no t25 request evidence and no t25 delivery state.
-func TestAPauseWhoseConfiguredCurrentReadTimesOutEncodedNoT25(t *testing.T) {
+func TestAPauseWhoseConfiguredCurrentReadTimesOutEncodedNoLimitRequest(t *testing.T) {
 	r := newRig(t)
 	r.ep.push(step{timeout: true})
 	c := r.execute(quantityArg(amperes("0", 0)))
