@@ -1,0 +1,237 @@
+{
+ "contract": "helianthus.modbus.pv-replay/v1",
+ "note": "Recorded facts of the earlier publisher for the three-phase float chain, reduced to element, unit and value. Identifiers are not kept: the host's allocator names the subjects.",
+ "recorded": {
+  "first_publication": [
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.inverter",
+    "element": "pv.ac.aggregate_active_power",
+    "exponent": 0,
+    "unit": "unit.watt"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.inverter",
+    "element": "pv.ac.frequency",
+    "exponent": 0,
+    "unit": "unit.hertz"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.inverter",
+    "element": "pv.temperature.inverter",
+    "exponent": 0,
+    "unit": "unit.celsius"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.current",
+    "exponent": 0,
+    "unit": "unit.ampere"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.current",
+    "exponent": 0,
+    "unit": "unit.ampere"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.current",
+    "exponent": 0,
+    "unit": "unit.ampere"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.voltage",
+    "exponent": 0,
+    "unit": "unit.volt"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.voltage",
+    "exponent": 0,
+    "unit": "unit.volt"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.voltage",
+    "exponent": 0,
+    "unit": "unit.volt"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.system",
+    "element": "pv.energy.generated",
+    "exponent": 0,
+    "unit": "unit.kilowatt_hour"
+   },
+   {
+    "dimension": "pv.dimension.inverter",
+    "element": "pv.status.operating",
+    "token": "generating"
+   }
+  ],
+  "refresh": [
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.inverter",
+    "element": "pv.ac.frequency",
+    "exponent": 0,
+    "unit": "unit.hertz"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.inverter",
+    "element": "pv.temperature.inverter",
+    "exponent": 0,
+    "unit": "unit.celsius"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.current",
+    "exponent": 0,
+    "unit": "unit.ampere"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.current",
+    "exponent": 0,
+    "unit": "unit.ampere"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.current",
+    "exponent": 0,
+    "unit": "unit.ampere"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.voltage",
+    "exponent": 0,
+    "unit": "unit.volt"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.voltage",
+    "exponent": 0,
+    "unit": "unit.volt"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.voltage",
+    "exponent": 0,
+    "unit": "unit.volt"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.system",
+    "element": "pv.energy.generated",
+    "exponent": 0,
+    "unit": "unit.kilowatt_hour"
+   },
+   {
+    "coefficient": "43215",
+    "dimension": "pv.dimension.inverter",
+    "element": "pv.ac.aggregate_active_power",
+    "exponent": -1,
+    "unit": "unit.watt"
+   },
+   {
+    "dimension": "pv.dimension.inverter",
+    "element": "pv.status.operating",
+    "token": "generating"
+   }
+  ],
+  "replacement": [
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.inverter",
+    "element": "pv.ac.aggregate_active_power",
+    "exponent": 0,
+    "unit": "unit.watt"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.inverter",
+    "element": "pv.ac.frequency",
+    "exponent": 0,
+    "unit": "unit.hertz"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.inverter",
+    "element": "pv.temperature.inverter",
+    "exponent": 0,
+    "unit": "unit.celsius"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.current",
+    "exponent": 0,
+    "unit": "unit.ampere"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.current",
+    "exponent": 0,
+    "unit": "unit.ampere"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.current",
+    "exponent": 0,
+    "unit": "unit.ampere"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.voltage",
+    "exponent": 0,
+    "unit": "unit.volt"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.voltage",
+    "exponent": 0,
+    "unit": "unit.volt"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.phase",
+    "element": "pv.ac.voltage",
+    "exponent": 0,
+    "unit": "unit.volt"
+   },
+   {
+    "coefficient": "0",
+    "dimension": "pv.dimension.system",
+    "element": "pv.energy.generated",
+    "exponent": 0,
+    "unit": "unit.kilowatt_hour"
+   },
+   {
+    "dimension": "pv.dimension.inverter",
+    "element": "pv.status.operating",
+    "token": "generating"
+   }
+  ]
+ }
+}
