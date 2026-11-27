@@ -139,18 +139,19 @@ func TestTheRowsOfTheTypedReadings(t *testing.T) {
 	if _, ok := pub.find("pv.ac.current", phase("L2")); ok {
 		t.Fatal("a missing reading was published")
 	}
-	// the DC-input energy counter has no element in the pinned pack: it is
-	// retained natively, listed, and never moved onto another element
-	pub.absent(t, "pv.dc.aggregate_energy")
-	retained, listed := false, false
+	// the DC-input energy counter publishes on its inverter in joule (kWh x 3 600 000)
+	// and the native kWh observation stays in the namespace
+	requireQuantity(t, pub, "pv.dc.aggregate_energy", inv, "unit.joule", "3555540000")
+	counter, ok := pub.find("pv.dc.aggregate_energy", inv)
+	if !ok || counter.Candidate.Key.Dimensions[0].ID != "pv.dimension.inverter" || counter.Native.Unit != "kWh" {
+		t.Fatalf("counter fact %+v", counter)
+	}
+	retained := false
 	for _, mem := range pub.Members {
 		retained = retained || (mem.Point.Field == m+"energy_dc_input" && mem.Point.Unit == "kWh" && mem.Point.Value == "987.65")
 	}
-	for _, w := range pub.Withheld {
-		listed = listed || w.Reason == reasonNoDCInputEnergy
-	}
-	if !retained || !listed {
-		t.Fatalf("counter retained=%v listed=%v", retained, listed)
+	if !retained {
+		t.Fatal("the native counter is not retained")
 	}
 }
 
@@ -226,14 +227,36 @@ func TestPlantEnergyAndYieldOnThePVSystem(t *testing.T) {
 			t.Fatalf("plant energy on %v", f.Candidate.Key.Dimensions)
 		}
 	}
-	// plant AC and DC power: no element in the pinned pack, so never an inverter's element
+	// plant AC power publishes on the PV system (kW x 1000, sign kept), never on an
+	// inverter's element; the plant DC power has no system element and stays native
 	pub.absent(t, "pv.ac.aggregate_active_power")
 	pub.absent(t, "pv.dc.aggregate_power")
+	ac := pub.factsOf("pv.system.active_power")
+	if len(ac) != 2 {
+		t.Fatalf("plant ac facts %d", len(ac))
+	}
+	got := map[string]bool{}
+	for _, f := range ac {
+		if d := f.Candidate.Key.Dimensions[0]; d.ID != "pv.dimension.system" || *d.Value.Text != system {
+			t.Fatalf("plant ac on %v", f.Candidate.Key.Dimensions)
+		}
+		q := f.Candidate.Value.Quantity
+		n, err := ratOf(q.Number)
+		if err != nil || q.Unit != "unit.watt" {
+			t.Fatalf("plant ac value %+v", q)
+		}
+		got[n.RatString()] = true
+		requireInPack(t, f)
+	}
+	// logger 7.5 kW and EMMA 5.9 kW
+	if !got["7500"] || !got["5900"] {
+		t.Fatalf("plant ac values %v", got)
+	}
 	gaps := map[string]int{}
 	for _, w := range pub.Withheld {
 		gaps[w.Reason]++
 	}
-	if gaps[reasonNoPlantACPower] != 2 || gaps[reasonNoPlantDCPower] != 2 {
+	if gaps[reasonNoPlantDCPower] != 2 {
 		t.Fatalf("gaps %v", gaps)
 	}
 	// the S-Dongle path supplies neither plant energy nor daily yield: nothing is declared

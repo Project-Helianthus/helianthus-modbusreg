@@ -209,6 +209,7 @@ func buildHuaweiRows() map[string]row {
 		"power_factor":         {pvEl("pv.ac.power_factor", dimInverter, unitRatio), onInverter, "", "", asIs},
 		"frequency":            {pvEl("pv.ac.frequency", dimInverter, unitHertz), onInverter, "", "Hz", asIs},
 		"internal_temperature": {pvEl("pv.temperature.inverter", dimInverter, unitKelvin), onInverter, "", "℃", celsiusToKelvin},
+		"energy_dc_input":      {pvEl("pv.dc.aggregate_energy", dimInverter, unitJoule), onInverter, "", "kWh", by(kwhToJoule)},
 		"energy_accumulated":   {pvEl("pv.energy.generated", dimSystem, unitJoule), onSystem, "", "kWh", by(kwhToJoule)},
 		"energy_current_day":   {pvEl("pv.energy.yield_day", dimSystem, unitJoule), onSystem, "", "kWh", by(kwhToJoule)},
 		"energy_current_month": {pvEl("pv.energy.yield_month", dimSystem, unitJoule), onSystem, "", "kWh", by(kwhToJoule)},
@@ -227,10 +228,10 @@ func buildHuaweiRows() map[string]row {
 }
 
 // Plant values of the dongle-family paths. The pinned PV pack declares no
-// element for the plant AC power, the plant DC power or the DC-input energy
-// counter, so these are published in the driver namespace only.
+// system-scoped element for the plant DC power, so that value is published in
+// the driver namespace only.
 const (
 	plantTotalEnergy = "plant_total_energy"
 	plantDailyEnergy = "plant_daily_energy"
-	counterDCInput   = "energy_dc_input"
+	plantACKey       = "plant_ac_power"
 )

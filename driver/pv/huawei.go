@@ -12,15 +12,13 @@ import (
 )
 
 const (
-	offsetEMMAYieldDay    = 30346
-	offsetEMMAYieldTotal  = 30348
-	offsetEMMAPVPower     = 30354
-	offsetEMMAInverterAC  = 30364
-	reasonNoPlantACPower  = "no_pv_system_active_power_definition_in_pinned_pack"
-	reasonNoPlantDCPower  = "no_pv_system_dc_power_definition_in_pinned_pack"
-	reasonNoDCInputEnergy = "no_pv_dc_aggregate_energy_definition_in_pinned_pack"
-	reasonLoggerSlot      = "logger_link_node_slot_not_planned"
-	reasonNoCompanion     = "no_battery_or_meter_resource_current_in_the_cut"
+	offsetEMMAYieldDay   = 30346
+	offsetEMMAYieldTotal = 30348
+	offsetEMMAPVPower    = 30354
+	offsetEMMAInverterAC = 30364
+	reasonNoPlantDCPower = "no_pv_system_dc_power_definition_in_pinned_pack"
+	reasonLoggerSlot     = "logger_link_node_slot_not_planned"
+	reasonNoCompanion    = "no_battery_or_meter_resource_current_in_the_cut"
 )
 
 func normalUnit(u string) string {
@@ -194,9 +192,6 @@ func (r *run) reading(slot string, f hw.SUN2000Fact, system, inv driver.NodeRef,
 	switch name {
 	case "status":
 		return r.status(slot, f, inv, src)
-	case counterDCInput:
-		r.withheld(path, reasonNoDCInputEnergy)
-		return nil
 	}
 	rw, ok := huaweiRows[name]
 	if !ok {
@@ -306,10 +301,10 @@ func plantValues(c hw.ProviderCycle) ([]plantValue, error) {
 	return values, nil
 }
 
-// plant publishes the plant values of a path: the plant energy and the plant
-// daily yield on the PV system. The plant AC and DC power have no element in the
-// pinned pack and are published in the namespace only. A value the path does not
-// supply is declared nowhere.
+// plant publishes the plant values of a path on the PV system: the plant energy,
+// the plant daily yield and the plant AC power (sign kept). The plant DC power
+// has no system-scoped element in the pinned pack and is published in the
+// namespace only. A value the path does not supply is declared nowhere.
 func (r *run) plant(c hw.ProviderCycle) error {
 	values, err := plantValues(c)
 	if err != nil {
@@ -317,7 +312,7 @@ func (r *run) plant(c hw.ProviderCycle) error {
 	}
 	var system *driver.NodeRef
 	for _, v := range values {
-		kind, el := plantElement(c.Path, v.key, v.offset)
+		kind, rw := plantElement(c.Path, v.key, v.offset)
 		if kind == plantOther {
 			continue
 		}
@@ -325,12 +320,10 @@ func (r *run) plant(c hw.ProviderCycle) error {
 		path := joinPath(string(c.Path), "plant", strconv.Itoa(v.offset))
 		r.member(slot, "plant."+v.key, Point{Name: "plant." + v.key, Field: v.key, Unit: v.unit, Value: plain(v.native.Coefficient, int(v.native.Exponent10)), Validity: string(hw.FactValue), Retained: v.retained})
 		switch kind {
-		case plantAC:
-			r.withheld(path, reasonNoPlantACPower)
 		case plantDC:
 			r.withheld(path, reasonNoPlantDCPower)
-		case plantEnergy:
-			if v.unit != "kWh" {
+		case plantEnergy, plantACPower:
+			if v.unit != rw.native {
 				r.withheld(path, reasonUnit)
 				continue
 			}
@@ -341,7 +334,6 @@ func (r *run) plant(c hw.ProviderCycle) error {
 				}
 				system = &n
 			}
-			rw := row{el: el, scope: onSystem, native: "kWh", convert: by(kwhToJoule)}
 			if err := r.publish(*system, rw, string(system.ID), v.rat, source{path: path, native: Native{Source: v.key, Unit: v.unit, Value: v.native}, retained: v.retained}); err != nil {
 				return err
 			}
@@ -358,22 +350,22 @@ type plantKind int
 const (
 	plantOther plantKind = iota
 	plantEnergy
-	plantAC
+	plantACPower
 	plantDC
 )
 
 // plantElement classifies a plant value of a gateway path by its documented key
 // or register offset.
-func plantElement(path hw.ProviderPath, key string, offset int) (plantKind, element) {
+func plantElement(path hw.ProviderPath, key string, offset int) (plantKind, row) {
 	switch {
 	case key == plantTotalEnergy || offset == offsetEMMAYieldTotal:
-		return plantEnergy, pvEl("pv.energy.generated", dimSystem, unitJoule)
+		return plantEnergy, row{el: pvEl("pv.energy.generated", dimSystem, unitJoule), scope: onSystem, native: "kWh", convert: by(kwhToJoule)}
 	case key == plantDailyEnergy || offset == offsetEMMAYieldDay:
-		return plantEnergy, pvEl("pv.energy.yield_day", dimSystem, unitJoule)
-	case key == "plant_ac_power" || offset == offsetEMMAInverterAC:
-		return plantAC, element{}
+		return plantEnergy, row{el: pvEl("pv.energy.yield_day", dimSystem, unitJoule), scope: onSystem, native: "kWh", convert: by(kwhToJoule)}
+	case key == plantACKey || offset == offsetEMMAInverterAC:
+		return plantACPower, row{el: pvEl("pv.system.active_power", dimSystem, unitWatt), scope: onSystem, native: "kW", convert: by(kiloToBase)}
 	case key == "plant_dc_input_power" || offset == offsetEMMAPVPower:
-		return plantDC, element{}
+		return plantDC, row{}
 	}
-	return plantOther, element{}
+	return plantOther, row{}
 }
