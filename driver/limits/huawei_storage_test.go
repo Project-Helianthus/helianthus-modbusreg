@@ -178,10 +178,13 @@ func TestDongleStorageLimitDispatch(t *testing.T) {
 				image := &scriptImage{mode: tc.mode}
 				family := newFamily(image)
 				openFamily(t, family)
-				if tc.hold || tc.prior || tc.retire {
+				if tc.hold || tc.prior {
 					family.mu.Lock()
-					family.hold, family.prior, family.retired = tc.hold, tc.prior, tc.retire
+					family.hold, family.prior = tc.hold, tc.prior
 					family.mu.Unlock()
+				}
+				if tc.retire {
+					family.FenceWithdrawal()
 				}
 				result := invoke(t, family, op.id, tc.mutate)
 				if result.KernelOutcome != tc.want {
@@ -422,6 +425,195 @@ func strconvItoa(v int32) string {
 		buf[i] = '-'
 	}
 	return string(buf[i:])
+}
+
+func TestCopiedGuardDoesNotAuthorizeTheSessionGeneration(t *testing.T) {
+	image := &scriptImage{}
+	family := newFamily(image)
+	openFamily(t, family)
+	for _, op := range operations() {
+		dispatch, exec := dispatchAsAdmitted(t, family, op)
+		dispatch.Guard.DriverGeneration = "99"
+		dispatch.Route.DriverGeneration = dispatch.Guard.DriverGeneration
+		assertNotSent(t, image, exec, dispatch)
+	}
+}
+
+func TestRetirementWhileRunningSendsNothing(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		retireEpoch bool
+		fence       bool
+	}{
+		{name: "source-epoch", retireEpoch: true},
+		{name: "generation", fence: true},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			image := &scriptImage{}
+			family := newFamily(image)
+			openFamily(t, family)
+			publishRetirement(t, family, tc.retireEpoch, tc.fence)
+			for _, op := range operations() {
+				dispatch, exec := dispatchAsAdmitted(t, family, op)
+				assertNotSent(t, image, exec, dispatch)
+			}
+		})
+	}
+}
+
+func TestStopDoesNotConfirmAnInFlightWrite(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(unblock)
+	image := &blockingImage{scriptImage: &scriptImage{}, entered: entered, release: release}
+	family := &Family{
+		Card: "MA-V200", Unit: 1, Path: "S-Dongle",
+		ChargeConstraint: "2500", DischargeConstraint: "1800", Image: image,
+	}
+	openFamily(t, family)
+	ctx := context.Background()
+	cut, err := family.session.SemanticInput().Capture(ctx, driver.Filter{})
+	if err != nil || len(cut.Snapshots) == 0 {
+		t.Fatalf("capture %v", err)
+	}
+	req := requestFor(t, cut, huawei.OpSetChargeLimit)
+	resultCh := make(chan driver.OperationResult, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		result, err := family.session.ScopedOperations().Invoke(context.Background(), req)
+		errCh <- err
+		resultCh <- result
+	}()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the native write did not start")
+	}
+	stopCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	report := family.Stop(stopCtx)
+	if report.Confirmed || report.Err == nil {
+		t.Fatalf("close confirmed=%v err=%v", report.Confirmed, report.Err)
+	}
+	unblock()
+	if err := <-errCh; err != nil {
+		t.Fatal(err)
+	}
+	result := <-resultCh
+	if result.KernelOutcome != operation.OutcomeApplied || result.Delivery != operation.DeliverySent {
+		t.Fatalf("in-flight outcome %s delivery %s", result.KernelOutcome, result.Delivery)
+	}
+	image.mu.Lock()
+	writes := len(image.writes)
+	image.mu.Unlock()
+	if writes != 1 {
+		t.Fatalf("writes %d", writes)
+	}
+	drained, drainCancel := context.WithTimeout(context.Background(), time.Second)
+	defer drainCancel()
+	report = family.Stop(drained)
+	if !report.Confirmed || report.Err != nil {
+		t.Fatalf("drain confirmed=%v err=%v", report.Confirmed, report.Err)
+	}
+}
+
+type blockingImage struct {
+	*scriptImage
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (b *blockingImage) Write(ctx context.Context, write huawei.ControlWrite, words []uint16) ([]uint16, error) {
+	b.once.Do(func() { close(b.entered) })
+	select {
+	case <-b.release:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return b.scriptImage.Write(ctx, write, words)
+}
+
+func dispatchAsAdmitted(t *testing.T, family *Family, op operationSpec) (driver.Dispatch, *storageExecutor) {
+	t.Helper()
+	exec := executorFor(t, family, op.id)
+	guard := operation.GuardClaims{
+		AssetID: exec.owner.asset, CapabilityInstance: exec.owner.capability, ServiceInstance: exec.owner.service,
+		BindingID: exec.owner.binding, SourceID: exec.owner.source, SourceEpochID: exec.owner.epoch,
+		DriverGeneration: exec.owner.generation,
+	}
+	return driver.Dispatch{
+		Request: driver.OperationRequest{Arguments: []semreg.TypedField{{
+			ID: semreg.DefinitionID(argumentID(op.id)),
+			Value: semreg.Value{Kind: semreg.ValueQuantity, Quantity: &semreg.Quantity{
+				Number: semreg.Decimal{Coefficient: op.limit}, Unit: unitWatt,
+			}},
+		}}},
+		Route: operation.Route{
+			CapabilityInstance: guard.CapabilityInstance, ServiceInstance: guard.ServiceInstance,
+			BindingID: guard.BindingID, SourceID: guard.SourceID, SourceEpochID: guard.SourceEpochID,
+			DriverGeneration: guard.DriverGeneration,
+		},
+		Guard:      guard,
+		AdmittedAt: timePoint(time.Unix(1, 0).UTC()),
+	}, exec
+}
+
+func executorFor(t *testing.T, family *Family, operationID string) *storageExecutor {
+	t.Helper()
+	for _, exec := range family.execs {
+		if exec.row.Operation == operationID {
+			return exec
+		}
+	}
+	t.Fatalf("no executor %s", operationID)
+	return nil
+}
+
+func assertNotSent(t *testing.T, image *scriptImage, exec *storageExecutor, dispatch driver.Dispatch) {
+	t.Helper()
+	done, err := exec.Execute(context.Background(), dispatch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done.Outcome != operation.OutcomeFailedNoContact || done.Dispatch == nil || done.Dispatch.Delivery != operation.DeliveryNotSent || done.Dispatch.PossibleSideEffect {
+		t.Fatalf("outcome %s dispatch %#v", done.Outcome, done.Dispatch)
+	}
+	image.mu.Lock()
+	defer image.mu.Unlock()
+	if len(image.writes) != 0 || image.bytes != 0 {
+		t.Fatalf("writes %d bytes %d", len(image.writes), image.bytes)
+	}
+}
+
+func publishRetirement(t *testing.T, family *Family, retireEpoch, fence bool) {
+	t.Helper()
+	exec := family.execs[0]
+	ctx := context.Background()
+	tx, err := family.session.Publisher().Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch := semreg.PublicationBatch{}
+	if retireEpoch {
+		batch.SourceRetirements = []semreg.SourceEpochID{exec.owner.epoch}
+	}
+	if fence {
+		batch.GenerationFences = []semreg.GenerationFence{{
+			SourceID: exec.owner.source, SourceEpochID: exec.owner.epoch, DriverGeneration: exec.owner.generation,
+			Reason: "lifecycle.driver_replaced", Evidence: []semreg.EvidenceRef{evidence("evidence.lifecycle", "generation-retired")},
+			Revision: "1",
+		}}
+	}
+	if err := tx.Stage(batch); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestUnboundCardsPublishNoRoute(t *testing.T) {

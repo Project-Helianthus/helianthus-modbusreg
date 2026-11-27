@@ -58,13 +58,16 @@ type Family struct {
 	Image               RegisterImage
 
 	mu         sync.Mutex
+	idle       sync.Cond
 	session    driver.Session
 	running    bool
-	retired    bool
+	fenced     atomic.Bool
+	inflight   int
 	hold       bool
 	prior      bool
 	startErr   error
 	unregister []func()
+	execs      []*storageExecutor
 	seq        atomic.Uint64
 }
 
@@ -72,6 +75,19 @@ type storageExecutor struct {
 	family *Family
 	row    huawei.StorageRow
 	route  driver.SettingRoute
+	owner  generationOwner
+}
+
+// generationOwner is the session generation recorded when the family started.
+// A later guard is compared with this, not with the route carried on the same dispatch.
+type generationOwner struct {
+	asset      semreg.AssetID
+	source     semreg.SourceID
+	epoch      semreg.SourceEpochID
+	generation semreg.Uint64
+	binding    semreg.NativeBindingID
+	service    semreg.ServiceInstanceID
+	capability semreg.CapabilityInstanceID
 }
 
 // Start publishes the bound operations and registers their executors.
@@ -81,10 +97,15 @@ func (f *Family) Start(ctx context.Context, session driver.Session) (err error) 
 		return errors.New("limits: a context and a session are required")
 	}
 	f.mu.Lock()
+	if f.idle.L == nil {
+		f.idle.L = &f.mu
+	}
 	if f.running {
 		f.mu.Unlock()
 		return errors.New("limits: the family is already running")
 	}
+	// A start is a new run. The fence belongs to the run that Stop ended.
+	f.fenced.Store(false)
 	f.session = session
 	f.running = true
 	f.mu.Unlock()
@@ -130,23 +151,92 @@ func (f *Family) Start(ctx context.Context, session driver.Session) (err error) 
 		f.unregister = append(f.unregister, unregister)
 		f.mu.Unlock()
 	}
-	return f.commit(ctx, f.batch(capabilities), routes)
+	if err := f.commit(ctx, f.batch(capabilities), routes); err != nil {
+		return err
+	}
+	return f.bindOwners(ctx, executors)
 }
 
-// FenceWithdrawal marks the family stopped. Stop removes the executors.
-func (f *Family) FenceWithdrawal() {}
+// FenceWithdrawal ends later sends without blocking and without calling the supervisor.
+func (f *Family) FenceWithdrawal() {
+	f.fenced.Store(true)
+}
 
-// Stop removes the executors registered for this run.
-func (f *Family) Stop(context.Context) driver.CloseReport {
-	f.mu.Lock()
-	f.running = false
-	unreg := f.unregister
-	f.unregister = nil
-	f.mu.Unlock()
-	for _, unregister := range unreg {
-		unregister()
+// Stop fences later sends, drops the executors, and waits until a send that
+// already passed the gate has returned. A cancelled context leaves the close unconfirmed.
+func (f *Family) Stop(ctx context.Context) driver.CloseReport {
+	f.FenceWithdrawal()
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	return driver.CloseReport{Confirmed: true}
+	done := make(chan struct{})
+	go func() {
+		f.mu.Lock()
+		f.running = false
+		unreg := f.unregister
+		f.unregister = nil
+		for f.inflight > 0 {
+			f.idle.Wait()
+		}
+		f.mu.Unlock()
+		for _, unregister := range unreg {
+			unregister()
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+		return driver.CloseReport{Confirmed: true}
+	case <-ctx.Done():
+		return driver.CloseReport{Err: ctx.Err()}
+	}
+}
+
+// bindOwners records the session generation the guard must still name.
+func (f *Family) bindOwners(ctx context.Context, execs []*storageExecutor) error {
+	if len(execs) == 0 {
+		return nil
+	}
+	stamp, err := f.session.Prepare(nil)
+	if err != nil {
+		return err
+	}
+	cut, err := f.session.SemanticInput().Capture(ctx, driver.Filter{})
+	if err != nil {
+		return err
+	}
+	for _, exec := range execs {
+		var route driver.SettingRoute
+		found := false
+		for _, item := range cut.SettingRoutes {
+			if string(item.Operation.ID) == exec.row.Operation {
+				route = item
+				found = true
+			}
+		}
+		if !found {
+			return errors.New("limits: the bound route is not published")
+		}
+		if route.Route.SourceID != stamp.SourceID || route.Route.SourceEpochID != stamp.SourceEpochID || route.Route.DriverGeneration != stamp.DriverGeneration {
+			return errors.New("limits: the bound route is not this session generation")
+		}
+		asset, ok := assetOfBinding(cut, route.Route.BindingID)
+		if !ok || asset != stamp.AssetID {
+			return errors.New("limits: the bound route has no session asset")
+		}
+		owner := generationOwner{
+			asset: asset, source: route.Route.SourceID, epoch: route.Route.SourceEpochID,
+			generation: route.Route.DriverGeneration, binding: route.Route.BindingID,
+			service: route.Route.ServiceInstance, capability: route.Route.CapabilityInstance,
+		}
+		f.mu.Lock()
+		exec.owner = owner
+		f.mu.Unlock()
+	}
+	f.mu.Lock()
+	f.execs = execs
+	f.mu.Unlock()
+	return nil
 }
 
 func (f *Family) constraint(operation string) (string, bool) {
@@ -283,10 +373,13 @@ func (e *storageExecutor) Execute(ctx context.Context, dispatch driver.Dispatch)
 		Card: e.family.Card, Path: e.family.Path, IdentifiedUnit: e.family.Unit, Unit: e.family.Unit,
 		Function: huawei.FunctionWriteMultipleRegisters, Address: uint16(e.row.Offset), Quantity: uint16(len(words)),
 	}
-	if !huawei.AdmitControlWrite(write) || e.family.Image == nil || !e.family.live(dispatch) {
+	if !huawei.AdmitControlWrite(write) || e.family.Image == nil {
 		return notSent(dispatch), nil
 	}
-	read, err := e.family.Image.Write(ctx, write, words)
+	read, err, sent := e.family.invokeNative(ctx, e, dispatch, write, words)
+	if !sent {
+		return notSent(dispatch), nil
+	}
 	if err != nil {
 		return unknownDelivery(dispatch), nil
 	}
@@ -300,15 +393,116 @@ func (e *storageExecutor) Execute(ctx context.Context, dispatch driver.Dispatch)
 	}
 }
 
-func (f *Family) live(dispatch driver.Dispatch) bool {
+// invokeNative rechecks the guard and performs the register write as one hold of
+// the lifecycle lock, so a withdrawal cannot pass between the decision and the send.
+func (f *Family) invokeNative(ctx context.Context, exec *storageExecutor, dispatch driver.Dispatch, write huawei.ControlWrite, words []uint16) ([]uint16, error, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.retired || !f.running {
+	if !f.admitNative(ctx, exec, dispatch) {
+		return nil, nil, false
+	}
+	f.inflight++
+	read, err := f.Image.Write(ctx, write, words)
+	f.inflight--
+	if f.inflight == 0 {
+		f.idle.Broadcast()
+	}
+	return read, err, true
+}
+
+// admitNative is the last check before the native write. The caller holds the lifecycle lock.
+// The guard is matched to the generation recorded at start. The published source epoch,
+// binding and generation fence are what a retirement changes while the family is still running.
+func (f *Family) admitNative(ctx context.Context, exec *storageExecutor, dispatch driver.Dispatch) bool {
+	if f.fenced.Load() || !f.running || f.session == nil || !exec.owns(dispatch.Guard) {
 		return false
 	}
-	return dispatch.Guard.SourceEpochID == dispatch.Route.SourceEpochID &&
-		dispatch.Guard.DriverGeneration == dispatch.Route.DriverGeneration &&
-		dispatch.Guard.BindingID == dispatch.Route.BindingID
+	if !f.publishedLive(ctx, dispatch.Guard) {
+		return false
+	}
+	tx, err := f.session.Publisher().Begin(ctx)
+	if err != nil {
+		return false
+	}
+	if err := tx.Abort(context.Background()); err != nil {
+		return false
+	}
+	return !f.fenced.Load() && f.running
+}
+
+func (e *storageExecutor) owns(guard operation.GuardClaims) bool {
+	owner := e.owner
+	return guard.AssetID == owner.asset && guard.SourceID == owner.source && guard.SourceEpochID == owner.epoch &&
+		guard.DriverGeneration == owner.generation && guard.BindingID == owner.binding &&
+		guard.ServiceInstance == owner.service && guard.CapabilityInstance == owner.capability
+}
+
+func (f *Family) publishedLive(ctx context.Context, guard operation.GuardClaims) bool {
+	cut, err := f.session.SemanticInput().Capture(ctx, driver.Filter{})
+	if err != nil {
+		return false
+	}
+	snap, ok := snapshotWithBinding(cut, guard.BindingID)
+	if !ok {
+		return false
+	}
+	return sourceEpochLive(snap, guard) && bindingLive(snap, guard) && !generationFenced(snap, guard)
+}
+
+func assetOfBinding(cut driver.SemanticCut, binding semreg.NativeBindingID) (semreg.AssetID, bool) {
+	snap, ok := snapshotWithBinding(cut, binding)
+	if !ok {
+		return "", false
+	}
+	return snap.AssetID, true
+}
+
+func snapshotWithBinding(cut driver.SemanticCut, binding semreg.NativeBindingID) (semreg.Snapshot, bool) {
+	for _, snap := range cut.Snapshots {
+		for _, item := range snap.Bindings {
+			if item.BindingID == binding {
+				return snap, true
+			}
+		}
+	}
+	return semreg.Snapshot{}, false
+}
+
+func sourceEpochLive(snap semreg.Snapshot, guard operation.GuardClaims) bool {
+	seen, live := false, false
+	for _, source := range snap.Sources {
+		if source.SourceID != guard.SourceID || source.SourceEpochID != guard.SourceEpochID {
+			continue
+		}
+		seen = true
+		if source.State == semreg.SourceRetired {
+			return false
+		}
+		if source.State == semreg.SourceCurrent {
+			live = true
+		}
+	}
+	return seen && live
+}
+
+func bindingLive(snap semreg.Snapshot, guard operation.GuardClaims) bool {
+	for _, binding := range snap.Bindings {
+		if binding.BindingID != guard.BindingID {
+			continue
+		}
+		return binding.State == semreg.BindingCurrent && binding.SourceID == guard.SourceID &&
+			binding.SourceEpochID == guard.SourceEpochID && binding.DriverGeneration == guard.DriverGeneration
+	}
+	return false
+}
+
+func generationFenced(snap semreg.Snapshot, guard operation.GuardClaims) bool {
+	for _, fence := range snap.Fences {
+		if fence.SourceID == guard.SourceID && fence.SourceEpochID == guard.SourceEpochID && fence.DriverGeneration == guard.DriverGeneration {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *storageExecutor) matched(ctx context.Context, dispatch driver.Dispatch, watts huawei.Watts) (driver.Completion, error) {
