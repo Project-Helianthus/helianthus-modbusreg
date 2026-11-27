@@ -1,0 +1,25 @@
+{
+  "contract": "helianthus.semreg.certification-references/v1",
+  "entries": [
+    {
+      "source": "certification",
+      "category": "reference",
+      "driver": "example-driver",
+      "vendor": "Example Vendor",
+      "flavor": "example-profile",
+      "model": "EX-4000",
+      "firmware": {
+        "form": "not_stated"
+      },
+      "issuer": "Example Certification Body",
+      "certificate_number": "EX-CERT-4000",
+      "issue_date": "2000-01-15",
+      "stated_value": {
+        "measurement_type": "active_energy",
+        "statement": "Accuracy class designation: class B, with the standard the certificate names."
+      },
+      "url": "https://example.invalid/registry/EX-CERT-4000",
+      "retrieved_on": "2000-02-01"
+    }
+  ]
+}

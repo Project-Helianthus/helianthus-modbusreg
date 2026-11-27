@@ -112,8 +112,10 @@ type Decimal struct {
 	Exponent    int
 }
 
-// StatedValue carries only the members the certificate states; a member the
-// certificate does not state is nil.
+// StatedValue carries only the members the certificate states. A decimal or
+// measured member the certificate does not state is nil. Statement is the
+// certificate's words for the accuracy when it states them, and empty when it
+// does not. Nothing derives a number from Statement.
 type StatedValue struct {
 	MeasurementType string
 	Measured        *bool
@@ -122,6 +124,7 @@ type StatedValue struct {
 	MeasuredMaximum *Decimal
 	RangeMinimum    *Decimal
 	RangeMaximum    *Decimal
+	Statement       string
 }
 
 // Entry is one record. StatedValue is non-nil only for a reference; Refusal is
@@ -375,6 +378,12 @@ func checkStatedValue(entry map[string]any) *Finding {
 				return invalid
 			}
 			states++
+		case name == "statement":
+			text, isString := member.(string)
+			if !isString || text == "" {
+				return invalid
+			}
+			states++
 		case contains(decimalMembers, name):
 			if !isDecimal(member) {
 				return invalid
@@ -582,6 +591,9 @@ func buildStated(stated map[string]any) *StatedValue {
 	}
 	if measured, present := stated["measured"].(bool); present {
 		value.Measured = &measured
+	}
+	if statement, present := stated["statement"].(string); present {
+		value.Statement = statement
 	}
 	return value
 }

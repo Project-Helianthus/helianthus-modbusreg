@@ -74,7 +74,8 @@ func TestParseValid(t *testing.T) {
 	}
 	value, ok := entries[0].Value()
 	if !ok || value.MeasurementType != "active_power" || value.Measured == nil || !*value.Measured ||
-		!reflect.DeepEqual(value.RatioMaximum, &Decimal{Coefficient: "1", Exponent: -2}) || value.RangeMinimum != nil {
+		!reflect.DeepEqual(value.RatioMaximum, &Decimal{Coefficient: "1", Exponent: -2}) || value.RangeMinimum != nil ||
+		value.Statement != "" {
 		t.Fatalf("stated value %+v", value)
 	}
 }
@@ -382,6 +383,99 @@ func TestMalformedDocumentsFail(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 	}
+}
+
+// Stated members of a statement-only reference: measurement_type, statement.
+// Production mutation per field: the loader drops that field or replaces it with another value.
+// Production mutation of the numeric members: the statement text is parsed into ratio_maximum,
+// range_minimum or range_maximum.
+func TestStatementOnlyReferenceLoadsAndLookupReturnsItUnchanged(t *testing.T) {
+	const (
+		wantType      = "active_energy"
+		wantStatement = "Accuracy class designation: class B, with the standard the certificate names."
+	)
+	document, err := Parse(readTestdata(t, "statement.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, err := NewSet(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := Query{Driver: "example-driver", Vendor: "Example Vendor", Flavor: "example-profile", Model: "EX-4000", Firmware: "9.9.9"}
+	got := set.Lookup(query)
+	if len(got) != 1 {
+		t.Fatalf("%d matches", len(got))
+	}
+	value, ok := got[0].Entry.Value()
+	if !ok || value.MeasurementType != wantType || value.Statement != wantStatement {
+		t.Fatalf("stated value %+v", value)
+	}
+	if value.Measured != nil || value.RatioMaximum != nil || value.MeasuredMinimum != nil || value.MeasuredMaximum != nil ||
+		value.RangeMinimum != nil || value.RangeMaximum != nil {
+		t.Fatalf("statement-only record yielded a ratio or a range: %+v", value)
+	}
+	got[0].Entry.StatedValue.Statement = "rewritten"
+	got[0].Entry.StatedValue.MeasurementType = "other_type"
+	again := set.Lookup(query)
+	if len(again) != 1 {
+		t.Fatalf("%d matches after editing the returned entry", len(again))
+	}
+	againValue, ok := again[0].Entry.Value()
+	if !ok || againValue.Statement != wantStatement || againValue.MeasurementType != wantType {
+		t.Fatalf("lookup changed the statement: %+v", againValue)
+	}
+	for _, test := range []struct {
+		measurementType string
+		statement       string
+	}{
+		{"reactive_energy", "Accuracy class designation: class C, with the standard the certificate names."},
+		{"active_energy", "Accuracy class designation: class B, with the standard the certificate names."},
+	} {
+		tree := map[string]any{}
+		if err := json.Unmarshal(readTestdata(t, "statement.json"), &tree); err != nil {
+			t.Fatal(err)
+		}
+		entryAt(tree, 0)["stated_value"] = map[string]any{
+			"measurement_type": test.measurementType,
+			"statement":        test.statement,
+		}
+		data, err := json.Marshal(tree)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed, err := Parse(data)
+		if err != nil {
+			t.Fatalf("%s / %s: %v", test.measurementType, test.statement, err)
+		}
+		loaded, err := NewSet(parsed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		match := loaded.Lookup(query)
+		if len(match) != 1 {
+			t.Fatalf("%s: %d matches", test.measurementType, len(match))
+		}
+		gotValue, ok := match[0].Entry.Value()
+		if !ok || gotValue.MeasurementType != test.measurementType || gotValue.Statement != test.statement ||
+			gotValue.RatioMaximum != nil || gotValue.RangeMinimum != nil || gotValue.RangeMaximum != nil {
+			t.Fatalf("%s: %+v", test.measurementType, gotValue)
+		}
+	}
+	tree := map[string]any{}
+	if err := json.Unmarshal(readTestdata(t, "statement.json"), &tree); err != nil {
+		t.Fatal(err)
+	}
+	stated := entryAt(tree, 0)["stated_value"].(map[string]any)
+	stated["statement"] = ""
+	wantFinding(t, tree, ReasonStatedValueInvalid, 0, "stated_value")
+	stated["statement"] = 1
+	wantFinding(t, tree, ReasonStatedValueInvalid, 0, "stated_value")
+	delete(stated, "statement")
+	wantFinding(t, tree, ReasonStatedValueInvalid, 0, "stated_value")
+	stated["statement"] = wantStatement
+	delete(stated, "measurement_type")
+	wantFinding(t, tree, ReasonStatedValueInvalid, 0, "stated_value")
 }
 
 func TestCoverageOf(t *testing.T) {
