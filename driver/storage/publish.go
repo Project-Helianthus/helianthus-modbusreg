@@ -513,6 +513,17 @@ func (p *Publisher) fill(b *semreg.PublicationBatch, tx driver.PublicationTransa
 			}
 		}
 	}
+	sortBatch(b, claims)
+	b.IdentityLinkUpserts = carryLinks(b.IdentityLinkUpserts, pendingLinks(tx, b, out.bindings))
+	if out.withdrawn == nil {
+		out.withdrawn = []semreg.CandidateID{}
+	}
+	return all, claims, out, nil
+}
+
+// sortBatch orders the batch's records and the claims so that a replay of the
+// same cut yields the same bytes.
+func sortBatch(b *semreg.PublicationBatch, claims []driver.LinkClaim) {
 	sort.Slice(b.FactUpserts, func(i, j int) bool { return b.FactUpserts[i].CandidateID < b.FactUpserts[j].CandidateID })
 	sort.Slice(b.FactWithdrawals, func(i, j int) bool { return b.FactWithdrawals[i] < b.FactWithdrawals[j] })
 	sort.Slice(b.ServiceUpserts, func(i, j int) bool { return b.ServiceUpserts[i].InstanceID < b.ServiceUpserts[j].InstanceID })
@@ -521,8 +532,13 @@ func (p *Publisher) fill(b *semreg.PublicationBatch, tx driver.PublicationTransa
 	sort.Slice(b.BindingUpserts, func(i, j int) bool { return b.BindingUpserts[i].BindingID < b.BindingUpserts[j].BindingID })
 	sort.Slice(b.IdentityLinkUpserts, func(i, j int) bool { return b.IdentityLinkUpserts[i].BindingID < b.IdentityLinkUpserts[j].BindingID })
 	sort.Slice(claims, func(i, j int) bool { return claimOrder(claims[i]) < claimOrder(claims[j]) })
+}
+
+// pendingLinks returns the operator links the host holds for this batch's own
+// bindings only.
+func pendingLinks(tx driver.PublicationTransaction, b *semreg.PublicationBatch, bindings []semreg.NativeBindingID) []semreg.IdentityLink {
 	mine := map[semreg.NativeBindingID]bool{}
-	for _, id := range out.bindings {
+	for _, id := range bindings {
 		mine[id] = true
 	}
 	var pending []semreg.IdentityLink
@@ -531,11 +547,7 @@ func (p *Publisher) fill(b *semreg.PublicationBatch, tx driver.PublicationTransa
 			pending = append(pending, link)
 		}
 	}
-	b.IdentityLinkUpserts = carryLinks(b.IdentityLinkUpserts, pending)
-	if out.withdrawn == nil {
-		out.withdrawn = []semreg.CandidateID{}
-	}
-	return all, claims, out, nil
+	return pending
 }
 
 // held is what the host kept of this producer's resources and relations
