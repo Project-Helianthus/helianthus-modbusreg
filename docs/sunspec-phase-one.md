@@ -92,6 +92,9 @@ command policy. Discovery and monitoring never write, and the registry encodes
 but does not send a write request. A live write requires an explicit call and
 operator confirmation at the time of the action.
 
+Model 123 is written.
+Model 124 is written.
+
 ## Rollback
 
 To stop using the phase-one compatibility profile, remove it from the caller's
