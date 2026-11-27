@@ -29,6 +29,7 @@ import (
 // package, and no vendor package imports either of them.
 var packageImportRules = map[string][]string{
 	".":                              {},
+	"driverdata/certification":       {},
 	"detection":                      {"."},
 	"fronius":                        {".", "sunspec"},
 	"growatt":                        {"."},
