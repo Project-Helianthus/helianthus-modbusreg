@@ -74,6 +74,9 @@ func (b *storageBank) WriteMultiple(_ context.Context, unit uint8, address uint1
 	if apply && cells != nil && int(address)+len(registers) <= len(cells) {
 		copy(cells[address:], registers)
 	}
+	if mode == "conflict-mode" && n == 2 && cells != nil && int(address) < len(cells) {
+		cells[address] &^= storageChargeBit | storageDisBit
+	}
 	hook := b.onWrite
 	b.mu.Unlock()
 	if hook != nil {
@@ -518,6 +521,75 @@ func TestSunSpecStorageContradictingReadbackIsConflict(t *testing.T) {
 	if bank.word(1, storageInReg) != 0 {
 		t.Fatalf("stored rate %d", bank.word(1, storageInReg))
 	}
+}
+
+func TestSunSpecStorageModeContradictionIsConflict(t *testing.T) {
+	cases := []struct {
+		name string
+		op   semreg.DefinitionID
+		rate uint16
+		bit  uint16
+	}{
+		{name: "charge", op: opChargeLimit, rate: storageInReg, bit: storageChargeBit},
+		{name: "discharge", op: opDischargeLimit, rate: storageOutReg, bit: storageDisBit},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			bank := &storageBank{units: map[uint8][]uint16{1: storageCells("controls")}, mode: "conflict-mode"}
+			family := openStorage(t, bank, []Battery{storageBattery()})
+			result := invokeStorage(t, family, tc.op, nil)
+			if result.Status != "failed" || result.KernelOutcome != operation.OutcomeConflict || result.ReadbackRelation != operation.ReadbackContradicts || result.KernelOutcome == operation.OutcomeIndeterminate || result.Status == "readback_confirmed" || result.Status == "unknown" || result.Status == "protocol_ack" {
+				t.Fatalf("result %+v", result)
+			}
+			requireRateThenMode(t, bank.written(), tc.rate, storageModeReg, 1000)
+			if bank.word(1, tc.rate) != 1000 || bank.word(1, storageModeReg)&tc.bit != 0 {
+				t.Fatalf("rate %d mode %d", bank.word(1, tc.rate), bank.word(1, storageModeReg))
+			}
+			if result.CompoundExecution == nil || result.CompoundExecution.Partial || len(result.CompoundExecution.Steps) != 2 || result.CompoundExecution.Steps[0].ReadbackRelation != operation.ReadbackContradicts || result.CompoundExecution.Steps[1].ReadbackRelation != operation.ReadbackContradicts {
+				t.Fatalf("compound %+v", result.CompoundExecution)
+			}
+		})
+	}
+	t.Run("below-bound", func(t *testing.T) {
+		bank := &storageBank{units: map[uint8][]uint16{1: storageCells("controls")}, mode: "conflict-mode"}
+		family := openStorage(t, bank, []Battery{storageBattery()})
+		own := ownerForOperation(t, family, opChargeLimit)
+		done, err := family.Execute(context.Background(), storageDirect(own, semreg.Decimal{Coefficient: "4", Exponent10: 3}))
+		if err != nil || done.Outcome != operation.OutcomeConflict || done.Readback == nil || done.Readback.Relation != operation.ReadbackContradicts || done.Outcome == operation.OutcomeAcknowledgedUnverified {
+			t.Fatalf("execute %+v %v", done, err)
+		}
+		requireRateThenMode(t, bank.written(), storageInReg, storageModeReg, 500)
+		if bank.word(1, storageInReg) != 500 || bank.word(1, storageModeReg)&storageChargeBit != 0 {
+			t.Fatalf("rate %d mode %d", bank.word(1, storageInReg), bank.word(1, storageModeReg))
+		}
+		if !sameDecimal(storageObserved(t, family, argChargeLimit), semreg.Decimal{Coefficient: "8", Exponent10: 3}) {
+			t.Fatalf("observed %+v", storageObserved(t, family, argChargeLimit))
+		}
+	})
+}
+
+func storageObserved(t *testing.T, family *SunSpecStorage, fact semreg.DefinitionID) semreg.Decimal {
+	t.Helper()
+	cut, err := family.session.SemanticInput().Capture(context.Background(), driver.Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found semreg.Decimal
+	n := 0
+	for _, snap := range cut.Snapshots {
+		for _, envelope := range snap.Facts {
+			for _, candidate := range envelope.Candidates {
+				if candidate.Key.FactID != fact || candidate.Value == nil || candidate.Value.Quantity == nil {
+					continue
+				}
+				found, n = candidate.Value.Quantity.Number, n+1
+			}
+		}
+	}
+	if n != 1 {
+		t.Fatalf("facts %d", n)
+	}
+	return found
 }
 
 func TestSunSpecStorageRefusalsSendNothing(t *testing.T) {

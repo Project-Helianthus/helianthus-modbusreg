@@ -554,14 +554,26 @@ func (f *SunSpecStorage) confirm(ctx context.Context, d driver.Dispatch, own sto
 	switch {
 	case state == sunspec.ReadbackMatch && gotOK && sameDecimal(got, watts):
 		return f.readback(ctx, d, own, done, got, operation.ReadbackConfirms)
-	case state == sunspec.ReadbackMismatch && gotOK && !sameDecimal(got, watts):
-		return f.readback(ctx, d, own, done, got, operation.ReadbackContradicts)
 	case state == sunspec.ReadbackMismatch:
-		done.CompoundExecution.Steps[1].ReadbackRelation = operation.ReadbackContradicts
-		return done, nil
+		return f.readback(ctx, d, own, done, conflictWatts(got, gotOK, watts, modeWords, own.bit, bound), operation.ReadbackContradicts)
 	default:
 		return done, nil
 	}
+}
+
+// conflictWatts is the quantity correlated after a re-read that contradicts a written point.
+// The rate is used when it is not the request. A clear direction bit leaves that rate unselected,
+// so the bound is used when the bound is not the request. Zero remains when the request equals
+// every watt figure the re-read can show: the mode word still contradicts, and a matching quantity would be confirmed.
+func conflictWatts(got semreg.Decimal, gotOK bool, requested semreg.Decimal, modeWords []uint16, bit uint16, bound sunspec.Decimal) semreg.Decimal {
+	if gotOK && !sameDecimal(got, requested) {
+		return got
+	}
+	ceiling := nativeDecimal(bound)
+	if len(modeWords) == 1 && modeWords[0]&bit == 0 && !sameDecimal(ceiling, requested) {
+		return ceiling
+	}
+	return semreg.Decimal{Coefficient: "0"}
 }
 
 func (f *SunSpecStorage) readback(ctx context.Context, d driver.Dispatch, own storageOwner, done driver.Completion, watts semreg.Decimal, relation operation.ReadbackRelation) (driver.Completion, error) {
