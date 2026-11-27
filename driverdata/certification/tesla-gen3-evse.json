@@ -1,0 +1,6 @@
+{
+ "contract": "helianthus.semreg.certification-references/v1",
+ "entries": [
+  {"source": "certification", "category": "gap", "driver": "tesla-gen3-evse", "vendor": "Tesla", "flavor": "wc3_24_44_3", "model": "Wall Connector Gen3", "firmware": {"form": "not_stated"}, "issuer": "Tesla declaration of conformity read at the address below; it names one variant of the device only", "url": "https://energylibrary.tesla.com/docs/Public/Charging/WallConnector/Gen3/DoC/DoC-MID-manufacture-Wall-Connector-Gen-3-EN.pdf", "retrieved_on": "2026-11-26"}
+ ]
+}

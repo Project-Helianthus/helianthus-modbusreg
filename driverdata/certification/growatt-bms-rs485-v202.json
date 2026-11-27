@@ -1,0 +1,7 @@
+{
+ "contract": "helianthus.semreg.certification-references/v1",
+ "entries": [
+  {"source": "certification", "category": "gap", "driver": "growatt-bms-rs485-v202", "vendor": "Growatt", "flavor": "growatt-bms-rs485-v202", "model": "1xSxxP ESS", "firmware": {"form": "not_stated"}, "issuer": "Growatt ALP LV datasheet (does not name 1xSxxP, no accuracy)", "url": "https://au.growatt.com/upload/file/ALP_LV_2024.pdf", "retrieved_on": "2026-11-26"},
+  {"source": "certification", "category": "gap", "driver": "growatt-bms-rs485-v202", "vendor": "Growatt", "flavor": "growatt-bms-rs485-v202", "model": "1xSxxP ESS", "firmware": {"form": "not_stated"}, "issuer": "Growatt APX HV product page (no LV battery details)", "url": "https://en.growatt.com/products/apx-hv-battery", "retrieved_on": "2026-11-26"}
+ ]
+}

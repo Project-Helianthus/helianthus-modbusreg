@@ -1,0 +1,6 @@
+{
+ "contract": "helianthus.semreg.certification-references/v1",
+ "entries": [
+  {"source": "certification", "category": "unavailable", "driver": "tesla-legacy-fbe0-fde0", "vendor": "Tesla", "flavor": "tesla-legacy-fbe0-fde0", "model": "Tesla legacy Wall Connector FBE0/FDE0", "firmware": {"form": "not_stated"}, "issuer": "tesla.com High Power Wall Connector installation guide", "url": "https://www.tesla.com/sites/default/files/blog_attachments/ms_hpwc_installation_guide.pdf", "retrieved_on": "2026-11-26", "refusal": "The server returned HTTP 403 Forbidden."}
+ ]
+}
