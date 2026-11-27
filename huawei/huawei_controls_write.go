@@ -137,10 +137,10 @@ func AdmitActivePowerWrite(write ControlWrite) bool {
 	return write.Address == uint16(row.Offset)
 }
 
-// AdmitControlWrite admits a bound storage row or the bound active-power row.
-// MM09 and MM10 add their rows beside this predicate.
+// AdmitControlWrite admits a bound storage row, the bound active-power row, or a bound export-limit row.
+// Each operation keeps the rows it already admits.
 func AdmitControlWrite(write ControlWrite) bool {
-	return AdmitStorageControlWrite(write) || AdmitActivePowerWrite(write)
+	return AdmitStorageControlWrite(write) || AdmitActivePowerWrite(write) || AdmitExportWrite(write)
 }
 
 // CompareActivePowerReadback reports match, mismatch, or unknown.
