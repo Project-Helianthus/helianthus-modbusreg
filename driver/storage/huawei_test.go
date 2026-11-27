@@ -51,7 +51,7 @@ func childOf(t *testing.T, card string, unit uint8, words map[uint16]uint16) Hua
 
 func withWords(words map[uint16]uint16) map[uint16]uint16 {
 	base := map[uint16]uint16{
-		37000: 2, 37001: 0, 37002: 1500, 37003: 5120, 37004: 507, 37007: 0, 37008: 5000, 37009: 0, 37010: 4000, 37021: 0xffdd, 37022: 245,
+		37000: 2, 37001: 0, 37002: 1500, 37003: 5120, 37004: 507, 37007: 0, 37008: 5000, 37009: 0, 37010: 4000, 37046: 0, 37047: 3000, 37048: 0, 37049: 2500, 37021: 0xffdd, 37022: 245,
 		37066: 0, 37067: 12345, 37068: 0, 37069: 6789,
 		// pack 1 and pack 2 of unit 1
 		38229: 606, 38235: 3000, 38236: 20, 38238: 0, 38239: 100, 38240: 0, 38241: 50,
@@ -123,8 +123,21 @@ func TestHuaweiBatteryFacts(t *testing.T) {
 	requireOne("storage.temperature.pack", "29765", -2, unitKelvin)
 	requireOne("storage.energy.charged", "44442", 4, unitJoule)
 	requireOne("storage.energy.discharged", "244404", 3, unitJoule)
-	requireOne("storage.limit.charge_power", "5", 3, unitWatt)
-	requireOne("storage.limit.discharge_power", "4", 3, unitWatt)
+	// The limits are the maximum power words (37046, 37048), not the rating words (37007, 37009).
+	requireOne("storage.limit.charge_power", "3", 3, unitWatt)
+	requireOne("storage.limit.discharge_power", "25", 2, unitWatt)
+	if n := len(factsOf(k, "storage.limit.charge_power")) + len(factsOf(k, "storage.limit.discharge_power")); n != 2 {
+		t.Errorf("limit facts %d", n)
+	}
+	for _, local := range []string{"storage_37007", "storage_37009"} {
+		found := false
+		for _, m := range p.Members() {
+			found = found || string(m.Key.Local) == local
+		}
+		if !found {
+			t.Errorf("rating word %s is not kept native", local)
+		}
+	}
 	// The two documented packs under their own pack dimensions.
 	requireOne("storage.state.soc", "606", -3, unitRatio)
 	requireOne("storage.state.soc", "707", -3, unitRatio)
@@ -157,7 +170,7 @@ func TestHuaweiZeroPlaceholderIsNotAValueAndAnAbsentBatteryPublishesNothing(t *t
 	s := newSession("asset:inverter-a", "source-a", "epoch-1", 1)
 	p := newPublisher(t, huaweiConfig(), s, nil)
 	zero := map[uint16]uint16{}
-	for _, o := range []uint16{37000, 37002, 37003, 37004, 37008, 37010, 37021, 37022, 37067, 37069, 38229, 38235, 38236, 38239, 38241, 38271, 38277, 38278, 38281, 38283} {
+	for _, o := range []uint16{37000, 37002, 37003, 37004, 37008, 37010, 37047, 37049, 37021, 37022, 37067, 37069, 38229, 38235, 38236, 38239, 38241, 38271, 38277, 38278, 38281, 38283} {
 		zero[o] = 0
 	}
 	words := withWords(zero)

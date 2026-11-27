@@ -80,7 +80,8 @@ var (
 func named(r Row, native string) Row { r.Native = native; return r }
 
 // huaweiUnitRows are the rows of the storage-unit groups: unit 1 at offsets
-// 37000 through 37068 and its rated capacity at 37758, and unit 2 at 37741
+// 37000 through 37068 (its maximum charge and discharge power at 37046 and
+// 37048; the rated power words at 37007 and 37009 stay native) and its rated capacity at 37758, and unit 2 at 37741
 // through 37755.
 func huaweiUnitRows(unit int) []huaweiRow {
 	if unit == 2 {
@@ -89,7 +90,7 @@ func huaweiUnitRows(unit int) []huaweiRow {
 	}
 	return []huaweiRow{{37003, named(rowVoltage, "unit_1_bus_voltage")}, {37004, named(rowSOC, "unit_1_state_of_charge")}, {37021, named(rowCurrent, "unit_1_bus_current")},
 		{37022, named(rowTemp, "unit_1_pack_temperature")}, {37066, named(rowCharged, "unit_1_charge_energy_total")}, {37068, named(rowDischrg, "unit_1_discharge_energy_total")},
-		{37007, named(rowChgRate, "unit_1_charge_rating")}, {37009, named(rowDisRate, "unit_1_discharge_rating")},
+		{37046, named(rowChgRate, "unit_1_max_charge_power")}, {37048, named(rowDisRate, "unit_1_max_discharge_power")},
 		{37758, named(rowRated, "unit_1_rated_capacity")}}
 }
 
