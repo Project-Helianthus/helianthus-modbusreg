@@ -109,7 +109,7 @@ func EncodeExportLimit(card string, watts Watts) (mode []uint16, value []uint16,
 		}
 		return nil, nil, err
 	}
-	value, err = wordsFromInt32(raw)
+	value, err = signedRegisterWords(raw)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -576,7 +576,7 @@ func scaleToWatts(number, unit string) (string, bool) {
 	return n.String(), true
 }
 
-func wordsFromInt32(v *big.Int) ([]uint16, error) {
+func signedRegisterWords(v *big.Int) ([]uint16, error) {
 	if v.Cmp(big.NewInt(math.MinInt32)) < 0 || v.Cmp(big.NewInt(math.MaxInt32)) > 0 {
 		return nil, ErrUnrepresentable
 	}
