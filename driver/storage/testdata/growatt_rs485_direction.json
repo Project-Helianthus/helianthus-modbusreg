@@ -1,0 +1,242 @@
+{
+ "synthetic": true,
+ "configuration": {
+  "asset": "asset:growatt-bms-a",
+  "source": "growatt-bms-a",
+  "epoch": "source-epoch-1",
+  "generation": 1,
+  "unit": 1,
+  "battery": "battery-a",
+  "system": "system-a"
+ },
+ "clock": {
+  "wall_unix_nanos": 1800000000000000000,
+  "step_nanos": 1000000,
+  "epoch": "system-monotonic-v1"
+ },
+ "revision": {
+  "family": "1xSxxP ESS",
+  "file_revision": "Rev2.01",
+  "header_version": "V2.0",
+  "cumulative_revision": "2.02"
+ },
+ "base_requests": [
+  {
+   "function": 3,
+   "offset": 1,
+   "quantity": 7
+  },
+  {
+   "function": 3,
+   "offset": 13,
+   "quantity": 29
+  },
+  {
+   "function": 3,
+   "offset": 256,
+   "quantity": 12
+  },
+  {
+   "function": 3,
+   "offset": 269,
+   "quantity": 2
+  }
+ ],
+ "diagnostic_requests": [
+  {
+   "function": 3,
+   "offset": 112,
+   "quantity": 1
+  },
+  {
+   "function": 3,
+   "offset": 113,
+   "quantity": 16
+  },
+  {
+   "function": 3,
+   "offset": 129,
+   "quantity": 16
+  }
+ ],
+ "diagnostic_replies": [
+  {
+   "offset": 112,
+   "words": [
+    7
+   ]
+  },
+  {
+   "offset": 113,
+   "words": [
+    3301,
+    3302,
+    3300,
+    3305,
+    3310,
+    3299,
+    3308,
+    3307,
+    3306,
+    3304,
+    3303,
+    3309,
+    3311,
+    3312,
+    3313,
+    3314
+   ]
+  },
+  {
+   "offset": 129,
+   "words": [
+    3295,
+    3296,
+    0,
+    3350,
+    3310,
+    3310,
+    3310,
+    3310,
+    3310,
+    3310,
+    3310,
+    3310,
+    3310,
+    3310,
+    3310,
+    3310
+   ]
+  }
+ ],
+ "state_register": "0x0013",
+ "cycle_count_register": "0x001e",
+ "base_template": [
+  {
+   "offset": 1,
+   "quantity": 7,
+   "words": [
+    258,
+    515,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "offset": 13,
+   "quantity": 29,
+   "words": [
+    258,
+    513,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    75,
+    5200,
+    65436,
+    25,
+    0,
+    4150,
+    10000,
+    0,
+    0,
+    47,
+    256,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "offset": 256,
+   "quantity": 12,
+   "words": [
+    3600,
+    123,
+    3321,
+    0,
+    548,
+    5,
+    6,
+    0,
+    0,
+    5,
+    0,
+    0
+   ]
+  },
+  {
+   "offset": 269,
+   "quantity": 2,
+   "words": [
+    0,
+    0
+   ]
+  }
+ ],
+ "cases": [
+  {
+   "key": "soft_starting",
+   "raw_0x0013": 0,
+   "native_label": "soft_starting",
+   "coarse": null,
+   "direction": "starting"
+  },
+  {
+   "key": "standby",
+   "raw_0x0013": 1,
+   "native_label": "standby",
+   "coarse": "standby",
+   "direction": null
+  },
+  {
+   "key": "charging",
+   "raw_0x0013": 2,
+   "native_label": "charging",
+   "coarse": "active",
+   "direction": "charging"
+  },
+  {
+   "key": "discharging",
+   "raw_0x0013": 3,
+   "native_label": "discharging",
+   "coarse": "active",
+   "direction": "discharging"
+  }
+ ],
+ "ordered_pair": [
+  "charging",
+  "standby"
+ ],
+ "unresolved": {
+  "key": "unresolved_native_state",
+  "raw_0x0013": 9,
+  "outcome": "decoder_rejects_no_publication"
+ },
+ "expected_cell": {
+  "minimum": {
+   "index": 17,
+   "millivolts": 3295,
+   "volts": "3.295"
+  },
+  "maximum": {
+   "index": 20,
+   "millivolts": 3350,
+   "volts": "3.35"
+  }
+ },
+ "expected_cycle_count": 47
+}
