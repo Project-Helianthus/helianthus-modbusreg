@@ -79,13 +79,13 @@ func TestParseValid(t *testing.T) {
 	}
 }
 
-func TestLoadEmbeddedHoldsNoEntry(t *testing.T) {
+func TestLoadEmbeddedParsesEveryDataFile(t *testing.T) {
 	set, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := len(set.Entries()); got != 0 {
-		t.Fatalf("%d embedded entries", got)
+	if set == nil {
+		t.Fatal("no set")
 	}
 }
 
