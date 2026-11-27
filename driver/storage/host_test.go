@@ -83,8 +83,8 @@ func TestHostAcceptsEveryPackOfADongleReading(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the host refused a reading with three packs: %v", err)
 	}
-	if got := hostFacts(t, rt); got != 3 {
-		t.Fatalf("the host keeps %d packs, want the unit and its two packs", got)
+	if got := hostFacts(t, rt); got != 4 {
+		t.Fatalf("the host keeps %d packs, want the unit, its two packs and the system pack", got)
 	}
 }
 
@@ -95,8 +95,8 @@ func TestHostAcceptsTheSiteBatteryBesideAChildUnit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the host refused the site battery beside a child unit: %v", err)
 	}
-	if got := hostFacts(t, rt); got != 4 {
-		t.Fatalf("the host keeps %d packs, want the site battery, the unit and its two packs", got)
+	if got := hostFacts(t, rt); got != 5 {
+		t.Fatalf("the host keeps %d packs, want the site battery, the unit, its two packs and the system pack", got)
 	}
 }
 

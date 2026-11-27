@@ -80,18 +80,24 @@ var (
 func named(r Row, native string) Row { r.Native = native; return r }
 
 // huaweiUnitRows are the rows of the storage-unit groups: unit 1 at offsets
-// 37000 through 37068 (its maximum charge and discharge power at 37046 and
-// 37048; the rated power words at 37007 and 37009 stay native) and its rated capacity at 37758, and unit 2 at 37741
-// through 37755.
+// 37000 through 37068 (the rated power words at 37007 and 37009 stay native)
+// and unit 2 at 37741 through 37755.
 func huaweiUnitRows(unit int) []huaweiRow {
 	if unit == 2 {
 		return []huaweiRow{{37750, named(rowVoltage, "unit_2_bus_voltage")}, {37751, named(rowCurrent, "unit_2_bus_current")},
 			{37752, named(rowTemp, "unit_2_pack_temperature")}, {37753, named(rowCharged, "unit_2_charge_energy_total")}, {37755, named(rowDischrg, "unit_2_discharge_energy_total")}}
 	}
 	return []huaweiRow{{37003, named(rowVoltage, "unit_1_bus_voltage")}, {37004, named(rowSOC, "unit_1_state_of_charge")}, {37021, named(rowCurrent, "unit_1_bus_current")},
-		{37022, named(rowTemp, "unit_1_pack_temperature")}, {37066, named(rowCharged, "unit_1_charge_energy_total")}, {37068, named(rowDischrg, "unit_1_discharge_energy_total")},
-		{37046, named(rowChgRate, "unit_1_max_charge_power")}, {37048, named(rowDisRate, "unit_1_max_discharge_power")},
-		{37758, named(rowRated, "unit_1_rated_capacity")}}
+		{37022, named(rowTemp, "unit_1_pack_temperature")}, {37066, named(rowCharged, "unit_1_charge_energy_total")}, {37068, named(rowDischrg, "unit_1_discharge_energy_total")}}
+}
+
+// huaweiSystemRows are the words the monitoring page states for the storage
+// system as a whole, not for a storage unit: the maximum charge and discharge
+// power at 37046 and 37048 and the rated capacity at 37758. They are published
+// on the system pack of the battery, never on a unit.
+func huaweiSystemRows() []huaweiRow {
+	return []huaweiRow{{37046, named(rowChgRate, "system_max_charge_power")}, {37048, named(rowDisRate, "system_max_discharge_power")},
+		{37758, named(rowRated, "system_rated_capacity")}}
 }
 
 // huaweiPackRows are the measured words of pack n of unit u, counted from the
@@ -212,6 +218,7 @@ func (p *Publisher) huaweiChild(pl *plan, cfg HuaweiBattery, child HuaweiChild) 
 	}
 	facts := indexFacts(child.Facts)
 	consumed := map[uint16]bool{}
+	anyUnit := false
 	for unit := 1; unit <= 2; unit++ {
 		state := uint16(37000)
 		if unit == 2 {
@@ -221,6 +228,7 @@ func (p *Publisher) huaweiChild(pl *plan, cfg HuaweiBattery, child HuaweiChild) 
 		if !hasState || sf.Availability != hw.FactValue || sf.Value.Coefficient == 0 {
 			continue
 		}
+		anyUnit = true
 		node := p.packNode(pl, battery, fmt.Sprintf("unit-%d", unit))
 		if !sf.Retained {
 			if token, ok := huaweiStates[sf.State]; ok {
@@ -256,8 +264,40 @@ func (p *Publisher) huaweiChild(pl *plan, cfg HuaweiBattery, child HuaweiChild) 
 			p.signOpen(pl, packNode, facts, origin+33, fmt.Sprintf("unit_%d_pack_%d_power", unit, n))
 		}
 	}
+	if anyUnit {
+		rows := huaweiSystemRows()
+		for _, row := range rows {
+			consumed[row.Offset] = true
+		}
+		if facts.usable(rows) {
+			node := p.packNode(pl, battery, "system")
+			if err := p.huaweiRows(pl, facts, node, rows); err != nil {
+				return err
+			}
+		}
+	}
 	p.unmapped(pl, battery, facts, consumed)
 	return nil
+}
+
+// usable reports whether any row has a word the row maps.
+func (f huaweiFacts) usable(rows []huaweiRow) bool {
+	for _, row := range rows {
+		if _, _, ok := f.rowValue(row); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// rowValue is the word of a row when the row maps it: a value in the row's
+// native unit, and not a zero placeholder where the row refuses one.
+func (f huaweiFacts) rowValue(row huaweiRow) (*big.Rat, hw.SUN2000Fact, bool) {
+	r, fact, ok := f.value(row.Offset)
+	if !ok || fact.Unit != row.NativeUnit || (row.ZeroAbsent && r.Sign() == 0) {
+		return nil, fact, false
+	}
+	return r, fact, true
 }
 
 // unmapped keeps every battery word the rows do not take in the namespace,
@@ -293,8 +333,8 @@ func (p *Publisher) signOpen(pl *plan, node int, facts huaweiFacts, offset uint1
 
 func (p *Publisher) huaweiRows(pl *plan, facts huaweiFacts, node int, rows []huaweiRow) error {
 	for _, row := range rows {
-		r, f, ok := facts.value(row.Offset)
-		if !ok || f.Unit != row.NativeUnit || (row.ZeroAbsent && r.Sign() == 0) {
+		r, f, ok := facts.rowValue(row)
+		if !ok {
 			continue
 		}
 		target := node

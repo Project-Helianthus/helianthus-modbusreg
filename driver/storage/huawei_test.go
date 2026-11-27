@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/Project-Helianthus/helianthus-modbusreg/huawei"
@@ -161,7 +162,8 @@ func TestHuaweiBatteryFacts(t *testing.T) {
 			t.Errorf("%s: %d relations %d claims", def, len(relationsOf(k, def)), len(claimsOf(k, def)))
 		}
 	}
-	if len(relationsOf(k, relBatteryPack)) != 3 {
+	// The unit, its two packs and the system pack of the system-scoped words.
+	if len(relationsOf(k, relBatteryPack)) != 4 {
 		t.Errorf("battery_pack relations %d", len(relationsOf(k, relBatteryPack)))
 	}
 }
@@ -411,7 +413,7 @@ func TestHuaweiRatedCapacityIsPublishedInJouleAndAZeroWordIsNot(t *testing.T) {
 	wh := decimalOf(big.NewRat(10000, 1), 6)
 	var native bool
 	for _, ref := range facts[0].Evidence {
-		native = native || ref.Digest == evidence("evidence.native", "unit_1_rated_capacity", "Wh", wh.Coefficient, strconv.Itoa(int(wh.Exponent10)), "37758").Digest
+		native = native || ref.Digest == evidence("evidence.native", "system_rated_capacity", "Wh", wh.Coefficient, strconv.Itoa(int(wh.Exponent10)), "37758").Digest
 	}
 	if !native {
 		t.Error("the native watt hours are not in the evidence")
@@ -427,5 +429,59 @@ func TestHuaweiRatedCapacityIsPublishedInJouleAndAZeroWordIsNot(t *testing.T) {
 	publishHuawei(t, q, HuaweiObservation{Children: []HuaweiChild{childOf(t, "LB-C00", 1, withWords(map[uint16]uint16{37758: 0, 37759: 0}))}, Receipt: receipt(1)})
 	if len(factsOf(zero.k, "storage.energy.nominal_capacity")) != 0 {
 		t.Fatal("a zero placeholder word was published as a capacity")
+	}
+}
+
+// The maximum charge and discharge power and the rated capacity are words of
+// the storage system, not of a storage unit: with both units running they are
+// published once, on the system pack, and never on the subject of unit 1 or
+// unit 2.
+func TestHuaweiSystemWordsAreNotFactsOfAStorageUnit(t *testing.T) {
+	s := newSession("asset:inverter-a", "source-a", "epoch-1", 1)
+	p := newPublisher(t, huaweiConfig(), s, nil)
+	words := withWords(map[uint16]uint16{37758: 0, 37759: 20000, 37741: 2, 37750: 5000, 37751: 10, 37752: 250, 37046: 0, 37047: 6000, 37048: 0, 37049: 4000})
+	publishHuawei(t, p, HuaweiObservation{Children: []HuaweiChild{childOf(t, "LB-C00", 1, withWords(words))}, Receipt: receipt(1)})
+	k := s.k
+	subject := func(c semreg.FactCandidate) semreg.ResourceID {
+		return semreg.ResourceID(*c.Key.Dimensions[0].Value.Text)
+	}
+	units := map[semreg.ResourceID]bool{}
+	for _, c := range factsOf(k, "storage.pack.voltage") {
+		units[subject(c)] = true
+	}
+	capacity := factsOf(k, "storage.energy.nominal_capacity")
+	if len(capacity) != 1 {
+		t.Fatalf("%d nominal capacity facts for one system", len(capacity))
+	}
+	if co, e, u := quantityOf(t, capacity[0]); co != "72" || e != 6 || u != unitJoule {
+		t.Fatalf("nominal capacity %se%d %s", co, e, u)
+	}
+	pack := subject(capacity[0])
+	if k.resources[pack].Kind != kindPack || units[pack] {
+		t.Fatalf("the system capacity is on %s %s, a storage unit or a pack of one", pack, k.resources[pack].Kind)
+	}
+	limits := append(factsOf(k, "storage.limit.charge_power"), factsOf(k, "storage.limit.discharge_power")...)
+	if len(limits) != 2 {
+		t.Fatalf("%d limit facts for one system", len(limits))
+	}
+	for _, c := range limits {
+		face := subject(c)
+		var parent semreg.ResourceID
+		for _, r := range relationsOf(k, relPackInterface) {
+			if r.To == face {
+				parent = r.From
+			}
+		}
+		if parent != pack {
+			t.Errorf("limit %s is on an interface of %s, want the system pack %s", c.Key.FactID, parent, pack)
+		}
+	}
+	for _, m := range p.Members() {
+		if strings.Contains(string(m.Key.Local), "unit_1_max") || strings.Contains(string(m.Key.Local), "unit_1_rated") {
+			t.Errorf("a system word is named for unit 1: %s", m.Key.Local)
+		}
+	}
+	if len(units) != 4 {
+		t.Errorf("voltage facts on %d subjects, want both units and their two packs", len(units))
 	}
 }
