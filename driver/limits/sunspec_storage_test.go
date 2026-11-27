@@ -609,6 +609,26 @@ func TestSunSpecStorageExecutorsExistOnlyWhileRunning(t *testing.T) {
 	}
 }
 
+func TestStorageWordTextFeedsRequestEvidence(t *testing.T) {
+	if storageWordText(nil) != "" || storageWordText([]uint16{1000}) != "1000" || storageWordText([]uint16{storageUnrelated | storageChargeBit, 2}) != "32773,2" {
+		t.Fatalf("text %q %q %q", storageWordText(nil), storageWordText([]uint16{1000}), storageWordText([]uint16{storageUnrelated | storageChargeBit, 2}))
+	}
+	bank := &storageBank{units: map[uint8][]uint16{1: storageCells("controls")}}
+	family := openStorage(t, bank, []Battery{storageBattery()})
+	own := ownerForOperation(t, family, opChargeLimit)
+	done, err := family.Execute(context.Background(), storageDirect(own, semreg.Decimal{Coefficient: "8", Exponent10: 3}))
+	if err != nil || done.Outcome != operation.OutcomeApplied || done.Dispatch == nil {
+		t.Fatalf("execute %+v %v", done, err)
+	}
+	want := Evidence(operation.ContractOperationV1, kindRequest, fieldStorCharge+"="+storageWordText([]uint16{1000}))
+	for _, ev := range done.Dispatch.Evidence {
+		if ev == want {
+			return
+		}
+	}
+	t.Fatalf("request evidence missing %+v", done.Dispatch.Evidence)
+}
+
 func storageResourceDigest(prefix, material string) string {
 	sum := sha256.Sum256([]byte(material))
 	return prefix + hex.EncodeToString(sum[:4])

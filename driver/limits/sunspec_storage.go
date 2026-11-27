@@ -403,7 +403,7 @@ func (f *SunSpecStorage) dispatch(ctx context.Context, d driver.Dispatch, own st
 	}
 	started, attempt := f.tick(d), f.attempt()
 	rate := plan.Steps[0]
-	ev := Evidence(operation.ContractOperationV1, kindRequest, rate.Fields[0]+"="+storageWords(rate.Request.Words))
+	ev := Evidence(operation.ContractOperationV1, kindRequest, rate.Fields[0]+"="+storageWordText(rate.Request.Words))
 	if reason := f.before(ctx, d, own); reason != "" {
 		return storageRefused(attempt, started, rate.Fields[0], reason), nil
 	}
@@ -454,7 +454,7 @@ func (f *SunSpecStorage) run(ctx context.Context, d driver.Dispatch, own storage
 	if reason = f.before(ctx, d, own); reason != "" {
 		return storagePartial(attempt, started, f.tick(d), ev, true, operation.DeliverySent, operation.AckAccepted, operation.OutcomeAcknowledgedUnverified, rate.Fields[0], "accepted", reason), nil
 	}
-	modeEv := Evidence(operation.ContractOperationV1, kindAck, fieldStorMode+"="+storageWords(modeStep.Request.Words))
+	modeEv := Evidence(operation.ContractOperationV1, kindAck, fieldStorMode+"="+storageWordText(modeStep.Request.Words))
 	switch f.classify(ctx, own, modeStep) {
 	case "unsent":
 		return storagePartial(attempt, started, f.tick(d), ev, true, operation.DeliverySent, operation.AckAccepted, operation.OutcomeAcknowledgedUnverified, rate.Fields[0], "accepted", "arguments"), nil
@@ -774,7 +774,7 @@ func storageWatts(d driver.Dispatch, arg semreg.DefinitionID) (semreg.Decimal, s
 	return number, ""
 }
 
-func storageWords(words []uint16) string {
+func storageWordText(words []uint16) string {
 	parts := make([]string, len(words))
 	for i, word := range words {
 		parts[i] = strconv.FormatUint(uint64(word), 10)
