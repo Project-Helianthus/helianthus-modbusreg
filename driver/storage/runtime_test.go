@@ -148,7 +148,7 @@ func TestSessionTransactionCommitsAndRejectsRelationsAndClaimsTogether(t *testin
 			if err != nil {
 				return plan{}, err
 			}
-			p.published[p.candidateID(st, pl, p.bindingID(st, pl), all[pl.identity], elementDirection)] = elementDirection
+			p.published[p.candidateID(st, pl, p.bindingID(st, pl, all[pl.identity]), all[pl.identity], elementDirection)] = elementDirection
 			return pl, nil
 		})
 	}

@@ -44,6 +44,8 @@ type Publisher struct {
 	resources map[semreg.ResourceID]string
 	resRev    map[semreg.ResourceID]uint64
 	relations map[string]relState
+	held      held
+	seeded    bool
 	published map[semreg.CandidateID]semreg.DefinitionID
 	members   map[driver.MemberKey]Native
 	unknown   map[string]Unknown
@@ -98,7 +100,7 @@ type allocated struct {
 // outcome is what one committed transaction adds to the producer's memory.
 type outcome struct {
 	epoch     string
-	binding   semreg.NativeBindingID
+	bindings  []semreg.NativeBindingID
 	services  []semreg.ServiceInstanceID
 	resources map[semreg.ResourceID]string
 	resRev    map[semreg.ResourceID]uint64
@@ -116,6 +118,9 @@ func (p *Publisher) publish(ctx context.Context, build func(stamp) (plan, error)
 	defer p.mu.Unlock()
 	probe, err := p.session.Prepare(nil)
 	if err != nil {
+		return err
+	}
+	if err := p.seed(ctx, probe.AssetID); err != nil {
 		return err
 	}
 	pl, err := build(stampOf(probe))
@@ -161,7 +166,9 @@ func (p *Publisher) publish(ctx context.Context, build func(stamp) (plan, error)
 
 func (p *Publisher) remember(out outcome, nodes []allocated, pl plan) {
 	p.epochs[out.epoch] = true
-	p.bindings[out.binding] = true
+	for _, id := range out.bindings {
+		p.bindings[id] = true
+	}
 	for _, id := range out.services {
 		p.services[id] = true
 	}
@@ -216,14 +223,20 @@ func (p *Publisher) allocate(st stamp, pl plan) ([]allocated, error) {
 	return out, nil
 }
 
-func (p *Publisher) bindingID(st stamp, pl plan) semreg.NativeBindingID {
+// bindingID is the binding of one pack. The host accepts an observed fact only
+// when the identity link of its binding names the fact's subject or an anchor
+// parent of it, up to the first equipment resource, and one link names one
+// resource; so every pack is the equipment of its own binding. The first
+// incarnation of the RS-485 family has exactly one pack and keeps the frozen
+// recipe; every other family scopes the binding by the pack's resource.
+func (p *Publisher) bindingID(st stamp, pl plan, owner allocated) semreg.NativeBindingID {
 	if pl.legacyIDs {
 		if p.cfg.First {
 			return semreg.NativeBindingID("binding:semantic-storage:" + hashHex(string(st.asset), string(st.source), pl.profile)[:32])
 		}
 		return semreg.NativeBindingID("binding:semantic-storage:" + hashHex(string(st.asset), string(st.source), string(st.epoch), string(st.generation))[:32])
 	}
-	return semreg.NativeBindingID("binding:modbus-storage:" + hashHex(string(st.asset), string(st.source), pl.profile, string(st.epoch), string(st.generation))[:32])
+	return semreg.NativeBindingID("binding:modbus-storage:" + hashHex(string(st.asset), string(st.source), pl.profile, string(st.epoch), string(st.generation), string(owner.ref.ID))[:32])
 }
 
 func (p *Publisher) serviceID(st stamp, pl plan, binding semreg.NativeBindingID, n allocated, svc semreg.DefinitionID) semreg.ServiceInstanceID {
@@ -351,6 +364,18 @@ func carryLinks(built, pending []semreg.IdentityLink) []semreg.IdentityLink {
 	return append(out, pending...)
 }
 
+// ownerOf is the pack that carries node i: the node itself or its nearest
+// ancestor that is a pack. A node under no pack (the battery, the system) is
+// carried by the plan's first pack.
+func ownerOf(all []allocated, i, primary int) int {
+	for n := i; n >= 0; n = all[n].decl.parent {
+		if all[n].decl.kind == kindPack {
+			return n
+		}
+	}
+	return primary
+}
+
 func (p *Publisher) fill(b *semreg.PublicationBatch, tx driver.PublicationTransaction, pl plan) ([]allocated, []driver.LinkClaim, outcome, error) {
 	st := stampOf(*b)
 	out := outcome{epoch: string(st.source) + "\x00" + string(st.epoch), resources: map[semreg.ResourceID]string{}, resRev: map[semreg.ResourceID]uint64{}, relations: map[string]relState{}, upserted: map[semreg.CandidateID]semreg.DefinitionID{}}
@@ -358,25 +383,35 @@ func (p *Publisher) fill(b *semreg.PublicationBatch, tx driver.PublicationTransa
 	if err != nil {
 		return nil, nil, out, err
 	}
-	binding := p.bindingID(st, pl)
-	out.binding = binding
+	owned := map[int]semreg.NativeBindingID{}
+	var packs []int
+	for i, n := range all {
+		if n.decl.kind == kindPack {
+			owned[i] = p.bindingID(st, pl, n)
+			packs = append(packs, i)
+		}
+	}
+	bindingOf := func(node int) semreg.NativeBindingID { return owned[ownerOf(all, node, pl.identity)] }
 	registry := evidence(pl.registryKind, pl.profile)
-	nativeRef := evidence(pl.nativeKind+".binding", string(binding))
 	if !p.epochs[out.epoch] {
 		b.SourceUpserts = append(b.SourceUpserts, semreg.SourceDescriptor{SourceID: st.source, SourceEpochID: st.epoch, ProtocolID: semreg.DefinitionID(pl.protocol),
 			ProfileID: semreg.DefinitionID(pl.profileID), ProfileVersion: semreg.VersionLabel("1"), RegistryEvidence: registry, StartedAt: wall(pl.receipt.Wall), State: semreg.SourceCurrent, Revision: st.sequence})
 	}
-	newBinding := !p.bindings[binding]
-	if newBinding {
+	for _, i := range packs {
+		binding := owned[i]
+		out.bindings = append(out.bindings, binding)
+		if p.bindings[binding] {
+			continue
+		}
 		b.BindingUpserts = append(b.BindingUpserts, semreg.NativeBinding{BindingID: binding, AssetID: st.asset, SourceID: st.source, SourceEpochID: st.epoch,
-			DriverGeneration: st.generation, NativeResource: nativeRef, State: semreg.BindingCurrent, Revision: st.sequence})
-		identityNode := all[pl.identity]
-		resource := identityNode.ref.ID
+			DriverGeneration: st.generation, NativeResource: evidence(pl.nativeKind+".binding", string(binding)), State: semreg.BindingCurrent, Revision: st.sequence})
+		resource := all[i].ref.ID
 		b.IdentityLinkUpserts = append(b.IdentityLinkUpserts, semreg.IdentityLink{AssetID: st.asset, BindingID: binding, State: semreg.LinkQualified,
 			Basis: []semreg.EvidenceRef{evidence(pl.nativeKind, pl.receipt.Evidence...)}, Revision: st.sequence, Resource: &resource})
 	}
 	var claims []driver.LinkClaim
 	for i, n := range all {
+		binding := bindingOf(i)
 		prior, seen := p.resources[n.ref.ID]
 		origin, basis, slot := p.operatorOrigin(string(n.decl.kind), n.decl.slot), semreg.AnchorOperatorSlot, n.decl.slot
 		if n.decl.legacy {
@@ -397,14 +432,25 @@ func (p *Publisher) fill(b *semreg.PublicationBatch, tx driver.PublicationTransa
 			continue
 		}
 		rev := next(p.resRev[n.ref.ID], seen)
-		b.ResourceUpserts = append(b.ResourceUpserts, p.resource(st, binding, all, i, origin, slot, basis, rev))
+		r := p.resource(st, binding, all, i, origin, slot, basis, rev)
+		if held, ok := p.held.resources[n.ref.ID]; ok && !seen {
+			var heldRev uint64
+			heldRev, r.Revision = revisionOf(held.Revision), held.Revision
+			if sameRecord(r, held) {
+				out.resources[n.ref.ID], out.resRev[n.ref.ID] = scope, heldRev
+				continue
+			}
+			rev = heldRev + 1
+			r.Revision = semreg.Uint64(strconv.FormatUint(rev, 10))
+		}
+		b.ResourceUpserts = append(b.ResourceUpserts, r)
 		out.resources[n.ref.ID], out.resRev[n.ref.ID] = scope, rev
 	}
 	for _, l := range pl.links {
 		from, to := all[l.from], all[l.to]
 		key := string(l.def) + "\x00" + string(from.ref.ID) + "\x00" + string(to.ref.ID)
-		class, origin := semreg.RelationGateRule, p.nativeOrigin(st, binding, string(l.def), string(from.ref.ID), string(to.ref.ID))
-		scope := string(binding)
+		class, origin := semreg.RelationGateRule, p.nativeOrigin(st, bindingOf(l.to), string(l.def), string(from.ref.ID), string(to.ref.ID))
+		scope := string(bindingOf(l.to))
 		if l.def == relSystemBattery {
 			class, origin, scope = semreg.RelationConfiguration, p.operatorOrigin(string(l.def), string(from.ref.ID), string(to.ref.ID)), "configuration"
 		}
@@ -413,13 +459,25 @@ func (p *Publisher) fill(b *semreg.PublicationBatch, tx driver.PublicationTransa
 			continue
 		}
 		rev := next(held.rev, seen)
-		b.RelationUpserts = append(b.RelationUpserts, semreg.RelationInstance{Definition: def(l.def), From: from.ref.ID, To: to.ref.ID, State: semreg.LinkQualified,
-			BasisClass: class, Basis: origin.Evidence, Origin: origin, Revision: semreg.Uint64(strconv.FormatUint(rev, 10))})
+		relation := semreg.RelationInstance{Definition: def(l.def), From: from.ref.ID, To: to.ref.ID, State: semreg.LinkQualified,
+			BasisClass: class, Basis: origin.Evidence, Origin: origin, Revision: semreg.Uint64(strconv.FormatUint(rev, 10))}
+		if old, ok := p.held.relations[key]; ok && !seen {
+			var heldRev uint64
+			heldRev, relation.Revision = revisionOf(old.Revision), old.Revision
+			if sameRecord(relation, old) {
+				out.relations[key] = relState{rev: heldRev, scope: scope}
+				continue
+			}
+			rev = heldRev + 1
+			relation.Revision = semreg.Uint64(strconv.FormatUint(rev, 10))
+		}
+		b.RelationUpserts = append(b.RelationUpserts, relation)
 		out.relations[key] = relState{rev: rev, scope: scope}
 		claims = append(claims, driver.LinkClaim{Key: driver.LinkKey{Type: def(l.def), From: from.ref, To: to.ref}, Basis: origin.Evidence})
 	}
 	for _, s := range pl.services {
 		n := all[s.node]
+		binding := bindingOf(s.node)
 		id := p.serviceID(st, pl, binding, n, s.svc)
 		if p.services[id] {
 			continue
@@ -432,14 +490,14 @@ func (p *Publisher) fill(b *semreg.PublicationBatch, tx driver.PublicationTransa
 	}
 	upserted := map[semreg.CandidateID]bool{}
 	for _, f := range pl.facts {
-		c := p.candidate(st, pl, binding, all[f.node], f)
+		c := p.candidate(st, pl, bindingOf(f.node), all[f.node], f)
 		b.FactUpserts = append(b.FactUpserts, c)
 		out.upserted[c.CandidateID] = f.element
 		upserted[c.CandidateID] = true
 	}
 	withdrawn := map[semreg.CandidateID]bool{}
 	for _, w := range pl.withdrawals {
-		id := p.candidateID(st, pl, binding, all[w.node], w.element)
+		id := p.candidateID(st, pl, bindingOf(w.node), all[w.node], w.element)
 		if _, held := p.published[id]; held && !upserted[id] && !withdrawn[id] {
 			b.FactWithdrawals = append(b.FactWithdrawals, id)
 			out.withdrawn = append(out.withdrawn, id)
@@ -460,18 +518,70 @@ func (p *Publisher) fill(b *semreg.PublicationBatch, tx driver.PublicationTransa
 	sort.Slice(b.ServiceUpserts, func(i, j int) bool { return b.ServiceUpserts[i].InstanceID < b.ServiceUpserts[j].InstanceID })
 	sort.Slice(b.ResourceUpserts, func(i, j int) bool { return b.ResourceUpserts[i].ResourceID < b.ResourceUpserts[j].ResourceID })
 	sort.Slice(b.RelationUpserts, func(i, j int) bool { return relationOrder(b.RelationUpserts[i]) < relationOrder(b.RelationUpserts[j]) })
+	sort.Slice(b.BindingUpserts, func(i, j int) bool { return b.BindingUpserts[i].BindingID < b.BindingUpserts[j].BindingID })
+	sort.Slice(b.IdentityLinkUpserts, func(i, j int) bool { return b.IdentityLinkUpserts[i].BindingID < b.IdentityLinkUpserts[j].BindingID })
 	sort.Slice(claims, func(i, j int) bool { return claimOrder(claims[i]) < claimOrder(claims[j]) })
-	var mine []semreg.IdentityLink
+	mine := map[semreg.NativeBindingID]bool{}
+	for _, id := range out.bindings {
+		mine[id] = true
+	}
+	var pending []semreg.IdentityLink
 	for _, link := range tx.OperatorLinks(b.BindingUpserts) {
-		if link.BindingID == binding {
-			mine = append(mine, link)
+		if mine[link.BindingID] {
+			pending = append(pending, link)
 		}
 	}
-	b.IdentityLinkUpserts = carryLinks(b.IdentityLinkUpserts, mine)
+	b.IdentityLinkUpserts = carryLinks(b.IdentityLinkUpserts, pending)
 	if out.withdrawn == nil {
 		out.withdrawn = []semreg.CandidateID{}
 	}
 	return all, claims, out, nil
+}
+
+// held is what the host kept of this producer's resources and relations
+// before this process published; a successor revises them from there.
+type held struct {
+	resources map[semreg.ResourceID]semreg.Resource
+	relations map[string]semreg.RelationInstance
+}
+
+// seed reads the resources and relations the host already holds for the asset,
+// once, so that a restarted producer upserts a changed record at the held
+// revision plus one and leaves an identical one alone, as the host requires.
+func (p *Publisher) seed(ctx context.Context, asset semreg.AssetID) error {
+	if p.seeded {
+		return nil
+	}
+	cut, err := p.session.SemanticInput().Capture(ctx, driver.Filter{Assets: []semreg.AssetID{asset}})
+	if err != nil {
+		return err
+	}
+	p.held = held{resources: map[semreg.ResourceID]semreg.Resource{}, relations: map[string]semreg.RelationInstance{}}
+	for _, snapshot := range cut.Snapshots {
+		if snapshot.AssetID != asset {
+			continue
+		}
+		for _, r := range snapshot.Resources {
+			p.held.resources[r.ResourceID] = r
+		}
+		for _, r := range snapshot.Relations {
+			p.held.relations[string(r.Definition.ID)+"\x00"+string(r.From)+"\x00"+string(r.To)] = r
+		}
+	}
+	p.seeded = true
+	return nil
+}
+
+func revisionOf(r semreg.Uint64) uint64 {
+	n, _ := strconv.ParseUint(string(r), 10, 64)
+	return n
+}
+
+// sameRecord compares two records of the same revision by their canonical form.
+func sameRecord(a, b semreg.Record) bool {
+	x, errA := semreg.CanonicalJSON(a)
+	y, errB := semreg.CanonicalJSON(b)
+	return errA == nil && errB == nil && string(x) == string(y)
 }
 
 func unknownKey(k semreg.FactKey) string {

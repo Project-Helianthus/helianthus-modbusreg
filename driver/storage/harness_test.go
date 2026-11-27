@@ -64,6 +64,23 @@ type fakeSession struct {
 
 func (f fakeSession) Publisher() driver.Publisher { return f }
 
+func (f fakeSession) SemanticInput() driver.SemanticInput { return standIn{s: f.s} }
+
+// standIn answers the capture with what the stand-in kernel holds.
+type standIn struct {
+	driver.SemanticInput
+	s *session
+}
+
+func (i standIn) Capture(context.Context, driver.Filter) (driver.SemanticCut, error) {
+	snapshot := semreg.Snapshot{AssetID: i.s.asset}
+	for _, r := range i.s.k.resources {
+		snapshot.Resources = append(snapshot.Resources, r)
+	}
+	snapshot.Relations = append(snapshot.Relations, i.s.k.relations...)
+	return driver.SemanticCut{Snapshots: []semreg.Snapshot{snapshot}}, nil
+}
+
 func (f fakeSession) Begin(context.Context) (driver.PublicationTransaction, error) {
 	f.s.opened++
 	return &tx{s: f.s}, nil
