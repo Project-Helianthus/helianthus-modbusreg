@@ -39,6 +39,9 @@ const (
 )
 
 // RegisterImage is one register write and, where the card documents a read, the re-read.
+// A nil error returns that re-read. A nil error and a nil re-read mean the write was
+// accepted and no row could be read. Any other error means delivery of the write is
+// unknown: the call did not establish that the device accepted it.
 // The family sends nothing when Image is nil.
 type RegisterImage interface {
 	Write(context.Context, huawei.ControlWrite, []uint16) ([]uint16, error)
@@ -285,7 +288,7 @@ func (e *storageExecutor) Execute(ctx context.Context, dispatch driver.Dispatch)
 	}
 	read, err := e.family.Image.Write(ctx, write, words)
 	if err != nil {
-		return sentAck(dispatch), nil
+		return unknownDelivery(dispatch), nil
 	}
 	switch huawei.CompareStorageReadback(e.family.Card, e.row.Offset, words, read) {
 	case "match":
@@ -430,6 +433,26 @@ func confirming(dispatch driver.Dispatch, snap semreg.Snapshot, candidate semreg
 		},
 		ReadbackSnapshot: &snap,
 		OutcomeEvidence:  []semreg.EvidenceRef{evidence("evidence.outcome", "readback")},
+	}
+}
+
+// unknownDelivery is a write whose delivery cannot be established.
+// It carries no acknowledgement: a failed contact is not an accepted write.
+func unknownDelivery(dispatch driver.Dispatch) driver.Completion {
+	started := semreg.EvaluationContext{
+		EvaluatedAt:       dispatch.AdmittedAt,
+		EvaluateMonotonic: semreg.MonotonicPoint{ClockEpochID: "clock-epoch:dispatch", Nanoseconds: "1"},
+	}
+	completed := started
+	completed.EvaluateMonotonic.Nanoseconds = "2"
+	return driver.Completion{
+		Outcome: operation.OutcomeIndeterminate,
+		Dispatch: &operation.DispatchEvidence{
+			AttemptID: nextAttempt(), Started: started, Completed: &completed,
+			Delivery: operation.DeliveryUnknown, PossibleSideEffect: true,
+			Evidence: []semreg.EvidenceRef{evidence("evidence.dispatch", "unknown")},
+		},
+		OutcomeEvidence: []semreg.EvidenceRef{evidence("evidence.outcome", "unknown")},
 	}
 }
 

@@ -63,7 +63,9 @@ func (s *scriptImage) Write(_ context.Context, write huawei.ControlWrite, words 
 	s.writes = append(s.writes, recordedWrite{write: write, words: copied})
 	switch s.mode {
 	case "error":
-		return nil, errNoRead
+		return nil, errTransport
+	case "noread":
+		return nil, nil
 	case "mismatch":
 		return []uint16{0, 1}, nil
 	default:
@@ -76,8 +78,8 @@ type imageError string
 func (e imageError) Error() string { return string(e) }
 
 const (
-	errRefused imageError = "refused"
-	errNoRead  imageError = "no read"
+	errRefused   imageError = "refused"
+	errTransport imageError = "transport"
 )
 
 type familyFactory struct{ family *Family }
@@ -159,7 +161,8 @@ func TestDongleStorageLimitDispatch(t *testing.T) {
 		{name: "applied", want: operation.OutcomeApplied, writes: 1},
 		{name: "local-comparison", hold: true, want: operation.OutcomeAcknowledgedUnverified, writes: 1},
 		{name: "retired-generation", prior: true, want: operation.OutcomeAcknowledgedUnverified, writes: 1},
-		{name: "acknowledgement", mode: "error", want: operation.OutcomeAcknowledgedUnverified, writes: 1},
+		{name: "no-read", mode: "noread", want: operation.OutcomeAcknowledgedUnverified, writes: 1},
+		{name: "transport", mode: "error", want: operation.OutcomeIndeterminate, writes: 1},
 		{name: "conflict", mode: "mismatch", want: operation.OutcomeConflict, writes: 1},
 		{name: "outside-limit", mutate: negativeWatts, want: operation.OutcomeRejected, writes: 0},
 		{name: "stale-guard", mutate: staleGeneration, want: operation.OutcomeRejected, writes: 0},
@@ -183,6 +186,12 @@ func TestDongleStorageLimitDispatch(t *testing.T) {
 				result := invoke(t, family, op.id, tc.mutate)
 				if result.KernelOutcome != tc.want {
 					t.Fatalf("outcome %s delivery %s ack %s relation %s reason %s", result.KernelOutcome, result.Delivery, result.Acknowledgement, result.ReadbackRelation, result.Reason)
+				}
+				if tc.want == operation.OutcomeIndeterminate && (result.Delivery != operation.DeliveryUnknown || result.Acknowledgement != "" || result.Status != "unknown") {
+					t.Fatalf("delivery %s ack %q status %s", result.Delivery, result.Acknowledgement, result.Status)
+				}
+				if tc.want == operation.OutcomeAcknowledgedUnverified && (result.Delivery != operation.DeliverySent || result.Acknowledgement != operation.AckAccepted) {
+					t.Fatalf("delivery %s ack %q", result.Delivery, result.Acknowledgement)
 				}
 				if tc.want == operation.OutcomeApplied && (result.Status != "readback_confirmed" || result.ReadbackRelation != operation.ReadbackConfirms) {
 					t.Fatalf("applied status %s relation %s", result.Status, result.ReadbackRelation)
