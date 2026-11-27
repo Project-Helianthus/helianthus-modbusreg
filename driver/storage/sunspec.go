@@ -16,6 +16,14 @@ const (
 	sunspecProtocol = "modbus_tcp"
 	sunspecNative   = "native.sunspec.storage.observation"
 	sunspecRegistry = "registry.sunspec.storage.mapping"
+
+	// Model 160 reports lifetime DC watt-hours per module and model 714 reports
+	// injected and absorbed watt-hours per port. The module role is unknown, and
+	// a module label does not establish storage charge or discharge. The port
+	// type has no name, so the port is not established as a storage port. Those
+	// watt-hours stay in the namespace; the pack energy elements are withheld.
+	reasonModuleRoleUnstated = "the model 160 module role is not stated, and a module label does not establish storage charge or discharge"
+	reasonPortTypeUnnamed    = "the model 714 port type is not named, so the port is not established as a storage port"
 )
 
 // SunSpecStorage configures one storage segment of a chain. Position is the
@@ -116,11 +124,11 @@ func (p *Publisher) sunSpecPlan(obs SunSpecObservation) (plan, error) {
 	}
 	for _, d := range obs.Decisions {
 		seg, ok := p.segmentOf(d, segments)
-		if !ok || !d.Admitted() || d.ProfileID() != sunspec.StorageMonitoringCapabilityID {
+		if !ok || !d.Admitted() {
 			continue
 		}
 		occ, has := d.SourceOccurrence()
-		if !has {
+		if !has || !sunSpecAdmitted(d.ProfileID(), occ.ModelID()) {
 			continue
 		}
 		if err := p.sunSpecDecision(&pl, seg, d, occ); err != nil {
@@ -131,6 +139,22 @@ func (p *Publisher) sunSpecPlan(obs SunSpecObservation) (plan, error) {
 		p.sunSpecLimits(&pl, seg)
 	}
 	return pl, nil
+}
+
+// sunSpecAdmitted is the storage segment's own monitoring profile, plus the
+// model 160 module monitor and the model 714 port monitor. Model 701 shares
+// the port monitor's profile and is not a storage port.
+func sunSpecAdmitted(profile string, model uint16) bool {
+	switch profile {
+	case sunspec.StorageMonitoringCapabilityID:
+		return true
+	case sunspec.MPPTMonitoringCapabilityID:
+		return model == 160
+	case sunspec.DERMeasurementCapabilityID:
+		return model == 714
+	default:
+		return false
+	}
 }
 
 func (p *Publisher) segmentOf(d sunspec.CapabilityDecision, segments map[uint32]*segment) (*segment, bool) {
@@ -171,16 +195,64 @@ func (p *Publisher) sunSpecDecision(pl *plan, seg *segment, d sunspec.Capability
 			return err
 		}
 	}
+	lifetime := false
 	for _, e := range d.RepeatedEntries() {
 		group := fmt.Sprintf("%sgroup_%d.", prefix, e.Index)
 		for _, f := range e.Facts {
 			if err := p.sunSpecMember(pl, seg.pack, group, f); err != nil {
 				return err
 			}
+			if wattHoursUnassigned(model, f) {
+				lifetime = true
+			}
 		}
 		pl.members = append(pl.members, memberDecl{seg.pack, group + "raw_span", Native{Source: "raw_span", Text: rawSpan(occ)}})
 	}
+	if lifetime {
+		reason := reasonModuleRoleUnstated
+		if model == 714 {
+			reason = reasonPortTypeUnnamed
+		}
+		p.withholdEnergy(pl, seg.pack, reason)
+	}
 	return nil
+}
+
+// wattHoursUnassigned is a lifetime or per-port watt-hour the model states
+// without saying whether it is storage charge or storage discharge.
+func wattHoursUnassigned(model uint16, f sunspec.CapabilityFact) bool {
+	if f.Unit() != "Wh" {
+		return false
+	}
+	if _, ok := f.Value().Number(); !ok {
+		return false
+	}
+	switch model {
+	case 160:
+		return f.FieldID() == "mppt.module.dc_energy"
+	case 714:
+		return f.FieldID() == "der.dc.port.energy.injected" || f.FieldID() == "der.dc.port.energy.absorbed"
+	default:
+		return false
+	}
+}
+
+// withholdEnergy records both pack energy elements as unknown. A later fact
+// for the same element replaces the unknown; a second observation of the same
+// gap does not add another record.
+func (p *Publisher) withholdEnergy(pl *plan, node int, reason string) {
+	for _, element := range []semreg.DefinitionID{"storage.energy.charged", "storage.energy.discharged"} {
+		seen := false
+		for _, u := range pl.unknown {
+			if u.node == node && u.element == element && u.dim == dimPack {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			pl.unknown = append(pl.unknown, unknownDecl{node, element, dimPack, reason})
+		}
+	}
 }
 
 func rawSpan(o sunspec.Occurrence) string {

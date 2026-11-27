@@ -19,6 +19,10 @@ const (
 
 	reasonNoInverterBattery = "the child's documented edition defines no inverter-side battery groups; only the site battery fields are published"
 	reasonSignNotStated     = "the documented sign of the power word is not stated"
+	// powerSignStated is the catalogue sign of the storage-unit power words
+	// 37001 and 37743: positive charging, negative discharging. The signed
+	// watt value is the fact; the pack does not invert it.
+	powerSignStated = "positive:charging,negative:discharging"
 )
 
 // HuaweiBattery configures one child unit that carries battery groups and the
@@ -75,6 +79,7 @@ var (
 	rowRated   = Row{NativeUnit: "Wh", Element: "storage.energy.nominal_capacity", Dimension: dimPack, Unit: unitJoule, Conv: whToJoule, ZeroAbsent: true}
 	rowChgRate = Row{NativeUnit: "W", Element: "storage.limit.charge_power", Dimension: dimInterface, Unit: unitWatt, Conv: identity}
 	rowDisRate = Row{NativeUnit: "W", Element: "storage.limit.discharge_power", Dimension: dimInterface, Unit: unitWatt, Conv: identity}
+	rowPower   = Row{NativeUnit: "W", Element: "storage.pack.power", Dimension: dimPack, Unit: unitWatt, Conv: identity}
 )
 
 func named(r Row, native string) Row { r.Native = native; return r }
@@ -242,7 +247,9 @@ func (p *Publisher) huaweiChild(pl *plan, cfg HuaweiBattery, child HuaweiChild) 
 		if unit == 2 {
 			power = 37743
 		}
-		p.signOpen(pl, node, facts, power, fmt.Sprintf("unit_%d_power", unit))
+		if err := p.unitPower(pl, node, facts, power, fmt.Sprintf("unit_%d_power", unit)); err != nil {
+			return err
+		}
 		consumed[state], consumed[power] = true, true
 		for _, row := range huaweiUnitRows(unit) {
 			consumed[row.Offset] = true
@@ -319,6 +326,23 @@ func (p *Publisher) unmapped(pl *plan, battery int, facts huaweiFacts, consumed 
 		pl.members = append(pl.members, memberDecl{battery, "storage_" + strconv.Itoa(offset),
 			Native{Source: f.Key, Unit: f.Unit, Value: decimalOf(decimalOfHuawei(f.Value), 6), Text: f.State}})
 	}
+}
+
+// unitPower publishes storage.pack.power for a storage-unit power word whose
+// catalogue states the sign. Words 37001 and 37743 are watts, positive while
+// charging and negative while discharging. A retained word publishes nothing:
+// the fact from the original reading stays. Any other power word, including a
+// pack power word with no stated sign, stays in the namespace.
+func (p *Publisher) unitPower(pl *plan, node int, facts huaweiFacts, offset uint16, local string) error {
+	r, f, ok := facts.value(offset)
+	if !ok || r.Sign() == 0 || f.Retained {
+		return nil
+	}
+	if (offset == 37001 || offset == 37743) && f.Unit == "W" {
+		return pl.fact(node, named(rowPower, f.Key), r, powerSignStated)
+	}
+	p.signOpen(pl, node, facts, offset, local)
+	return nil
 }
 
 // signOpen keeps a power word the documentation gives no sign for in the

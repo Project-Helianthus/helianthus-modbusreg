@@ -146,16 +146,23 @@ func TestHuaweiBatteryFacts(t *testing.T) {
 	if got := symbolOf(t, only(t, k, elementOperating)); got != "storage.status.operating.active" {
 		t.Errorf("operating %s", got)
 	}
-	// The power words document no sign: no fact states one, the native value stays readable.
-	if len(factsOf(k, "storage.pack.power")) != 0 {
-		t.Fatal("a power fact was published with no documented sign")
+	// Unit 1 power is the stated watt value on that unit's pack. Publishing it
+	// on a documented pack, dropping the sign text, or negating 1500 W fails.
+	power := only(t, k, "storage.pack.power")
+	if co, e, u := quantityOf(t, power); co != "15" || e != 2 || u != unitWatt {
+		t.Fatalf("unit power %s e%d %s", co, e, u)
 	}
-	var open bool
+	if power.Key.Dimensions[0].ID != dimPack || *power.Key.Dimensions[0].Value.Text != string(packResource("battery-a", "unit-1")) {
+		t.Fatalf("unit power subject %+v", power.Key.Dimensions)
+	}
+	if *power.Key.Dimensions[0].Value.Text == string(packResource("battery-a", "unit-1-pack-1")) {
+		t.Fatal("unit power was published on the documented pack")
+	}
+	requireNativeEvidence(t, power, catalogProfile(t, "LB-C00").IDPrefix()+"storage.37001", "W", "15", "2", "positive:charging,negative:discharging")
 	for _, m := range p.Members() {
-		open = open || (m.Native.Open == reasonSignNotStated && m.Key.Local == "unit_1_power")
-	}
-	if !open {
-		t.Error("the native power value is not in the namespace with its open sign")
+		if m.Key.Local == "unit_1_power" && m.Native.Open == reasonSignNotStated {
+			t.Fatal("the stated unit power stayed open")
+		}
 	}
 	for _, def := range []semreg.DefinitionID{relSystemBattery, relBatteryPack, relPackInterface} {
 		if len(relationsOf(k, def)) == 0 || len(claimsOf(k, def)) != len(relationsOf(k, def)) {
@@ -165,6 +172,84 @@ func TestHuaweiBatteryFacts(t *testing.T) {
 	// The unit, its two packs and the system pack of the system-scoped words.
 	if len(relationsOf(k, relBatteryPack)) != 4 {
 		t.Errorf("battery_pack relations %d", len(relationsOf(k, relBatteryPack)))
+	}
+}
+
+// packResource is the identifier the test allocator gives a pack slot.
+func packResource(batterySlot, packSlot string) semreg.ResourceID {
+	battery := semreg.ResourceID("resource:" + hashHex(string(kindBattery) + "||" + batterySlot)[:24])
+	return semreg.ResourceID("resource:" + hashHex(string(kindPack) + "|" + string(battery) + "|" + packSlot)[:24])
+}
+
+func requireNativeEvidence(t *testing.T, c semreg.FactCandidate, parts ...string) {
+	t.Helper()
+	want := evidence("evidence.native", parts...)
+	for _, e := range c.Evidence {
+		if e.Kind == "evidence.native" && e.Digest == want.Digest {
+			return
+		}
+	}
+	t.Fatalf("native evidence is not %v", parts)
+}
+
+func TestHuaweiUnitPowerKeepsTheStatedSign(t *testing.T) {
+	// A negative unit word stays negative. The unsigned pack power word, which
+	// the catalogue does not sign, does not become a second fact. Mapping both
+	// units onto one subject, or taking the absolute value, fails.
+	s := newSession("asset:inverter-a", "source-a", "epoch-1", 1)
+	p := newPublisher(t, huaweiConfig(), s, nil)
+	words := withWords(map[uint16]uint16{37001: 0xffff, 37002: 0xf63c, 37741: 2, 37743: 0, 37744: 800, 38233: 0, 38234: 2500})
+	publishHuawei(t, p, HuaweiObservation{Children: []HuaweiChild{childOf(t, "LB-C00", 1, words)}, Receipt: receipt(1)})
+	powers := factsOf(s.k, "storage.pack.power")
+	if len(powers) != 2 {
+		t.Fatalf("power facts %d", len(powers))
+	}
+	bySubject := map[string]semreg.FactCandidate{}
+	for _, c := range powers {
+		if c.Key.Dimensions[0].ID != dimPack {
+			t.Fatalf("power dimension %s", c.Key.Dimensions[0].ID)
+		}
+		bySubject[*c.Key.Dimensions[0].Value.Text] = c
+	}
+	unit1, unit2 := string(packResource("battery-a", "unit-1")), string(packResource("battery-a", "unit-2"))
+	pack1 := string(packResource("battery-a", "unit-1-pack-1"))
+	for _, id := range []string{unit1, unit2} {
+		c, ok := bySubject[id]
+		if !ok {
+			t.Fatalf("no power on %s", id)
+		}
+		if _, taken := bySubject[pack1]; taken {
+			t.Fatal("pack power became a fact")
+		}
+		co, e, u := quantityOf(t, c)
+		prefix := catalogProfile(t, "LB-C00").IDPrefix()
+		switch id {
+		case unit1:
+			if co != "-25" || e != 2 || u != unitWatt {
+				t.Fatalf("unit 1 power %s e%d %s", co, e, u)
+			}
+			requireNativeEvidence(t, c, prefix+"storage.37001", "W", "-25", "2", "positive:charging,negative:discharging")
+		case unit2:
+			if co != "8" || e != 2 || u != unitWatt {
+				t.Fatalf("unit 2 power %s e%d %s", co, e, u)
+			}
+			requireNativeEvidence(t, c, prefix+"storage.37743", "W", "8", "2", "positive:charging,negative:discharging")
+		}
+	}
+	var open bool
+	for _, m := range p.Members() {
+		if m.Key.Local == "unit_1_pack_1_power" && m.Native.Open == reasonSignNotStated {
+			open = true
+			if m.Native.Unit != "kW" {
+				t.Fatalf("pack power unit %s", m.Native.Unit)
+			}
+		}
+		if (m.Key.Local == "unit_1_power" || m.Key.Local == "unit_2_power") && m.Native.Open == reasonSignNotStated {
+			t.Fatalf("%s stayed open", m.Key.Local)
+		}
+	}
+	if !open {
+		t.Fatal("the unsigned pack power is not in the namespace")
 	}
 }
 

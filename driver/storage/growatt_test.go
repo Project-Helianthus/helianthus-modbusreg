@@ -198,6 +198,70 @@ type ids struct {
 	RepairedValues    map[string]map[string]any `json:"repaired_values"`
 }
 
+type incarnation struct {
+	Configuration struct {
+		Asset      string `json:"asset"`
+		Source     string `json:"source"`
+		Epoch      string `json:"epoch"`
+		Generation uint64 `json:"generation"`
+		Unit       byte   `json:"unit"`
+		Battery    string `json:"battery"`
+		System     string `json:"system"`
+	} `json:"configuration"`
+	Clock struct {
+		Wall  int64  `json:"wall_unix_nanos"`
+		Step  int64  `json:"step_nanos"`
+		Epoch string `json:"epoch"`
+	} `json:"clock"`
+	Windows []window `json:"windows"`
+	Service struct {
+		InstanceID        string `json:"instance_id"`
+		AssetID           string `json:"asset_id"`
+		PackID            string `json:"pack_id"`
+		PackVersion       string `json:"pack_version"`
+		DefinitionID      string `json:"definition_id"`
+		DefinitionVersion string `json:"definition_version"`
+		BindingID         string `json:"binding_id"`
+		SourceEpochID     string `json:"source_epoch_id"`
+		DriverGeneration  string `json:"driver_generation"`
+		Qualification     string `json:"qualification"`
+		Availability      string `json:"availability"`
+		Revision          string `json:"revision"`
+	} `json:"mcp_service"`
+}
+
+func loadIncarnation(t *testing.T) incarnation {
+	t.Helper()
+	raw, err := os.ReadFile("testdata/growatt_first_incarnation_inputs.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var in incarnation
+	if err := json.Unmarshal(raw, &in); err != nil {
+		t.Fatal(err)
+	}
+	return in
+}
+
+func (in incarnation) status(t *testing.T) growatt.BMSTypedReadOnlyStatus {
+	t.Helper()
+	var slices []growatt.BMSReadOnlySlice
+	for _, w := range in.Windows {
+		slices = append(slices, growatt.BMSReadOnlySlice{Offset: w.Offset, Words: append([]uint16(nil), w.Words...)})
+	}
+	status, err := growatt.DecodeGrowattBMSTypedReadOnlyStatus(growatt.BMSReadOnlyInput{UnitID: in.Configuration.Unit, Function: modbusreg.FunctionReadHoldingRegisters, Revision: exactRevision, Slices: slices})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return status
+}
+
+func (in incarnation) observe(t *testing.T, n int) GrowattObservation {
+	t.Helper()
+	return GrowattObservation{Status: in.status(t), Receipt: Receipt{ObservationID: "observation-" + string(rune('a'+n)), Wall: time.Unix(0, in.Clock.Wall+int64(n)*in.Clock.Step), Mono: time.Duration(int64(n) * in.Clock.Step),
+		ClockEpoch: in.Clock.Epoch, Evidence: []string{"observation", string(rune('a' + n))}}}
+}
+
 func loadIDs(t *testing.T) ids {
 	t.Helper()
 	raw, err := os.ReadFile("testdata/growatt_first_incarnation_ids.json")
@@ -225,12 +289,29 @@ func (f fixture) observe(t *testing.T, raw uint16, n int, diag bool) GrowattObse
 // Rows: wrong unit, wrong sign, wrong subject and an invented identity must fail.
 
 func TestFirstIncarnationTranscription(t *testing.T) {
-	f, frozen := loadFixture(t), loadIDs(t)
-	s := f.session()
-	p := newPublisher(t, f.config(), s, f.packAllocator(t))
+	in, frozen := loadIncarnation(t), loadIDs(t)
+	// The donor windows are not the direction template: identity word 1 is 772
+	// there and 515 in the template, and the cycle word is 110 there and 47 in
+	// the template. Replaying the template fails both checks.
+	if len(in.Windows) != 4 || in.Windows[0].Offset != 1 || in.Windows[0].Quantity != 7 || in.Windows[0].Words[1] != 772 ||
+		in.Windows[1].Offset != 13 || in.Windows[1].Quantity != 29 || in.Windows[1].Words[6] != 2 || in.Windows[1].Words[17] != 110 ||
+		in.Windows[2].Offset != 256 || in.Windows[2].Quantity != 12 || in.Windows[3].Offset != 269 || in.Windows[3].Quantity != 2 {
+		t.Fatalf("donor windows %+v", in.Windows)
+	}
+	if in.Service.InstanceID != frozen.Service || in.Service.BindingID != frozen.Binding {
+		t.Fatal("the service comparison does not name the frozen instance")
+	}
+	if got := in.status(t); got.CycleCount != 110 || got.OperatingState != "charging" {
+		t.Fatalf("donor status cycle %d state %s", got.CycleCount, got.OperatingState)
+	}
+	s := newSession(in.Configuration.Asset, in.Configuration.Source, in.Configuration.Epoch, in.Configuration.Generation)
+	cfg := testConfig()
+	cfg.Battery, cfg.System = in.Configuration.Battery, in.Configuration.System
+	slot := hashHex("helianthus.gateway.storage.pack_slot/v1", in.Configuration.Asset)[:32]
+	p := newPublisher(t, cfg, s, &allocator{fixed: map[string]semreg.ResourceID{"resource.battery_pack||" + slot: semreg.ResourceID(in.Configuration.Asset)}})
 	ctx := context.Background()
-	for n, raw := range []uint16{2, 2} {
-		if err := p.PublishGrowatt(ctx, f.observe(t, raw, n+1, false)); err != nil {
+	for n := range []int{1, 2} {
+		if err := p.PublishGrowatt(ctx, in.observe(t, n+1)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -246,8 +327,13 @@ func TestFirstIncarnationTranscription(t *testing.T) {
 		t.Fatalf("service is not the frozen instance: %v", k.services)
 	}
 	pack := semreg.ResourceID(frozen.PackDimensionText)
-	if service.Definition.ID != "storage.service.pack" || service.Resource == nil || *service.Resource != pack || service.BindingID != semreg.NativeBindingID(frozen.Binding) ||
-		service.SourceEpochID != "source-epoch-1" || service.DriverGeneration != "1" || service.Qualification != semreg.QualificationQualified || service.Availability != semreg.AvailabilityAvailable {
+	svc := in.Service
+	if service.Definition.ID != semreg.DefinitionID(svc.DefinitionID) || service.Definition.Version != semreg.SemanticVersion(svc.DefinitionVersion) ||
+		service.Definition.Pack.ID != semreg.DefinitionID(svc.PackID) || service.Definition.Pack.Version != semreg.SemanticVersion(svc.PackVersion) ||
+		service.Resource == nil || *service.Resource != pack || service.BindingID != semreg.NativeBindingID(svc.BindingID) ||
+		service.AssetID != semreg.AssetID(svc.AssetID) || service.SourceEpochID != semreg.SourceEpochID(svc.SourceEpochID) ||
+		service.DriverGeneration != semreg.Uint64(svc.DriverGeneration) || string(service.Revision) != svc.Revision ||
+		service.Qualification != semreg.Qualification(svc.Qualification) || service.Availability != semreg.Availability(svc.Availability) {
 		t.Fatalf("service record: %+v", service)
 	}
 	for element, id := range frozen.Candidates {
@@ -271,6 +357,11 @@ func TestFirstIncarnationTranscription(t *testing.T) {
 	requireQuantity(t, k, "storage.pack.current", "-1", 0, unitAmpere)
 	requireQuantity(t, k, "storage.capacity.charge", "5", -1, unitAmpereHour)
 	requireQuantity(t, k, "storage.capacity.discharge", "6", -1, unitAmpereHour)
+	// Donor cycle 110, remaining 32 Ah and full charge 50 Ah. The direction
+	// template publishes cycle 47, remaining 41.5 Ah and full charge 100 Ah.
+	requireQuantity(t, k, "storage.state.cycle_count", "11", 1, unitOne)
+	requireQuantity(t, k, "storage.capacity.remaining", "32", 0, unitAmpereHour)
+	requireQuantity(t, k, "storage.capacity.full_charge", "5", 1, unitAmpereHour)
 	// The two stated unit repairs.
 	requireQuantity(t, k, "storage.state.soc", "75", -2, unitRatio)
 	requireQuantity(t, k, "storage.temperature.pack", "29815", -2, unitKelvin)
@@ -288,7 +379,6 @@ func TestFirstIncarnationTranscription(t *testing.T) {
 		}
 	}
 	// The pack record keeps the first incarnation's anchor: operator slot, digest of the label.
-	slot := hashHex("helianthus.gateway.storage.pack_slot/v1", f.Configuration.Asset)[:32]
 	r := k.resources[pack]
 	if r.Kind != kindPack || r.Anchor.Basis != semreg.AnchorOperatorSlot || r.Anchor.Class != semreg.AnchorEquipment || r.Anchor.Slot == nil || *r.Anchor.Slot != slot || r.Anchor.Parent != nil {
 		t.Fatalf("pack record: %+v", r)
