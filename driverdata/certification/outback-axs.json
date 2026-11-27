@@ -1,0 +1,6 @@
+{
+ "contract": "helianthus.semreg.certification-references/v1",
+ "entries": [
+  {"source": "certification", "category": "gap", "driver": "outback-axs", "vendor": "OutBack", "flavor": "sunspec.flavor.outback.axs.readonly@1.0.0", "model": "AXS Port", "firmware": {"form": "not_stated"}, "issuer": "OutBack AXS Port specification sheet (lists FCC Part 15, CE, RoHS, SunSpec; no accuracy)", "url": "https://old.outbackpower.com/downloads/documents/system_management/axs_port/axsport_specsheet.pdf", "retrieved_on": "2026-11-26"}
+ ]
+}

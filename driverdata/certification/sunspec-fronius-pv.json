@@ -1,0 +1,7 @@
+{
+ "contract": "helianthus.semreg.certification-references/v1",
+ "entries": [
+  {"source": "certification", "category": "gap", "driver": "sunspec-fronius-pv", "vendor": "Fronius", "flavor": "sunspec.flavor.fronius.gen24.float.observed@1.1.0", "model": "Symo GEN24 10.0", "firmware": {"form": "not_stated"}, "issuer": "Fronius product page Symo GEN24 10.0 (no accuracy statement)", "url": "https://www.fronius.com/en/help-center/solar-energy/products/solar-inverters/gen24/symo-gen24/fronius-symo-gen24-10-0", "retrieved_on": "2026-11-26"},
+  {"source": "certification", "category": "gap", "driver": "sunspec-fronius-pv", "vendor": "Fronius", "flavor": "sunspec.flavor.fronius.gen24.float.observed@1.1.0", "model": "Symo GEN24 10.0", "firmware": {"form": "not_stated"}, "issuer": "Fronius certificates and datasheets page (links only to download-center search, no accuracy statement)", "url": "https://www.fronius.com/en-gb/uk/solar-energy/installers-partners/service-support/tech-support/certificates-datasheets", "retrieved_on": "2026-11-26"}
+ ]
+}
