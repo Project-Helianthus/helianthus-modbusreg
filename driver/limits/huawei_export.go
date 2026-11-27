@@ -296,7 +296,9 @@ func (f *HuaweiExport) readBack(ctx context.Context, d driver.Dispatch, own expo
 	}
 	scopePhase := scopeRead && scopeWord == lim.Phase
 	if modeCmp == "mismatch" || valueCmp == "mismatch" || (decErr == nil && !wattsMatch) || scopePhase {
-		return f.contradict(ctx, d, own, exportConflictWatts(decoded, decErr == nil, watts, lim), completed)
+		if got, ok := exportConflictWatts(decoded, decErr == nil, watts); ok {
+			return f.contradict(ctx, d, own, got, completed)
+		}
 	}
 	material := "mode=" + modeCmp + " value=" + valueCmp
 	if scopeRead {
@@ -603,29 +605,15 @@ func inconclusiveRead(c driver.Completion, material string) driver.Completion {
 }
 
 // exportConflictWatts is the quantity correlated after a re-read that contradicts a written point.
-// The decoded power row is used when it is not the request. A non-negative card bound is used when
-// that bound is not the request. Zero remains when the request equals every watt figure the re-read
-// can show: the mode or scope still contradicts, and a matching quantity would be confirmed.
-func exportConflictWatts(decoded huawei.Watts, decodedOK bool, requested semreg.Decimal, lim huawei.ExportLimit) semreg.Decimal {
+// Only a power row decoded from this dispatch's reply that is not the request qualifies. When the
+// power row equals the request there is no second watts reading, so no candidate is published.
+func exportConflictWatts(decoded huawei.Watts, decodedOK bool, requested semreg.Decimal) (semreg.Decimal, bool) {
 	if decodedOK {
-		got := wattsDecimal(decoded)
-		if !sameDecimal(got, requested) {
-			return got
+		if got := wattsDecimal(decoded); !sameDecimal(got, requested) {
+			return got, true
 		}
 	}
-	if lim.UpperKnown {
-		ceiling := wattsDecimal(huawei.Watts{Coefficient: lim.UpperWatts})
-		if intOf(ceiling).Sign() >= 0 && !sameDecimal(ceiling, requested) {
-			return ceiling
-		}
-	}
-	if lim.LowerKnown {
-		floor := wattsDecimal(huawei.Watts{Coefficient: lim.LowerWatts})
-		if intOf(floor).Sign() >= 0 && !sameDecimal(floor, requested) {
-			return floor
-		}
-	}
-	return semreg.Decimal{Coefficient: "0", Exponent10: 0}
+	return semreg.Decimal{}, false
 }
 
 func contradictWithoutCandidate(c driver.Completion, material string) driver.Completion {

@@ -656,14 +656,17 @@ func TestHuaweiExportModeMismatch(t *testing.T) {
 	link, peer := listenExport(t, "mode", map[byte][]uint16{1: plantImage(5000)}, exportPlantMode, exportPlantPower, -1)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "inverter", Card: "MA-V200", Path: "S-Dongle"}})
 	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
-	assertExportStatus(t, result, "failed", operation.OutcomeConflict, operation.DeliverySent)
-	if result.ReadbackRelation != operation.ReadbackContradicts || result.Status == "readback_confirmed" || result.Status == "unknown" || result.KernelOutcome == operation.OutcomeIndeterminate {
+	// The power row equals the request, so no second watts reading exists and no candidate is
+	// published. Without a candidate the router's record step cannot hold a conflict
+	// (runtime/call Router.invoke downgrades it), so the result is the derived unknown/sent.
+	assertExportStatus(t, result, "unknown", operation.OutcomeIndeterminate, operation.DeliverySent)
+	if result.ReadbackRelation != operation.ReadbackContradicts || result.Status == "readback_confirmed" || result.KernelOutcome == operation.OutcomeApplied {
 		t.Fatalf("result %+v", result)
 	}
 	if len(peer.writtenFrames()) != 2 {
 		t.Fatalf("writes %d", len(peer.writtenFrames()))
 	}
-	assertFreshExport(t, family, "0", 0)
+	assertNoExportFact(t, family)
 }
 
 func TestHuaweiExportScopePhaseBeforeSend(t *testing.T) {
@@ -691,8 +694,9 @@ func TestHuaweiExportScopePhaseAfterSend(t *testing.T) {
 	link, peer := listenExport(t, "scope-phase", map[byte][]uint16{1: emmaImage(0, 5000)}, exportModeAddress, exportPowerAddress, exportScopeAddress)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "plant", Card: "emma-v100r024c00-01-2024-07-15", Path: "EMMA"}})
 	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
-	assertExportStatus(t, result, "failed", operation.OutcomeConflict, operation.DeliverySent)
-	if result.ReadbackRelation != operation.ReadbackContradicts || result.Status == "readback_confirmed" || result.Status == "unknown" || result.KernelOutcome == operation.OutcomeIndeterminate || result.KernelOutcome == operation.OutcomeApplied {
+	// The power row equals the request: no second watts reading, no candidate (see the mode case).
+	assertExportStatus(t, result, "unknown", operation.OutcomeIndeterminate, operation.DeliverySent)
+	if result.ReadbackRelation != operation.ReadbackContradicts || result.Status == "readback_confirmed" || result.KernelOutcome == operation.OutcomeApplied {
 		t.Fatalf("result %+v", result)
 	}
 	frames := peer.writtenFrames()
@@ -700,7 +704,7 @@ func TestHuaweiExportScopePhaseAfterSend(t *testing.T) {
 		t.Fatalf("writes %d calls %d", len(frames), link.calls)
 	}
 	assertScopeUnwritten(t, peer)
-	assertFreshExport(t, family, "0", 0)
+	assertNoExportFact(t, family)
 }
 
 func TestHuaweiExportScopeRereadDropped(t *testing.T) {
