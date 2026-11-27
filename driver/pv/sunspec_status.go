@@ -10,8 +10,8 @@ import (
 	"github.com/Project-Helianthus/helianthus-semreg/semreg/v1"
 )
 
-// inverter_ publishes the facts of an inverter model (101 to 103, 111 to 113).
-func (dev *device) inverter_(d sunspec.CapabilityDecision, state map[string]sunspec.CapabilityFact) error {
+// inverterModel publishes the facts of an inverter model (101 to 103, 111 to 113).
+func (dev *device) inverterModel(d sunspec.CapabilityDecision, state map[string]sunspec.CapabilityFact) error {
 	facts := d.Facts()
 	byID := map[string]sunspec.CapabilityFact{}
 	for _, f := range facts {
@@ -42,8 +42,8 @@ func (dev *device) inverter_(d sunspec.CapabilityDecision, state map[string]suns
 func (dev *device) status(d sunspec.CapabilityDecision, st, evt sunspec.CapabilityFact, state map[string]sunspec.CapabilityFact) error {
 	r := dev.r
 	stKnown, stFault, stThrottled := false, false, false
-	if _, symbol, ok := st.Value().Enum(); ok {
-		name := stripVendorPrefix(symbol)
+	if _, stateSymbol, ok := st.Value().Enum(); ok {
+		name := stripVendorPrefix(stateSymbol)
 		path := dev.path(d, "inverter.operating_state")
 		native := Native{Source: st.FieldID(), Unit: st.Unit()}
 		if n, _, ok := st.Value().Enum(); ok {
@@ -55,7 +55,7 @@ func (dev *device) status(d sunspec.CapabilityDecision, st, evt sunspec.Capabili
 			r.withheld(path, "fault_state_published_on_pv.status.fault")
 		case listed:
 			stKnown, stThrottled = true, name == "THROTTLED"
-			if err := r.emit(dev.inverter, operatingEl, string(dev.inverter.ID), symbol_(operatingEl, row.token), source{path: path, native: native}); err != nil {
+			if err := r.emit(dev.inverter, operatingEl, string(dev.inverter.ID), symbol(operatingEl, row.token), source{path: path, native: native}); err != nil {
 				return err
 			}
 			if row.loss != "" {
@@ -76,7 +76,7 @@ func (dev *device) status(d sunspec.CapabilityDecision, st, evt sunspec.Capabili
 		if stThrottled || ctlActive {
 			token = "active"
 		}
-		if err := r.emit(dev.inverter, deratingEl, string(dev.inverter.ID), symbol_(deratingEl, token), source{path: dev.path(d, "inverter.derating"), native: Native{Source: "inverter.operating_state"}}); err != nil {
+		if err := r.emit(dev.inverter, deratingEl, string(dev.inverter.ID), symbol(deratingEl, token), source{path: dev.path(d, "inverter.derating"), native: Native{Source: "inverter.operating_state"}}); err != nil {
 			return err
 		}
 	}
@@ -89,12 +89,10 @@ func (dev *device) status(d sunspec.CapabilityDecision, st, evt sunspec.Capabili
 		if stFault || evtFault {
 			token = "present"
 		}
-		return r.emit(dev.inverter, faultEl, string(dev.inverter.ID), symbol_(faultEl, token), source{path: dev.path(d, "inverter.fault"), native: Native{Source: "inverter.events.1"}})
+		return r.emit(dev.inverter, faultEl, string(dev.inverter.ID), symbol(faultEl, token), source{path: dev.path(d, "inverter.fault"), native: Native{Source: "inverter.events.1"}})
 	}
 	return nil
 }
-
-func symbol_(el element, token string) semreg.Value { return symbol(el, token) }
 
 // limits publishes the model 123 active power limit when it is enabled: as a
 // ratio, and as watts of the decoded maximum active power.

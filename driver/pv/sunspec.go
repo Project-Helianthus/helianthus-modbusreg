@@ -235,7 +235,7 @@ func (r *run) device(unit uint8, ds []sunspec.CapabilityDecision) error {
 	}
 	state := factMap(ds, sunspec.DERStateCapabilityID)
 	for _, d := range inverters {
-		if err := dev.inverter_(d, state); err != nil {
+		if err := dev.inverterModel(d, state); err != nil {
 			return err
 		}
 	}
