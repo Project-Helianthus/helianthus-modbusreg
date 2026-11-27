@@ -1,3 +1,7 @@
+// Package limits is the dongle-family battery charge and discharge limit
+// executor of the Modbus driver. It publishes the two storage limit
+// capabilities and registers one setting executor for each operation the
+// identified card binds.
 package limits
 
 import (

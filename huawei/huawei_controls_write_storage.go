@@ -3,21 +3,20 @@ package huawei
 import (
 	"encoding/json"
 	"errors"
-	"io/fs"
 	"math"
 	"math/big"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/Project-Helianthus/helianthus-modbusreg/profiles"
 )
 
 const (
-	// OpSetChargeLimit and OpSetDischargeLimit are the storage-pack operations
-	// this row binds. The binding is the catalogue row, not a word match.
-	OpSetChargeLimit    = "storage.operation.set_charge_limit"
+	// OpSetChargeLimit is the storage-pack charge limit operation.
+	// The binding is the catalogue row, not a word match.
+	OpSetChargeLimit = "storage.operation.set_charge_limit"
+	// OpSetDischargeLimit is the storage-pack discharge limit operation.
+	// The binding is the catalogue row, not a word match.
 	OpSetDischargeLimit = "storage.operation.set_discharge_limit"
 
 	// FunctionWriteMultipleRegisters is Modbus function 16.
@@ -78,12 +77,6 @@ type Inspection struct {
 	NotLimits []StorageRow
 }
 
-type catalogFile struct {
-	Card     string       `json:"card"`
-	Rows     []catalogRow `json:"rows"`
-	Controls []catalogRow `json:"controls"`
-}
-
 type catalogRow struct {
 	Key             string `json:"key"`
 	Offset          int    `json:"offset"`
@@ -106,33 +99,47 @@ type cardIndex struct {
 }
 
 var (
-	loadOnce sync.Once
-	loadErr  error
-	byCard   map[string]*cardIndex
-	cardIDs  []string
+	loadOnce         sync.Once
+	loadErr          error
+	byCard           map[string]*cardIndex
+	cardIDs          []string
+	retainedControls = map[string][]catalogRow{}
+	retainedMu       sync.Mutex
 )
+
+// UnmarshalJSON keeps each card's control rows. The selection retains the
+// register rows and does not store the control rows, and this file does not
+// open those documents itself.
+func (f *catalogRegisterFile) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Card     string               `json:"card"`
+		Rows     []catalogRegisterRow `json:"rows"`
+		Controls []catalogRow         `json:"controls"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	f.Card = raw.Card
+	f.Rows = raw.Rows
+	if raw.Card == "" {
+		return nil
+	}
+	controls := append([]catalogRow(nil), raw.Controls...)
+	retainedMu.Lock()
+	retainedControls[raw.Card] = controls
+	retainedMu.Unlock()
+	return nil
+}
 
 func loadCatalog() error {
 	loadOnce.Do(func() {
 		byCard = map[string]*cardIndex{}
-		root := profiles.HuaweiInverterCatalog()
-		names, err := fs.Glob(root, "vendors/huawei/catalog/registers-*.json")
+		files, err := huaweiInverterMonitoringRegisterCards()
 		if err != nil {
 			loadErr = err
 			return
 		}
-		sort.Strings(names)
-		for _, name := range names {
-			raw, err := fs.ReadFile(root, name)
-			if err != nil {
-				loadErr = err
-				return
-			}
-			var file catalogFile
-			if err := json.Unmarshal(raw, &file); err != nil {
-				loadErr = err
-				return
-			}
+		for _, file := range files {
 			if file.Card == "" {
 				loadErr = errors.New("huawei: a register card has no card id")
 				return
@@ -143,12 +150,30 @@ func loadCatalog() error {
 				byCard[file.Card] = idx
 				cardIDs = append(cardIDs, file.Card)
 			}
-			idx.rows = append(idx.rows, file.Rows...)
-			idx.rows = append(idx.rows, file.Controls...)
+			for _, row := range file.Rows {
+				idx.rows = append(idx.rows, rowFromRegister(row))
+			}
+			retainedMu.Lock()
+			idx.rows = append(idx.rows, retainedControls[file.Card]...)
+			retainedMu.Unlock()
 		}
 		sort.Strings(cardIDs)
 	})
 	return loadErr
+}
+
+func rowFromRegister(row catalogRegisterRow) catalogRow {
+	out := catalogRow{
+		Key: row.Key, Quantity: row.Quantity, Type: row.Type, Access: row.Access,
+		FunctionalClass: row.FunctionalClass,
+	}
+	if row.Offset != nil {
+		out.Offset = *row.Offset
+	}
+	if row.Decode != nil {
+		out.Decode = &scale{Gain: row.Decode.Gain, Unit: row.Decode.Unit}
+	}
+	return out
 }
 
 // Cards returns the pinned inverter card ids in ascending order.

@@ -1,6 +1,10 @@
 package huawei
 
-import "testing"
+import (
+	"bytes"
+	"os"
+	"testing"
+)
 
 // TestStorageLimitSelection binds only the MA-V200 charge and discharge rows.
 // Each listed offset is asserted on its own so a production change that binds
@@ -26,7 +30,7 @@ func TestStorageLimitSelection(t *testing.T) {
 		}
 		if card == "MA-V200" {
 			sawMA = true
-			assertMAV200(t, ins)
+			assertBoundCard(t, ins)
 			continue
 		}
 		if len(ins.Bound) != 0 {
@@ -69,7 +73,7 @@ func TestStorageLimitSelection(t *testing.T) {
 	}
 }
 
-func assertMAV200(t *testing.T, ins Inspection) {
+func assertBoundCard(t *testing.T, ins Inspection) {
 	t.Helper()
 	if len(ins.Bound) != 2 {
 		t.Fatalf("bound %#v", ins.Bound)
@@ -297,5 +301,26 @@ func TestEncodeStorageControl(t *testing.T) {
 	}
 	if CompareStorageReadback("L-V200", 47247, []uint16{0, 1}, []uint16{0, 1}) != "unknown" {
 		t.Fatal("unbound card compare")
+	}
+}
+
+// TestStorageSelectionDoesNotOpenTheCatalog pins the selection to the cards
+// the inverter selection already retained. Opening the embedded documents
+// from this file fails the module reader check.
+func TestStorageSelectionDoesNotOpenTheCatalog(t *testing.T) {
+	data, err := os.ReadFile("huawei_controls_write_storage.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{
+		`"github.com/Project-Helianthus/helianthus-modbusreg/profiles"`,
+		"huawei/catalog",
+		"registers-",
+		"HuaweiInverterCatalog",
+		"//go:embed",
+	} {
+		if bytes.Contains(data, []byte(marker)) {
+			t.Fatalf("storage selection opens the catalog via %s", marker)
+		}
 	}
 }
