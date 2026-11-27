@@ -24,7 +24,6 @@ const (
 
 	chargeOffset    = 47247
 	dischargeOffset = 47249
-	activePower     = 40126
 	boundCard       = "MA-V200"
 )
 
@@ -437,26 +436,6 @@ func AdmitStorageControlWrite(write ControlWrite) bool {
 		return false
 	}
 	return int(write.Quantity) == row.Quantity
-}
-
-// AdmitControlWrite is the transport callback. It admits the bound storage
-// rows and the active-power row at offset 40126 where the card's functional
-// class for that offset is active_power. A storage-only predicate is AdmitStorageControlWrite.
-func AdmitControlWrite(write ControlWrite) bool {
-	if AdmitStorageControlWrite(write) {
-		return true
-	}
-	if !commonAdmission(write) {
-		return false
-	}
-	if err := loadCatalog(); err != nil {
-		return false
-	}
-	row, ok := findRow(write.Card, int(write.Address))
-	if !ok || row.Offset != activePower || row.FunctionalClass != "active_power" {
-		return false
-	}
-	return int(write.Quantity) == row.Quantity && row.Quantity == 2
 }
 
 func commonAdmission(write ControlWrite) bool {
