@@ -136,6 +136,40 @@ class RejectionTests(unittest.TestCase):
         document["entries"][2]["firmware"].update({"from": "1.9", "to": "1.10"})
         self.assertIsNone(failure_of(document))
 
+    def test_statement_only_stated_value_passes_and_empty_statement_fails(self):
+        """Stated members: measurement_type, statement.
+
+        A loader or validator that drops measurement_type, accepts an empty or
+        non-string statement, or accepts a stated value with the statement removed
+        is rejected. Each field is varied.
+        """
+        document = json.loads((DATA / "statement.json").read_text(encoding="utf-8"))
+        self.assertIsNone(failure_of(document))
+        stated = document["entries"][0]["stated_value"]
+        self.assertEqual(set(stated), {"measurement_type", "statement"})
+        for measurement_type, statement in (
+            ("active_energy", "Accuracy class designation: class B, with the standard the certificate names."),
+            ("reactive_energy", "Accuracy class designation: class C, with the standard the certificate names."),
+        ):
+            varied = json.loads((DATA / "statement.json").read_text(encoding="utf-8"))
+            varied["entries"][0]["stated_value"] = {
+                "measurement_type": measurement_type,
+                "statement": statement,
+            }
+            self.assertIsNone(failure_of(varied), (measurement_type, statement))
+        empty = json.loads((DATA / "statement.json").read_text(encoding="utf-8"))
+        empty["entries"][0]["stated_value"]["statement"] = ""
+        self.expect(empty, "stated_value_invalid", 0, "stated_value")
+        not_text = json.loads((DATA / "statement.json").read_text(encoding="utf-8"))
+        not_text["entries"][0]["stated_value"]["statement"] = 1
+        self.expect(not_text, "stated_value_invalid", 0, "stated_value")
+        removed = json.loads((DATA / "statement.json").read_text(encoding="utf-8"))
+        del removed["entries"][0]["stated_value"]["statement"]
+        self.expect(removed, "stated_value_invalid", 0, "stated_value")
+        missing_type = json.loads((DATA / "statement.json").read_text(encoding="utf-8"))
+        del missing_type["entries"][0]["stated_value"]["measurement_type"]
+        self.expect(missing_type, "stated_value_invalid", 0, "stated_value")
+
     def test_stated_value_rules(self):
         cases = (
             {"measurement_type": "active_power"},

@@ -31,7 +31,7 @@ TEXT_MEMBERS = ("driver", "vendor", "flavor", "model", "issuer", "certificate_nu
 DATE_MEMBERS = ("issue_date", "retrieved_on")
 IDENTITY = ("driver", "vendor", "flavor", "model", "firmware")
 DECIMAL_MEMBERS = ("ratio_maximum", "measured_minimum", "measured_maximum", "range_minimum", "range_maximum")
-STATED_MEMBERS = ("measurement_type", "measured") + DECIMAL_MEMBERS
+STATED_MEMBERS = ("measurement_type", "measured", "statement") + DECIMAL_MEMBERS
 UPPER_BOUND_SOURCES = ("certificate", "vendor_document")
 FIRMWARE_MEMBERS = {
     "not_stated": ("form",),
@@ -179,7 +179,7 @@ def check_firmware(entry):
 
 
 def stated_value_valid(stated):
-    """Whether a stated value holds only table members, one state, canonical decimals."""
+    """Whether a stated value holds only table members, one state, a non-empty statement and canonical decimals."""
     if not isinstance(stated, dict) or not set(stated) <= set(STATED_MEMBERS):
         return False
     kind = stated.get("measurement_type")
@@ -187,6 +187,8 @@ def stated_value_valid(stated):
         return False
     values = set(stated) - {"measurement_type"}
     if not values or ("measured" in values and type(stated["measured"]) is not bool):
+        return False
+    if "statement" in values and not is_text(stated["statement"]):
         return False
     return all(is_decimal(stated[name]) for name in values & set(DECIMAL_MEMBERS))
 
