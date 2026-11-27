@@ -1,0 +1,38 @@
+{
+  "synthetic": true,
+  "note": "register windows of one configured first incarnation and the service record compared with that publication",
+  "configuration": {
+    "asset": "asset:growatt-bms-a",
+    "source": "growatt-bms-a",
+    "epoch": "source-epoch-1",
+    "generation": 1,
+    "unit": 7,
+    "battery": "battery-a",
+    "system": "system-a"
+  },
+  "clock": {
+    "wall_unix_nanos": 1800000000000000000,
+    "step_nanos": 1000000,
+    "epoch": "system-monotonic-v1"
+  },
+  "windows": [
+    {"offset": 1, "quantity": 7, "words": [258, 772, 0, 0, 0, 0, 0]},
+    {"offset": 13, "quantity": 29, "words": [516, 769, 0, 0, 0, 0, 2, 0, 75, 5200, 65436, 25, 0, 3200, 5000, 0, 0, 110, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]},
+    {"offset": 256, "quantity": 12, "words": [100, 123, 3300, 0, 512, 5, 6, 0, 0, 0, 0, 0]},
+    {"offset": 269, "quantity": 2, "words": [0, 0]}
+  ],
+  "mcp_service": {
+    "instance_id": "service:semantic-storage:a26997ed2bbdde6a4285189518c4440d",
+    "asset_id": "asset:growatt-bms-a",
+    "pack_id": "helianthus.pack.storage",
+    "pack_version": "1.1.0",
+    "definition_id": "storage.service.pack",
+    "definition_version": "1.1.0",
+    "binding_id": "binding:semantic-storage:04a8bb2b4c91c682072f865033c62669",
+    "source_epoch_id": "source-epoch-1",
+    "driver_generation": "1",
+    "qualification": "qualified",
+    "availability": "available",
+    "revision": "1"
+  }
+}
