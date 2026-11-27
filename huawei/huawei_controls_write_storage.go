@@ -83,6 +83,7 @@ type catalogRow struct {
 	Type            string `json:"type"`
 	Access          string `json:"access"`
 	FunctionalClass string `json:"functional_class"`
+	Class           string `json:"class"`
 	Literal         *scale `json:"literal"`
 	Decode          *scale `json:"decode"`
 	Condition       string `json:"condition"`
