@@ -361,7 +361,7 @@ func TestSunSpecStorageLaterRejectionGuardAndLoss(t *testing.T) {
 		bank := &storageBank{units: map[uint8][]uint16{1: storageCells("controls")}, mode: "reject-second"}
 		family := openStorage(t, bank, []Battery{storageBattery()})
 		result := invokeStorage(t, family, opChargeLimit, nil)
-		if result.Status == "readback_confirmed" || result.Status != "failed" || result.KernelOutcome != operation.OutcomeNoEffect || result.Delivery == operation.DeliveryNotSent {
+		if result.Status != "unknown" || result.KernelOutcome != operation.OutcomeIndeterminate || result.KernelOutcome == operation.OutcomeNoEffect || result.Status == "readback_confirmed" || result.Delivery != operation.DeliverySent {
 			t.Fatalf("result %+v", result)
 		}
 		frames := bank.written()
@@ -369,7 +369,25 @@ func TestSunSpecStorageLaterRejectionGuardAndLoss(t *testing.T) {
 		if bank.word(1, storageModeReg) != storageUnrelated || bank.word(1, storageInReg) != 1000 || bank.word(1, storageRevert) != 6 {
 			t.Fatalf("image in %d mode %d revert %d", bank.word(1, storageInReg), bank.word(1, storageModeReg), bank.word(1, storageRevert))
 		}
-		if result.CompoundExecution == nil || !result.CompoundExecution.Partial || result.CompoundExecution.Steps[1].Acknowledgement != operation.AckRejected {
+		if result.CompoundExecution == nil || !result.CompoundExecution.Partial || result.CompoundExecution.Steps[0].Acknowledgement != operation.AckAccepted || result.CompoundExecution.Steps[0].Delivery != operation.DeliverySent || result.CompoundExecution.Steps[1].Acknowledgement != operation.AckRejected || result.CompoundExecution.Steps[1].Delivery != operation.DeliverySent {
+			t.Fatalf("compound %+v", result.CompoundExecution)
+		}
+	})
+	t.Run("rejection-with-charge-bit", func(t *testing.T) {
+		cells := storageCells("controls")
+		bank := &storageBank{units: map[uint8][]uint16{1: cells}, mode: "reject-second"}
+		family := openStorage(t, bank, []Battery{storageBattery()})
+		cells[storageModeReg] = storageUnrelated | storageChargeBit
+		result := invokeStorage(t, family, opChargeLimit, nil)
+		if result.Status != "unknown" || result.KernelOutcome != operation.OutcomeIndeterminate || result.KernelOutcome == operation.OutcomeNoEffect || result.Status == "readback_confirmed" || result.Delivery != operation.DeliverySent {
+			t.Fatalf("result %+v", result)
+		}
+		frames := bank.written()
+		requireRateThenMode(t, frames, storageInReg, storageModeReg, 1000)
+		if bank.word(1, storageInReg) != 1000 || bank.word(1, storageModeReg) != storageUnrelated|storageChargeBit || bank.word(1, storageRevert) != 6 {
+			t.Fatalf("image in %d mode %d revert %d", bank.word(1, storageInReg), bank.word(1, storageModeReg), bank.word(1, storageRevert))
+		}
+		if result.CompoundExecution == nil || !result.CompoundExecution.Partial || result.CompoundExecution.Steps[0].Acknowledgement != operation.AckAccepted || result.CompoundExecution.Steps[1].Acknowledgement != operation.AckRejected || len(frames) != 2 {
 			t.Fatalf("compound %+v", result.CompoundExecution)
 		}
 	})

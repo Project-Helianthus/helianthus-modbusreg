@@ -459,7 +459,9 @@ func (f *SunSpecStorage) run(ctx context.Context, d driver.Dispatch, own storage
 	case "unsent":
 		return storagePartial(attempt, started, f.tick(d), ev, true, operation.DeliverySent, operation.AckAccepted, operation.OutcomeAcknowledgedUnverified, rate.Fields[0], "accepted", "arguments"), nil
 	case "rejected":
-		return storagePartial(attempt, started, f.tick(d), modeEv, true, operation.DeliverySent, operation.AckRejected, operation.OutcomeNoEffect, rate.Fields[0], "accepted", "rejected-sent"), nil
+		// The rate write was acknowledged. A rejected acknowledgement on this
+		// completion is projected as no_effect, which says the device is unchanged.
+		return storagePartial(attempt, started, f.tick(d), modeEv, true, operation.DeliverySent, "", operation.OutcomeIndeterminate, rate.Fields[0], "accepted", "rejected-sent"), nil
 	case "unknown":
 		return storagePartial(attempt, started, started, modeEv, true, operation.DeliveryUnknown, "", operation.OutcomeIndeterminate, rate.Fields[0], "accepted", "unknown-sent"), nil
 	}
