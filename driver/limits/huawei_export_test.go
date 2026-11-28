@@ -137,6 +137,8 @@ func (p *exportPeer) word(addr, index, stored uint16) uint16 {
 		return 0
 	case p.mode == "scope-phase" && p.wrote && p.scopeAt >= 0 && addr == uint16(p.scopeAt):
 		return 1
+	case p.mode == "scope-other" && p.wrote && p.scopeAt >= 0 && addr == uint16(p.scopeAt):
+		return 2
 	default:
 		return stored
 	}
@@ -656,15 +658,164 @@ func TestHuaweiExportModeMismatch(t *testing.T) {
 	link, peer := listenExport(t, "mode", map[byte][]uint16{1: plantImage(5000)}, exportPlantMode, exportPlantPower, -1)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "inverter", Card: "MA-V200", Path: "S-Dongle"}})
 	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
-	// The power row equals the request, so no second watts reading exists and no candidate is
-	// published. Without a candidate the router's record step cannot hold a conflict
-	// (runtime/call Router.invoke downgrades it), so the result is the derived unknown/sent.
-	assertExportStatus(t, result, "unknown", operation.OutcomeIndeterminate, operation.DeliverySent)
-	if result.ReadbackRelation != operation.ReadbackContradicts || result.Status == "readback_confirmed" || result.KernelOutcome == operation.OutcomeApplied {
+	// The power row equals the request, so no second watts reading exists and no
+	// pv.limit.export_power candidate is stored. The contradicting mode read is
+	// still conflict.
+	assertExportStatus(t, result, "failed", operation.OutcomeConflict, operation.DeliverySent)
+	if result.ReadbackRelation != operation.ReadbackContradicts || result.Status == "readback_confirmed" || result.Status == "unknown" || result.KernelOutcome == operation.OutcomeIndeterminate || result.KernelOutcome == operation.OutcomeApplied {
 		t.Fatalf("result %+v", result)
 	}
 	if len(peer.writtenFrames()) != 2 {
 		t.Fatalf("writes %d", len(peer.writtenFrames()))
+	}
+	assertNoExportFact(t, family)
+}
+
+func TestHuaweiExportScopeOutsidePairAfterSend(t *testing.T) {
+	link, peer := listenExport(t, "scope-other", map[byte][]uint16{1: emmaImage(0, 5000)}, exportModeAddress, exportPowerAddress, exportScopeAddress)
+	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "plant", Card: "emma-v100r024c00-01-2024-07-15", Path: "EMMA"}})
+	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+	// Mode and watts match. Scope word 2 is neither total nor individual phase,
+	// so the reread is not a contradiction and confirms nothing.
+	assertExportStatus(t, result, "protocol_ack", operation.OutcomeAcknowledgedUnverified, operation.DeliverySent)
+	if result.ReadbackRelation != operation.ReadbackInconclusive || result.KernelOutcome == operation.OutcomeConflict || result.Status == "failed" || result.Status == "unknown" {
+		t.Fatalf("result %+v", result)
+	}
+	frames := peer.writtenFrames()
+	if len(frames) != 2 || link.calls != 2 {
+		t.Fatalf("writes %d calls %d", len(frames), link.calls)
+	}
+	assertScopeUnwritten(t, peer)
+	assertNoExportFact(t, family)
+}
+
+type exportCommitFailSession struct {
+	driver.Session
+	armed  bool
+	stage  bool
+	cancel context.CancelFunc
+}
+
+func (s *exportCommitFailSession) Publisher() driver.Publisher {
+	return exportCommitFailPublisher{Publisher: s.Session.Publisher(), armed: &s.armed, stage: s.stage, cancel: s.cancel}
+}
+
+type exportCommitFailPublisher struct {
+	driver.Publisher
+	armed  *bool
+	stage  bool
+	cancel context.CancelFunc
+}
+
+func (p exportCommitFailPublisher) Begin(ctx context.Context) (driver.PublicationTransaction, error) {
+	tx, err := p.Publisher.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return exportCommitFailTx{PublicationTransaction: tx, armed: p.armed, stage: p.stage, cancel: p.cancel}, nil
+}
+
+type exportCommitFailTx struct {
+	driver.PublicationTransaction
+	armed  *bool
+	stage  bool
+	cancel context.CancelFunc
+}
+
+// Stage cancels the operation and refuses the contradiction batch. It does not
+// abort, so a caller that leaves the transaction open is visible to the next Begin.
+func (t exportCommitFailTx) Stage(batch semreg.PublicationBatch) error {
+	if t.stage && t.armed != nil && *t.armed {
+		*t.armed = false
+		if t.cancel != nil {
+			t.cancel()
+		}
+		return errors.New("huawei export contradiction stage")
+	}
+	return t.PublicationTransaction.Stage(batch)
+}
+
+// Commit cancels the operation after the contradiction batch is staged and
+// then calls the real commit. It does not abort, so a caller that leaves the
+// transaction open is visible to the next Begin.
+func (t exportCommitFailTx) Commit(ctx context.Context) error {
+	if !t.stage && t.armed != nil && *t.armed {
+		*t.armed = false
+		if t.cancel != nil {
+			t.cancel()
+		}
+		return t.PublicationTransaction.Commit(ctx)
+	}
+	return t.PublicationTransaction.Commit(ctx)
+}
+
+func exportDispatch(family *HuaweiExport, args ...semreg.TypedField) driver.Dispatch {
+	own := family.owners[0]
+	route := own.route.Route
+	return driver.Dispatch{
+		Request: driver.OperationRequest{Arguments: args, Timeout: time.Second},
+		Route:   route,
+		Guard: operation.GuardClaims{
+			AssetID: own.asset, BindingID: route.BindingID, SourceID: route.SourceID, SourceEpochID: route.SourceEpochID,
+			DriverGeneration: route.DriverGeneration, CapabilityInstance: route.CapabilityInstance, ServiceInstance: route.ServiceInstance,
+		},
+		AdmittedAt: wallNow(time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)),
+	}
+}
+
+func TestHuaweiExportModeMismatchSnapshotCommit(t *testing.T) {
+	for _, stage := range []bool{false, true} {
+		name := "commit"
+		if stage {
+			name = "stage"
+		}
+		t.Run(name, func(t *testing.T) {
+			testHuaweiExportModeMismatchSnapshotRelease(t, stage)
+		})
+	}
+}
+
+func testHuaweiExportModeMismatchSnapshotRelease(t *testing.T, stage bool) {
+	t.Helper()
+	link, peer := listenExport(t, "mode", map[byte][]uint16{1: plantImage(5000)}, exportPlantMode, exportPlantPower, -1)
+	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "inverter", Card: "MA-V200", Path: "S-Dongle"}})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	family.session = &exportCommitFailSession{Session: family.session, armed: true, stage: stage, cancel: cancel}
+	completion, err := family.Execute(ctx, exportDispatch(family, exportWattsArg("5", 3)))
+	if err == nil {
+		t.Fatal("release failure returned no error")
+	}
+	fresh, beginErr := family.session.Publisher().Begin(context.Background())
+	if beginErr != nil {
+		t.Fatalf("begin after canceled release: %v", beginErr)
+	}
+	if abortErr := fresh.Abort(context.Background()); abortErr != nil {
+		t.Fatal(abortErr)
+	}
+	if completion.Outcome != operation.OutcomeIndeterminate || completion.Acknowledgement != nil || completion.Outcome == operation.OutcomeAcknowledgedUnverified {
+		t.Fatalf("completion %+v", completion)
+	}
+	if completion.Dispatch == nil || completion.Dispatch.Delivery != operation.DeliverySent {
+		t.Fatalf("dispatch %+v", completion.Dispatch)
+	}
+	want := Evidence(operation.ContractOperationV1, kindRead, "mode=mismatch value=match")
+	if completion.Readback == nil || completion.Readback.Relation != operation.ReadbackContradicts || completion.Readback.CandidateID != "" || completion.Readback.CandidateRevision != "" || len(completion.Readback.Evidence) != 1 || completion.Readback.Evidence[0] != want {
+		t.Fatalf("readback %+v", completion.Readback)
+	}
+	found := false
+	if completion.CompoundExecution != nil {
+		for _, step := range completion.CompoundExecution.Steps {
+			if step.Point == "readback" && step.ReadbackRelation == operation.ReadbackContradicts {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("steps %+v", completion.CompoundExecution)
+	}
+	if len(peer.writtenFrames()) != 2 || link.calls != 2 {
+		t.Fatalf("writes %d calls %d", len(peer.writtenFrames()), link.calls)
 	}
 	assertNoExportFact(t, family)
 }
@@ -694,9 +845,10 @@ func TestHuaweiExportScopePhaseAfterSend(t *testing.T) {
 	link, peer := listenExport(t, "scope-phase", map[byte][]uint16{1: emmaImage(0, 5000)}, exportModeAddress, exportPowerAddress, exportScopeAddress)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "plant", Card: "emma-v100r024c00-01-2024-07-15", Path: "EMMA"}})
 	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
-	// The power row equals the request: no second watts reading, no candidate (see the mode case).
-	assertExportStatus(t, result, "unknown", operation.OutcomeIndeterminate, operation.DeliverySent)
-	if result.ReadbackRelation != operation.ReadbackContradicts || result.Status == "readback_confirmed" || result.KernelOutcome == operation.OutcomeApplied {
+	// The power row equals the request, so no pv.limit.export_power candidate is
+	// stored. The contradicting scope read is still conflict.
+	assertExportStatus(t, result, "failed", operation.OutcomeConflict, operation.DeliverySent)
+	if result.ReadbackRelation != operation.ReadbackContradicts || result.Status == "readback_confirmed" || result.Status == "unknown" || result.KernelOutcome == operation.OutcomeIndeterminate || result.KernelOutcome == operation.OutcomeApplied {
 		t.Fatalf("result %+v", result)
 	}
 	frames := peer.writtenFrames()
