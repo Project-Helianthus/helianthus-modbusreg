@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/Project-Helianthus/helianthus-modbus v0.3.1-0.20261124205146-da07b3e2748a
-	github.com/Project-Helianthus/helianthus-semreg v0.0.0-20261126205436-8c28a0572710
+	github.com/Project-Helianthus/helianthus-semreg v0.0.0-20261127212318-f70319645ea7
 )
 
 require (

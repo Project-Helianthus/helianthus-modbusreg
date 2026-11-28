@@ -304,7 +304,46 @@ func (f *HuaweiExport) readBack(ctx context.Context, d driver.Dispatch, own expo
 	if scopeRead {
 		material += " scope=" + strconv.FormatUint(uint64(scopeWord), 10)
 	}
-	return contradictWithoutCandidate(completed, material), nil
+	return f.contradictUnobserved(ctx, own, completed, material)
+}
+
+// contradictUnobserved records a contradicting read that is not a second watts
+// value. The kernel keeps that conflict only on a later snapshot, so the cut is
+// advanced with a commit that stores no fact.
+func (f *HuaweiExport) contradictUnobserved(ctx context.Context, own exportOwner, completed driver.Completion, material string) (driver.Completion, error) {
+	snap, ok := f.laterSnapshot(ctx, own.asset)
+	if !ok {
+		return completed, nil
+	}
+	return contradictWithoutCandidate(completed, snap, own.route.Route, material), nil
+}
+
+func (f *HuaweiExport) laterSnapshot(ctx context.Context, asset semreg.AssetID) (semreg.Snapshot, bool) {
+	batch, err := f.session.Prepare(func(*semreg.PublicationBatch) {})
+	if err != nil {
+		return semreg.Snapshot{}, false
+	}
+	tx, err := f.session.Publisher().Begin(ctx)
+	if err != nil {
+		return semreg.Snapshot{}, false
+	}
+	if err = tx.Stage(batch); err != nil {
+		_ = tx.Abort(ctx)
+		return semreg.Snapshot{}, false
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return semreg.Snapshot{}, false
+	}
+	cut, err := f.session.SemanticInput().Capture(ctx, driver.Filter{})
+	if err != nil {
+		return semreg.Snapshot{}, false
+	}
+	for _, snap := range cut.Snapshots {
+		if snap.AssetID == asset {
+			return snap, true
+		}
+	}
+	return semreg.Snapshot{}, false
 }
 
 func (f *HuaweiExport) confirm(ctx context.Context, d driver.Dispatch, own exportOwner, got semreg.Decimal, completed driver.Completion) (driver.Completion, error) {
@@ -616,9 +655,20 @@ func exportConflictWatts(decoded huawei.Watts, decodedOK bool, requested semreg.
 	return semreg.Decimal{}, false
 }
 
-func contradictWithoutCandidate(c driver.Completion, material string) driver.Completion {
+func contradictWithoutCandidate(c driver.Completion, snap semreg.Snapshot, route operation.Route, material string) driver.Completion {
 	ev := Evidence(operation.ContractOperationV1, kindRead, material)
-	c.Readback = &operation.Readback{Relation: operation.ReadbackContradicts, Evidence: ordered(ev)}
+	c.Outcome = operation.OutcomeConflict
+	c.ReadbackSnapshot = &snap
+	c.Readback = &operation.Readback{
+		SnapshotID: snap.SnapshotID, Revisions: snap.Revisions,
+		BindingID: route.BindingID, SourceID: route.SourceID, SourceEpochID: route.SourceEpochID, DriverGeneration: route.DriverGeneration,
+		Relation: operation.ReadbackContradicts, Evaluation: semreg.EvaluationContext{EvaluatedAt: snap.EvaluatedAt, EvaluateMonotonic: snap.EvaluateMonotonic},
+		Evidence: ordered(ev),
+	}
+	if c.CompoundExecution == nil {
+		c.CompoundExecution = &driver.CompoundExecution{}
+	}
+	c.CompoundExecution.Steps = append(c.CompoundExecution.Steps, driver.CompoundStep{Point: "readback", Attempted: true, ReadbackRelation: operation.ReadbackContradicts})
 	c.OutcomeEvidence = ordered(append(append([]semreg.EvidenceRef{}, c.OutcomeEvidence...), ev)...)
 	return c
 }
