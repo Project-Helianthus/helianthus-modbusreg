@@ -820,6 +820,89 @@ func testHuaweiExportModeMismatchSnapshotRelease(t *testing.T, stage bool) {
 	assertNoExportFact(t, family)
 }
 
+func TestHuaweiExportModeMismatchPublicationThroughRouter(t *testing.T) {
+	for _, stage := range []bool{false, true} {
+		name := "commit"
+		if stage {
+			name = "stage"
+		}
+		t.Run(name, func(t *testing.T) {
+			testHuaweiExportModeMismatchPublicationThroughRouter(t, stage)
+		})
+	}
+}
+
+// testHuaweiExportModeMismatchPublicationThroughRouter dispatches through the
+// pinned router. The mode reread contradicts and the power row matches, so the
+// contradiction has no candidate. Publication of the later snapshot then fails.
+// The router drops that error. Without the snapshot the kernel cannot record
+// conflict, so the top-level result stays unknown, indeterminate, sent, with
+// an inconclusive relation. The compound readback step keeps the contradiction.
+func testHuaweiExportModeMismatchPublicationThroughRouter(t *testing.T, stage bool) {
+	t.Helper()
+	link, peer := listenExport(t, "mode", map[byte][]uint16{1: plantImage(5000)}, exportPlantMode, exportPlantPower, -1)
+	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "inverter", Card: "MA-V200", Path: "S-Dongle"}})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	family.session = &exportCommitFailSession{Session: family.session, armed: true, stage: stage, cancel: cancel}
+	result, err := invokeExportContext(t, ctx, family, nil, exportWattsArg("5", 3))
+	if err != nil {
+		t.Fatalf("router returned the publication error: %v", err)
+	}
+	assertExportStatus(t, result, "unknown", operation.OutcomeIndeterminate, operation.DeliverySent)
+	if result.ReadbackRelation != operation.ReadbackInconclusive || result.Acknowledgement != "" || result.Reason != "" || result.Status == "failed" || result.Status == "protocol_ack" || result.KernelOutcome == operation.OutcomeConflict || result.KernelOutcome == operation.OutcomeAcknowledgedUnverified || result.KernelOutcome == operation.OutcomeApplied {
+		t.Fatalf("result %+v", result)
+	}
+	if result.CompoundExecution == nil {
+		t.Fatal("compound execution missing")
+	}
+	var readback *driver.CompoundStep
+	for i := range result.CompoundExecution.Steps {
+		step := &result.CompoundExecution.Steps[i]
+		if step.Point == "readback" {
+			readback = step
+		}
+	}
+	want := driver.CompoundStep{Point: "readback", Attempted: true, ReadbackRelation: operation.ReadbackContradicts}
+	if readback == nil || *readback != want {
+		t.Fatalf("steps %+v", result.CompoundExecution.Steps)
+	}
+	if len(peer.writtenFrames()) != 2 || link.calls != 2 {
+		t.Fatalf("writes %d calls %d", len(peer.writtenFrames()), link.calls)
+	}
+	assertNoExportFact(t, family)
+}
+
+func invokeExportContext(t *testing.T, ctx context.Context, family *HuaweiExport, tweak func(*driver.OperationRequest), args ...semreg.TypedField) (driver.OperationResult, error) {
+	t.Helper()
+	cut := capturedExport(t, family)
+	if len(cut.SettingRoutes) == 0 {
+		t.Fatal("no route")
+	}
+	route := cut.SettingRoutes[0]
+	snap := exportSnapshot(t, cut)
+	var revision semreg.Uint64
+	for _, capability := range snap.Capabilities {
+		if capability.InstanceID == route.Route.CapabilityInstance {
+			revision = capability.Revision
+		}
+	}
+	if revision == "" {
+		t.Fatalf("capability revision missing for %s", route.Route.CapabilityInstance)
+	}
+	request := driver.OperationRequest{
+		AssetID: snap.AssetID, BindingID: route.Route.BindingID, CapabilityInstanceID: route.Route.CapabilityInstance,
+		Operation: pvDefinition(exportOp), Arguments: args, Preconditions: []operation.Precondition{}, Timeout: 5 * time.Second,
+		ExpectedSemanticRevision: snap.Revisions.Semantic, ExpectedCapabilityRevision: snap.Revisions.Capabilities,
+		ExpectedCapabilityInstanceRevision: revision, ExpectedDriverGeneration: route.Route.DriverGeneration,
+		ExpectedSourceEpochID: route.Route.SourceEpochID,
+	}
+	if tweak != nil {
+		tweak(&request)
+	}
+	return family.session.ScopedOperations().Invoke(ctx, request)
+}
+
 func TestHuaweiExportScopePhaseBeforeSend(t *testing.T) {
 	link, peer := listenExport(t, "", map[byte][]uint16{1: emmaImage(1, 5000)}, exportModeAddress, exportPowerAddress, exportScopeAddress)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "plant", Card: "emma-v100r025c00spc102-2025-08-14", Path: "EMMA"}})
