@@ -137,6 +137,8 @@ func (p *exportPeer) word(addr, index, stored uint16) uint16 {
 		return 0
 	case p.mode == "scope-phase" && p.wrote && p.scopeAt >= 0 && addr == uint16(p.scopeAt):
 		return 1
+	case p.mode == "scope-other" && p.wrote && p.scopeAt >= 0 && addr == uint16(p.scopeAt):
+		return 2
 	default:
 		return stored
 	}
@@ -665,6 +667,109 @@ func TestHuaweiExportModeMismatch(t *testing.T) {
 	}
 	if len(peer.writtenFrames()) != 2 {
 		t.Fatalf("writes %d", len(peer.writtenFrames()))
+	}
+	assertNoExportFact(t, family)
+}
+
+func TestHuaweiExportScopeOutsidePairAfterSend(t *testing.T) {
+	link, peer := listenExport(t, "scope-other", map[byte][]uint16{1: emmaImage(0, 5000)}, exportModeAddress, exportPowerAddress, exportScopeAddress)
+	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "plant", Card: "emma-v100r024c00-01-2024-07-15", Path: "EMMA"}})
+	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+	// Mode and watts match. Scope word 2 is neither total nor individual phase,
+	// so the reread is not a contradiction and confirms nothing.
+	assertExportStatus(t, result, "protocol_ack", operation.OutcomeAcknowledgedUnverified, operation.DeliverySent)
+	if result.ReadbackRelation != operation.ReadbackInconclusive || result.KernelOutcome == operation.OutcomeConflict || result.Status == "failed" || result.Status == "unknown" {
+		t.Fatalf("result %+v", result)
+	}
+	frames := peer.writtenFrames()
+	if len(frames) != 2 || link.calls != 2 {
+		t.Fatalf("writes %d calls %d", len(frames), link.calls)
+	}
+	assertScopeUnwritten(t, peer)
+	assertNoExportFact(t, family)
+}
+
+type exportCommitFailSession struct {
+	driver.Session
+	armed bool
+}
+
+func (s *exportCommitFailSession) Publisher() driver.Publisher {
+	return exportCommitFailPublisher{Publisher: s.Session.Publisher(), armed: &s.armed}
+}
+
+type exportCommitFailPublisher struct {
+	driver.Publisher
+	armed *bool
+}
+
+func (p exportCommitFailPublisher) Begin(ctx context.Context) (driver.PublicationTransaction, error) {
+	tx, err := p.Publisher.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return exportCommitFailTx{PublicationTransaction: tx, armed: p.armed}, nil
+}
+
+type exportCommitFailTx struct {
+	driver.PublicationTransaction
+	armed *bool
+}
+
+func (t exportCommitFailTx) Commit(ctx context.Context) error {
+	if t.armed != nil && *t.armed {
+		*t.armed = false
+		abortErr := t.Abort(ctx)
+		return errors.Join(errors.New("synthetic contradiction commit"), abortErr)
+	}
+	return t.PublicationTransaction.Commit(ctx)
+}
+
+func exportDispatch(family *HuaweiExport, args ...semreg.TypedField) driver.Dispatch {
+	own := family.owners[0]
+	route := own.route.Route
+	return driver.Dispatch{
+		Request: driver.OperationRequest{Arguments: args, Timeout: time.Second},
+		Route:   route,
+		Guard: operation.GuardClaims{
+			AssetID: own.asset, BindingID: route.BindingID, SourceID: route.SourceID, SourceEpochID: route.SourceEpochID,
+			DriverGeneration: route.DriverGeneration, CapabilityInstance: route.CapabilityInstance, ServiceInstance: route.ServiceInstance,
+		},
+		AdmittedAt: wallNow(time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)),
+	}
+}
+
+func TestHuaweiExportModeMismatchSnapshotCommit(t *testing.T) {
+	link, peer := listenExport(t, "mode", map[byte][]uint16{1: plantImage(5000)}, exportPlantMode, exportPlantPower, -1)
+	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "inverter", Card: "MA-V200", Path: "S-Dongle"}})
+	family.session = &exportCommitFailSession{Session: family.session, armed: true}
+	completion, err := family.Execute(context.Background(), exportDispatch(family, exportWattsArg("5", 3)))
+	if err == nil {
+		t.Fatal("commit failure returned no error")
+	}
+	if completion.Outcome != operation.OutcomeIndeterminate || completion.Acknowledgement != nil || completion.Outcome == operation.OutcomeAcknowledgedUnverified {
+		t.Fatalf("completion %+v", completion)
+	}
+	if completion.Dispatch == nil || completion.Dispatch.Delivery != operation.DeliverySent {
+		t.Fatalf("dispatch %+v", completion.Dispatch)
+	}
+	want := Evidence(operation.ContractOperationV1, kindRead, "mode=mismatch value=match")
+	if completion.Readback == nil || completion.Readback.Relation != operation.ReadbackContradicts || completion.Readback.CandidateID != "" || completion.Readback.CandidateRevision != "" || len(completion.Readback.Evidence) != 1 || completion.Readback.Evidence[0] != want {
+		t.Fatalf("readback %+v", completion.Readback)
+	}
+	found := false
+	if completion.CompoundExecution != nil {
+		for _, step := range completion.CompoundExecution.Steps {
+			if step.Point == "readback" && step.ReadbackRelation == operation.ReadbackContradicts {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("steps %+v", completion.CompoundExecution)
+	}
+	if len(peer.writtenFrames()) != 2 || link.calls != 2 {
+		t.Fatalf("writes %d calls %d", len(peer.writtenFrames()), link.calls)
 	}
 	assertNoExportFact(t, family)
 }
