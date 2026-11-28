@@ -692,16 +692,18 @@ func TestHuaweiExportScopeOutsidePairAfterSend(t *testing.T) {
 type exportCommitFailSession struct {
 	driver.Session
 	armed  bool
+	stage  bool
 	cancel context.CancelFunc
 }
 
 func (s *exportCommitFailSession) Publisher() driver.Publisher {
-	return exportCommitFailPublisher{Publisher: s.Session.Publisher(), armed: &s.armed, cancel: s.cancel}
+	return exportCommitFailPublisher{Publisher: s.Session.Publisher(), armed: &s.armed, stage: s.stage, cancel: s.cancel}
 }
 
 type exportCommitFailPublisher struct {
 	driver.Publisher
 	armed  *bool
+	stage  bool
 	cancel context.CancelFunc
 }
 
@@ -710,20 +712,34 @@ func (p exportCommitFailPublisher) Begin(ctx context.Context) (driver.Publicatio
 	if err != nil {
 		return nil, err
 	}
-	return exportCommitFailTx{PublicationTransaction: tx, armed: p.armed, cancel: p.cancel}, nil
+	return exportCommitFailTx{PublicationTransaction: tx, armed: p.armed, stage: p.stage, cancel: p.cancel}, nil
 }
 
 type exportCommitFailTx struct {
 	driver.PublicationTransaction
 	armed  *bool
+	stage  bool
 	cancel context.CancelFunc
+}
+
+// Stage cancels the operation and refuses the contradiction batch. It does not
+// abort, so a caller that leaves the transaction open is visible to the next Begin.
+func (t exportCommitFailTx) Stage(batch semreg.PublicationBatch) error {
+	if t.stage && t.armed != nil && *t.armed {
+		*t.armed = false
+		if t.cancel != nil {
+			t.cancel()
+		}
+		return errors.New("huawei export contradiction stage")
+	}
+	return t.PublicationTransaction.Stage(batch)
 }
 
 // Commit cancels the operation after the contradiction batch is staged and
 // then calls the real commit. It does not abort, so a caller that leaves the
 // transaction open is visible to the next Begin.
 func (t exportCommitFailTx) Commit(ctx context.Context) error {
-	if t.armed != nil && *t.armed {
+	if !t.stage && t.armed != nil && *t.armed {
 		*t.armed = false
 		if t.cancel != nil {
 			t.cancel()
@@ -748,18 +764,31 @@ func exportDispatch(family *HuaweiExport, args ...semreg.TypedField) driver.Disp
 }
 
 func TestHuaweiExportModeMismatchSnapshotCommit(t *testing.T) {
+	for _, stage := range []bool{false, true} {
+		name := "commit"
+		if stage {
+			name = "stage"
+		}
+		t.Run(name, func(t *testing.T) {
+			testHuaweiExportModeMismatchSnapshotRelease(t, stage)
+		})
+	}
+}
+
+func testHuaweiExportModeMismatchSnapshotRelease(t *testing.T, stage bool) {
+	t.Helper()
 	link, peer := listenExport(t, "mode", map[byte][]uint16{1: plantImage(5000)}, exportPlantMode, exportPlantPower, -1)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "inverter", Card: "MA-V200", Path: "S-Dongle"}})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	family.session = &exportCommitFailSession{Session: family.session, armed: true, cancel: cancel}
+	family.session = &exportCommitFailSession{Session: family.session, armed: true, stage: stage, cancel: cancel}
 	completion, err := family.Execute(ctx, exportDispatch(family, exportWattsArg("5", 3)))
 	if err == nil {
-		t.Fatal("commit failure returned no error")
+		t.Fatal("release failure returned no error")
 	}
 	fresh, beginErr := family.session.Publisher().Begin(context.Background())
 	if beginErr != nil {
-		t.Fatalf("begin after canceled commit: %v", beginErr)
+		t.Fatalf("begin after canceled release: %v", beginErr)
 	}
 	if abortErr := fresh.Abort(context.Background()); abortErr != nil {
 		t.Fatal(abortErr)
