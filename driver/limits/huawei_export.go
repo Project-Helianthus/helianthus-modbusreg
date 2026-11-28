@@ -337,7 +337,10 @@ func (f *HuaweiExport) laterSnapshot(ctx context.Context, asset semreg.AssetID) 
 		return semreg.Snapshot{}, errors.Join(err, tx.Abort(ctx))
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return semreg.Snapshot{}, err
+		// A canceled operation makes Commit return before the transaction is
+		// released, and Abort refuses that same context, so the release uses a
+		// context that cannot be canceled.
+		return semreg.Snapshot{}, errors.Join(err, tx.Abort(context.WithoutCancel(ctx)))
 	}
 	cut, err := f.session.SemanticInput().Capture(ctx, driver.Filter{})
 	if err != nil {

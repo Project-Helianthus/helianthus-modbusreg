@@ -691,16 +691,18 @@ func TestHuaweiExportScopeOutsidePairAfterSend(t *testing.T) {
 
 type exportCommitFailSession struct {
 	driver.Session
-	armed bool
+	armed  bool
+	cancel context.CancelFunc
 }
 
 func (s *exportCommitFailSession) Publisher() driver.Publisher {
-	return exportCommitFailPublisher{Publisher: s.Session.Publisher(), armed: &s.armed}
+	return exportCommitFailPublisher{Publisher: s.Session.Publisher(), armed: &s.armed, cancel: s.cancel}
 }
 
 type exportCommitFailPublisher struct {
 	driver.Publisher
-	armed *bool
+	armed  *bool
+	cancel context.CancelFunc
 }
 
 func (p exportCommitFailPublisher) Begin(ctx context.Context) (driver.PublicationTransaction, error) {
@@ -708,19 +710,25 @@ func (p exportCommitFailPublisher) Begin(ctx context.Context) (driver.Publicatio
 	if err != nil {
 		return nil, err
 	}
-	return exportCommitFailTx{PublicationTransaction: tx, armed: p.armed}, nil
+	return exportCommitFailTx{PublicationTransaction: tx, armed: p.armed, cancel: p.cancel}, nil
 }
 
 type exportCommitFailTx struct {
 	driver.PublicationTransaction
-	armed *bool
+	armed  *bool
+	cancel context.CancelFunc
 }
 
+// Commit cancels the operation after the contradiction batch is staged and
+// then calls the real commit. It does not abort, so a caller that leaves the
+// transaction open is visible to the next Begin.
 func (t exportCommitFailTx) Commit(ctx context.Context) error {
 	if t.armed != nil && *t.armed {
 		*t.armed = false
-		abortErr := t.Abort(ctx)
-		return errors.Join(errors.New("synthetic contradiction commit"), abortErr)
+		if t.cancel != nil {
+			t.cancel()
+		}
+		return t.PublicationTransaction.Commit(ctx)
 	}
 	return t.PublicationTransaction.Commit(ctx)
 }
@@ -742,10 +750,19 @@ func exportDispatch(family *HuaweiExport, args ...semreg.TypedField) driver.Disp
 func TestHuaweiExportModeMismatchSnapshotCommit(t *testing.T) {
 	link, peer := listenExport(t, "mode", map[byte][]uint16{1: plantImage(5000)}, exportPlantMode, exportPlantPower, -1)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "inverter", Card: "MA-V200", Path: "S-Dongle"}})
-	family.session = &exportCommitFailSession{Session: family.session, armed: true}
-	completion, err := family.Execute(context.Background(), exportDispatch(family, exportWattsArg("5", 3)))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	family.session = &exportCommitFailSession{Session: family.session, armed: true, cancel: cancel}
+	completion, err := family.Execute(ctx, exportDispatch(family, exportWattsArg("5", 3)))
 	if err == nil {
 		t.Fatal("commit failure returned no error")
+	}
+	fresh, beginErr := family.session.Publisher().Begin(context.Background())
+	if beginErr != nil {
+		t.Fatalf("begin after canceled commit: %v", beginErr)
+	}
+	if abortErr := fresh.Abort(context.Background()); abortErr != nil {
+		t.Fatal(abortErr)
 	}
 	if completion.Outcome != operation.OutcomeIndeterminate || completion.Acknowledgement != nil || completion.Outcome == operation.OutcomeAcknowledgedUnverified {
 		t.Fatalf("completion %+v", completion)
