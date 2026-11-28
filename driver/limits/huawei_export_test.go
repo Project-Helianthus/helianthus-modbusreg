@@ -383,7 +383,7 @@ func exportSnapshot(t *testing.T, cut driver.SemanticCut) semreg.Snapshot {
 	return *found
 }
 
-func invokeExport(t *testing.T, family *HuaweiExport, tweak func(*driver.OperationRequest), args ...semreg.TypedField) driver.OperationResult {
+func invokeExport(t *testing.T, ctx context.Context, family *HuaweiExport, tweak func(*driver.OperationRequest), args ...semreg.TypedField) driver.OperationResult {
 	t.Helper()
 	cut := capturedExport(t, family)
 	if len(cut.SettingRoutes) == 0 {
@@ -410,7 +410,7 @@ func invokeExport(t *testing.T, family *HuaweiExport, tweak func(*driver.Operati
 	if tweak != nil {
 		tweak(&request)
 	}
-	result, err := family.session.ScopedOperations().Invoke(context.Background(), request)
+	result, err := family.session.ScopedOperations().Invoke(ctx, request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -570,7 +570,7 @@ func TestHuaweiExportUnboundHasNoRoute(t *testing.T) {
 func TestHuaweiExportEmmaConfirmsTotal(t *testing.T) {
 	link, peer := listenExport(t, "", map[byte][]uint16{1: emmaImage(0, 5000)}, exportModeAddress, exportPowerAddress, exportScopeAddress)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "plant", Card: "emma-v100r024c00-01-2024-07-15", Path: "SmartLogger"}})
-	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+	result := invokeExport(t, context.Background(), family, nil, exportWattsArg("5", 3))
 	assertExportStatus(t, result, "readback_confirmed", operation.OutcomeApplied, operation.DeliverySent)
 	if result.ReadbackRelation != operation.ReadbackConfirms {
 		t.Fatalf("relation %s", result.ReadbackRelation)
@@ -611,7 +611,7 @@ func TestHuaweiExportInverterConfirms(t *testing.T) {
 			if limits.Min.Number.Coefficient != "-1" || limits.Min.Number.Exponent10 != 6 {
 				t.Fatalf("lower %#v", limits.Min.Number)
 			}
-			result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+			result := invokeExport(t, context.Background(), family, nil, exportWattsArg("5", 3))
 			assertExportStatus(t, result, "readback_confirmed", operation.OutcomeApplied, operation.DeliverySent)
 			frames := peer.writtenFrames()
 			if len(frames) != 2 || link.calls != 2 {
@@ -641,7 +641,7 @@ func TestHuaweiExportValueMismatch(t *testing.T) {
 		t.Run(card, func(t *testing.T) {
 			link, peer := listenExport(t, "conflict", map[byte][]uint16{1: plantImage(5000)}, exportPlantMode, exportPlantPower, -1)
 			family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "inverter", Card: card, Path: "EMMA"}})
-			result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+			result := invokeExport(t, context.Background(), family, nil, exportWattsArg("5", 3))
 			assertExportStatus(t, result, "failed", operation.OutcomeConflict, operation.DeliverySent)
 			if result.ReadbackRelation != operation.ReadbackContradicts || result.Status == "readback_confirmed" {
 				t.Fatalf("result %+v", result)
@@ -657,7 +657,7 @@ func TestHuaweiExportValueMismatch(t *testing.T) {
 func TestHuaweiExportModeMismatch(t *testing.T) {
 	link, peer := listenExport(t, "mode", map[byte][]uint16{1: plantImage(5000)}, exportPlantMode, exportPlantPower, -1)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "inverter", Card: "MA-V200", Path: "S-Dongle"}})
-	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+	result := invokeExport(t, context.Background(), family, nil, exportWattsArg("5", 3))
 	// The power row equals the request, so no second watts reading exists and no
 	// pv.limit.export_power candidate is stored. The contradicting mode read is
 	// still conflict.
@@ -674,7 +674,7 @@ func TestHuaweiExportModeMismatch(t *testing.T) {
 func TestHuaweiExportScopeOutsidePairAfterSend(t *testing.T) {
 	link, peer := listenExport(t, "scope-other", map[byte][]uint16{1: emmaImage(0, 5000)}, exportModeAddress, exportPowerAddress, exportScopeAddress)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "plant", Card: "emma-v100r024c00-01-2024-07-15", Path: "EMMA"}})
-	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+	result := invokeExport(t, context.Background(), family, nil, exportWattsArg("5", 3))
 	// Mode and watts match. Scope word 2 is neither total nor individual phase,
 	// so the reread is not a contradiction and confirms nothing.
 	assertExportStatus(t, result, "protocol_ack", operation.OutcomeAcknowledgedUnverified, operation.DeliverySent)
@@ -820,10 +820,54 @@ func testHuaweiExportModeMismatchSnapshotRelease(t *testing.T, stage bool) {
 	assertNoExportFact(t, family)
 }
 
+func TestHuaweiExportModeMismatchPublicationThroughRouter(t *testing.T) {
+	// false: the commit fails. true: staging the later snapshot fails.
+	testHuaweiExportModeMismatchPublicationThroughRouter(t, false)
+	testHuaweiExportModeMismatchPublicationThroughRouter(t, true)
+}
+
+// testHuaweiExportModeMismatchPublicationThroughRouter dispatches through the
+// pinned router. The mode reread contradicts and the power row matches, so the
+// contradiction has no candidate. Publication of the later snapshot then fails.
+// The router drops that error. Without the snapshot the kernel cannot record
+// conflict, so the top-level result stays unknown, indeterminate, sent, with
+// an inconclusive relation. The compound readback step keeps the contradiction.
+func testHuaweiExportModeMismatchPublicationThroughRouter(t *testing.T, stage bool) {
+	t.Helper()
+	link, peer := listenExport(t, "mode", map[byte][]uint16{1: plantImage(5000)}, exportPlantMode, exportPlantPower, -1)
+	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "inverter", Card: "MA-V200", Path: "S-Dongle"}})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	family.session = &exportCommitFailSession{Session: family.session, armed: true, stage: stage, cancel: cancel}
+	result := invokeExport(t, ctx, family, nil, exportWattsArg("5", 3))
+	assertExportStatus(t, result, "unknown", operation.OutcomeIndeterminate, operation.DeliverySent)
+	if result.ReadbackRelation != operation.ReadbackInconclusive || result.Acknowledgement != "" || result.Reason != "" || result.Status == "failed" || result.Status == "protocol_ack" || result.KernelOutcome == operation.OutcomeConflict || result.KernelOutcome == operation.OutcomeAcknowledgedUnverified || result.KernelOutcome == operation.OutcomeApplied {
+		t.Fatalf("stage %v result %+v", stage, result)
+	}
+	if result.CompoundExecution == nil {
+		t.Fatalf("stage %v compound execution missing", stage)
+	}
+	var readback *driver.CompoundStep
+	for i := range result.CompoundExecution.Steps {
+		step := &result.CompoundExecution.Steps[i]
+		if step.Point == "readback" {
+			readback = step
+		}
+	}
+	want := driver.CompoundStep{Point: "readback", Attempted: true, ReadbackRelation: operation.ReadbackContradicts}
+	if readback == nil || *readback != want {
+		t.Fatalf("stage %v steps %+v", stage, result.CompoundExecution.Steps)
+	}
+	if len(peer.writtenFrames()) != 2 || link.calls != 2 {
+		t.Fatalf("stage %v writes %d calls %d", stage, len(peer.writtenFrames()), link.calls)
+	}
+	assertNoExportFact(t, family)
+}
+
 func TestHuaweiExportScopePhaseBeforeSend(t *testing.T) {
 	link, peer := listenExport(t, "", map[byte][]uint16{1: emmaImage(1, 5000)}, exportModeAddress, exportPowerAddress, exportScopeAddress)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "plant", Card: "emma-v100r025c00spc102-2025-08-14", Path: "EMMA"}})
-	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+	result := invokeExport(t, context.Background(), family, nil, exportWattsArg("5", 3))
 	assertExportStatus(t, result, "failed", operation.OutcomeFailedNoContact, operation.DeliveryNotSent)
 	if result.Reason != "semantic.operation.reason.no_contact" || result.KernelOutcome == operation.OutcomeRejected {
 		t.Fatalf("result %+v", result)
@@ -844,7 +888,7 @@ func TestHuaweiExportScopePhaseBeforeSend(t *testing.T) {
 func TestHuaweiExportScopePhaseAfterSend(t *testing.T) {
 	link, peer := listenExport(t, "scope-phase", map[byte][]uint16{1: emmaImage(0, 5000)}, exportModeAddress, exportPowerAddress, exportScopeAddress)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "plant", Card: "emma-v100r024c00-01-2024-07-15", Path: "EMMA"}})
-	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+	result := invokeExport(t, context.Background(), family, nil, exportWattsArg("5", 3))
 	// The power row equals the request, so no pv.limit.export_power candidate is
 	// stored. The contradicting scope read is still conflict.
 	assertExportStatus(t, result, "failed", operation.OutcomeConflict, operation.DeliverySent)
@@ -862,7 +906,7 @@ func TestHuaweiExportScopePhaseAfterSend(t *testing.T) {
 func TestHuaweiExportScopeRereadDropped(t *testing.T) {
 	link, peer := listenExport(t, "scope-drop", map[byte][]uint16{1: emmaImage(0, 5000)}, exportModeAddress, exportPowerAddress, exportScopeAddress)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "plant", Card: "emma-v100r025c00spc102-2025-08-14", Path: "EMMA"}})
-	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+	result := invokeExport(t, context.Background(), family, nil, exportWattsArg("5", 3))
 	assertExportStatus(t, result, "protocol_ack", operation.OutcomeAcknowledgedUnverified, operation.DeliverySent)
 	if result.ReadbackRelation != operation.ReadbackInconclusive || result.Status == "readback_confirmed" || result.KernelOutcome == operation.OutcomeApplied {
 		t.Fatalf("result %+v", result)
@@ -876,7 +920,7 @@ func TestHuaweiExportScopeRereadDropped(t *testing.T) {
 func TestHuaweiExportPartialSend(t *testing.T) {
 	link, peer := listenExport(t, "second-fail", map[byte][]uint16{1: emmaImage(0, 5000)}, exportModeAddress, exportPowerAddress, exportScopeAddress)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "plant", Card: "emma-v100r024c00-01-2024-07-15", Path: "EMMA"}})
-	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+	result := invokeExport(t, context.Background(), family, nil, exportWattsArg("5", 3))
 	assertExportStatus(t, result, "unknown", operation.OutcomeIndeterminate, operation.DeliverySent)
 	if result.KernelOutcome == operation.OutcomeAcknowledgedUnverified || result.Status == "protocol_ack" || result.KernelOutcome == operation.OutcomeFailedNoContact {
 		t.Fatalf("result %+v", result)
@@ -898,7 +942,7 @@ func TestHuaweiExportPartialSend(t *testing.T) {
 func TestHuaweiExportLostFirstWrite(t *testing.T) {
 	link, peer := listenExport(t, "drop", map[byte][]uint16{1: plantImage(5000)}, exportPlantMode, exportPlantPower, -1)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "inverter", Card: "MC", Path: "S-Dongle"}})
-	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+	result := invokeExport(t, context.Background(), family, nil, exportWattsArg("5", 3))
 	assertExportStatus(t, result, "unknown", operation.OutcomeIndeterminate, operation.DeliveryUnknown)
 	if result.Status == "readback_confirmed" || result.KernelOutcome == operation.OutcomeApplied {
 		t.Fatalf("result %+v", result)
@@ -916,7 +960,7 @@ func TestHuaweiExportLostFirstWrite(t *testing.T) {
 func TestHuaweiExportException(t *testing.T) {
 	link, peer := listenExport(t, "exception", map[byte][]uint16{1: plantImage(5000)}, exportPlantMode, exportPlantPower, -1)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "inverter", Card: "MA-V200", Path: "SmartLogger"}})
-	result := invokeExport(t, family, nil, exportWattsArg("5", 3))
+	result := invokeExport(t, context.Background(), family, nil, exportWattsArg("5", 3))
 	assertExportStatus(t, result, "failed", operation.OutcomeNoEffect, operation.DeliverySent)
 	if result.Acknowledgement != operation.AckRejected || result.Status == "readback_confirmed" {
 		t.Fatalf("result %+v", result)
@@ -929,18 +973,18 @@ func TestHuaweiExportException(t *testing.T) {
 func TestHuaweiExportGuardAndRange(t *testing.T) {
 	link, peer := listenExport(t, "", map[byte][]uint16{1: emmaImage(0, 0)}, exportModeAddress, exportPowerAddress, exportScopeAddress)
 	family := openExport(t, link, []ExportSystem{{Unit: 1, Label: "plant", Card: "emma-v100r025c00spc102-2025-08-14", Path: "EMMA"}})
-	stale := invokeExport(t, family, func(req *driver.OperationRequest) { req.ExpectedDriverGeneration = "99" }, exportWattsArg("5", 3))
+	stale := invokeExport(t, context.Background(), family, func(req *driver.OperationRequest) { req.ExpectedDriverGeneration = "99" }, exportWattsArg("5", 3))
 	assertExportStatus(t, stale, "failed", operation.OutcomeRejected, operation.DeliveryNotSent)
 	if stale.Reason != "semantic.operation.reason.admission:stale_driver_generation" {
 		t.Fatalf("guard %+v", stale)
 	}
 	assertNoExportWrites(t, link, peer)
-	negative := invokeExport(t, family, nil, exportWattsArg("-1", 0))
+	negative := invokeExport(t, context.Background(), family, nil, exportWattsArg("-1", 0))
 	assertExportStatus(t, negative, "failed", operation.OutcomeRejected, operation.DeliveryNotSent)
 	if negative.Reason != "semantic.operation.reason.admission:bounds_exceeded" {
 		t.Fatalf("negative %+v", negative)
 	}
-	over := invokeExport(t, family, nil, exportWattsArg("1", 8))
+	over := invokeExport(t, context.Background(), family, nil, exportWattsArg("1", 8))
 	assertExportStatus(t, over, "failed", operation.OutcomeRejected, operation.DeliveryNotSent)
 	if over.Reason != "semantic.operation.reason.admission:bounds_exceeded" {
 		t.Fatalf("over %+v", over)
